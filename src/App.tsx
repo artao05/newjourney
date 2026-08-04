@@ -17,9 +17,10 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
 import type { WindEstimate } from '@/lib/types'
+import { fetchPointForecast } from '@/lib/weather/openmeteo'
+import { PILOT_VENUE } from '@/data/venues'
 
-/** Newport, RI — a defensible default for a sailing app, and it has real charts. */
-const DEFAULT_ORIGIN = { lat: 41.4801, lon: -71.3128 }
+const FORECAST_REFRESH_MS = 15 * 60_000
 
 /**
  * The map is by far the heaviest thing we ship (MapLibre is ~800 kB), and the
@@ -40,15 +41,23 @@ export function App() {
   const polarId = useStore((s) => s.polarId)
   const setPolar = useStore((s) => s.setPolar)
   const manualWind = useStore((s) => s.manualWind)
+  const windMode = useStore((s) => s.windMode)
+  const wind = useStore((s) => s.wind)
+  const windError = useStore((s) => s.windError)
   const setWind = useStore((s) => s.setWind)
+  const setWindError = useStore((s) => s.setWindError)
   const pushWind = useStore((s) => s.pushWind)
   const setCurrent = useStore((s) => s.setCurrent)
   const recording = useStore((s) => s.recording)
   const toggleRecording = useStore((s) => s.toggleRecording)
   const pushTrack = useStore((s) => s.pushTrack)
+  // Avoid creating a new forecast request for every GPS fix. A 0.01° cell is
+  // comfortably finer than the source model yet stable while the boat is moving.
+  const forecastLat = Math.round((state?.position.lat ?? PILOT_VENUE.center.lat) * 100) / 100
+  const forecastLon = Math.round((state?.position.lon ?? PILOT_VENUE.center.lon) * 100) / 100
 
   useGeolocation(!settings.simulate)
-  useSimulation(settings.simulate, DEFAULT_ORIGIN)
+  useSimulation(settings.simulate, PILOT_VENUE.center)
   useWakeLock(settings.keepAwake)
   const now = useTick(1)
 
@@ -59,8 +68,10 @@ export function App() {
     if (entry) setPolar(entry.id, entry.polar)
   }, [polar, polarId, setPolar])
 
-  // Resolve the wind estimate. Manual is the honest default with no instrument.
+  // Manual is the honest default with no instrument. Do not overwrite a selected
+  // forecast every second — that was making the Forecast switch a cosmetic control.
   useEffect(() => {
+    if (windMode !== 'manual') return
     const w: WindEstimate = {
       twd: manualWind.twd,
       tws: manualWind.tws,
@@ -69,8 +80,50 @@ export function App() {
       t: now,
     }
     setWind(w)
+    setWindError(null)
     pushWind({ t: now, twd: w.twd, tws: w.tws })
-  }, [manualWind.twd, manualWind.tws, now, setWind, pushWind])
+  }, [manualWind.twd, manualWind.tws, now, windMode, setWind, setWindError, pushWind])
+
+  // A point forecast is useful for tactics but never substitutes for the route's
+  // gridded field. Refresh deliberately and retain the previous estimate if the
+  // network drops, rather than changing the displayed wind source silently.
+  useEffect(() => {
+    if (windMode !== 'forecast') return
+    const at = { lat: forecastLat, lon: forecastLon }
+    const controller = new AbortController()
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const forecast = await fetchPointForecast({ ...at, hours: 6, signal: controller.signal })
+        if (cancelled || forecast.t.length === 0) return
+        let best = 0
+        for (let i = 1; i < forecast.t.length; i++) {
+          if (Math.abs(forecast.t[i] - Date.now()) < Math.abs(forecast.t[best] - Date.now())) best = i
+        }
+        const w: WindEstimate = {
+          twd: forecast.twd[best],
+          tws: forecast.tws[best],
+          source: 'forecast',
+          uncertaintyDeg: 18,
+          t: Date.now(),
+        }
+        setWind(w)
+        setWindError(null)
+        pushWind({ t: w.t, twd: w.twd, tws: w.tws })
+      } catch (e) {
+        if (!cancelled && !(e instanceof DOMException && e.name === 'AbortError')) {
+          setWindError('Forecast unavailable — showing the last wind estimate.')
+        }
+      }
+    }
+    void refresh()
+    const timer = window.setInterval(() => void refresh(), FORECAST_REFRESH_MS)
+    return () => {
+      cancelled = true
+      controller.abort()
+      window.clearInterval(timer)
+    }
+  }, [windMode, forecastLat, forecastLon, setWind, setWindError, pushWind])
 
   // Estimated set & drift, gated on rate of turn — see navigation-math.md §5.
   useEffect(() => {
@@ -118,7 +171,7 @@ export function App() {
         </span>
         <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="chip">
-            {manualWind.twd.toFixed(0)}° · {manualWind.tws.toFixed(0)} kn
+            {wind ? `${wind.twd.toFixed(0)}° · ${wind.tws.toFixed(0)} kn` : 'wind unavailable'}
           </span>
           <button
             className={`chip ${recording ? 'chip--bad' : ''}`}
@@ -135,6 +188,11 @@ export function App() {
         <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
           {gpsError} — turn on <b>Simulate a boat</b> in Setup to try the app
           without a GPS fix.
+        </div>
+      )}
+      {windError && (
+        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+          {windError}
         </div>
       )}
 

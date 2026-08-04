@@ -11,6 +11,7 @@ import { useStore } from '@/state/store'
 import { POLAR_LIBRARY, findPolar } from '@/data/polars'
 import { buildLattice, parsePolar, validatePolar } from '@/lib/polar'
 import { PolarPlot } from '@/components/PolarPlot'
+import { PILOT_VENUE } from '@/data/venues'
 
 export function SetupScreen() {
   const boat = useStore((s) => s.boat)
@@ -57,6 +58,23 @@ export function SetupScreen() {
   return (
     <div className="screen">
       <div className="panel">
+        <h2>Pilot venue</h2>
+        <div className="rows">
+          <div className="row">
+            <span>Area</span>
+            <span>{PILOT_VENUE.name}</span>
+          </div>
+          <div className="row">
+            <span>Tide station</span>
+            <span>{PILOT_VENUE.tideStations[0].id} · {PILOT_VENUE.tideStations[0].name}</span>
+          </div>
+        </div>
+        <p className="note">
+          Portland &amp; Casco Bay is the MVP pilot. Forecast, chart, tide/current,
+          observation, coastline, and bathymetry sources are tracked in the venue
+          manifest; the app remains advisory only.
+        </p>
+
         <h2>Boat</h2>
         <div className="field">
           <label>Name</label>
@@ -218,8 +236,10 @@ export function SetupScreen() {
         </div>
         <p className="note">
           With no wind instrument, manual is usually the honest answer: luff head
-          to wind once, read your heading, type it in. The app shows the wind
-          source on every screen so you always know what the numbers rest on.
+          to wind once, read your heading, type it in. Forecast uses the current
+          GPS position (or Portland when no fix exists) and refreshes every 15 minutes.
+          The app shows the wind source on every screen so you always know what the
+          numbers rest on.
         </p>
 
         <h2>Session</h2>

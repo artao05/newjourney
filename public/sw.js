@@ -7,7 +7,7 @@
  * exactly the failure this project is trying to avoid.
  */
 
-const VERSION = 'nj-v1'
+const VERSION = 'nj-portland-v1'
 const SHELL = `${VERSION}-shell`
 const TILES = `${VERSION}-tiles`
 const TILE_LIMIT = 1200

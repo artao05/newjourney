@@ -7,7 +7,7 @@ tactical software stack (Expedition and its peers) with something a 16-year-old 
 420 or a first-time offshore navigator on a J/105 can open on a phone and understand
 in five minutes — built entirely on public data.
 
-> **Status: working prototype on branch `MVP1`.** `main` holds the research and
+> **Status: working prototype on branch `MVP1`, piloting Portland & Casco Bay, Maine.** `main` holds the research and
 > specification work; `MVP1` adds a running React PWA with the start-line tools,
 > tactical numbers, and an isochrone weather router. See [RUNNING.md](RUNNING.md)
 > to try it — including a boat simulator so you can use the whole app from a desk.
@@ -50,6 +50,7 @@ and a wet pocket.
 |---|---|
 | `src/lib/angles.ts`, `src/lib/geo.ts` | Angle discipline and spherical geodesy |
 | `src/lib/polar.ts`, `src/data/polars.ts` | Polar parsing/interpolation, derived targets, class library |
+| `src/data/venues.ts` | Pilot-venue identity, extent, public source IDs, and provenance links |
 | `src/lib/wind.ts` | Wind triangle, leeway, set & drift, ground-vs-true wind |
 | `src/lib/startline.ts` | Bias, distance below line, time to line and time to burn |
 | `src/lib/tactics.ts` | Laylines, VMG/VMC, beat split, time to mark |
@@ -57,6 +58,9 @@ and a wet pocket.
 | `src/lib/routing/` | Isochrone kernel, land mask, Web Worker |
 | `src/lib/sim.ts` | Synthetic boat, so the app is usable from a desk |
 | `src/screens/`, `src/components/` | The four screens and the start display |
+
+The Portland pilot’s source inventory, station IDs, current-model precedence, and
+venue-pack build order live in [docs/02-data-sources/portland-maine-pilot.md](docs/02-data-sources/portland-maine-pilot.md).
 
 ## Reading order
 

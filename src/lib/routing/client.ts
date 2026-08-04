@@ -68,14 +68,12 @@ export class RoutingClient {
         landData: payload.land,
         landCellDeg: payload.landCellDeg,
       }
-      // Hand the cube's buffers over rather than structured-cloning them: an
-      // ocean box is a few hundred kilobytes and this is on the interaction path.
-      const transfer: ArrayBuffer[] = []
-      for (const key of Object.keys(payload.cube.data)) {
-        const arr = payload.cube.data[key]
-        if (arr && arr.buffer instanceof ArrayBuffer) transfer.push(arr.buffer)
-      }
-      worker.postMessage(msg, transfer)
+      // Keep the UI's cube intact. Transferring these buffers detaches the typed
+      // arrays on the main thread, so a second route or the wind overlay sees an
+      // empty forecast. The pilot cubes are small enough that cloning is the
+      // right correctness trade-off; a future persisted cube cache can give the
+      // worker its own transferable copy.
+      worker.postMessage(msg)
     })
   }
 

@@ -93,6 +93,8 @@ const MAX_STEP_S = 21_600
 const MIN_COS_LAT = 0.02
 /** Extra steps run after the first finish candidate, hunting a cheaper one. */
 const FINISH_GRACE_STEPS = 2
+/** Steps at full cone width without closing on the mark before we give up. */
+const MAX_STALLED_STEPS = 40
 const MAX_ISOCHRONES = 120
 const MAX_ISOCHRONE_POINTS = 240
 
@@ -261,16 +263,28 @@ function bi(
   return src[b] * w00 + src[b + sx] * w10 + src[b + sy] * w01 + src[b + sx + sy] * w11
 }
 
-/** Grid dimensions chosen against a sample budget, respecting the bbox aspect. */
+/**
+ * Grid dimensions chosen against a sample budget, respecting the bbox aspect.
+ *
+ * Also floored at `MIN_CELL_DEG`: no marine forecast resolves finer than about
+ * a hundredth of a degree, so resampling one onto a finer grid buys nothing but
+ * provider calls and memory. That floor is what keeps a two-mile buoy leg from
+ * hydrating the same number of cells as an ocean crossing.
+ */
+const MIN_CELL_DEG = 0.01
+
 function gridDims(bbox: BBox, budget: number, nt: number): { nx: number; ny: number } {
   const midLat = (bbox.north + bbox.south) / 2
-  const spanLon = Math.max(1e-6, (bbox.east - bbox.west) * Math.cos(midLat * DEG))
-  const spanLat = Math.max(1e-6, bbox.north - bbox.south)
+  const spanLonDeg = Math.max(1e-6, bbox.east - bbox.west)
+  const spanLatDeg = Math.max(1e-6, bbox.north - bbox.south)
+  const spanLon = spanLonDeg * Math.max(0.05, Math.cos(midLat * DEG))
   const perSlice = Math.max(64, Math.floor(budget / Math.max(1, nt)))
-  const aspect = spanLon / spanLat
+  const aspect = spanLon / spanLatDeg
+  const capX = Math.ceil(spanLonDeg / MIN_CELL_DEG) + 1
+  const capY = Math.ceil(spanLatDeg / MIN_CELL_DEG) + 1
   return {
-    nx: Math.round(clamp(Math.round(Math.sqrt(perSlice * aspect)), 4, 96)),
-    ny: Math.round(clamp(Math.round(Math.sqrt(perSlice / aspect)), 4, 96)),
+    nx: Math.round(clamp(Math.round(Math.sqrt(perSlice * aspect)), 4, Math.min(96, capX))),
+    ny: Math.round(clamp(Math.round(Math.sqrt(perSlice / aspect)), 4, Math.min(96, capY))),
   }
 }
 
@@ -467,29 +481,40 @@ interface Preset {
   minStepS: number
   hydrationBudget: number
   maxNodes: number
+  /**
+   * Frontier budget. §4.2 calls bucket resolution "the critical tuning knob" —
+   * too coarse merges the left and right side of the course, too fine and the
+   * frontier explodes. The doc gives the size (one step of travel over 3–5);
+   * this is the other end of the same trade-off, the point past which we take
+   * the coarser bucket rather than the longer run.
+   */
+  maxFrontier: number
 }
 
 const PRESETS: Record<RouteResolution, Preset> = {
   fast: {
     fanStepDeg: 12,
-    targetSteps: 40,
-    minStepS: 120,
+    targetSteps: 30,
+    minStepS: 300,
     hydrationBudget: 80_000,
     maxNodes: 400_000,
+    maxFrontier: 1200,
   },
   balanced: {
     fanStepDeg: 8,
-    targetSteps: 70,
-    minStepS: 60,
+    targetSteps: 50,
+    minStepS: 120,
     hydrationBudget: 200_000,
     maxNodes: 1_200_000,
+    maxFrontier: 2000,
   },
   best: {
     fanStepDeg: 5,
-    targetSteps: 110,
-    minStepS: 30,
-    hydrationBudget: 500_000,
+    targetSteps: 75,
+    minStepS: 60,
+    hydrationBudget: 400_000,
     maxNodes: 3_000_000,
+    maxFrontier: 3000,
   },
 }
 
@@ -732,6 +757,7 @@ class Search {
   private readonly polarNight: number
   private readonly fanStep: number
   private readonly maxNodes: number
+  private readonly maxFrontier: number
 
   // Scratch — allocated once, mutated forever. No garbage in the inner loop.
   private readonly s = new Float64Array(P_COUNT)
@@ -751,13 +777,24 @@ class Search {
   private readonly tgDnVmg = new Float64Array(321)
   private readonly tgReady = new Uint8Array(321)
 
-  // Open-addressed (cell, tack) bucket table for §4.2 pruning. Stamped rather
-  // than cleared, so starting a step costs nothing.
-  private hKey: Int32Array = new Int32Array(0)
-  private hVal: Int32Array = new Int32Array(0)
-  private hStamp: Int32Array = new Int32Array(0)
-  private hMask = -1
-  private stamp = 0
+  // Open-addressed (cell, tack) label table for §4.2 pruning.
+  //
+  // It persists for a whole pass, not a step, because §4.2 is explicit that
+  // this is "closer to a Dijkstra label-setting relaxation". Bucketing only
+  // within a step does not dominate anything: each step's candidates span a
+  // radial band one step thick, so the surviving set thickens by a step every
+  // step and the frontier degenerates from a curve into a filled disc — the
+  // exponential blow-up the section exists to prevent, wearing a disguise.
+  // Keeping the earliest arrival *ever seen* per bucket keeps the frontier the
+  // one-step-thick shell it is supposed to be.
+  private tKey: Int32Array = new Int32Array(0)
+  private tScore: Float64Array = new Float64Array(0)
+  private tStamp: Int32Array = new Int32Array(0)
+  private tStep: Int32Array = new Int32Array(0)
+  private tCand: Int32Array = new Int32Array(0)
+  private tMask = -1
+  private tLive = 0
+  private passStamp = 0
   private touched: Int32Array = new Int32Array(4096)
   private touchedN = 0
 
@@ -786,6 +823,7 @@ class Search {
     this.polarNight = o.scalings.polarPctNight / 100
     this.fanStep = o.preset.fanStepDeg
     this.maxNodes = o.preset.maxNodes
+    this.maxFrontier = o.preset.maxFrontier
   }
 
   // ---------------------------------------------------------------- targets
@@ -863,8 +901,7 @@ class Search {
 
   // -------------------------------------------------------------- fan (§3)
 
-  private fanPush(h: number, centre: number, half: number): void {
-    if (angsep(h, centre) > half) return
+  private fanPush(h: number): void {
     const n = this.fanN
     if (n >= this.fanHdg.length) return
     const r = h * DEG
@@ -872,6 +909,11 @@ class Search {
     this.fanSin[n] = Math.sin(r)
     this.fanCos[n] = Math.cos(r)
     this.fanN = n + 1
+  }
+
+  /** Push only if the heading is inside the cone — for the injected VMG angles. */
+  private fanPushInCone(h: number, centre: number, half: number): void {
+    if (angsep(h, centre) <= half) this.fanPush(h)
   }
 
   /**
@@ -894,47 +936,85 @@ class Search {
     this.fanN = 0
     const step = this.fanStep
     const n = Math.floor(half / step)
-    for (let k = -n; k <= n; k++) this.fanPush(wrap360(centre + k * step), centre, half)
-    this.fanPush(centre, centre, half)
-    this.fanPush(courseFor(twd, upTwa), centre, half)
-    this.fanPush(courseFor(twd, -upTwa), centre, half)
-    this.fanPush(courseFor(twd, dnTwa), centre, half)
-    this.fanPush(courseFor(twd, -dnTwa), centre, half)
+    // k = 0 is `centre` exactly, which in the forward pass is the bearing to
+    // the goal — the heading the implicit-tacking substitution needs in order
+    // to make good straight at the mark.
+    for (let k = -n; k <= n; k++) {
+      let h = centre + k * step
+      if (h >= 360) h -= 360
+      else if (h < 0) h += 360
+      this.fanPush(h)
+    }
+    this.fanPushInCone(courseFor(twd, upTwa), centre, half)
+    this.fanPushInCone(courseFor(twd, -upTwa), centre, half)
+    this.fanPushInCone(courseFor(twd, dnTwa), centre, half)
+    this.fanPushInCone(courseFor(twd, -dnTwa), centre, half)
   }
 
-  // ------------------------------------------------------------ hash table
+  // ----------------------------------------------------------- label table
 
-  private ensureHash(slots: number): void {
-    let cap = this.hMask + 1
-    if (cap < 1024) cap = 1024
-    while (cap < slots * 2) cap *= 2
-    if (cap === this.hMask + 1) return
-    this.hKey = new Int32Array(cap)
-    this.hVal = new Int32Array(cap)
-    this.hStamp = new Int32Array(cap)
-    this.hMask = cap - 1
-    // Fresh stamps array is all zero; the caller increments before use so the
-    // first live stamp is 1 and nothing reads as pre-occupied.
-    this.stamp = 0
+  /** Start a new pass: every slot from the previous one becomes dead. */
+  private resetLabels(): void {
+    this.passStamp++
+    this.tLive = 0
+    if (this.tMask < 0) this.growLabels(4096)
   }
 
-  /** Slot for `key` under the current stamp, inserting `-1` if it is fresh. */
-  private slotFor(key: number): number {
-    let i = Math.imul(key, 2654435761) >>> 0
-    i &= this.hMask
+  /**
+   * Make room for `extra` more distinct buckets. Called at the top of a step,
+   * before anything is `touched`, so rehashing cannot invalidate slot indices
+   * held by the caller.
+   */
+  private ensureLabels(extra: number): void {
+    let cap = this.tMask + 1
+    const need = (this.tLive + extra) * 3
+    while (cap < need) cap *= 2
+    if (cap !== this.tMask + 1) this.growLabels(cap)
+  }
+
+  private growLabels(cap: number): void {
+    const oldKey = this.tKey
+    const oldScore = this.tScore
+    const oldStamp = this.tStamp
+    const oldCap = this.tMask + 1
+    this.tKey = new Int32Array(cap)
+    this.tScore = new Float64Array(cap)
+    this.tStamp = new Int32Array(cap)
+    this.tStep = new Int32Array(cap)
+    this.tCand = new Int32Array(cap)
+    this.tMask = cap - 1
+    const stamp = this.passStamp
+    let live = 0
+    for (let i = 0; i < oldCap; i++) {
+      if (oldStamp[i] !== stamp) continue
+      const key = oldKey[i]
+      let j = (Math.imul(key, 2654435761) >>> 0) & this.tMask
+      while (this.tStamp[j] === stamp) j = (j + 1) & this.tMask
+      this.tStamp[j] = stamp
+      this.tKey[j] = key
+      this.tScore[j] = oldScore[i]
+      this.tStep[j] = -1
+      this.tCand[j] = -1
+      live++
+    }
+    this.tLive = live
+  }
+
+  /** Slot for `key`, freshly initialised to "never reached" if it is new. */
+  private labelSlot(key: number): number {
+    let i = (Math.imul(key, 2654435761) >>> 0) & this.tMask
     for (;;) {
-      if (this.hStamp[i] !== this.stamp) {
-        this.hStamp[i] = this.stamp
-        this.hKey[i] = key
-        this.hVal[i] = -1
-        if (this.touchedN >= this.touched.length) {
-          this.touched = growI32(this.touched, this.touched.length * 2, this.touchedN)
-        }
-        this.touched[this.touchedN++] = i
+      if (this.tStamp[i] !== this.passStamp) {
+        this.tStamp[i] = this.passStamp
+        this.tKey[i] = key
+        this.tScore[i] = Infinity
+        this.tStep[i] = -1
+        this.tCand[i] = -1
+        this.tLive++
         return i
       }
-      if (this.hKey[i] === key) return i
-      i = (i + 1) & this.hMask
+      if (this.tKey[i] === key) return i
+      i = (i + 1) & this.tMask
     }
   }
 
@@ -1010,16 +1090,34 @@ class Search {
     let evaluated = 0
     let stopped: string | null = null
 
+    // §4.3 — key buckets on (cell, tack) only when there is a penalty to lose.
+    // With no tack or gybe cost the problem is memoryless again and the extra
+    // state just doubles the frontier for nothing. The backward pass drops the
+    // penalties by definition (§8), so it is always memoryless.
+    const useTack = isFwd && (this.tackPen > 0 || this.gybePen > 0)
+
     // §4.2: "bucket size ≈ the distance the boat travels in one time step,
     // divided by 3–5". Too coarse merges the left and right side of the course
     // into one tactical option; too fine and every branch gets its own bucket
-    // and the frontier explodes. Scaling with the step keeps it honest at every
-    // leg length, which is also the answer to Expedition's warning that too low
-    // an isochrone resolution "may yield worse results".
+    // and the frontier explodes. Scaling with the step keeps that honest at
+    // every leg length, and is also the answer to Expedition's warning that too
+    // low an isochrone resolution "may yield worse results".
+    //
+    // The floor is the same trade-off from the other end. The frontier is a
+    // 200°-wide shell one step of travel thick, so it holds roughly
+    //   3.5 · tackStates · legNm · stepTravel / bucket²
+    // nodes by the time it reaches the mark. Solving that for the preset's
+    // frontier budget gives the coarsest bucket we are willing to take rather
+    // than blow the time budget.
     const stepTravelNm = Math.max(0.01, input.typicalSpeed * dtH)
     const legNm = distance(origin, goal)
     const spanNm = legNm * 1.6 + 20
     let bucketNm = Math.max(0.005, stepTravelNm / 4)
+    const byBudget = Math.sqrt(
+      (3.5 * (useTack ? 2 : 1) * Math.max(legNm, stepTravelNm) * stepTravelNm) /
+        this.maxFrontier,
+    )
+    if (byBudget > bucketNm) bucketNm = byBudget
     if (spanNm / bucketNm > 8000) bucketNm = spanNm / 8000
     const invBucket = 1 / bucketNm
 
@@ -1036,7 +1134,12 @@ class Search {
     const frameCos = Math.cos(frameLat * DEG)
     const goalX = gGoal.x
     const goalY = gGoal.y
+    // Speed bound for the pruning heuristic below. Generous on purpose: an
+    // over-estimate keeps the bound admissible and the tie-break weak, so real
+    // time differences (tack penalties) still dominate it.
+    const vmax = Math.max(0.5, input.typicalSpeed * 2)
 
+    this.resetLabels()
     P.ensure(P.n + 1)
     const root = P.n++
     P.lat[root] = origin.lat
@@ -1060,6 +1163,7 @@ class Search {
 
     let half = 100
     let stalled = 0
+    let noProgress = 0
     let bestSq = (gOrigin.x - goalX) ** 2 + (gOrigin.y - goalY) ** 2
     let finishNode = -1
     let finishT = isFwd ? Infinity : -Infinity
@@ -1085,8 +1189,16 @@ class Search {
         f.sample(plat, plon, isFwd ? pt : pt - dtMs, s)
         const u = s[P_U]
         const v = s[P_V]
-        const tws = Math.hypot(u, v)
-        if (tws > this.maxTws) continue
+        // `Math.hypot` is correctly rounded and overflow-safe, and roughly an
+        // order of magnitude slower than the naive form. Wind speeds and step
+        // lengths are nowhere near the ranges that need either property, and
+        // this runs millions of times.
+        const tws = Math.sqrt(u * u + v * v)
+        // Constraint violations kill the node, not just one heading: if the
+        // boat cannot legally be here it cannot legally leave here either.
+        // (A calm below `minTws` is the same — sitting it out would need a
+        // time-expanded state space, which is a v2 problem.)
+        if (tws > this.maxTws || tws < this.minTws) continue
         if (f.hasGust && s[P_GUST] > this.maxGust) continue
         if (f.hasWaves && s[P_WAVE] > this.maxWave) continue
         const twd = wrap360(Math.atan2(-u, -v) * RAD)
@@ -1136,36 +1248,6 @@ class Search {
           }
         }
 
-        // ---- becalmed: drift, do not die.
-        // The §2 pseudo-code skips the heading when TWS is below the minimum,
-        // which strands the frontier permanently in a hole. A becalmed boat
-        // drifts with the current and waits; emitting one hold state costs a
-        // single node and keeps the search honest about light patches.
-        if (tws < this.minTws) {
-          const dxN = cu * dtH * dir
-          const dyN = cv * dtH * dir
-          const dLat = dyN * DEG_PER_NM
-          const cosMid = Math.max(MIN_COS_LAT, cosLat - sinLat * dLat * 0.5 * DEG)
-          C.n = cn
-          C.ensure(cn + 1)
-          C.lat[cn] = plat + dLat
-          C.lon[cn] = wrap180(plon + (dxN * DEG_PER_NM) / cosMid)
-          C.t[cn] = pt + dir * dtMs
-          C.parent[cn] = ni
-          C.tack[cn] = P.tack[ni]
-          C.twa[cn] = P.twa[ni]
-          C.hdg[cn] = P.hdg[ni]
-          C.bsp[cn] = 0
-          C.twd[cn] = twd
-          C.tws[cn] = tws
-          C.beat[cn] = 0
-          C.curU[cn] = cu
-          C.curV[cn] = cv
-          C.dist[cn] = Math.hypot(dxN, dyN)
-          cn++
-          continue
-        }
-
         // ---- the heading fan
         this.buildFan(
           isFwd ? goalBrg : wrap360(goalBrg + 180),
@@ -1210,10 +1292,10 @@ class Search {
           // behaviour ("not used for reverse isochrones").
           let newTack = twa > 0 ? 1 : twa < 0 ? -1 : parentTack === 0 ? 1 : parentTack
           let pen = 0
-          if (isFwd && parentTack !== 0 && newTack !== parentTack) {
+          if (useTack && parentTack !== 0 && newTack !== parentTack) {
             pen = manoeuvre(parentTwa, twa) === 'tack' ? this.tackPen : this.gybePen
           }
-          if (!isFwd) newTack = 0
+          if (!useTack) newTack = 0
 
           C.lat[cn] = nlat
           C.lon[cn] = nlon
@@ -1228,19 +1310,19 @@ class Search {
           C.beat[cn] = this.effBeat
           C.curU[cn] = cu
           C.curV[cn] = cv
-          C.dist[cn] = Math.hypot(dxN, dyN)
+          C.dist[cn] = Math.sqrt(dxN * dxN + dyN * dyN)
           cn++
         }
       }
 
       if (cn === 0) {
-        stopped = 'no legal move from the frontier — check the wind, wave and gust limits'
+        stopped =
+          'no legal move from the frontier — every heading was blocked by land or by the wind, gust and wave limits'
         break
       }
 
       // ---------------------------------------------- §4.2 bucket pruning
-      this.ensureHash(cn)
-      this.stamp++
+      this.ensureLabels(cn)
       this.touchedN = 0
       for (let c = 0; c < cn; c++) {
         const bx = wrap180(C.lon[c] - frameLon) * DEG * frameCos * R_NM
@@ -1253,11 +1335,32 @@ class Search {
         // node that arrived on port is silently pruned by one that arrived on
         // starboard a few seconds earlier, and the tack penalty vanishes.
         const key = ((ix + 8000) * 16001 + (iy + 8000)) * 3 + (C.tack[c] + 1)
-        const slot = this.slotFor(key)
-        const cur = this.hVal[slot]
-        // Earliest arrival wins forward, latest departure wins backward. Both
-        // are "smallest dir·t", so one comparison serves both passes.
-        if (cur < 0 || C.t[c] * dir < C.t[cur] * dir) this.hVal[slot] = c
+        const slot = this.labelSlot(key)
+        // Rank by an admissible bound on *total* time, not arrival time alone.
+        //
+        // Every candidate in a step usually arrives at the same clock time, so
+        // arrival time cannot discriminate between two nodes in one bucket and
+        // an arbitrary one wins — one that can sit most of a bucket behind the
+        // best. That loss compounds once per step and shows up as a systematic
+        // few-percent overestimate of the ETA, which is exactly the kind of bug
+        // the §10 analytic cases exist to catch. Adding the remaining distance
+        // over the best speed the boat could possibly make keeps the criterion
+        // a lower bound on total time (so it is still label-setting) while
+        // breaking equal-time ties in favour of real progress.
+        const dx = bx - goalX
+        const dy = by - goalY
+        const remain = Math.sqrt(dx * dx + dy * dy)
+        const score = dir * C.t[c] + (remain / vmax) * MS_PER_HOUR
+        if (score >= this.tScore[slot]) continue
+        this.tScore[slot] = score
+        this.tCand[slot] = c
+        if (this.tStep[slot] !== k) {
+          this.tStep[slot] = k
+          if (this.touchedN >= this.touched.length) {
+            this.touched = growI32(this.touched, this.touched.length * 2, this.touchedN)
+          }
+          this.touched[this.touchedN++] = slot
+        }
       }
 
       const survivors = this.touchedN
@@ -1268,7 +1371,7 @@ class Search {
       let fn = 0
       let newBestSq = Infinity
       for (let ti = 0; ti < survivors; ti++) {
-        const c = this.hVal[this.touched[ti]]
+        const c = this.tCand[this.touched[ti]]
         if (c < 0) continue
         const pi = P.n++
         P.lat[pi] = C.lat[c]
@@ -1297,7 +1400,10 @@ class Search {
       }
       this.frontierN = fn
       if (fn === 0) {
-        stopped = 'frontier collapsed during pruning'
+        // Label-setting termination: nothing improved on anything already
+        // known, so the reachable set is closed and the goal is not in it.
+        stopped =
+          'the search exhausted every reachable position without reaching the destination'
         break
       }
       if (isochrones.length < MAX_ISOCHRONES) {
@@ -1311,13 +1417,25 @@ class Search {
       if (newBestSq < bestSq - 1e-9) {
         bestSq = newBestSq
         stalled = 0
+        noProgress = 0
         if (half > 100) half = Math.max(100, half - 20)
-      } else if (++stalled >= 2 && half < 180) {
-        half = Math.min(180, half + 20)
-        stalled = 0
+      } else {
+        noProgress++
+        if (++stalled >= 2 && half < 180) {
+          half = Math.min(180, half + 20)
+          stalled = 0
+        }
       }
 
       if (finishNode >= 0 && k - finishStep >= FINISH_GRACE_STEPS) break
+      // A frontier that has been at full cone width and no closer to the mark
+      // for this long is behind something it cannot get round. Grinding out the
+      // remaining step budget just explores the whole ocean to say so.
+      if (finishNode < 0 && noProgress >= MAX_STALLED_STEPS && half >= 180) {
+        stopped =
+          'the frontier stopped closing on the destination — something impassable is in the way'
+        break
+      }
       if (P.n > this.maxNodes) {
         stopped = 'node budget exhausted — try the "fast" resolution or a shorter leg'
         break
@@ -1566,7 +1684,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       }
       const maxSteps = Math.min(
         3000,
-        Math.ceil(legNm / Math.max(0.05, typicalSpeed * (dtS / 3600))) * 4 + 30,
+        Math.ceil(legNm / Math.max(0.05, typicalSpeed * (dtS / 3600))) * 3 + 30,
       )
       const out = search.run({
         origin: from,
@@ -1583,9 +1701,9 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       })
       passIndex++
       evaluated += out.evaluated
-      for (const iso of out.isochrones) {
-        if (isochrones.length < MAX_ISOCHRONES) isochrones.push(iso)
-      }
+      // Already capped at MAX_ISOCHRONES per pass; a multi-leg course gets that
+      // many per leg, which is what the UI wants to draw.
+      for (const iso of out.isochrones) isochrones.push(iso)
       if (!out.reached) {
         return failed(
           `leg ${li + 1} of ${req.marks.length}: ${out.stopped ?? 'no route found'}`,
@@ -1625,7 +1743,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
         if (legNm < 1e-6) continue
         const maxSteps = Math.min(
           3000,
-          Math.ceil(legNm / Math.max(0.05, typicalSpeed * (dtS / 3600))) * 4 + 30,
+          Math.ceil(legNm / Math.max(0.05, typicalSpeed * (dtS / 3600))) * 3 + 30,
         )
         const back = search.run({
           origin: legTo,
@@ -1642,9 +1760,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
         })
         passIndex++
         evaluated += back.evaluated
-        for (const iso of back.isochrones) {
-          if (reverseIsochrones.length < MAX_ISOCHRONES) reverseIsochrones.push(iso)
-        }
+        for (const iso of back.isochrones) reverseIsochrones.push(iso)
         if (!back.reached) {
           warnings.push(
             `backward pass for leg ${li + 1} did not reach its origin — the sensitivity field is partial`,

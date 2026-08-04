@@ -10,11 +10,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useStore } from '@/state/store'
-import { fetchWindCube } from '@/lib/weather/openmeteo'
+import { cubeNotes, fetchWindCube } from '@/lib/weather/openmeteo'
 import { RoutingClient } from '@/lib/routing/client'
 import { bboxOf, distance } from '@/lib/geo'
 import type { RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
 import { fmtClock } from '@/components/Tile'
+import { PILOT_VENUE } from '@/data/venues'
+
+// The map data is not yet a routing-grade coastline package. Never represent
+// an OSM basemap as an obstacle mask: land avoidance stays explicitly disabled
+// until the Portland venue pack supplies its verified vector geometry.
+const HAS_ROUTING_LAND_DATA = false
 
 /**
  * A minimal raster style. OpenSeaMap's seamark layer over an OSM basemap —
@@ -76,8 +82,8 @@ export function RouteScreen() {
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: STYLE,
-      center: [-71.32, 41.48],
-      zoom: 10,
+      center: [PILOT_VENUE.center.lon, PILOT_VENUE.center.lat],
+      zoom: PILOT_VENUE.defaultZoom,
       attributionControl: { compact: true },
     })
     map.on('load', () => {
@@ -176,19 +182,21 @@ export function RouteScreen() {
   }, [ready, route])
 
   // ------------------------------------------------------------------ actions
-  const loadWeather = useCallback(async () => {
-    if (!state) return
+  const loadWeather = useCallback(async (): Promise<WeatherCube | null> => {
+    if (!state) return null
     setBusy('Downloading forecast…')
     setRouteError(null)
     try {
       const pts = [state.position, ...course.marks.map((m) => m.position)]
-      const bbox = bboxOf(pts.length > 1 ? pts : [state.position], 60)
-      const c = await fetchWindCube({ bbox, hours: 72, includeCurrent: true })
+      const bbox = pts.length > 1 ? bboxOf(pts, 60) : PILOT_VENUE.bbox
+      const c = await fetchWindCube({ bbox, hours: 72, includeWaves: true, includeCurrent: true })
       setCube(c)
       const map = mapRef.current
       if (map && ready) setSource(map, 'wind', windFC(c))
+      return c
     } catch (e) {
       setRouteError(e instanceof Error ? e.message : 'Forecast download failed')
+      return null
     } finally {
       setBusy(null)
     }
@@ -198,8 +206,7 @@ export function RouteScreen() {
     if (!state || !polar || course.marks.length === 0) return
     let workingCube = cube
     if (!workingCube) {
-      await loadWeather()
-      workingCube = cube
+      workingCube = await loadWeather()
     }
     if (!workingCube) {
       setRouteError('No forecast loaded — tap Forecast first.')
@@ -215,7 +222,7 @@ export function RouteScreen() {
         startTime: Date.now(),
         marks: course.marks.map((m) => m.position),
         constraints: {
-          avoidLand: true,
+          avoidLand: HAS_ROUTING_LAND_DATA,
           tackPenaltyS: boat.tackPenaltyS,
           gybePenaltyS: boat.gybePenaltyS,
         },
@@ -235,6 +242,11 @@ export function RouteScreen() {
         { cube: workingCube, polar },
         (f) => setProgress(f),
       )
+      if (!HAS_ROUTING_LAND_DATA) {
+        result.diagnostics.warnings.unshift(
+          'Land avoidance is unavailable until the Portland vector coastline pack is installed. This route may cross land.',
+        )
+      }
       setRoute(result)
       if (!result.ok) setRouteError(result.error ?? 'Routing failed')
     } catch (e) {
@@ -258,6 +270,7 @@ export function RouteScreen() {
   }, [state, course.marks])
 
   const canRoute = !!state && !!polar && course.marks.length > 0 && !busy
+  const forecastNotes = useMemo(() => (cube ? cubeNotes(cube) : []), [cube])
 
   return (
     <div className="screen screen--flush" style={{ position: 'relative' }}>
@@ -269,7 +282,9 @@ export function RouteScreen() {
             <span className="dot" />
             {cube ? `${cube.model} · ${cube.nt}h` : 'no forecast'}
           </span>
+          <span className="chip">{PILOT_VENUE.name}</span>
           {legNm != null && <span className="chip">{legNm.toFixed(1)} nm rhumb</span>}
+          {!HAS_ROUTING_LAND_DATA && <span className="chip chip--warn">no routing land pack</span>}
           {busy && (
             <span className="chip chip--warn">
               <span className="spinner" /> {busy}
@@ -279,6 +294,11 @@ export function RouteScreen() {
         </div>
 
         <div>
+          {forecastNotes.map((note) => (
+            <div className="warnbox" key={note}>
+              {note}
+            </div>
+          ))}
           {routeError && <div className="errbox">{routeError}</div>}
           {route?.ok && route.legs.length > 0 && (
             <div className="legend">

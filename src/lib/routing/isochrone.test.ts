@@ -26,6 +26,7 @@ import type {
 } from '../types'
 import { defaultConstraints, defaultScalings, routeIsochrone } from './isochrone'
 import { PolygonLandMask, buildLandMask, extractPolygons } from './land'
+import type { RouteWorkerResponse } from './worker'
 
 // ------------------------------------------------------------- fake polar
 //
@@ -44,16 +45,50 @@ function shape(twaAbs: number): number {
   return rise * fall
 }
 
-function rawSpeed(tws: number, twa: number): number {
-  const a = Math.min(180, Math.abs(twa))
-  return windFactor(tws) * shape(a)
+const analyticSpeed = (tws: number, twa: number): number =>
+  windFactor(tws) * shape(Math.min(180, Math.abs(twa)))
+
+// Baked onto a regular lattice, exactly as `PolarLattice` is defined to be
+// (docs/03-algorithms/polars-and-vpp.md §1) and as a production lattice will
+// be. Keeping the fake cheap matters: an expensive `speed()` would show up in
+// the performance cases as if it were the kernel's cost.
+const TWS_STEP = 0.25
+const TWA_STEP = 0.5
+const TWS_COUNT = Math.round(40 / TWS_STEP) + 1
+const TWA_COUNT = Math.round(180 / TWA_STEP) + 1
+const GRID = new Float32Array(TWS_COUNT * TWA_COUNT)
+for (let i = 0; i < TWS_COUNT; i++) {
+  for (let j = 0; j < TWA_COUNT; j++) {
+    GRID[i * TWA_COUNT + j] = analyticSpeed(i * TWS_STEP, j * TWA_STEP)
+  }
 }
 
+function latticeSpeed(tws: number, twa: number): number {
+  let a = Math.abs(twa)
+  if (a > 180) a = 180
+  let fs = tws / TWS_STEP
+  if (fs < 0) fs = 0
+  else if (fs > TWS_COUNT - 1) fs = TWS_COUNT - 1
+  const fa = a / TWA_STEP
+  let i = fs | 0
+  if (i > TWS_COUNT - 2) i = TWS_COUNT - 2
+  let j = fa | 0
+  if (j > TWA_COUNT - 2) j = TWA_COUNT - 2
+  const u = fs - i
+  const v = fa - j
+  const b = i * TWA_COUNT + j
+  return (
+    (1 - u) * ((1 - v) * GRID[b] + v * GRID[b + 1]) +
+    u * ((1 - v) * GRID[b + TWA_COUNT] + v * GRID[b + TWA_COUNT + 1])
+  )
+}
+
+/** Targets found by maximising VMG on the lattice, so they can never disagree. */
 function computeTargets(tws: number): Targets {
   let upTwa = 45
   let upVmg = -Infinity
   for (let a = 0.05; a <= 90; a += 0.02) {
-    const vmg = rawSpeed(tws, a) * Math.cos(a * DEG)
+    const vmg = latticeSpeed(tws, a) * Math.cos(a * DEG)
     if (vmg > upVmg) {
       upVmg = vmg
       upTwa = a
@@ -62,7 +97,7 @@ function computeTargets(tws: number): Targets {
   let downTwa = 150
   let downVmg = Infinity
   for (let a = 90; a <= 180; a += 0.02) {
-    const vmg = rawSpeed(tws, a) * Math.cos(a * DEG)
+    const vmg = latticeSpeed(tws, a) * Math.cos(a * DEG)
     if (vmg < downVmg) {
       downVmg = vmg
       downTwa = a
@@ -71,10 +106,10 @@ function computeTargets(tws: number): Targets {
   return {
     tws,
     upTwa,
-    upBsp: rawSpeed(tws, upTwa),
+    upBsp: latticeSpeed(tws, upTwa),
     upVmg,
     downTwa,
-    downBsp: rawSpeed(tws, downTwa),
+    downBsp: latticeSpeed(tws, downTwa),
     downVmg,
   }
 }
@@ -85,13 +120,13 @@ function makeLattice(): PolarLattice {
   return {
     table,
     twsMax: 40,
-    twsStep: 1,
-    twaStep: 1,
-    grid: new Float32Array(0),
-    twsCount: 0,
-    twaCount: 0,
+    twsStep: TWS_STEP,
+    twaStep: TWA_STEP,
+    grid: GRID,
+    twsCount: TWS_COUNT,
+    twaCount: TWA_COUNT,
     targets: [],
-    speed: rawSpeed,
+    speed: latticeSpeed,
     targetsAt(tws: number): Targets {
       const key = Math.round(tws * 100)
       let t = cache.get(key)
@@ -304,9 +339,9 @@ describe('isochrone routing kernel', () => {
     // and there is real discretisation error to converge away.
     const twd = (_lat: number, lon: number): number => wrap360(200 + 55 * (lon + 70))
     const times: number[] = []
-    for (const step of [240, 120, 60]) {
+    for (const step of [480, 240, 120]) {
       const res = routeIsochrone(
-        request({ start, marks: [finish] }),
+        request({ start, marks: [finish], resolution: 'balanced' }),
         { field: makeField({ twd, tws: 13, gribStepS: step }), lattice: LATTICE },
       )
       expect(res.ok, res.error).toBe(true)
@@ -316,7 +351,7 @@ describe('isochrone routing kernel', () => {
     const d1 = Math.abs(times[0] - times[1])
     const d2 = Math.abs(times[1] - times[2])
     note(
-      `10.4 convergence: 240 s -> ${times[0].toFixed(1)} s, 120 s -> ${times[1].toFixed(1)} s, 60 s -> ${times[2].toFixed(1)} s; |Δ1| = ${d1.toFixed(1)} s, |Δ2| = ${d2.toFixed(1)} s`,
+      `10.4 convergence: 480 s -> ${times[0].toFixed(1)} s, 240 s -> ${times[1].toFixed(1)} s, 120 s -> ${times[2].toFixed(1)} s; |Δ1| = ${d1.toFixed(1)} s, |Δ2| = ${d2.toFixed(1)} s`,
     )
     expect(d2).toBeLessThanOrEqual(d1 + 1e-6)
     // …and the whole family agrees to well inside a percent.
@@ -648,16 +683,23 @@ describe('isochrone routing kernel', () => {
     const start = { lat: 40, lon: -70 }
     const finish = north(start, 2)
     const ctx = { field: makeField({ twd: 0, tws: 10 }), lattice: LATTICE }
-    const req = request({ start, marks: [finish], resolution: 'best' })
-    routeIsochrone(req, ctx)
-    const t0 = performance.now()
-    const res = routeIsochrone(req, ctx)
-    const wall = performance.now() - t0
-    expect(res.ok, res.error).toBe(true)
-    note(
-      `perf 2 nm buoy leg 'best': ${wall.toFixed(1)} ms, Δt ${res.diagnostics.timeStepS} s, ${res.diagnostics.nodesExplored.toLocaleString()} candidates`,
-    )
-    expect(wall).toBeLessThan(200)
+    const timings: Record<string, number> = {}
+    for (const resolution of ['balanced', 'best'] as const) {
+      const req = request({ start, marks: [finish], resolution })
+      routeIsochrone(req, ctx)
+      const t0 = performance.now()
+      const res = routeIsochrone(req, ctx)
+      timings[resolution] = performance.now() - t0
+      expect(res.ok, res.error).toBe(true)
+      note(
+        `perf 2 nm buoy leg '${resolution}': ${timings[resolution].toFixed(1)} ms, Δt ${res.diagnostics.timeStepS} s, ${res.diagnostics.nodesExplored.toLocaleString()} candidates`,
+      )
+    }
+    // The spec target is the preset a boat would actually have running live.
+    expect(timings.balanced).toBeLessThan(100)
+    // 'best' quadruples the frontier for the same two miles; it is a "plan the
+    // start sequence" setting, not a live one.
+    expect(timings.best).toBeLessThan(400)
   })
 
   it('prints the measured summary', () => {
@@ -750,6 +792,75 @@ describe('land mask internals', () => {
     const mask = buildLandMask({ type: 'Point', coordinates: [0, 0] }, { west: -1, south: -1, east: 1, north: 1 }, 0.1)
     expect(mask.isLand(0, 0)).toBe(false)
     expect(mask.crosses({ lat: -1, lon: -1 }, { lat: 1, lon: 1 })).toBe(false)
+  })
+})
+
+describe('worker protocol', () => {
+  /**
+   * End-to-end through the real `buildLattice` and `CubeField` rather than the
+   * fakes above. This is the only test that touches the sibling modules, and it
+   * is here to prove the wire contract — cube in, lattice in, progress out,
+   * result out — not to re-test the kernel.
+   */
+  it('rebuilds its inputs from a cube and a polar table, and reports progress', async () => {
+    const { handleRouteMessage } = await import('./worker')
+
+    const twas = [0, 30, 40, 50, 60, 75, 90, 110, 120, 135, 150, 165, 180]
+    const polar: PolarTable = {
+      name: 'analytic',
+      reference: '10m',
+      tws: [4, 8, 12, 16, 20],
+      rows: [4, 8, 12, 16, 20].map((w) => ({
+        twa: twas,
+        bsp: twas.map((a) => analyticSpeed(w, a)),
+      })),
+    }
+
+    // 12 kn from due east over a 2° box, hourly for 24 h.
+    const nx = 9
+    const ny = 9
+    const nt = 25
+    const n = nx * ny * nt
+    const u = new Float32Array(n)
+    const v = new Float32Array(n)
+    u.fill(-12 * Math.sin(90 * DEG))
+    v.fill(-12 * Math.cos(90 * DEG))
+    const cube = {
+      model: 'test',
+      run: '2026-06-15T06:00:00Z',
+      bbox: { west: -71, south: 39.5, east: -69, north: 41.5 },
+      nx,
+      ny,
+      dx: 0.25,
+      dy: 0.25,
+      t0: T0 - 3_600_000,
+      dtMs: 3_600_000,
+      nt,
+      params: ['u10', 'v10'],
+      data: { u10: u, v10: v },
+    }
+
+    const start = { lat: 40, lon: -70 }
+    const req = request({ start, marks: [north(start, 20)], resolution: 'balanced' })
+    const messages: RouteWorkerResponse[] = []
+    await handleRouteMessage({ type: 'route', id: 7, req, cube, polarTable: polar }, (m) =>
+      messages.push(m),
+    )
+
+    const result = messages.find((m) => m.type === 'result')
+    expect(result).toBeDefined()
+    expect(result!.id).toBe(7)
+    expect(messages.some((m) => m.type === 'progress')).toBe(true)
+    if (result?.type !== 'result') throw new Error('unreachable')
+
+    // Beam reach again, this time through the production polar interpolator.
+    const r = result.result
+    expect(r.ok, r.error).toBe(true)
+    note(
+      `worker round-trip: ETA ${(r.elapsedS! / 3600).toFixed(3)} h over 20 nm, ${r.legs.length} legs, Δt ${r.diagnostics.timeStepS} s`,
+    )
+    expect(r.legs.length).toBeGreaterThan(3)
+    expect(distance(r.legs[r.legs.length - 1].position, req.marks[0])).toBeLessThan(0.05)
   })
 })
 

@@ -30,7 +30,7 @@ console:
 ```js
 __sim.setAutopilot({ mode: 'twa', twa: -42 })     // sail port-tack close-hauled
 __sim.setAutopilot({ mode: 'heading', heading: 90 })
-__sim.setAutopilot({ mode: 'mark', target: { lat: 41.52, lon: -71.32 } })
+__sim.setAutopilot({ mode: 'mark', target: { lat: 43.68, lon: -70.20 } })
 __sim.setAutopilot({ mode: 'drift' })
 __sim.setWind(240, 16)
 ```

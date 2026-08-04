@@ -47,6 +47,8 @@ interface AppState {
   setStartEnd(which: 'port' | 'starboard', at: LatLon | null): void
   setGunTime(t: Millis | null): void
   addMark(name: string, at: LatLon): void
+  /** Replace marks without resetting a previously pinged start line. */
+  replaceMarks(marks: Array<{ name: string; position: LatLon }>): void
   removeMark(id: string): void
   clearCourse(): void
   activeMarkIndex: number
@@ -59,6 +61,8 @@ interface AppState {
 
   wind: WindEstimate | null
   setWind(w: WindEstimate | null): void
+  windError: string | null
+  setWindError(error: string | null): void
   manualWind: { twd: Degrees; tws: Knots }
   setManualWind(twd: Degrees, tws: Knots): void
   windMode: WindSource
@@ -146,6 +150,19 @@ export const useStore = create<AppState>()(
             ],
           },
         }),
+      replaceMarks: (marks) =>
+        set({
+          course: {
+            ...get().course,
+            marks: marks.map((m) => ({
+              id: `m${++markSeq}-${Date.now()}`,
+              name: m.name,
+              position: m.position,
+              roundTo: 'port',
+            })),
+          },
+          activeMarkIndex: 0,
+        }),
       removeMark: (id) =>
         set({
           course: {
@@ -164,6 +181,8 @@ export const useStore = create<AppState>()(
 
       wind: null,
       setWind: (w) => set({ wind: w }),
+      windError: null,
+      setWindError: (windError) => set({ windError }),
       manualWind: { twd: 270, tws: 12 },
       setManualWind: (twd, tws) => set({ manualWind: { twd, tws } }),
       windMode: 'manual',

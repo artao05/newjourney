@@ -29,6 +29,7 @@ export function RaceScreen() {
   const activeMarkIndex = useStore((s) => s.activeMarkIndex)
   const setActiveMark = useStore((s) => s.setActiveMark)
   const addMark = useStore((s) => s.addMark)
+  const replaceMarks = useStore((s) => s.replaceMarks)
   const clearCourse = useStore((s) => s.clearCourse)
 
   const [whatIfShift, setWhatIfShift] = useState(0)
@@ -314,10 +315,10 @@ export function RaceScreen() {
             onClick={() => {
               if (!lineMid) return
               const c = makeWLCourse(lineMid, wlAxis, wlUp, wlDown)
-              clearCourse()
-              addMark('Windward', c.windward)
-              addMark('Leeward', c.leeward)
-              setActiveMark(0)
+              replaceMarks([
+                { name: 'Windward', position: c.windward },
+                { name: 'Leeward', position: c.leeward },
+              ])
             }}
           >
             BUILD COURSE

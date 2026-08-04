@@ -45,41 +45,40 @@ export type RouteWorkerResponse =
   | { type: 'result'; id: number; result: RouteResult }
 
 /**
- * Modules owned by other agents. They are imported *dynamically, by a computed
- * specifier*, so that (a) a bundler does not hard-fail the build while those
- * files are still being written in parallel, and (b) `isochrone.ts` never picks
- * up a transitive dependency on them.
+ * The polar and weather modules are pulled in *here and only here*, and lazily.
+ *
+ * Keeping them out of `isochrone.ts` is deliberate: the kernel then has no
+ * dependency beyond `types`, `angles` and `geo`, which is what lets the whole
+ * §10 validation suite run in plain Node against analytic fakes. Loading them
+ * dynamically also keeps them out of the main-thread bundle — nothing but the
+ * worker ever needs a polar interpolator.
+ *
+ * Both are guarded: a worker that cannot build its inputs reports an actionable
+ * error rather than dying with an unhandled rejection.
  */
-async function loadOptional(specifier: string): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(/* @vite-ignore */ specifier)) as Record<string, unknown>
-  } catch {
-    return null
-  }
-}
-
-/** Rebuild a `PolarLattice` from the raw table using the polars module. */
 export async function rebuildLattice(table: PolarTable): Promise<PolarLattice> {
-  const mod = await loadOptional('../polar')
-  const build = mod?.buildLattice
-  if (typeof build !== 'function') {
+  try {
+    const { buildLattice } = await import('../polar')
+    return buildLattice(table)
+  } catch (e) {
     throw new Error(
-      'polar module unavailable in this worker build — cannot rebuild the polar lattice',
+      `could not build the polar lattice from "${table?.name ?? 'unnamed polar'}": ${
+        e instanceof Error ? e.message : String(e)
+      }`,
     )
   }
-  return (build as (t: PolarTable) => PolarLattice)(table)
 }
 
-/** Rebuild a `WeatherField` from a transferred cube using the weather module. */
+/** Rebuild a `WeatherField` from a transferred cube. */
 export async function rebuildField(cube: WeatherCube): Promise<WeatherField> {
-  const mod = await loadOptional('../weather')
-  const Ctor = mod?.CubeField
-  if (typeof Ctor !== 'function') {
+  try {
+    const { CubeField } = await import('../weather')
+    return new CubeField(cube)
+  } catch (e) {
     throw new Error(
-      'weather module unavailable in this worker build — cannot rebuild the forecast field',
+      `could not rebuild the forecast field: ${e instanceof Error ? e.message : String(e)}`,
     )
   }
-  return new (Ctor as new (c: WeatherCube) => WeatherField)(cube)
 }
 
 function rebuildLand(data: unknown, bbox: BBox, cellDeg: number): LandMask | null {
