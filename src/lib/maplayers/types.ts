@@ -9,6 +9,20 @@
 
 import type { Millis, WeatherCube } from '@/lib/types'
 
+// --------------------------------------------------------------- projection
+
+/**
+ * The projection matrix MapLibre hands a custom layer.
+ *
+ * MapLibre v5 replaced the old `render(gl, matrix)` signature with
+ * `render(gl, options: CustomRenderMethodInput)` because the globe projection
+ * needs more than one matrix. For a `renderingMode: '2d'` layer the mercator
+ * matrix is `options.defaultProjectionData.mainMatrix`, whose gl-matrix `mat4`
+ * type is structurally looser than `number[]` — hence this alias rather than
+ * spreading casts through every draw call.
+ */
+export type ProjectionMatrix = ArrayLike<number>
+
 // ------------------------------------------------------------------ colours
 
 /** A colour stop: value in the field's own units, plus sRGB 0-255. */

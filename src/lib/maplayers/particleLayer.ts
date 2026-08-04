@@ -11,7 +11,11 @@
  * context lifecycle and respects the layer stack.
  */
 
-import type { CustomLayerInterface, Map as MapLibreMap } from 'maplibre-gl'
+import type {
+  CustomLayerInterface,
+  CustomRenderMethodInput,
+  Map as MapLibreMap,
+} from 'maplibre-gl'
 import type { Millis, WeatherCube } from '@/lib/types'
 import {
   QUAD,
@@ -27,6 +31,7 @@ import {
   type EncodedField,
   type Program,
 } from './glutil'
+import type { ProjectionMatrix } from './types'
 
 // --------------------------------------------------------------- shaders
 
@@ -451,7 +456,14 @@ export class ParticleLayer implements CustomLayerInterface {
 
   // ------------------------------------------------------------- render
 
-  render(gl: WebGLRenderingContext, matrix: number[]) {
+  /*
+   * MapLibre v5 changed the custom-layer render signature: it no longer passes a
+   * bare matrix but a `CustomRenderMethodInput`, because the globe projection
+   * needs more than one matrix. For a '2d' renderingMode layer the mercator
+   * matrix we want is `defaultProjectionData.mainMatrix`.
+   */
+  render(gl: WebGLRenderingContext | WebGL2RenderingContext, options: CustomRenderMethodInput) {
+    const matrix = options.defaultProjectionData.mainMatrix
     if (!this.encoded || !this.cube || !this.visible) return
     if (
       !this.drawProgram ||
@@ -525,7 +537,10 @@ export class ParticleLayer implements CustomLayerInterface {
     gl.drawArrays(gl.TRIANGLES, 0, 6)
   }
 
-  private drawParticles(gl: WebGLRenderingContext, matrix: number[]) {
+  private drawParticles(
+    gl: WebGLRenderingContext | WebGL2RenderingContext,
+    matrix: ProjectionMatrix,
+  ) {
     const p = this.drawProgram!
     const enc = this.encoded!
     const cube = this.cube!
@@ -547,7 +562,7 @@ export class ParticleLayer implements CustomLayerInterface {
     gl.uniform2f(p.uniforms.u_wind_max ?? null, enc.uMax, enc.vMax)
     gl.uniform1f(p.uniforms.u_point_size ?? null, this.opts.pointSize)
     gl.uniform1f(p.uniforms.u_opacity ?? null, this.opts.opacity)
-    gl.uniformMatrix4fv(p.uniforms.u_matrix ?? null, false, matrix)
+    gl.uniformMatrix4fv(p.uniforms.u_matrix ?? null, false, matrix as Float32Array)
     gl.uniform4f(
       p.uniforms.u_bbox ?? null,
       mercatorX(cube.bbox.west),
