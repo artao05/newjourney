@@ -31,6 +31,11 @@ const RouteScreen = lazy(() =>
   import('@/screens/RouteScreen').then((m) => ({ default: m.RouteScreen })),
 )
 
+/** Shares the MapLibre chunk with RouteScreen, so it is lazy for the same reason. */
+const WeatherScreen = lazy(() =>
+  import('@/screens/WeatherScreen').then((m) => ({ default: m.WeatherScreen })),
+)
+
 export function App() {
   const tab = useStore((s) => s.tab)
   const setTab = useStore((s) => s.setTab)
@@ -206,6 +211,21 @@ export function App() {
           <RaceScreen />
         </ErrorBoundary>
       )}
+      {tab === 'weather' && (
+        <ErrorBoundary name="Weather" key="weather">
+          <Suspense
+            fallback={
+              <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
+                <span className="chip">
+                  <span className="spinner" /> loading map…
+                </span>
+              </div>
+            }
+          >
+            <WeatherScreen />
+          </Suspense>
+        </ErrorBoundary>
+      )}
       {tab === 'route' && (
         <ErrorBoundary name="Route" key="route">
           <Suspense
@@ -260,6 +280,17 @@ const TABS: Array<{ id: Tab; label: string; icon: ReactElement }> = [
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
         <path d="M12 3v18M12 6l8 5-8 5" strokeLinejoin="round" />
         <path d="M6 21h12" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    id: 'weather',
+    label: 'Weather',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+        <path d="M3 9c4-3 7 2 11-1s5 1 7 1" strokeLinecap="round" />
+        <path d="M3 14c4-3 7 2 11-1s5 1 7 1" strokeLinecap="round" opacity="0.65" />
+        <path d="M3 19c4-3 7 2 11-1s5 1 7 1" strokeLinecap="round" opacity="0.35" />
       </svg>
     ),
   },

@@ -22,7 +22,7 @@ import type {
   WindSource,
 } from '@/lib/types'
 
-export type Tab = 'start' | 'race' | 'route' | 'setup'
+export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
 
 export interface Settings {
   units: 'metric' | 'imperial'
