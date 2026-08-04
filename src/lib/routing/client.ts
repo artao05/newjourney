@@ -6,11 +6,17 @@
  */
 
 import type { PolarTable, RouteRequest, RouteResult, WeatherCube } from '../types'
-import type { RouteWorkerRequest, RouteWorkerResponse } from './worker'
+import type { LandRasterPayload, RouteWorkerRequest, RouteWorkerResponse } from './worker'
 
 export interface RoutePayload {
   cube: WeatherCube
   polar: PolarTable
+  /**
+   * A prebuilt, validated land raster from a venue pack. Preferred over `land`:
+   * finer, already checked against known-water coordinates, and free at route
+   * time. See `src/data/landmask.ts`.
+   */
+  landRaster?: LandRasterPayload
   /** GeoJSON land, or anything `buildLandMask` can parse. Optional. */
   land?: unknown
   /** Land raster cell size in degrees. Coastal default is 0.01° (~0.6 nm). */
@@ -65,6 +71,7 @@ export class RoutingClient {
         req,
         cube: payload.cube,
         polarTable: payload.polar,
+        landRaster: payload.landRaster,
         landData: payload.land,
         landCellDeg: payload.landCellDeg,
       }

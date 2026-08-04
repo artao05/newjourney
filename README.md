@@ -13,10 +13,11 @@ in five minutes — built entirely on public data.
 > wind/wave layers. See [RUNNING.md](RUNNING.md) to try it — including a boat
 > simulator so you can use the whole app from a desk, with no GPS fix needed.
 >
-> 208 tests passing · typecheck clean · build clean · 92 KB gzipped first load.
-> **Not for navigation** — see the caveats in [RUNNING.md](RUNNING.md#whats-real-and-what-isnt),
-> particularly that land avoidance is currently switched off and the bundled polars
-> are generated rather than measured.
+> 299 tests passing · typecheck clean · build clean · 93 KB gzipped first load.
+> **Not for navigation** — see the caveats in [RUNNING.md](RUNNING.md#whats-real-and-what-isnt).
+> Land avoidance now works, but only inside the Portland venue box and only as a
+> land check, never a depth check; and the bundled polars are generated from
+> published dimensions rather than measured.
 
 ## Branches
 
@@ -49,6 +50,7 @@ and a wet pocket.
 | Doc | What it covers |
 |---|---|
 | [docs/00-overview](docs/00-overview/) | Project premise, glossary of sailing/nav terms |
+| [hardware and connectivity brief](docs/00-overview/hardware-and-connectivity-brief.md) | Plain-language guide to phones, boat instruments, AIS, displays, Signal K, and Starlink |
 | [docs/01-expedition-analysis](docs/01-expedition-analysis/) | Hyper-detailed teardown of Expedition: every feature, every computed channel, and how each is probably calculated |
 | [docs/02-data-sources](docs/02-data-sources/) | Every public data source we can legally build on — weather, charts, bathymetry, tides, currents, polars, AIS — with licences and access patterns |
 | [docs/03-algorithms](docs/03-algorithms/) | The math: isochrone routing, graph routing, polars/VPP, laylines, start line, current & wave corrections |

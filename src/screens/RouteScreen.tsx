@@ -16,11 +16,19 @@ import { bboxOf, distance } from '@/lib/geo'
 import type { RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
 import { fmtClock } from '@/components/Tile'
 import { PILOT_VENUE } from '@/data/venues'
+import { landFractionOf, loadVenueLandMask, type LoadedLandMask } from '@/data/landmask'
 
 // The map data is not yet a routing-grade coastline package. Never represent
 // an OSM basemap as an obstacle mask: land avoidance stays explicitly disabled
 // until the Portland venue pack supplies its verified vector geometry.
-const HAS_ROUTING_LAND_DATA = false
+/*
+ * The Portland venue land pack now exists — a 111 m OSM-derived raster,
+ * validated against known-water station coordinates. See src/data/landmask.ts.
+ *
+ * This stays a runtime check rather than a constant: land avoidance is only
+ * genuinely on once the mask has actually loaded. If the fetch fails we must say
+ * so and route without it, not quietly claim a safety feature we do not have.
+ */
 
 /**
  * A minimal raster style. OpenSeaMap's seamark layer over an OSM basemap —
@@ -66,6 +74,8 @@ export function RouteScreen() {
   const [progress, setProgress] = useState(0)
   const [cube, setCube] = useState<WeatherCube | null>(null)
   const [showResults, setShowResults] = useState(false)
+  const [landPack, setLandPack] = useState<LoadedLandMask | null>(null)
+  const [landError, setLandError] = useState<string | null>(null)
 
   const state = useStore((s) => s.state)
   const boat = useStore((s) => s.boat)
@@ -95,6 +105,32 @@ export function RouteScreen() {
       map.remove()
       mapRef.current = null
       setReady(false)
+    }
+  }, [])
+
+  // Load the venue land pack once. Small (4.8 kB gzipped) and cached for the session.
+  useEffect(() => {
+    let cancelled = false
+    loadVenueLandMask()
+      .then((p) => {
+        if (cancelled) return
+        // Cross-check the payload against its own metadata before trusting it.
+        const frac = landFractionOf(p.bits, p.meta.nx, p.meta.ny)
+        if (Math.abs(frac - p.meta.landFraction) > 0.01) {
+          throw new Error(
+            `land mask is ${(frac * 100).toFixed(1)}% land, expected ${(
+              p.meta.landFraction * 100
+            ).toFixed(1)}%`,
+          )
+        }
+        setLandPack(p)
+        setLandError(null)
+      })
+      .catch((e) => {
+        if (!cancelled) setLandError(e instanceof Error ? e.message : String(e))
+      })
+    return () => {
+      cancelled = true
     }
   }, [])
 
@@ -189,7 +225,22 @@ export function RouteScreen() {
     try {
       const pts = [state.position, ...course.marks.map((m) => m.position)]
       const bbox = pts.length > 1 ? bboxOf(pts, 60) : PILOT_VENUE.bbox
-      const c = await fetchWindCube({ bbox, hours: 72, includeWaves: true, includeCurrent: true })
+      /*
+       * Derive the sample step from the span instead of taking the library
+       * default of 0.25°, which is ~27 km — wider than Casco Bay, and it produced
+       * a 4x2 grid for the whole venue. A router given a spatially uniform wind
+       * field has nothing to optimise: every heading looks equally good, so the
+       * "optimal" route is an artefact of the discretisation.
+       */
+      const span = Math.max(bbox.east - bbox.west, bbox.north - bbox.south)
+      const stepDeg = Math.max(0.02, span / 40)
+      const c = await fetchWindCube({
+        bbox,
+        stepDeg,
+        hours: 72,
+        includeWaves: true,
+        includeCurrent: true,
+      })
       setCube(c)
       const map = mapRef.current
       if (map && ready) setSource(map, 'wind', windFC(c))
@@ -222,7 +273,7 @@ export function RouteScreen() {
         startTime: Date.now(),
         marks: course.marks.map((m) => m.position),
         constraints: {
-          avoidLand: HAS_ROUTING_LAND_DATA,
+          avoidLand: landPack != null,
           tackPenaltyS: boat.tackPenaltyS,
           gybePenaltyS: boat.gybePenaltyS,
         },
@@ -239,12 +290,33 @@ export function RouteScreen() {
       }
       const result = await clientRef.current.route(
         req,
-        { cube: workingCube, polar },
+        {
+          cube: workingCube,
+          polar,
+          landRaster: landPack
+            ? {
+                bbox: landPack.meta.bbox,
+                nx: landPack.meta.nx,
+                ny: landPack.meta.ny,
+                bits: landPack.bits,
+              }
+            : undefined,
+        },
         (f) => setProgress(f),
       )
-      if (!HAS_ROUTING_LAND_DATA) {
+      if (!landPack) {
         result.diagnostics.warnings.unshift(
-          'Land avoidance is unavailable until the Portland vector coastline pack is installed. This route may cross land.',
+          landError
+            ? `Land avoidance is OFF — the coastline pack failed to load (${landError}). This route may cross land.`
+            : 'Land avoidance is OFF — the coastline pack has not loaded yet. This route may cross land.',
+        )
+      } else {
+        // State the limits of the thing that is now on, rather than implying it
+        // is a substitute for looking at a chart.
+        result.diagnostics.warnings.push(
+          `Land avoided using a ${Math.round(
+            landPack.meta.cellDeg * 111000,
+          )} m OSM coastline raster over the Portland venue only. Outside that box, and for anything narrower than a cell, it does not apply. Not a depth check.`,
         )
       }
       setRoute(result)
@@ -284,7 +356,13 @@ export function RouteScreen() {
           </span>
           <span className="chip">{PILOT_VENUE.name}</span>
           {legNm != null && <span className="chip">{legNm.toFixed(1)} nm rhumb</span>}
-          {!HAS_ROUTING_LAND_DATA && <span className="chip chip--warn">no routing land pack</span>}
+          {landPack ? (
+            <span className="chip chip--good" title={landPack.meta.attribution}>
+              land pack {Math.round(landPack.meta.cellDeg * 111000)} m
+            </span>
+          ) : (
+            <span className="chip chip--bad">{landError ? 'land pack failed' : 'no land pack'}</span>
+          )}
           {busy && (
             <span className="chip chip--warn">
               <span className="spinner" /> {busy}

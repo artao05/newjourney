@@ -18,7 +18,7 @@
  */
 
 import { routeIsochrone, type RouteContext } from './isochrone'
-import { buildLandMask, type LandMask } from './land'
+import { RasterLandMask, buildLandMask, type LandMask } from './land'
 import type {
   BBox,
   PolarLattice,
@@ -29,12 +29,30 @@ import type {
   WeatherField,
 } from '../types'
 
+/**
+ * A land mask already rasterised offline, passed through as-is.
+ *
+ * Preferred over `landData` whenever a venue pack exists: it is finer than
+ * anything worth rasterising per request (the Portland pack is ~111 m), it has
+ * been validated against known-water coordinates, and it costs nothing at route
+ * time. `Uint32Array` survives structured clone, so it crosses to the worker
+ * without a copy of the geometry.
+ */
+export interface LandRasterPayload {
+  bbox: BBox
+  nx: number
+  ny: number
+  bits: Uint32Array
+}
+
 export interface RouteWorkerRequest {
   type: 'route'
   id: number
   req: RouteRequest
   cube: WeatherCube
   polarTable: PolarTable
+  /** Prebuilt raster. Takes precedence over `landData`. */
+  landRaster?: LandRasterPayload
   landData?: unknown
   /** Land raster cell size in degrees. Defaults to a coastal-scale 0.01°. */
   landCellDeg?: number
@@ -90,6 +108,22 @@ function rebuildLand(data: unknown, bbox: BBox, cellDeg: number): LandMask | nul
   }
 }
 
+/**
+ * Adopt a prebuilt raster.
+ *
+ * Validates the bit array against the declared grid before trusting it. A short
+ * array would read as open water past its end, and a router that believes land
+ * is sea is worse than one with no land data at all — the second warns you, the
+ * first does not.
+ */
+function adoptLandRaster(p: LandRasterPayload | undefined): LandMask | null {
+  if (!p) return null
+  const want = Math.ceil((p.nx * p.ny) / 32)
+  const bits = p.bits instanceof Uint32Array ? p.bits : new Uint32Array(p.bits)
+  if (p.nx <= 0 || p.ny <= 0 || bits.length < want) return null
+  return new RasterLandMask(p.bbox, p.nx, p.ny, bits)
+}
+
 /** Bounding box that covers the course, padded — used to size the land raster. */
 function courseBBox(req: RouteRequest, cube: WeatherCube): BBox {
   const lats = [req.start.lat, ...req.marks.map((m) => m.lat)]
@@ -123,11 +157,10 @@ export async function handleRouteMessage(
       rebuildLattice(msg.polarTable),
       rebuildField(msg.cube),
     ])
-    const land = rebuildLand(
-      msg.landData,
-      courseBBox(msg.req, msg.cube),
-      msg.landCellDeg ?? 0.01,
-    )
+    // A validated venue raster beats rasterising GeoJSON per request.
+    const land =
+      adoptLandRaster(msg.landRaster) ??
+      rebuildLand(msg.landData, courseBBox(msg.req, msg.cube), msg.landCellDeg ?? 0.01)
     let lastPost = 0
     const ctx: RouteContext = {
       field,

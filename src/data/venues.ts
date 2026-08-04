@@ -28,6 +28,17 @@ export interface Venue {
   name: string
   region: string
   center: LatLon
+  /**
+   * A position that is definitely afloat, for starting the simulator and for any
+   * default that has to be navigable.
+   *
+   * Deliberately separate from `center`. A map centre only has to frame the
+   * venue nicely, and this venue's centre sits on a small island in Casco Bay —
+   * which meant the simulator started the boat on land, and every land-avoided
+   * route from it failed with "no legal move from the frontier". Verified against
+   * the land mask in landmask.test.ts.
+   */
+  waterStart: LatLon
   /** Bounding box for a Casco Bay race-day forecast download, not an offshore route. */
   bbox: BBox
   defaultZoom: number
@@ -49,6 +60,9 @@ export const PORTLAND_MAINE: Venue = {
   name: 'Portland & Casco Bay',
   region: 'Maine, USA',
   center: { lat: 43.655, lon: -70.205 },
+  // Open water in Hussey Sound, clear of the island chain and of the shipping
+  // channel, with room to manoeuvre in every direction.
+  waterStart: { lat: 43.6675, lon: -70.1735 },
   bbox: { west: -70.34, south: 43.53, east: -69.98, north: 43.79 },
   defaultZoom: 11.5,
   tideStations: [

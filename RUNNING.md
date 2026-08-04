@@ -71,10 +71,14 @@ format, and the GPU particle / scalar map layers.
 **Not real yet:**
 
 - Charts are an OpenStreetMap + OpenSeaMap raster overlay, not rendered NOAA ENC.
-- **Land avoidance is switched off** (`HAS_ROUTING_LAND_DATA = false` in
-  `RouteScreen.tsx`). A raster basemap is not a routing-grade obstacle mask, and
-  a router that thinks it avoids land when it doesn't is the most dangerous kind
-  of wrong. A route may cross land — check it yourself.
+- **Land avoidance is now ON for the Portland venue, and only there.** It uses a
+  111 m land raster built from OSM coastline (`src/data/landmask.ts`, 4.8 kB
+  gzipped), validated against coordinates that are water by definition — the NOAA
+  tide and current stations and both NDBC buoys. Outside that bounding box the
+  mask reports open water and avoidance does nothing. It is a *land* check, not a
+  depth check: it will happily route you through two feet of water over a mudflat.
+  The Route tab shows a `land pack` chip when the mask is loaded and a red chip
+  when it is not; every route carries a warning stating which applied.
 - Tides and currents are forecast-model only. No harmonic station engine yet.
 - **Every polar in the class library is generated from published dimensions, not
   measured.** They are labelled that way in `src/data/polars.ts`. Treat target

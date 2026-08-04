@@ -62,7 +62,8 @@ export function App() {
   const forecastLon = Math.round((state?.position.lon ?? PILOT_VENUE.center.lon) * 100) / 100
 
   useGeolocation(!settings.simulate)
-  useSimulation(settings.simulate, PILOT_VENUE.center)
+  // Start the simulated boat afloat, not on the island the map centre sits on.
+  useSimulation(settings.simulate, PILOT_VENUE.waterStart)
   useWakeLock(settings.keepAwake)
   const now = useTick(1)
 

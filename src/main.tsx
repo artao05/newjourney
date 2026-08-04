@@ -15,6 +15,15 @@ const LayerHarness = lazy(() =>
 const useHarness =
   import.meta.env.DEV && new URLSearchParams(location.search).has('harness')
 
+if (import.meta.env.DEV) {
+  // Dev-only console handle. Setting up a course by hand through localStorage is
+  // unreliable — zustand rehydration decides what actually lands in the store —
+  // so expose the store itself for testing and debugging.
+  void import('./state/store').then((m) => {
+    ;(window as unknown as Record<string, unknown>).__store = m.useStore
+  })
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {useHarness ? (
