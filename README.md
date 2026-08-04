@@ -1,0 +1,63 @@
+# newjourney
+
+**An open, phone-first weather routing and tactical navigation app for sailors.**
+
+The goal: replace the €1,250, Windows-only, antenna-dependent, steep-learning-curve
+tactical software stack (Expedition and its peers) with something a 16-year-old on a
+420 or a first-time offshore navigator on a J/105 can open on a phone and understand
+in five minutes — built entirely on public data.
+
+> **Status: research phase.** No application code yet, by design. This repo currently
+> holds the research and specification work that has to exist *before* anything gets
+> built. See [docs/](docs/).
+
+---
+
+## The problem
+
+| | Expedition | What we want |
+|---|---|---|
+| Price | €1,250 licence + €275 upgrades | Free tier; cheap paid tier |
+| Platform | Windows 10/11, 16 GB RAM | Any phone browser (PWA) |
+| Data | Paid GRIB subscriptions, satcom, ENC licences | Public/open data only |
+| Instruments | NMEA 0183/2000 wired to a PC | Phone GPS first; Signal K optional |
+| Learning curve | Weeks. ~600 topics of manual. ~400 data channels. | Minutes |
+| Charts | Licensed S-57/S-63/C-MAP | NOAA ENC + OpenSeaMap + GEBCO |
+
+Expedition is not bad software — it is *extraordinary* software, and much of this
+repo is an admiring teardown of it. It is simply built for a professional navigator
+with a nav station, a budget, and a satellite connection. Most sailors have a phone
+and a wet pocket.
+
+## What's here
+
+| Doc | What it covers |
+|---|---|
+| [docs/00-overview](docs/00-overview/) | Project premise, glossary of sailing/nav terms |
+| [docs/01-expedition-analysis](docs/01-expedition-analysis/) | Hyper-detailed teardown of Expedition: every feature, every computed channel, and how each is probably calculated |
+| [docs/02-data-sources](docs/02-data-sources/) | Every public data source we can legally build on — weather, charts, bathymetry, tides, currents, polars, AIS — with licences and access patterns |
+| [docs/03-algorithms](docs/03-algorithms/) | The math: isochrone routing, graph routing, polars/VPP, laylines, start line, current & wave corrections |
+| [docs/04-prior-art](docs/04-prior-art/) | Open-source and commercial landscape, with licence compatibility notes |
+| [docs/05-spec](docs/05-spec/) | Product spec, technical spec, MVP scope, roadmap |
+| [docs/06-decisions](docs/06-decisions/) | Architecture decision records |
+| [docs/SOURCES.md](docs/SOURCES.md) | Master bibliography — every URL cited across the research |
+
+## Reading order
+
+1. [docs/05-spec/product-spec.md](docs/05-spec/product-spec.md) — what we're building and for whom
+2. [docs/01-expedition-analysis/feature-inventory.md](docs/01-expedition-analysis/feature-inventory.md) — the benchmark, feature by feature
+3. [docs/02-data-sources/README.md](docs/02-data-sources/README.md) — what we're allowed to build on
+4. [docs/03-algorithms/routing-isochrone.md](docs/03-algorithms/routing-isochrone.md) — the core algorithm
+5. [docs/05-spec/technical-spec.md](docs/05-spec/technical-spec.md) — how it gets built
+
+## Safety notice
+
+Nothing produced in this repo is, or will be, a substitute for official charts,
+official tide tables, or prudent seamanship. Expedition itself says the same thing
+about its own tide predictions, and it costs €1,250. Treat every number as advisory.
+
+## Licence
+
+Code: [MIT](LICENSE). Documentation: CC BY 4.0.
+Third-party data retains its own licence — see
+[docs/02-data-sources/licensing-matrix.md](docs/02-data-sources/licensing-matrix.md).

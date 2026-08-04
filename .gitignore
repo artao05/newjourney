@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Build output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Large research artifacts — keep these out of git, note their provenance in
+# research/raw/README.md instead.
+research/raw/**
+!research/raw/README.md
+*.grb
+*.grb2
+*.grib
+*.grib2
+*.nc
+*.mbtiles
+*.pmtiles
+*.tcd
+*.zip
+*.pdf
