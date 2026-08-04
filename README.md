@@ -7,9 +7,10 @@ tactical software stack (Expedition and its peers) with something a 16-year-old 
 420 or a first-time offshore navigator on a J/105 can open on a phone and understand
 in five minutes — built entirely on public data.
 
-> **Status: research phase.** No application code yet, by design. This repo currently
-> holds the research and specification work that has to exist *before* anything gets
-> built. See [docs/](docs/).
+> **Status: working prototype on branch `MVP1`.** `main` holds the research and
+> specification work; `MVP1` adds a running React PWA with the start-line tools,
+> tactical numbers, and an isochrone weather router. See [RUNNING.md](RUNNING.md)
+> to try it — including a boat simulator so you can use the whole app from a desk.
 
 ---
 
@@ -41,6 +42,21 @@ and a wet pocket.
 | [docs/05-spec](docs/05-spec/) | Product spec, technical spec, MVP scope, roadmap |
 | [docs/06-decisions](docs/06-decisions/) | Architecture decision records |
 | [docs/SOURCES.md](docs/SOURCES.md) | Master bibliography — every URL cited across the research |
+| [RUNNING.md](RUNNING.md) | How to run the `MVP1` prototype |
+
+## Code layout (`MVP1`)
+
+| Path | What |
+|---|---|
+| `src/lib/angles.ts`, `src/lib/geo.ts` | Angle discipline and spherical geodesy |
+| `src/lib/polar.ts`, `src/data/polars.ts` | Polar parsing/interpolation, derived targets, class library |
+| `src/lib/wind.ts` | Wind triangle, leeway, set & drift, ground-vs-true wind |
+| `src/lib/startline.ts` | Bias, distance below line, time to line and time to burn |
+| `src/lib/tactics.ts` | Laylines, VMG/VMC, beat split, time to mark |
+| `src/lib/weather/` | Open-Meteo ingest, binary forecast cube, field providers |
+| `src/lib/routing/` | Isochrone kernel, land mask, Web Worker |
+| `src/lib/sim.ts` | Synthetic boat, so the app is usable from a desk |
+| `src/screens/`, `src/components/` | The four screens and the start display |
 
 ## Reading order
 

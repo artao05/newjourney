@@ -1,0 +1,83 @@
+/**
+ * A screen-level error boundary.
+ *
+ * This is not defensive politeness — it is a safety requirement. A navigation
+ * app that white-screens because one derived number threw is worse than useless
+ * on the water, because it fails at exactly the moment you were relying on it.
+ * A crashed tab must degrade to "this screen is broken", never to a blank page,
+ * and the other tabs must keep working.
+ */
+
+import { Component, type ErrorInfo, type ReactNode } from 'react'
+
+interface Props {
+  children: ReactNode
+  /** Shown to the user so they know which part failed. */
+  name: string
+}
+
+interface State {
+  error: Error | null
+  info: string | null
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  state: State = { error: null, info: null }
+
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    // Keep the stack where a user can read it back to us; there is no
+    // telemetry in this app and there should not be one for a tracking product.
+    this.setState({ info: info.componentStack ?? null })
+    console.error(`[${this.props.name}]`, error, info.componentStack)
+  }
+
+  reset = () => this.setState({ error: null, info: null })
+
+  render() {
+    const { error, info } = this.state
+    if (!error) return this.props.children
+
+    return (
+      <div className="screen panel">
+        <div className="errbox">
+          <b>The {this.props.name} screen hit a problem.</b>
+          <br />
+          The other tabs still work. If this keeps happening, the details below
+          are what we need to fix it.
+        </div>
+        <div className="rows">
+          <div className="row">
+            <span>Error</span>
+            <span>{error.message || String(error)}</span>
+          </div>
+        </div>
+        {info && (
+          <details style={{ marginTop: 10 }}>
+            <summary className="note" style={{ cursor: 'pointer' }}>
+              Show details
+            </summary>
+            <pre
+              style={{
+                fontSize: 10,
+                lineHeight: 1.5,
+                color: 'var(--ink-faint)',
+                whiteSpace: 'pre-wrap',
+                overflowX: 'auto',
+              }}
+            >
+              {error.stack}
+              {info}
+            </pre>
+          </details>
+        )}
+        <button className="btn btn--sm" onClick={this.reset} style={{ marginTop: 10 }}>
+          TRY AGAIN
+        </button>
+      </div>
+    )
+  }
+}
