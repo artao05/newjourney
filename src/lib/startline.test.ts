@@ -15,6 +15,7 @@ import {
   bowPosition,
   computeStart,
   positionAtGun,
+  spareTimeS,
   timeToPoint,
 } from './startline'
 import type {
@@ -608,5 +609,42 @@ describe('boat reference points', () => {
     const past = positionAtGun(stateOf({ position: MID, cog: 0, sog: 6 }), NOW - 60_000)!
     expect(past.lat).toBeCloseTo(MID.lat - 0.1 * degPerNm, 8)
     expect(positionAtGun(stateOf(), Number.NaN)).toBeNull()
+  })
+})
+
+describe('spareTimeS — the display sign convention', () => {
+  /*
+   * Guards a bug that shipped and survived review: the start screen treated a
+   * POSITIVE timeToBurnS as "early", when the formula makes it positive when you
+   * arrive after the gun. It read plausibly either way, and was only caught by
+   * comparing the hero number against "gun in 2:03, to line 1:25" on screen.
+   */
+  it('is positive when the line is reached before the gun', () => {
+    // 32 s to the line, 60 s to the gun: 28 s in hand.
+    expect(spareTimeS({ timeToBurnS: 32 - 60 })).toBeCloseTo(28, 9)
+  })
+
+  it('is negative when the line is reached after the gun', () => {
+    // 144 s to the line, 116 s to the gun: 28 s late.
+    expect(spareTimeS({ timeToBurnS: 144 - 116 })).toBeCloseTo(-28, 9)
+  })
+
+  it('is null when time to burn is unknown', () => {
+    expect(spareTimeS({ timeToBurnS: null })).toBeNull()
+    expect(spareTimeS({ timeToBurnS: NaN })).toBeNull()
+  })
+
+  it('agrees with computeStart on a case that arrives early', () => {
+    const r = computeStart({
+      line: lineOf(100, NOW + 60_000),
+      state: stateOf({ position: off(180, 100), cog: 0, sog: 6 }),
+      wind: null,
+      boat: boatOf(),
+      now: NOW,
+      approaches: { ends: false, gps: true, reach: false, port: false, starboard: false },
+    })
+    // Reaching the line in ~32 s with 60 s to run means time in hand, not lateness.
+    expect(spareTimeS(r)).toBeGreaterThan(0)
+    expect(spareTimeS(r)).toBeCloseTo(r.timeToGunS! - r.timeToLineS!, 6)
   })
 })

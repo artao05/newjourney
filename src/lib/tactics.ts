@@ -199,10 +199,26 @@ export function computeLaylines(o: {
  * a plain ±1σ envelope is a large practical improvement on a single hard line:
  * it visibly discourages tacking on the layline in an oscillating breeze.
  */
+/**
+ * Wind sources whose repeated samples are genuinely independent measurements.
+ *
+ * This distinction is the whole point: observed variance is only evidence about
+ * the breeze when each sample was measured. A hand-entered or held wind echoes
+ * one typed number forever, so its observed oscillation is exactly zero — an
+ * artefact of the input method, not a steady breeze. Reporting a 0 degree layline
+ * band there claims the wind is known perfectly, which is false, and false
+ * confidence in a layline is how you overstand a mark.
+ */
+const MEASURED_SOURCES: ReadonlySet<WindEstimate['source']> = new Set(['instrument', 'estimated'])
+
 function boundsFrom(wind: WindEstimate, history?: WindHistory): number {
+  const nominal = Number.isFinite(wind.uncertaintyDeg) ? wind.uncertaintyDeg : 0
   const twds = (history ?? []).map((s) => s.twd).filter((d) => Number.isFinite(d))
-  if (twds.length >= 2) return stdBearing(twds)
-  return Number.isFinite(wind.uncertaintyDeg) ? wind.uncertaintyDeg : 0
+  if (twds.length < 2) return nominal
+  const observed = stdBearing(twds)
+  // Measured: trust the breeze, even when it is steadier than the source claims.
+  // Asserted: the source's own stated uncertainty is a floor.
+  return MEASURED_SOURCES.has(wind.source) ? observed : Math.max(observed, nominal)
 }
 
 /**

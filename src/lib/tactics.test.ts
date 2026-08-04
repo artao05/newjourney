@@ -191,12 +191,30 @@ describe('computeLaylines', () => {
     expect(banded.boundsDeg).toBeGreaterThan(2)
     expect(banded.boundsDeg).toBeLessThan(6)
 
-    // A rock-steady breeze gives a narrow band even if the source is unsure.
-    const steady = computeLaylines({
+    /*
+     * Changed from the original assertion, which expected ~0 here.
+     *
+     * `base` uses a MANUAL wind: the same typed number echoed every sample. Its
+     * observed variance is zero because of how it was entered, not because the
+     * breeze is steady, so reporting a 0 degree band asserts perfect knowledge of
+     * a number somebody guessed. For asserted sources the stated uncertainty is
+     * now a floor. The original intent — a genuinely steady breeze should give a
+     * narrow band — is preserved and tested below for measured sources.
+     */
+    const steadyManual = computeLaylines({
       ...base,
       windHistory: [0, 0, 0, 0].map((twd, k) => ({ t: NOW + k * 1000, twd, tws: 12 })),
     })
-    expect(steady.boundsDeg).toBeCloseTo(0, 9)
+    expect(steadyManual.boundsDeg).toBeCloseTo(4, 9) // floored at uncertaintyDeg
+
+    // A measured breeze that really is rock steady still gives a narrow band,
+    // even though the source nominally claims more uncertainty than it shows.
+    const steadyMeasured = computeLaylines({
+      ...base,
+      wind: { twd: 0, tws: 12, source: 'instrument', uncertaintyDeg: 4, t: NOW },
+      windHistory: [0, 0, 0, 0].map((twd, k) => ({ t: NOW + k * 1000, twd, tws: 12 })),
+    })
+    expect(steadyMeasured.boundsDeg).toBeCloseTo(0, 9)
   })
 
   it('reports the TWD that would lay the mark on the tack we are on', () => {

@@ -10,7 +10,7 @@ import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
 import { StartCanvas } from '@/components/StartCanvas'
 import { Tile, fmtClock, fmtSigned } from '@/components/Tile'
-import { computeStart } from '@/lib/startline'
+import { computeStart, spareTimeS } from '@/lib/startline'
 import { buildLattice } from '@/lib/polar'
 import type { PolarLattice, StartNumbers } from '@/lib/types'
 
@@ -93,8 +93,22 @@ export function StartScreen() {
     setGunTime(now + rounded * 1000)
   }
 
+  /*
+   * `timeToBurnS` is Expedition's `timeToLine - timeToGun`, which is POSITIVE
+   * when you arrive after the gun — i.e. when you are LATE. A sailor asking
+   * "what's my time to burn?" means the opposite: the spare seconds they have to
+   * kill before starting. So flip it once, here, and work in spare time.
+   *
+   *   spare > 0  you will be early by this much — burn it
+   *   spare < 0  you will be late by this much
+   *
+   * Getting this backwards inverts the single most important number on the
+   * screen, and it reads plausibly either way, which is why it survived until
+   * someone compared it against "gun in 2:03, to line 1:25".
+   */
+  const spare = spareTimeS(numbers)
   const burnTone =
-    burn == null ? undefined : burn > 8 ? 'early' : burn < -3 ? 'late' : 'good'
+    spare == null ? undefined : spare > 8 ? 'early' : spare < -3 ? 'late' : 'good'
 
   /*
    * When the bow is over the line, `timeToLine` is negative by definition, so
@@ -116,7 +130,13 @@ export function StartScreen() {
     <>
       <div className="hero">
         <div className="hero__label">
-          {numbers.ocs ? 'over the line' : showBurn ? 'time to burn' : 'time to gun'}
+          {numbers.ocs
+            ? 'over the line'
+            : !showBurn
+              ? 'time to gun'
+              : spare != null && spare < 0
+                ? 'late by'
+                : 'time to burn'}
         </div>
         <div
           className={`hero__value${
@@ -130,10 +150,10 @@ export function StartScreen() {
             : gun == null
               ? '—'
               : showBurn
-                ? (fmtSigned(burn) ?? '—')
+                ? (fmtSigned(spare) ?? '—')
                 : (fmtClock(numbers.timeToGunS) ?? '—')}
         </div>
-        {!numbers.ocs && <BurnBar burn={burn} />}
+        {!numbers.ocs && <BurnBar spare={spare} />}
         <div style={{ marginTop: 9, fontSize: 12, color: 'var(--ink-faint)' }}>
           {numbers.ocs ? (
             <span style={{ color: 'var(--port)' }}>
@@ -267,16 +287,17 @@ export function StartScreen() {
   )
 }
 
-function BurnBar({ burn }: { burn: number | null }) {
+/** `spare` is seconds in hand: positive early, negative late. */
+function BurnBar({ spare }: { spare: number | null }) {
   // ±60 s maps to the full width; beyond that it pins.
-  const clamped = burn == null ? 0 : Math.max(-60, Math.min(60, burn))
+  const clamped = spare == null ? 0 : Math.max(-60, Math.min(60, spare))
   const pct = (clamped / 60) * 50
   const colour =
-    burn == null
+    spare == null
       ? 'var(--line-bright)'
-      : burn > 8
+      : spare > 8
         ? 'var(--warn)'
-        : burn < -3
+        : spare < -3
           ? 'var(--port)'
           : 'var(--stbd)'
   return (
@@ -287,7 +308,7 @@ function BurnBar({ burn }: { burn: number | null }) {
           left: pct >= 0 ? '50%' : `${50 + pct}%`,
           width: `${Math.abs(pct)}%`,
           background: colour,
-          opacity: burn == null ? 0.3 : 1,
+          opacity: spare == null ? 0.3 : 1,
         }}
       />
       <div className="burnbar__zero" />
@@ -317,7 +338,10 @@ function DetailSheet({
       <div className="rows">
         {row('Time to gun', fmtClock(numbers.timeToGunS))}
         {row('Time to line', s(numbers.timeToLineS, 0, ' s'))}
-        {row('Time to burn', fmtSigned(numbers.timeToBurnS))}
+        {row(
+          'Spare time (burn)',
+          fmtSigned(numbers.timeToBurnS == null ? null : -numbers.timeToBurnS),
+        )}
         {row('Distance below line', s(numbers.distanceBelowLineM, 1, ' m'))}
         {row('Line length', s(numbers.lineLengthM, 0, ' m'))}
         {row('Line square wind', s(numbers.lineSquareWindDeg, 0, '°'))}
@@ -330,7 +354,8 @@ function DetailSheet({
       <p className="note">
         Bias sign follows Expedition&apos;s convention: negative means the port
         (pin) end is favoured. Time to line is the minimum over the enabled
-        approaches, including the turn and acceleration.
+        approaches, including the turn and acceleration. Spare time is positive
+        when you will reach the line before the gun and have seconds to kill.
       </p>
       <button className="btn btn--sm" onClick={onClose} style={{ marginTop: 6 }}>
         CLOSE

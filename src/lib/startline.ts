@@ -570,3 +570,17 @@ function crossingPoint(
   if (!hit || hit.t <= 0) return null
   return frame.toLatLon(hit.point)
 }
+
+/**
+ * Seconds in hand before the gun: positive early, negative late.
+ *
+ * `StartNumbers.timeToBurnS` keeps Expedition's definition, `timeToLine -
+ * timeToGun`, which is positive when you arrive AFTER the gun. A sailor asking
+ * for "time to burn" means the opposite — the spare seconds to kill before
+ * starting — so every display of that number has to flip it. This is that flip,
+ * in one tested place, because reading it backwards inverts the most important
+ * number on the start screen and looks entirely plausible either way.
+ */
+export function spareTimeS(n: Pick<StartNumbers, 'timeToBurnS'>): Seconds | null {
+  return n.timeToBurnS == null || !Number.isFinite(n.timeToBurnS) ? null : -n.timeToBurnS
+}

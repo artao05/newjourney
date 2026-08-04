@@ -240,7 +240,15 @@ export interface StartNumbers {
   timeToGunS: Seconds | null
   /** Shortest time to the line over the enabled approaches. */
   timeToLineS: Seconds | null
-  /** timeToLine - timeToGun. Positive = early, must burn time. */
+  /**
+   * `timeToLine - timeToGun`, keeping Expedition's definition verbatim.
+   *
+   * Mind the sign: this is POSITIVE when you arrive AFTER the gun, i.e. when you
+   * are late, and NEGATIVE when you get there early and have spare time to kill.
+   * That is the opposite of how a sailor uses the phrase "time to burn", so the
+   * UI presents `-timeToBurnS` as the spare time. Do not "fix" the sign here —
+   * the field is the interchange value; the flip belongs at the display layer.
+   */
   timeToBurnS: Seconds | null
   /** Signed perpendicular distance to the line, +ve on the pre-start side. */
   distanceBelowLineM: Metres | null
