@@ -127,6 +127,13 @@ export function LayerHarness() {
         scalar.setData(cubeRef.current, t)
         particles.setData(cubeRef.current, t)
         setStatus('layers added')
+        // Exposed for console tuning and for the automated checks below.
+        ;(window as unknown as Record<string, unknown>).__harness = {
+          map,
+          scalar,
+          particles,
+          cube: cubeRef.current,
+        }
       } catch (err) {
         setStatus(`layer error: ${err instanceof Error ? err.message : String(err)}`)
       }
@@ -195,7 +202,12 @@ export function LayerHarness() {
         </span>
       </div>
 
-      <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+      {/*
+        `minHeight` is load-bearing. With `flex: 1; min-height: 0` the control
+        panel below grew and collapsed the map to zero height, which renders a
+        blank pane at a healthy 60 fps and looks exactly like a broken shader.
+      */}
+      <div style={{ position: 'relative', flex: '1 1 auto', minHeight: 320 }}>
         <div ref={container} className="map" />
         <div className="legend" style={{ pointerEvents: 'none' }}>
           <div>
@@ -208,7 +220,7 @@ export function LayerHarness() {
         </div>
       </div>
 
-      <div className="panel" style={{ paddingTop: 8 }}>
+      <div className="panel" style={{ paddingTop: 8, flexShrink: 0, overflowY: 'auto', maxHeight: '45%' }}>
         <div className="seg" style={{ marginBottom: 8 }}>
           <button aria-pressed={showParticles} onClick={() => setShowParticles((v) => !v)}>
             particles

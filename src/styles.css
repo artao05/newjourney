@@ -527,9 +527,22 @@ button {
   color: var(--ink);
 }
 
+/*
+ * MapLibre puts its own `.maplibregl-map` class on the container element, and
+ * its stylesheet sets `position: relative`. Same specificity as `.map`, and it
+ * is imported after this file, so it wins — which drops our `position: absolute`
+ * and, because MapLibre's canvas container is itself absolute, collapses the map
+ * div to zero height. The result is an invisible map that reports a healthy
+ * canvas size and 60 fps.
+ *
+ * Sizing with `height`/`width` rather than `inset` survives either position
+ * value, so the layout no longer depends on stylesheet ordering.
+ */
 .map {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .maplibregl-ctrl-attrib {

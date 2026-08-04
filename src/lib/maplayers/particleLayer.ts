@@ -97,8 +97,14 @@ void main() {
 
   // Respawn: randomly, when leaving the domain, or in a dead cell. Without the
   // random term particles pool in convergence zones and drain the rest of the map.
+  //
+  // step(edge, x) is 1 when x >= edge, so with edge = 1 - dropRate this fires for
+  // the top dropRate fraction of random values. Negating it (1.0 minus the step)
+  // inverts the test and respawns ~99.6% of particles every tick, re-scattering
+  // them before any trail can form. That renders as uniform noise, which looks
+  // like a particle-density problem rather than a logic error.
   vec2 seed = (pos + v_tex) * u_rand_seed;
-  float drop = 1.0 - step(1.0 - u_drop_rate * (0.2 + speed_t), rand(seed));
+  float drop = step(1.0 - u_drop_rate * (0.2 + speed_t), rand(seed));
   bool outside = pos.x < 0.0 || pos.x > 1.0 || pos.y < 0.0 || pos.y > 1.0;
   float reset = max(max(drop, float(outside)), 1.0 - covered);
 
@@ -136,9 +142,12 @@ void main() {
   if (w.a < 0.5) v_speed_t = -1.0;
 
   // Map the [0,1] cube position into mercator, then through MapLibre's matrix.
+  // pos.y is a texture coordinate, and the cube stores rows south-to-north, so
+  // pos.y == 0 is the SOUTH edge. Mercator y increases southward, hence
+  // bbox.y (mercY of south) at pos.y == 0.
   vec2 merc = vec2(
     mix(u_bbox.x, u_bbox.z, pos.x),
-    mix(u_bbox.w, u_bbox.y, pos.y));
+    mix(u_bbox.y, u_bbox.w, pos.y));
   gl_Position = u_matrix * vec4(merc, 0.0, 1.0);
   gl_PointSize = u_point_size;
 }`
@@ -199,11 +208,17 @@ export interface ParticleLayerOptions {
   updateHz?: number
 }
 
+/**
+ * Tuned by eye against the dev harness (`?harness`) using a synthetic vortex
+ * whose correct appearance is known: streaks rather than dots, visibly longer
+ * where the field is faster, and a recognisable circulation. Changing these
+ * changes the whole character of the layer, so re-check in the harness.
+ */
 const DEFAULTS = {
-  speedFactor: 0.35,
-  fadeOpacity: 0.955,
-  dropRate: 0.003,
-  pointSize: 1.6,
+  speedFactor: 1.2,
+  fadeOpacity: 0.96,
+  dropRate: 0.004,
+  pointSize: 1.5,
   opacity: 1,
   updateHz: 25,
 }
@@ -492,30 +507,78 @@ export class ParticleLayer implements CustomLayerInterface {
     const shouldUpdate = now - this.lastUpdate >= interval
     if (shouldUpdate) this.lastUpdate = now
 
+    /*
+     * Save and restore every piece of GL state we touch.
+     *
+     * MapLibre sets the viewport once per frame, not once per layer, so leaving
+     * it pointed at a 256x256 particle framebuffer silently squeezes every
+     * later layer — and the whole next frame — into a corner of the canvas.
+     * That failure mode renders nothing visible while reporting no GL error,
+     * which is exactly how it went unnoticed until the harness showed a blank
+     * map at a healthy 60 fps.
+     */
     const prevBlend = gl.getParameter(gl.BLEND) as boolean
+    const prevViewport = gl.getParameter(gl.VIEWPORT) as Int32Array
+    const prevScissor = gl.getParameter(gl.SCISSOR_TEST) as boolean
     gl.disable(gl.DEPTH_TEST)
     gl.disable(gl.STENCIL_TEST)
+    /*
+     * MapLibre leaves SCISSOR_TEST enabled with its own scissor box. Our
+     * offscreen framebuffer is a different size and origin, so that stale box
+     * clips every one of our draws away — producing an all-zero framebuffer with
+     * no GL error, correct uniforms, and valid particle positions. It cost an
+     * hour to find; do not remove this without reading the note above.
+     */
+    gl.disable(gl.SCISSOR_TEST)
 
-    // 1. Draw the faded previous frame plus this frame's particles into the
-    //    offscreen texture. The fade is what produces the trails.
-    bindFramebuffer(gl, this.framebuffer, this.screenTexture)
-    gl.viewport(0, 0, this.screenW, this.screenH)
-    this.drawFadedTexture(gl, this.backgroundTexture, this.opts.fadeOpacity)
-    this.drawParticles(gl, matrix)
+    /*
+     * 1. Repaint the trail buffer, but ONLY on an advection tick.
+     *
+     * Drawing the particles every rendered frame while advecting at a lower rate
+     * paints the same position 2-3 times in a row, so each particle reads as an
+     * isolated dot and the trail never forms. Trails come from consecutive
+     * *different* positions, so the draw has to be locked to the advection clock.
+     * Compositing still happens every frame, which is cheap and keeps the layer
+     * smooth while the map pans.
+     */
+    if (shouldUpdate) {
+      bindFramebuffer(gl, this.framebuffer, this.screenTexture)
+      gl.viewport(0, 0, this.screenW, this.screenH)
+      /*
+       * The fade pass must OVERWRITE, not blend. MapLibre leaves BLEND enabled,
+       * and blending the faded copy over whatever was already in this buffer
+       * turns the decay into an accumulation: the trail buffer saturates within
+       * a second and the layer renders as a solid colour wash. That is
+       * indistinguishable from "far too many particles" — until you notice that
+       * reducing the count changes nothing at all.
+       */
+      gl.disable(gl.BLEND)
+      this.drawFadedTexture(gl, this.backgroundTexture, this.opts.fadeOpacity)
+      // Particles themselves blend, so overlapping trails build up sensibly.
+      gl.enable(gl.BLEND)
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+      this.drawParticles(gl, matrix)
 
-    // 2. Composite onto the map.
+      // Swap so this frame's buffer becomes next tick's background.
+      const tmp = this.backgroundTexture
+      this.backgroundTexture = this.screenTexture
+      this.screenTexture = tmp
+
+      this.updateParticles(gl)
+    }
+
+    // 2. Composite the trail buffer onto the map, every frame.
     bindFramebuffer(gl, null)
+    gl.viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3])
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
-    this.drawFadedTexture(gl, this.screenTexture, 1)
-    if (!prevBlend) gl.disable(gl.BLEND)
+    this.drawFadedTexture(gl, this.backgroundTexture, 1)
 
-    // 3. Swap screen buffers so this frame becomes next frame's background.
-    const tmp = this.backgroundTexture
-    this.backgroundTexture = this.screenTexture
-    this.screenTexture = tmp
-
-    if (shouldUpdate) this.updateParticles(gl)
+    // Hand the context back exactly as we found it.
+    gl.viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3])
+    if (prevBlend) gl.enable(gl.BLEND)
+    else gl.disable(gl.BLEND)
+    if (prevScissor) gl.enable(gl.SCISSOR_TEST)
 
     this.frames++
     // Keep the animation going. MapLibre only repaints on demand for custom

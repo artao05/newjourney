@@ -252,9 +252,10 @@ export class ScalarLayer implements CustomLayerInterface {
       const lat1 = south + (north - south) * f1
       const my0 = mercatorY(lat0)
       const my1 = mercatorY(lat1)
-      // v = 1 - f, matching south-to-north storage against top-down texture space.
-      const v0 = 1 - f0
-      const v1 = 1 - f1
+      // texImage2D maps the first data row to v == 0, and the cube stores rows
+      // south-to-north, so v == f measured northward from the south edge.
+      const v0 = f0
+      const v1 = f1
 
       merc.push(mx0, my0, mx1, my0, mx0, my1)
       tex.push(0, v0, 1, v0, 0, v1)
@@ -309,8 +310,16 @@ export class ScalarLayer implements CustomLayerInterface {
     gl.uniform2f(p.uniforms.u_domain ?? null, this.domain[0], this.domain[1])
     gl.uniformMatrix4fv(p.uniforms.u_matrix ?? null, false, matrix as Float32Array)
 
+    // See the note in particleLayer: MapLibre leaves a scissor box set, which
+    // silently clips a full-extent custom layer away.
+    const prevBlend = gl.getParameter(gl.BLEND) as boolean
+    const prevScissor = gl.getParameter(gl.SCISSOR_TEST) as boolean
+    gl.disable(gl.SCISSOR_TEST)
+    gl.disable(gl.DEPTH_TEST)
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
     gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount)
+    if (!prevBlend) gl.disable(gl.BLEND)
+    if (prevScissor) gl.enable(gl.SCISSOR_TEST)
   }
 }

@@ -306,7 +306,11 @@ export function defaultParticleCount(): number {
   const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
   const cores = navigator.hardwareConcurrency ?? 4
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
-  if (coarse) return cores <= 4 ? 16384 : 65536
-  if (mem && mem <= 4) return 65536
-  return 262144
+  // Counts verified in the harness. Far below what the GPU can push, and
+  // deliberately so: past roughly 25k the streamlines stop reading as flow lines
+  // and start reading as a solid wash, so more particles is actively worse as
+  // well as more expensive. Legibility sets this ceiling, not performance.
+  if (coarse) return cores <= 4 ? 6000 : 12000
+  if (mem && mem <= 4) return 12000
+  return 24000
 }
