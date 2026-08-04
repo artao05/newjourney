@@ -7,10 +7,24 @@ tactical software stack (Expedition and its peers) with something a 16-year-old 
 420 or a first-time offshore navigator on a J/105 can open on a phone and understand
 in five minutes — built entirely on public data.
 
-> **Status: working prototype on branch `MVP1`, piloting Portland & Casco Bay, Maine.** `main` holds the research and
-> specification work; `MVP1` adds a running React PWA with the start-line tools,
-> tactical numbers, and an isochrone weather router. See [RUNNING.md](RUNNING.md)
-> to try it — including a boat simulator so you can use the whole app from a desk.
+> **Status: working prototype on branch `MVP1`, piloting Portland & Casco Bay, Maine.**
+> `main` holds the research and specification work; `MVP1` adds a running React PWA
+> with the start-line tools, tactical numbers, an isochrone weather router and GPU
+> wind/wave layers. See [RUNNING.md](RUNNING.md) to try it — including a boat
+> simulator so you can use the whole app from a desk, with no GPS fix needed.
+>
+> 208 tests passing · typecheck clean · build clean · 92 KB gzipped first load.
+> **Not for navigation** — see the caveats in [RUNNING.md](RUNNING.md#whats-real-and-what-isnt),
+> particularly that land avoidance is currently switched off and the bundled polars
+> are generated rather than measured.
+
+## Branches
+
+| Branch | Contents |
+|---|---|
+| `main` | Phase 0 research and specification only — no application code |
+| **`MVP1`** | The working prototype. Start here. |
+| `UIunderstanding` | Research into how PredictWind and SeaLegs handle charting and map layers, and the resulting render architecture |
 
 ---
 

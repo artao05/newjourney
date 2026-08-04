@@ -49,18 +49,46 @@ __sim.setWind(240, 16)
    route, the isochrones, and the shaded band of positions within 10 minutes of
    optimal.
 
+## The map-layer harness
+
+The GPU particle and scalar-field layers can be worked on in isolation, without
+a GPS fix or a forecast download:
+
+```
+http://localhost:5173/?harness
+```
+
+Dev-only — a stray query string in production cannot replace the app.
+
 ## What's real and what isn't
 
 **Real:** the geodesy, the wind triangle, the polar interpolation and target
 derivation, the start-line math including turn and acceleration dynamics, the
 layline math including current correction, the isochrone router and its
 forward/backward sensitivity pass, the Open-Meteo ingest and the binary cube
-format.
+format, and the GPU particle / scalar map layers.
 
-**Not real yet:** charts are an OpenStreetMap + OpenSeaMap raster overlay rather
-than rendered NOAA ENC; land avoidance uses a coarse mask rather than full
-coastline geometry; tides and currents are forecast-model only, with no harmonic
-station engine; there is no account, sync, fleet sharing, or Signal K ingest.
-See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md).
+**Not real yet:**
 
-**Not for navigation.** Prototype. Advisory only.
+- Charts are an OpenStreetMap + OpenSeaMap raster overlay, not rendered NOAA ENC.
+- **Land avoidance is switched off** (`HAS_ROUTING_LAND_DATA = false` in
+  `RouteScreen.tsx`). A raster basemap is not a routing-grade obstacle mask, and
+  a router that thinks it avoids land when it doesn't is the most dangerous kind
+  of wrong. A route may cross land — check it yourself.
+- Tides and currents are forecast-model only. No harmonic station engine yet.
+- **Every polar in the class library is generated from published dimensions, not
+  measured.** They are labelled that way in `src/data/polars.ts`. Treat target
+  speeds as indicative, not as your boat.
+- No account, sync, fleet sharing, or Signal K ingest.
+
+See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next, and
+[docs/07-map-layers/](docs/07-map-layers/) for the layer engine design.
+
+## Verified state
+
+At the last commit: **208 tests passing**, `tsc --noEmit` clean, `npm run build`
+clean, all four tabs rendering. First load is 92 KB gzipped; the map chunk
+(~290 KB gzipped, mostly MapLibre) loads only when you open the Route tab.
+
+**Not for navigation.** Prototype. Advisory only. Nothing here replaces official
+charts, official tide tables, or your own judgment.
