@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 import type { ColorRamp } from './types'
 import {
   LAYERS,
+  LAYER_ORDER,
   RAMPS,
   beaufortForce,
   makeSampler,
@@ -270,10 +271,19 @@ describe('rampToMapLibreExpression', () => {
 
 describe('LAYERS', () => {
   it('defines the layers the spec requires', () => {
-    for (const id of ['wind', 'gust', 'waveHeight', 'current', 'pressure']) {
+    for (const id of ['wind', 'waveHeight', 'current']) {
       expect(LAYERS[id], id).toBeDefined()
       expect(LAYERS[id].id).toBe(id)
     }
+  })
+
+  it('no longer offers gust or pressure as map layers', () => {
+    // Both were removed deliberately: a gust is a number you want at a point, and
+    // MSLP is not something an inshore racer sails on. Both are still fetched and
+    // still shown in the tap-to-inspect readout, and gust remains a routing
+    // constraint — so this asserts the CHIP is gone, not the data.
+    expect(LAYERS.gust).toBeUndefined()
+    expect(LAYERS.pressure).toBeUndefined()
   })
 
   it('gives wind and current the right kinds, params and default modes', () => {
@@ -283,9 +293,19 @@ describe('LAYERS', () => {
     expect(LAYERS.current.kind).toBe('vector')
     expect(LAYERS.current.params).toEqual(['uo', 'vo'])
     expect(LAYERS.current.defaultMode).toBe('arrows')
-    expect(LAYERS.gust.params).toEqual(['gust'])
     expect(LAYERS.waveHeight.params).toEqual(['hs'])
-    expect(LAYERS.pressure.params).toEqual(['prmsl'])
+  })
+
+  it('keeps LAYER_ORDER and LAYERS in step', () => {
+    /*
+     * The Weather screen's picker does `LAYERS[id]` and returns null when the id is
+     * missing, so a stale entry in LAYER_ORDER makes a chip silently vanish rather
+     * than fail. This is the only thing that would catch that.
+     */
+    for (const id of LAYER_ORDER) {
+      expect(LAYERS[id], `LAYER_ORDER lists "${id}"`).toBeDefined()
+    }
+    expect([...LAYER_ORDER].sort()).toEqual(Object.keys(LAYERS).sort())
   })
 
   it('keeps every layer internally consistent', () => {

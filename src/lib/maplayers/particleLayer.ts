@@ -308,6 +308,38 @@ export class ParticleLayer implements CustomLayerInterface {
   private visible = true
   private frames = 0
 
+  /*
+   * Trail-buffer invalidation.
+   *
+   * The trail accumulates in SCREEN space and is composited without any
+   * projection matrix, so while the camera moves the streak image stays pinned to
+   * device pixels and visibly lags the coastline sliding underneath it — for about
+   * a second afterwards too, at fadeOpacity 0.96. The particles themselves are
+   * fine: their positions are normalised over the cube bbox and are projected
+   * properly every draw. Only the accumulated picture is stale.
+   *
+   * So: drop the trail whenever the camera moves, and while it is moving redraw
+   * the particles into a freshly cleared buffer every frame. Advection stays on
+   * its own clock, so particles do not speed up during a drag.
+   *
+   * Reprojecting the buffer by the pan delta was the alternative. It only works
+   * for a pure pan and falls apart on zoom, rotate and pitch, so clearing wins.
+   */
+  private clearPending = true
+  private moving = false
+  /** Requested count at `REFERENCE_AREA`; the effective count scales with the buffer. */
+  private baseCount = 0
+  private onMoveStart = () => {
+    this.moving = true
+  }
+  private onMove = () => {
+    this.clearPending = true
+  }
+  private onMoveEnd = () => {
+    this.moving = false
+    this.clearPending = true
+  }
+
   constructor(options: ParticleLayerOptions = {}) {
     this.id = options.id ?? 'wind-particles'
     this.opts = {
@@ -337,11 +369,30 @@ export class ParticleLayer implements CustomLayerInterface {
     this.framebuffer = gl.createFramebuffer()
     this.rampTexture = createTexture(gl, gl.LINEAR, this.opts.colorRamp, 16, 16)
 
+    // Seed a small count; `resizeScreen` immediately re-tunes it to the real
+    // drawing-buffer area, which is the number that actually governs density.
+    this.baseCount = this.opts.count
     this.setParticleCount(this.opts.count)
     this.resizeScreen()
+
+    /*
+     * Subscribe here rather than making every caller wire it up. `move` fires
+     * continuously through pan, zoom, rotate and pitch, which is exactly the set
+     * of cases that invalidate a screen-space trail.
+     */
+    map.on('movestart', this.onMoveStart)
+    map.on('move', this.onMove)
+    map.on('moveend', this.onMoveEnd)
   }
 
   onRemove() {
+    // Detach before dropping the map reference, or the handlers outlive the layer
+    // and keep flagging a buffer nobody owns.
+    if (this.map) {
+      this.map.off('movestart', this.onMoveStart)
+      this.map.off('move', this.onMove)
+      this.map.off('moveend', this.onMoveEnd)
+    }
     const gl = this.gl
     if (!gl) return
     for (const t of [
@@ -419,7 +470,14 @@ export class ParticleLayer implements CustomLayerInterface {
 
   setOptions(patch: Partial<ParticleLayerOptions>) {
     Object.assign(this.opts, patch)
-    if (patch.count && patch.count !== this.particleCount) this.setParticleCount(patch.count)
+    if (patch.count) {
+      // A caller's count is a density target, so run it through the same area
+      // scaling the buffer size uses — otherwise switching layers would reset the
+      // density that resizeScreen just worked out.
+      this.baseCount = patch.count
+      const target = this.densityScaledCount(this.screenW || 1000, this.screenH || 1000)
+      if (target !== this.particleCount) this.setParticleCount(target)
+    }
     this.map?.triggerRepaint()
   }
 
@@ -430,7 +488,21 @@ export class ParticleLayer implements CustomLayerInterface {
    */
   setVisible(visible: boolean) {
     this.visible = visible
-    if (visible) this.map?.triggerRepaint()
+    // Coming back from hidden, the buffer holds whatever was on screen when we
+    // left — which may be minutes old and somewhere else entirely.
+    if (visible) {
+      this.clearPending = true
+      this.map?.triggerRepaint()
+    }
+  }
+
+  /**
+   * Discard the accumulated trail. Call after anything that invalidates the
+   * screen-space picture; camera movement is already handled internally.
+   */
+  resetTrails() {
+    this.clearPending = true
+    this.map?.triggerRepaint()
   }
 
   private setParticleCount(count: number) {
@@ -454,6 +526,22 @@ export class ParticleLayer implements CustomLayerInterface {
     this.indexBuffer = createBuffer(gl, indices)
   }
 
+  /**
+   * Particle count that keeps the *density* constant across buffer sizes.
+   *
+   * `count` is a target at `REFERENCE_AREA`, not an absolute. The tuned look came
+   * from a ~843x450 harness canvas; a retina phone or a wide desktop pane gives a
+   * drawing buffer several times that area, and a fixed count spread over it thins
+   * the streamlines out to almost nothing. This layer was measured at 1920x1074 —
+   * 4.5x the reference area — where a flat 9000 particles reads as an empty map.
+   */
+  private densityScaledCount(w: number, h: number): number {
+    const REFERENCE_AREA = 1_000_000 // ~1000x1000 device pixels
+    const scaled = Math.round(this.baseCount * ((w * h) / REFERENCE_AREA))
+    // Floor keeps a small pane legible; ceiling protects a 4K display's battery.
+    return Math.max(2500, Math.min(120_000, scaled))
+  }
+
   private resizeScreen() {
     const gl = this.gl
     if (!gl) return
@@ -462,11 +550,23 @@ export class ParticleLayer implements CustomLayerInterface {
     if (w === this.screenW && h === this.screenH) return
     this.screenW = w
     this.screenH = h
+
+    /*
+     * Re-tune the count for the new area. Only on an actual size change, and only
+     * when it differs enough to matter — `setParticleCount` reallocates two
+     * textures and the index buffer, so it must not run per frame.
+     */
+    const target = this.densityScaledCount(w, h)
+    if (Math.abs(target - this.particleCount) > this.particleCount * 0.2) {
+      this.setParticleCount(target)
+    }
     const empty = new Uint8Array(w * h * 4)
     if (this.screenTexture) gl.deleteTexture(this.screenTexture)
     if (this.backgroundTexture) gl.deleteTexture(this.backgroundTexture)
     this.screenTexture = createTexture(gl, gl.NEAREST, empty, w, h)
     this.backgroundTexture = createTexture(gl, gl.NEAREST, empty, w, h)
+    // Fresh zero-filled textures, so any pending clear is already satisfied.
+    this.clearPending = false
   }
 
   // ------------------------------------------------------------- render
@@ -531,17 +631,28 @@ export class ParticleLayer implements CustomLayerInterface {
      */
     gl.disable(gl.SCISSOR_TEST)
 
+    // A pending clear zeroes both halves of the ping-pong so no stale streaks
+    // survive into the new camera position.
+    if (this.clearPending) {
+      this.clearTrailBuffers(gl)
+      this.clearPending = false
+    }
+
     /*
-     * 1. Repaint the trail buffer, but ONLY on an advection tick.
+     * 1. Repaint the trail buffer.
      *
-     * Drawing the particles every rendered frame while advecting at a lower rate
-     * paints the same position 2-3 times in a row, so each particle reads as an
-     * isolated dot and the trail never forms. Trails come from consecutive
-     * *different* positions, so the draw has to be locked to the advection clock.
-     * Compositing still happens every frame, which is cheap and keeps the layer
-     * smooth while the map pans.
+     * Normally only on an advection tick: drawing every rendered frame while
+     * advecting slower paints the same position 2-3 times, so each particle reads
+     * as an isolated dot and no trail forms. Trails come from consecutive
+     * *different* positions, so the draw is locked to the advection clock.
+     *
+     * While the camera moves, draw every frame instead. The buffer is being
+     * cleared every frame anyway (the `move` handler keeps flagging it), so there
+     * is no trail to build and no reason to leave the screen empty between ticks.
+     * The result is a correctly registered field of points that tracks the map,
+     * which is the whole point of the fix.
      */
-    if (shouldUpdate) {
+    if (shouldUpdate || this.moving) {
       bindFramebuffer(gl, this.framebuffer, this.screenTexture)
       gl.viewport(0, 0, this.screenW, this.screenH)
       /*
@@ -564,7 +675,14 @@ export class ParticleLayer implements CustomLayerInterface {
       this.backgroundTexture = this.screenTexture
       this.screenTexture = tmp
 
-      this.updateParticles(gl)
+      /*
+       * Advect on the clock only — never once per drawn frame.
+       *
+       * While moving we draw at the display rate, so advecting here too would step
+       * the particles 60 times a second instead of 25 and the flow would visibly
+       * accelerate whenever you touched the map.
+       */
+      if (shouldUpdate) this.updateParticles(gl)
     }
 
     // 2. Composite the trail buffer onto the map, every frame.
@@ -584,6 +702,27 @@ export class ParticleLayer implements CustomLayerInterface {
     // Keep the animation going. MapLibre only repaints on demand for custom
     // layers, so an animated layer must ask for the next frame itself.
     this.map?.triggerRepaint()
+  }
+
+  /**
+   * Zero both halves of the trail ping-pong.
+   *
+   * `gl.clear` on the framebuffer rather than deleting and recreating the textures
+   * the way `resizeScreen` does — this runs on every frame of a drag, so it has to
+   * be cheap. Clears both because the pair is swapped each tick and either one can
+   * be the next background.
+   */
+  private clearTrailBuffers(gl: WebGLRenderingContext) {
+    if (!this.screenTexture || !this.backgroundTexture) return
+    const prevClear = gl.getParameter(gl.COLOR_CLEAR_VALUE) as Float32Array
+    gl.clearColor(0, 0, 0, 0)
+    for (const tex of [this.screenTexture, this.backgroundTexture]) {
+      bindFramebuffer(gl, this.framebuffer, tex)
+      gl.viewport(0, 0, this.screenW, this.screenH)
+      gl.clear(gl.COLOR_BUFFER_BIT)
+    }
+    bindFramebuffer(gl, null)
+    gl.clearColor(prevClear[0], prevClear[1], prevClear[2], prevClear[3])
   }
 
   private drawFadedTexture(

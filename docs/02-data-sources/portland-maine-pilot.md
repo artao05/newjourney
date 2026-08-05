@@ -82,6 +82,28 @@ list is the [CO-OPS current data inventory](https://tidesandcurrents.noaa.gov/cd
 and the [Casco Bay technical report](https://tidesandcurrents.noaa.gov/publications/Tech_Rpt_84_CAB_Tech_Report_Final.pdf)
 documents the reference station and the survey.
 
+**Implemented** in `src/lib/tides/coops.ts`, feeding the Current view's tidal chart.
+Notes from doing it:
+
+- Use **`units=english`** for currents. The response then declares `"feet, knots"`,
+  which is what a sailor reads. `units=metric` returns cm/s.
+- The endpoint sends permissive CORS headers, so this runs from the browser with no
+  key and no proxy.
+- Two requests: the plain product for the 6-minute curve, and `interval=MAX_SLACK`
+  for the turns. The event rows carry `Type` of `slack`, `flood` or `ebb`, plus
+  `meanFloodDir` and `meanEbbDir` on every row. Taking the turns from NOAA rather
+  than re-deriving zero crossings keeps our times matching the printed tables —
+  measured agreement is within **1 minute** across 8 slacks.
+- `Velocity_Major` is **signed along the flood/ebb axis**, so direction at a
+  reversing station is binary: the flood bearing or the ebb bearing, never a
+  continuously rotating vector.
+- Timestamps come back as `'YYYY-MM-DD HH:mm'` with the zone set by `time_zone` and
+  **no offset in the string**. We request `gmt` and parse as UTC explicitly;
+  `new Date(str)` would read it as local and shift every slack time silently.
+- A bad station or range returns **HTTP 200 with an `error` object**, so that has to
+  be checked before looking for data — otherwise a nonexistent station reads as calm
+  water.
+
 ### Operational ocean currents
 
 | Source | Endpoint | Coverage and role |
@@ -134,9 +156,11 @@ at <https://www.weather.gov/documentation/services-web-API>; it requires an iden
 2. **Race-day observed conditions.** Poll and cache CO-OPS `8418150` and NDBC `44007`.
    Add NWS `ANZ153` forecast and alerts. Treat missing buoy reports as missing, not
    zero wind or wave.
-3. **Tide and harmonic current.** Fetch tide predictions for `8418150` and display the
-   local subordinate stations. Add `CAB1401` current predictions, then the in-harbor
-   points (`CAB1402` through `CAB1407`) with distinct predicted-current provenance.
+3. **Tide and harmonic current.** *`CAB1401` current predictions are done* — the
+   Current view charts the curve with NOAA's slack and peak times and marks the
+   station on the map. Still to do: tide *heights* for `8418150` and the subordinate
+   stations, and the in-harbor current points (`CAB1402` through `CAB1407`) with
+   distinct predicted-current provenance.
 4. **Operational current grid.** Ingest and subset GoMOFS by venue bbox and time window.
    Feed its surface current vectors to routing only after recording the model run,
    valid time, grid resolution, and interpolation result.

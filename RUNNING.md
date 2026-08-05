@@ -66,7 +66,8 @@ Dev-only — a stray query string in production cannot replace the app.
 derivation, the start-line math including turn and acceleration dynamics, the
 layline math including current correction, the isochrone router and its
 forward/backward sensitivity pass, the Open-Meteo ingest and the binary cube
-format, and the GPU particle / scalar map layers.
+format, the GPU particle / scalar map layers, and the NOAA CO-OPS tidal current
+prediction with its slack times.
 
 **Not real yet:**
 
@@ -79,7 +80,18 @@ format, and the GPU particle / scalar map layers.
   depth check: it will happily route you through two feet of water over a mudflat.
   The Route tab shows a `land pack` chip when the mask is loaded and a red chip
   when it is not; every route carries a warning stating which applied.
-- Tides and currents are forecast-model only. No harmonic station engine yet.
+- **The Current view draws on two different sources, and they disagree.** The
+  arrows and their speed labels come from Open-Meteo's global ocean model, which
+  over Casco Bay runs 0.05–0.54 kn and reverses direction *zero* times in 48
+  hours — it resolves ocean drift, not tide. The turn times come from NOAA CO-OPS
+  harmonic prediction at Portland Harbor Entrance (station `CAB1401`), which
+  predicts 1.17 kn reversing about every six hours. The legend labels the arrows
+  as an ocean model that does not resolve tidal reversal, and the chart states it
+  is one station and not a field. They are not blended, on purpose. What is still
+  missing is a tidal current *field* for the whole bay — that needs GoMOFS.
+- Tide *heights* are not implemented; only current. No on-device harmonic engine
+  yet either — the CO-OPS client fetches published predictions rather than summing
+  constituents, so it needs a connection.
 - **Every polar in the class library is generated from published dimensions, not
   measured.** They are labelled that way in `src/data/polars.ts`. Treat target
   speeds as indicative, not as your boat.

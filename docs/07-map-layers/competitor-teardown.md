@@ -140,14 +140,17 @@ forecast is a precision claim that a forecast cannot support. Our
 | Nautical charts | ❌ none | ❌ none | ✅ S-57/S-63/C-MAP | OSM + OpenSeaMap raster | **NOAA ENC vector** |
 | Basemap | custom | custom | — | OSM raster | custom vector |
 | Bathymetry | ❌ | ✅ | ✅ | ❌ | GEBCO + CUDEM |
-| Wind: streamlines | ✅ | — | ❌ | ❌ | ✅ |
-| Wind: barbs | ✅ | — | ✅ | ❌ | ✅ |
-| Wind: arrows | ✅ | — | ✅ | ✅ static | ✅ |
-| Wave layer | ✅ | ✅ | ✅ | ❌ (data fetched, not drawn) | ✅ |
-| Current layer | ✅ 3 products | ✅ | ✅ | ❌ (data fetched, not drawn) | ✅ |
-| SST | ✅ | ✅ | ✅ | ❌ | ✅ |
-| Time animation | ✅ w/ speed | — | ✅ | ❌ | ✅ |
-| Model switching | ✅ 11 models | ❌ | ✅ 15+ | ❌ | ✅ 4–6 |
+| Wind: streamlines | ✅ | — | ❌ | ✅ GPU | ✅ |
+| Wind: barbs | ✅ | — | ✅ | ✅ | ✅ |
+| Wind: arrows | ✅ | — | ✅ | ✅ | ✅ |
+| Wave layer | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Current layer | ✅ 3 products | ✅ | ✅ | ✅ ocean model + speed labels | ✅ |
+| Tidal current turn times | ✅ | ❌ | ✅ | ✅ NOAA CO-OPS station | ✅ |
+| SST | ✅ | ✅ | ✅ | ❌ (no fetcher) | ✅ |
+| Gust as its own layer | ✅ | — | ✅ | ❌ **removed on purpose** | ❌ |
+| Pressure as its own layer | ✅ | — | ✅ | ❌ **removed on purpose** | ❌ |
+| Time animation | ✅ w/ speed | — | ✅ | ✅ w/ speed | ✅ |
+| Model switching | ✅ 11 models | ❌ | ✅ 15+ | ✅ 6 | ✅ 4–6 |
 | Split-screen compare | ✅ | ❌ | ❌ | ❌ | P2 |
 | Own 1 km model | ✅ PWG/PWE | ❌ | ✅ WRF | ❌ | ❌ (real moat) |
 | Free | ❌ | partly | ❌ | ✅ | ✅ |
@@ -155,6 +158,20 @@ forecast is a precision claim that a forecast cannot support. Our
 
 The two columns that matter: **we already have the racing tactics neither of them has,
 and they have the layer rendering we don't.** The rendering is the smaller gap.
+
+Two rows are deliberate subtractions rather than gaps. A gust is a number you want at a
+point, not a full-screen wash of colour, and mean sea-level pressure is not something an
+inshore racer sails on — both are still fetched and both still appear in the
+tap-to-inspect readout, and gust is still a routing constraint. Matching a competitor's
+layer list is not the goal; three layers a sailor uses beats five they scroll past.
+
+One row is a source correction worth recording. The current *field* comes from a global
+ocean model, and measured over Casco Bay that model gives 0.05–0.54 kn with **zero
+direction reversals in 48 hours** while the NOAA station 4 km away predicts 1.17 kn
+reversing every six. So the field and the turn times come from different products, and the
+UI says which is which rather than blending them — the precedence rule in
+[../02-data-sources/portland-maine-pilot.md](../02-data-sources/portland-maine-pilot.md)
+forbids averaging unrelated products, and this is exactly the case it exists for.
 
 ---
 

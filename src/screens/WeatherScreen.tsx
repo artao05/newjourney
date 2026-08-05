@@ -21,7 +21,13 @@ import { MODELS, cubeNotes, fetchWindCube, type ModelId } from '@/lib/weather/op
 import { sampleCube } from '@/lib/weather/cube'
 import { ParticleLayer } from '@/lib/maplayers/particleLayer'
 import { ScalarLayer } from '@/lib/maplayers/scalarLayer'
-import { LAYERS, rampFor, rampToLUT, rampToMapLibreExpression } from '@/lib/maplayers/colormap'
+import {
+  LAYERS,
+  LAYER_ORDER,
+  rampFor,
+  rampToLUT,
+  rampToMapLibreExpression,
+} from '@/lib/maplayers/colormap'
 import {
   PROP_FROM,
   PROP_MAGNITUDE,
@@ -32,12 +38,19 @@ import {
 import { barbImageExpression, barbToImageData, buildBarbSprites } from '@/lib/maplayers/barbs'
 import { Legend } from '@/components/Legend'
 import { Timeline } from '@/components/Timeline'
+import { CurrentChart } from '@/components/CurrentChart'
+import {
+  fetchCurrentPrediction,
+  flowAt,
+  nextSlack,
+  type CurrentPrediction,
+} from '@/lib/tides/coops'
 import { uvToWind } from '@/lib/wind'
 import type { LayerSpec, VectorMode } from '@/lib/maplayers/types'
 import type { WeatherCube } from '@/lib/types'
 
-/** Order shown in the layer picker. Wind first: it is why anyone opens this. */
-const LAYER_ORDER = ['wind', 'gust', 'waveHeight', 'current', 'pressure'] as const
+// LAYER_ORDER now lives beside LAYERS in colormap.ts so the two can be checked
+// against each other in a test — a stale id here silently drops a chip.
 
 const MODES: Array<{ id: VectorMode; label: string }> = [
   { id: 'particles', label: 'Streamlines' },
@@ -81,6 +94,20 @@ const STYLE: maplibregl.StyleSpecification = {
 
 const emptyFC = () => ({ type: 'FeatureCollection' as const, features: [] })
 
+/**
+ * Set a layer's visibility, tolerating a layer that is not there.
+ *
+ * MapLibre raises "Cannot style non-existing layer" as a map `error` event, which
+ * this screen surfaces as a red banner. During development that fires every time
+ * HMR swaps this module after `load` has already run, and in production it would
+ * turn a layer-ordering slip into an alarming message about nothing the user can
+ * act on. Missing layer means nothing to show — that is not an error.
+ */
+function setVisible(map: maplibregl.Map, id: string, visible: boolean) {
+  if (!map.getLayer(id)) return
+  map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none')
+}
+
 export function WeatherScreen() {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -100,6 +127,9 @@ export function WeatherScreen() {
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(1)
   const [probe, setProbe] = useState<{ lat: number; lon: number } | null>(null)
+  const [tide, setTide] = useState<CurrentPrediction | null>(null)
+  const [tideError, setTideError] = useState<string | null>(null)
+  const [showChart, setShowChart] = useState(true)
 
   const boatState = useStore((s) => s.state)
 
@@ -164,6 +194,73 @@ export function WeatherScreen() {
           visibility: 'none',
         },
         paint: { 'text-halo-color': '#04101c', 'text-halo-width': 1 },
+      })
+      /*
+       * Numeric speed beside each arrow — Expedition's "tidal stream labels"
+       * (docs/01-expedition-analysis/feature-inventory.md §5). A 0.4 kn set is a
+       * tactical fact you act on, and no arrow length conveys it precisely enough.
+       *
+       * Shares the `wx-symbols` source, so it inherits the thinning already done by
+       * `thinVectorField` and costs no extra sampling. Unlike the arrows this layer
+       * does NOT allow overlap: MapLibre then drops colliding labels by itself, so
+       * a dense grid stays readable instead of turning into a smear of digits.
+       */
+      map.addLayer({
+        id: 'wx-speed-labels',
+        type: 'symbol',
+        source: 'wx-symbols',
+        layout: {
+          'text-field': ['number-format', ['get', PROP_MAGNITUDE], {
+            'min-fraction-digits': 1,
+            'max-fraction-digits': 1,
+          }] as never,
+          'text-font': ['Open Sans Regular'],
+          'text-size': 11,
+          'text-offset': [0, 1.3],
+          'text-anchor': 'top',
+          'text-rotation-alignment': 'viewport',
+          'text-allow-overlap': false,
+          'text-optional': true,
+          visibility: 'none',
+        },
+        paint: {
+          'text-color': '#eaf2fa',
+          'text-halo-color': '#04101c',
+          'text-halo-width': 1.4,
+        },
+      })
+
+      // NOAA station: drawn as a distinct diamond-ish marker so it reads as a
+      // different kind of thing from the model arrows around it.
+      map.addSource('wx-station', { type: 'geojson', data: emptyFC() })
+      map.addLayer({
+        id: 'wx-station-pt',
+        type: 'circle',
+        source: 'wx-station',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#ffd54a',
+          'circle-stroke-color': '#04101c',
+          'circle-stroke-width': 2,
+        },
+      })
+      map.addLayer({
+        id: 'wx-station-label',
+        type: 'symbol',
+        source: 'wx-station',
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-font': ['Open Sans Regular'],
+          'text-size': 11,
+          'text-offset': [0, -1.4],
+          'text-anchor': 'bottom',
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': '#ffd54a',
+          'text-halo-color': '#04101c',
+          'text-halo-width': 1.6,
+        },
       })
 
       map.addSource('wx-boat', { type: 'geojson', data: emptyFC() })
@@ -308,6 +405,70 @@ export function WeatherScreen() {
     }
   }, [ready, cube, t, layer, ramp, isVector, showParticles, particleParams])
 
+  /*
+   * Station current prediction, fetched only when the Current layer is open.
+   *
+   * This is a different source from the arrows, deliberately. Open-Meteo's global
+   * ocean model gives Casco Bay 0.05-0.54 kn and never reverses in 48 hours, so it
+   * cannot answer "when does the current turn". NOAA's harmonic prediction can.
+   * They will disagree, and the UI says so rather than blending them — see the
+   * precedence rule in docs/02-data-sources/portland-maine-pilot.md.
+   */
+  useEffect(() => {
+    if (layerId !== 'current' || tide) return
+    const station = PILOT_VENUE.currentStations[0]
+    if (!station) return
+    const controller = new AbortController()
+    let cancelled = false
+    fetchCurrentPrediction({ stationId: station.id, rangeHours: 48, signal: controller.signal })
+      .then((p) => {
+        if (!cancelled) {
+          setTide(p)
+          setTideError(null)
+        }
+      })
+      .catch((e) => {
+        if (cancelled || (e instanceof DOMException && e.name === 'AbortError')) return
+        // The rest of the view still works without it; say what is missing.
+        setTideError(e instanceof Error ? e.message : String(e))
+      })
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [layerId, tide])
+
+  /** Station flow at the displayed time, for the map marker and the caption. */
+  const stationFlow = useMemo(() => (tide ? flowAt(tide, t) : null), [tide, t])
+  const turnsNext = useMemo(() => (tide ? nextSlack(tide, t) : null), [tide, t])
+
+  // Station marker: the tidal truth, sitting next to the model arrows.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const src = map.getSource('wx-station') as maplibregl.GeoJSONSource | undefined
+    if (!src) return
+    const station = PILOT_VENUE.currentStations[0]
+    if (layerId !== 'current' || !station || !stationFlow) {
+      src.setData(emptyFC())
+      return
+    }
+    src.setData({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: {
+            label: `${stationFlow.kn.toFixed(2)} kn ${stationFlow.label} ${Math.round(
+              stationFlow.dir,
+            )}°`,
+          },
+          geometry: { type: 'Point', coordinates: [station.position.lon, station.position.lat] },
+        },
+      ],
+    })
+  }, [ready, layerId, stationFlow])
+
   // Barbs / arrows are thinned per view, so they refresh on move as well as time.
   const refreshSymbols = useCallback(() => {
     const map = mapRef.current
@@ -316,8 +477,17 @@ export function WeatherScreen() {
     if (!src) return
 
     const wantSymbols = isVector && (mode === 'barbs' || mode === 'arrows')
-    map.setLayoutProperty('wx-barbs', 'visibility', wantSymbols && mode === 'barbs' ? 'visible' : 'none')
-    map.setLayoutProperty('wx-arrows', 'visibility', wantSymbols && mode === 'arrows' ? 'visible' : 'none')
+    setVisible(map, 'wx-barbs', wantSymbols && mode === 'barbs')
+    setVisible(map, 'wx-arrows', wantSymbols && mode === 'arrows')
+    /*
+     * Speed labels for current only.
+     *
+     * A barb already encodes wind speed in its feathers, and putting a number on
+     * every wind arrow buries the chart in digits. Current is the case where the
+     * exact figure matters and nothing else conveys it — half a knot decides which
+     * side of a channel you take.
+     */
+    setVisible(map, 'wx-speed-labels', wantSymbols && layer.id === 'current')
     if (!wantSymbols) {
       src.setData(emptyFC())
       return
@@ -413,8 +583,18 @@ export function WeatherScreen() {
       : modelInfo
         ? ` · ~${modelInfo.resolutionKm} km model`
         : ''
+  /*
+   * The current field gets an extra caveat, and it is not a small one.
+   *
+   * Measured over Casco Bay, this source runs 0.05-0.54 kn and reverses zero times
+   * in 48 hours, while the NOAA station 4 km away predicts 1.17 kn reversing every
+   * six. The arrows are resolving ocean drift, not tide. A legend that just said
+   * "Current" would be quietly wrong, so it says which one this is.
+   */
+  const layerCaveat =
+    layer.id === 'current' ? ' · ocean model, does not resolve tidal reversal' : ''
   const source = cube
-    ? `${modelLabel}${resolutionNote} · ${new Date(t)
+    ? `${modelLabel}${resolutionNote}${layerCaveat} · ${new Date(t)
         .toISOString()
         .slice(0, 16)
         .replace('T', ' ')}Z`
@@ -550,6 +730,93 @@ export function WeatherScreen() {
               : '—'}
           </div>
           <div>mslp {fmt(probeValues.prmsl, 0, ' hPa')}</div>
+        </div>
+      )}
+
+      {/* ---- tidal current chart, above the time axis, Current layer only ---- */}
+      {layerId === 'current' && (tide || tideError) && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 96,
+            padding: '0 var(--pad)',
+            pointerEvents: 'auto',
+          }}
+        >
+          <div
+            style={{
+              background: 'rgba(5,13,22,0.92)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r)',
+              padding: showChart ? '8px 10px 4px' : '6px 10px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 11,
+                color: 'var(--ink-dim)',
+              }}
+            >
+              <span>
+                <b style={{ color: 'var(--ink)' }}>Tidal current</b>{' '}
+                {PILOT_VENUE.currentStations[0]?.name} ·{' '}
+                <span style={{ color: 'var(--ink-faint)' }}>NOAA harmonic prediction</span>
+              </span>
+              <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {stationFlow && (
+                  <span className="chip">
+                    {stationFlow.kn.toFixed(2)} kn {stationFlow.label}
+                  </span>
+                )}
+                {turnsNext && (
+                  /*
+                   * Local AND UTC. "Local" here is the device's zone, which is the
+                   * venue's only if you are actually at the venue — plan this race
+                   * from another timezone and a bare local time is off by hours
+                   * without saying so. The turn of the tide is exactly the number
+                   * you must not get wrong.
+                   */
+                  <span className="chip">
+                    turns{' '}
+                    {new Date(turnsNext.t).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                    {' · '}
+                    {`${String(new Date(turnsNext.t).getUTCHours()).padStart(2, '0')}:${String(
+                      new Date(turnsNext.t).getUTCMinutes(),
+                    ).padStart(2, '0')}Z`}
+                  </span>
+                )}
+                <button
+                  className="chip"
+                  onClick={() => setShowChart((v) => !v)}
+                  aria-label={showChart ? 'Hide chart' : 'Show chart'}
+                >
+                  {showChart ? '▾' : '▴'}
+                </button>
+              </span>
+            </div>
+            {tideError && (
+              <div className="warnbox" style={{ marginTop: 6, marginBottom: 2 }}>
+                Tidal current prediction unavailable ({tideError}). The arrows on the
+                map are an ocean model and do not resolve the tide.
+              </div>
+            )}
+            {showChart && tide && <CurrentChart prediction={tide} t={t} windowHours={12} />}
+            {showChart && tide && (
+              <p className="note" style={{ margin: '2px 0 0' }}>
+                Station prediction at one point, not a field. The map arrows are a
+                separate ocean model and will disagree — they do not resolve tide.
+              </p>
+            )}
+          </div>
         </div>
       )}
 

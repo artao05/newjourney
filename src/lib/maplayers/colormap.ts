@@ -252,6 +252,10 @@ const CURRENT = defineRamp('current', 'Current', 'kn', [
 /**
  * Mean sea level pressure, hPa. Diverging about 1013, warm for low and cool for
  * high, matching the synoptic-chart habit of a red L and a blue H.
+ *
+ * Currently unused: the pressure layer was removed from `LAYERS` because a
+ * full-screen MSLP field is not something an inshore racer sails on. Kept, like
+ * `SST`, so the ramp is ready if a synoptic view ever earns its place.
  */
 const PRESSURE = defineRamp('pressure', 'Pressure', 'hPa', [
   [980, '#e05cc0'],
@@ -441,6 +445,14 @@ export function rampToMapLibreExpression(
  * v10, gust, prmsl, hs, wdir, wper, uo, vo). Adding a layer whose parameter is
  * never present would render an empty field with a confident legend, which is
  * the exact failure this project refuses. Add the entry with the fetcher.
+ *
+ * `gust` and `pressure` had layers and no longer do. Neither earned a full-screen
+ * field: a gust is a number you want at a point, not a wash of colour, and mean
+ * sea-level pressure tells an inshore racer nothing they can sail on. Both are
+ * still fetched and both still appear in the tap-to-inspect readout, and `gust`
+ * remains a routing constraint (`WeatherField.gust`, used by the isochrone
+ * kernel), so nothing downstream lost data — only two chips went away. The
+ * `pressure` ramp is kept below for the same reason as `sst`.
  */
 export const LAYERS: Record<string, LayerSpec> = {
   wind: {
@@ -452,15 +464,6 @@ export const LAYERS: Record<string, LayerSpec> = {
     domain: [0, 40],
     unit: 'kn',
     defaultMode: 'particles',
-  },
-  gust: {
-    id: 'gust',
-    label: 'Gust',
-    kind: 'scalar',
-    params: ['gust'],
-    ramp: 'wind',
-    domain: [0, 50],
-    unit: 'kn',
   },
   waveHeight: {
     id: 'waveHeight',
@@ -481,16 +484,16 @@ export const LAYERS: Record<string, LayerSpec> = {
     unit: 'kn',
     defaultMode: 'arrows',
   },
-  pressure: {
-    id: 'pressure',
-    label: 'Pressure',
-    kind: 'scalar',
-    params: ['prmsl'],
-    ramp: 'pressure',
-    domain: [980, 1040],
-    unit: 'hPa',
-  },
 }
+
+/**
+ * Order the layer picker shows, wind first because it is why anyone opens the tab.
+ *
+ * Lives here rather than in the screen so it sits beside `LAYERS` and can be
+ * checked against it in a test: the picker looks up `LAYERS[id]` and skips a miss,
+ * so a stale id here would make a chip disappear without any error.
+ */
+export const LAYER_ORDER = ['wind', 'waveHeight', 'current'] as const
 
 /** The ramp a layer names, or the wind ramp if it names one we do not have. */
 export function rampFor(layer: LayerSpec): ColorRamp {

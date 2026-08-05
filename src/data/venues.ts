@@ -97,7 +97,9 @@ export const PORTLAND_MAINE: Venue = {
     },
     {
       label: 'NOAA current prediction station CAB1401',
-      href: 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=currents_predictions&application=newjourney&station=CAB1401&time_zone=gmt&units=metric&format=json',
+      // units=english, not metric: the response then declares "feet, knots" and the
+      // velocities are in knots. metric returns cm/s, which nobody sails in.
+      href: 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=currents_predictions&application=newjourney&station=CAB1401&time_zone=gmt&units=english&format=json',
       purpose: 'Portland Harbor Entrance harmonic-current predictions; display as prediction, never a live sensor',
     },
     {
