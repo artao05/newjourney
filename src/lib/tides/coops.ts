@@ -1,5 +1,5 @@
 /**
- * NOAA CO-OPS tidal current predictions.
+ * NOAA CO-OPS tidal predictions: currents, and water levels.
  *
  * Why this exists at all: the Weather tab's current arrows come from Open-Meteo's
  * global ocean model, and over Casco Bay that model gives 0.05-0.54 kn with
@@ -13,11 +13,24 @@
  * docs/02-data-sources/portland-maine-pilot.md for the station ids and the rule
  * that these are harmonic predictions, never live sensors.
  *
+ * Water levels are here for a different reason. The GEBCO depth layer is
+ * referenced to mean sea level, charts are referenced to a low-water datum, and at
+ * Portland the gap is 1.51 m — so the displayed depth is optimistic by about a
+ * metre and a half at low water and the UI could only ever warn about it. The
+ * `predictions` product closes that gap: with a live tide height, a modelled depth
+ * becomes a depth *at a time*. See `datum.ts` for the arithmetic, which is the part
+ * that is easy to get backwards.
+ *
+ * The two products do **not** share a response shape. Currents come back as
+ * `current_predictions.cp[]` with `Time`/`Velocity_Major`; water levels come back
+ * as `predictions[]` with `t`/`v`. Each gets its own parser rather than one
+ * parser with a shape guess in it.
+ *
  * No key and no proxy: the endpoint sends permissive CORS headers, so this runs
  * straight from the browser.
  */
 
-import type { Degrees, Knots, Millis } from '@/lib/types'
+import type { Degrees, Knots, Metres, Millis } from '@/lib/types'
 
 const BASE = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter'
 
@@ -54,6 +67,41 @@ export interface CurrentPrediction {
   events: CurrentEvent[]
   fetchedAt: Millis
 }
+
+/** One point on the predicted tide curve. */
+export interface WaterLevelPoint {
+  t: Millis
+  /**
+   * Height of the water surface above MLLW, **metres**.
+   *
+   * NOAA sends feet; converted on parse so nothing downstream has to remember
+   * which unit it is holding. Always positive in practice — MLLW is a low-water
+   * datum — but a strong blow can push a predicted level slightly below it, and
+   * that is real, not an error.
+   */
+  m: Metres
+}
+
+/** A high or low water. */
+export interface WaterLevelEvent {
+  t: Millis
+  type: 'high' | 'low'
+  m: Metres
+}
+
+export interface WaterLevelPrediction {
+  stationId: string
+  /** The datum heights are referenced to. Always MLLW here; stated, not assumed. */
+  datum: 'MLLW'
+  /** 6-minute series, ascending in time. */
+  series: WaterLevelPoint[]
+  /** NOAA's own published high and low waters, ascending in time. */
+  events: WaterLevelEvent[]
+  fetchedAt: Millis
+}
+
+/** NOAA sends water levels in feet when `units=english`. */
+export const FEET_TO_M = 0.3048
 
 // ------------------------------------------------------------------ parsing
 
@@ -146,6 +194,62 @@ export function parseEvents(body: unknown): CurrentEvent[] {
   return events
 }
 
+interface RawPrediction {
+  t?: string
+  v?: number | string
+  type?: string
+}
+
+/**
+ * Pull the `predictions` array out of a water-level response.
+ *
+ * Separate from `readCp` on purpose. Both products return 200 with an `error`
+ * object for a bad station, so both need that check, but the payload key and the
+ * row field names differ completely and a shared parser would have to guess which
+ * shape it was holding.
+ */
+function readPredictions(body: unknown, what: string): RawPrediction[] {
+  if (!body || typeof body !== 'object') throw new Error(`${what}: response was not an object`)
+  const b = body as Record<string, unknown>
+  const err = b.error as { message?: string } | undefined
+  if (err?.message) throw new Error(`${what}: NOAA said "${err.message.trim()}"`)
+  const rows = b.predictions
+  if (!Array.isArray(rows)) throw new Error(`${what}: no predictions array`)
+  if (rows.length === 0) throw new Error(`${what}: NOAA returned an empty prediction`)
+  return rows as RawPrediction[]
+}
+
+export function parseWaterLevelSeries(body: unknown): WaterLevelPoint[] {
+  const rows = readPredictions(body, 'water level series')
+  const series: WaterLevelPoint[] = []
+  for (const row of rows) {
+    const t = parseCoopsTime(row.t ?? '')
+    const ft = num(row.v)
+    if (!Number.isFinite(t) || !Number.isFinite(ft)) continue
+    series.push({ t, m: ft * FEET_TO_M })
+  }
+  if (series.length === 0) throw new Error('water level series: no parseable rows')
+  series.sort((a, b) => a.t - b.t)
+  return series
+}
+
+export function parseWaterLevelEvents(body: unknown): WaterLevelEvent[] {
+  const rows = readPredictions(body, 'water level events')
+  const events: WaterLevelEvent[] = []
+  for (const row of rows) {
+    const t = parseCoopsTime(row.t ?? '')
+    const ft = num(row.v)
+    // NOAA labels these 'H' and 'L'. Anything else is a row shape we do not know,
+    // and guessing which way a tide is going is not a guess worth making.
+    const raw = (row.type ?? '').trim().toUpperCase()
+    const type = raw === 'H' ? 'high' : raw === 'L' ? 'low' : null
+    if (!Number.isFinite(t) || !Number.isFinite(ft) || !type) continue
+    events.push({ t, type, m: ft * FEET_TO_M })
+  }
+  events.sort((a, b) => a.t - b.t)
+  return events
+}
+
 // -------------------------------------------------------------- interrogation
 
 /**
@@ -199,6 +303,38 @@ export function nextSlack(p: CurrentPrediction, t: Millis): CurrentEvent | null 
   return p.events.find((e) => e.type === 'slack' && e.t >= t) ?? null
 }
 
+/**
+ * Height of the water above MLLW at an arbitrary time, metres, interpolated.
+ *
+ * Null outside the predicted window, for the same reason `velocityAt` is: a level
+ * held flat past the end of the data would read as a stand, and a depth computed
+ * from it would be wrong in whichever direction the tide was actually going.
+ *
+ * Linear over a 6-minute sample. The true curve is close to sinusoidal, so the
+ * worst-case chord error at Portland's 2.6 m range is about 4 mm — three orders of
+ * magnitude below the depth grid's own error, and not worth a spline.
+ */
+export function waterLevelAt(p: WaterLevelPrediction, t: Millis): Metres | null {
+  const s = p.series
+  if (s.length === 0 || t < s[0].t || t > s[s.length - 1].t) return null
+  let lo = 0
+  let hi = s.length - 1
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1
+    if (s[mid].t <= t) lo = mid
+    else hi = mid
+  }
+  const span = s[hi].t - s[lo].t
+  if (span <= 0) return s[lo].m
+  const f = (t - s[lo].t) / span
+  return s[lo].m + (s[hi].m - s[lo].m) * f
+}
+
+/** The next high or low water at or after `t`. */
+export function nextTideEvent(p: WaterLevelPrediction, t: Millis): WaterLevelEvent | null {
+  return p.events.find((e) => e.t >= t) ?? null
+}
+
 // ------------------------------------------------------------------ fetching
 
 function ymd(d: Date): string {
@@ -217,6 +353,27 @@ function url(params: Record<string, string>): string {
     // english gives "feet, knots"; metric would give cm/s, which nobody sails in.
     units: 'english',
     product: 'currents_predictions',
+    ...params,
+  })}`
+}
+
+/**
+ * Water-level URL. Same base, different product, and `datum` is mandatory here.
+ *
+ * MLLW rather than MSL even though the depth grid is MSL-referenced, because MLLW
+ * is the datum every chart and every printed tide table in US waters uses. A
+ * number a sailor can check against the tide table in their pocket is worth more
+ * than one that saves us a subtraction.
+ */
+function levelUrl(params: Record<string, string>): string {
+  return `${BASE}?${new URLSearchParams({
+    application: APPLICATION,
+    format: 'json',
+    time_zone: 'gmt',
+    // With datum=MLLW this returns feet above MLLW.
+    units: 'english',
+    product: 'predictions',
+    datum: 'MLLW',
     ...params,
   })}`
 }
@@ -284,7 +441,50 @@ export function fetchCurrentPrediction(o: FetchCurrentOptions): Promise<CurrentP
   return pending
 }
 
+const levelCache = new Map<string, Promise<WaterLevelPrediction>>()
+
+/**
+ * Fetch a station's predicted water level: the 6-minute curve and NOAA's own
+ * published high and low waters.
+ *
+ * Two requests for the same reason the currents client makes two: the high and low
+ * times are published, and re-deriving them from turning points of a 6-minute
+ * sample would disagree with the printed tables for no benefit.
+ */
+export function fetchWaterLevelPrediction(o: FetchCurrentOptions): Promise<WaterLevelPrediction> {
+  const begin = o.beginDate ?? new Date()
+  const rangeHours = o.rangeHours ?? 48
+  const key = `${o.stationId}|${ymd(begin)}|${rangeHours}`
+  const hit = levelCache.get(key)
+  if (hit) return hit
+
+  const pending = (async (): Promise<WaterLevelPrediction> => {
+    const common = { station: o.stationId, begin_date: ymd(begin), range: String(rangeHours) }
+    const [seriesBody, eventsBody] = await Promise.all([
+      getJson(levelUrl(common), 'water level series', o.signal),
+      getJson(levelUrl({ ...common, interval: 'hilo' }), 'water level events', o.signal),
+    ])
+    const series = parseWaterLevelSeries(seriesBody)
+    // The curve is what the depth arithmetic needs; the hilo table is a
+    // nice-to-have for display, so it must not sink the request.
+    let events: WaterLevelEvent[] = []
+    try {
+      events = parseWaterLevelEvents(eventsBody)
+    } catch {
+      events = []
+    }
+    return { stationId: o.stationId, datum: 'MLLW', series, events, fetchedAt: Date.now() }
+  })().catch((e) => {
+    levelCache.delete(key)
+    throw e
+  })
+
+  levelCache.set(key, pending)
+  return pending
+}
+
 /** Testing seam. */
 export function clearCurrentPredictionCache(): void {
   cache.clear()
+  levelCache.clear()
 }

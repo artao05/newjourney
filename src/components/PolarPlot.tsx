@@ -31,6 +31,21 @@ export function PolarPlot({ lattice, speeds = DEFAULT_SPEEDS, height = 230 }: Pr
     const draw = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2.5)
       const w = parent.clientWidth
+      /*
+       * A zero-width parent crashed the whole Setup screen.
+       *
+       * `R` below is `min(w/2 - 26, h - 34)`, so `w === 0` makes it -26, every ring
+       * radius goes negative, and `ctx.arc` throws `IndexSizeError` — inside an
+       * effect, so React unmounts the tree and the error boundary replaces the
+       * entire screen with "Setup hit a problem". Setup is where you pick a boat
+       * class and load a polar, so this is the app's onboarding, gone.
+       *
+       * Reachable any time the container has not been laid out at first paint: a
+       * hidden or collapsed pane, a `display: none` ancestor, a zero-size viewport.
+       * `CurrentChart` and `DepartureChart` both carry this guard already —
+       * `PolarPlot` is the oldest of the three and never got it.
+       */
+      if (w <= 0 || height <= 0) return
       const h = height
       cv.width = w * dpr
       cv.height = h * dpr
@@ -75,7 +90,11 @@ function render(
 
   const cx = w / 2
   const cy = h - 16
-  const R = Math.min(w / 2 - 26, h - 34)
+  // Floored at zero as well as guarded by the caller: a container narrower than the
+  // 26 px label gutter is still positive-width, and it should collapse to a dot
+  // rather than throw. Belt and braces on purpose — the failure mode is a crash,
+  // not a cosmetic glitch.
+  const R = Math.max(0, Math.min(w / 2 - 26, h - 34))
   const rOf = (v: number) => (v / vmax) * R
   // 0° TWA points up; the diagram is mirrored so both tacks show.
   const pt = (twa: number, v: number) => {

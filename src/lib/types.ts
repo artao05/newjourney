@@ -57,6 +57,17 @@ export interface Boat {
   bowToGpsMetres: Metres
   /** Masthead / instrument height, metres. Drives the 10m -> masthead wind scaling. */
   mastHeightMetres: Metres
+  /**
+   * Deepest point of the boat with keel or board down, metres.
+   *
+   * Optional, and deliberately has no default. Every other dimension here can be
+   * looked up from a class name, but a boat's real draft depends on the keel
+   * fitted, the board being down, and what is in the bilge — and a clearance figure
+   * computed from a guessed draft is indistinguishable from one computed from a
+   * measurement. Undefined means the depth advisory reports water depth instead of
+   * water under the keel, and says which it is showing.
+   */
+  draftMetres?: Metres
   /** Global polar scaling, percent. 100 = sail the book. */
   polarPct: number
   /** Polar scaling between civil dusk and dawn, percent. */

@@ -131,6 +131,36 @@ export function SetupScreen() {
           reads about 9% more breeze than the model says. Getting this wrong
           quietly poisons every target number.
         </p>
+        <div className="field">
+          <label>Draft</label>
+          {/*
+            Deliberately blank rather than defaulted, and not filled in from the
+            class list the way length is. A boat's real draft depends on the keel
+            fitted and the board being down, and a clearance number computed from a
+            guessed draft looks exactly like one computed from a measurement.
+          */}
+          <input
+            type="number"
+            step="0.05"
+            min="0"
+            placeholder="not set"
+            value={boat.draftMetres ?? ''}
+            onChange={(e) => {
+              const raw = e.target.value.trim()
+              const v = Number(raw)
+              updateBoat({
+                draftMetres: raw === '' || !Number.isFinite(v) || v <= 0 ? undefined : v,
+              })
+            }}
+            inputMode="decimal"
+          />
+        </div>
+        <p className="note">
+          Draft is the deepest point with the keel or board down. Leave it blank if
+          you are not sure — the route depth check then reports water depth rather
+          than water under the keel, and says so, instead of inventing a clearance
+          from a number nobody entered.
+        </p>
 
         <h2>Performance</h2>
         <div className="field">

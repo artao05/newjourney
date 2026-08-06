@@ -13,12 +13,21 @@ import { useStore } from '@/state/store'
 import { cubeNotes, fetchWindCube } from '@/lib/weather/openmeteo'
 import { RoutingClient } from '@/lib/routing/client'
 import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
+import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
+import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tides/coops'
+import { PORTLAND_DATUM, datumNote } from '@/lib/tides/datum'
 import { bboxOf, distance } from '@/lib/geo'
 import type { Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
 import { fmtDuration } from '@/components/Tile'
 import { DepartureChart } from '@/components/DepartureChart'
 import { PILOT_VENUE } from '@/data/venues'
 import { landFractionOf, loadVenueLandMask, type LoadedLandMask } from '@/data/landmask'
+import {
+  DEPTH_NOT_FOR_NAVIGATION,
+  depthAt,
+  loadVenueDepthGrid,
+  type LoadedDepthGrid,
+} from '@/data/bathymetry'
 
 /*
  * The Portland venue land pack now exists — a 111 m OSM-derived raster,
@@ -89,6 +98,8 @@ export function RouteScreen() {
   const [showDepart, setShowDepart] = useState(false)
   /** Departure the drawn route was solved for. Null means "now". */
   const [departAt, setDepartAt] = useState<Millis | null>(null)
+  const [depthGrid, setDepthGrid] = useState<LoadedDepthGrid | null>(null)
+  const [levels, setLevels] = useState<WaterLevelPrediction | null>(null)
 
   const state = useStore((s) => s.state)
   const boat = useStore((s) => s.boat)
@@ -142,6 +153,27 @@ export function RouteScreen() {
       .catch((e) => {
         if (!cancelled) setLandError(e instanceof Error ? e.message : String(e))
       })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /*
+   * Depth grid and tide curve for the grounding advisory.
+   *
+   * Both are best-effort and neither blocks routing: a failure here costs the
+   * advisory, not the route. Silently, too — the advisory itself reports what it
+   * could not check, which is the honest place for it. Announcing "tide fetch
+   * failed" over the chart before anyone has asked for a route is noise.
+   */
+  useEffect(() => {
+    let cancelled = false
+    loadVenueDepthGrid()
+      .then((g) => !cancelled && setDepthGrid(g))
+      .catch(() => undefined)
+    fetchWaterLevelPrediction({ stationId: PORTLAND_DATUM.stationId, rangeHours: 48 })
+      .then((p) => !cancelled && setLevels(p))
+      .catch(() => undefined)
     return () => {
       cancelled = true
     }
@@ -477,6 +509,23 @@ export function RouteScreen() {
   const canRoute = !!state && !!polar && course.marks.length > 0 && !busy
   const forecastNotes = useMemo(() => (cube ? cubeNotes(cube) : []), [cube])
 
+  /*
+   * Derived rather than computed inside `run`, so it re-runs when the depth grid
+   * or the tide curve lands after the route, and when the draft is entered in
+   * Setup afterwards. Cheap: a few hundred bilinear samples over an in-memory grid.
+   */
+  const depth = useMemo<DepthAdvisory | null>(() => {
+    if (!route?.ok || route.legs.length === 0) return null
+    if (!depthGrid) return null
+    return depthAdvisory({
+      route,
+      depthAt: (lat, lon) => depthAt(depthGrid, lat, lon),
+      levels,
+      datum: PORTLAND_DATUM,
+      draftM: boat.draftMetres ?? null,
+    })
+  }, [route, depthGrid, levels, boat.draftMetres])
+
   return (
     <div className="screen screen--flush" style={{ position: 'relative' }}>
       <div ref={containerRef} className="map" />
@@ -505,6 +554,26 @@ export function RouteScreen() {
           {departAt != null && route?.ok && (
             <span className="chip chip--warn" title="This route was solved for a future departure">
               leaves {fmtLocalHm(departAt)}
+            </span>
+          )}
+          {/*
+            The shallowest water on the route, as a headline. `chip--bad` only when
+            something is actually close: a permanent red badge over deep water would
+            train the reader to ignore it, which is worse than not showing it.
+          */}
+          {depth?.shallowest && (
+            <span
+              className={`chip ${depth.concerns.length > 0 ? 'chip--bad' : ''}`}
+              title={
+                depth.shallowest.underKeelM != null
+                  ? 'Shallowest modelled water under the keel on this route'
+                  : 'Shallowest modelled depth on this route — no draft set'
+              }
+            >
+              min{' '}
+              {depth.shallowest.underKeelM != null
+                ? `${depth.shallowest.underKeelM.toFixed(1)} m keel`
+                : `${(depth.shallowest.depthNowM ?? depth.shallowest.depthMslM).toFixed(1)} m deep`}
             </span>
           )}
           {busy && (
@@ -576,7 +645,12 @@ export function RouteScreen() {
       )}
 
       {showResults && route?.ok && (
-        <ResultsSheet route={route} onClose={() => setShowResults(false)} />
+        <ResultsSheet
+          route={route}
+          depth={depth}
+          levels={levels}
+          onClose={() => setShowResults(false)}
+        />
       )}
 
       {showDepart && sweep && (
@@ -736,7 +810,95 @@ function DepartureSheet({
   )
 }
 
-function ResultsSheet({ route, onClose }: { route: RouteResult; onClose: () => void }) {
+/**
+ * The grounding advisory.
+ *
+ * Ends on the limits rather than opening with them. A caveat printed above a number
+ * gets skipped; a caveat printed under one gets read after the number has raised
+ * the question. But it is `errbox` when a leg is genuinely close and `note` when it
+ * is not, because the strength of the wording has to track the situation or it
+ * stops meaning anything.
+ */
+function DepthPanel({
+  depth,
+  levels,
+}: {
+  depth: DepthAdvisory
+  levels: WaterLevelPrediction | null
+}) {
+  const s = depth.shallowest
+  if (!s) return null
+  const tideLine = datumNote(levels, PORTLAND_DATUM, s.t)
+  return (
+    <>
+      <div className="rows" style={{ marginBottom: 12 }}>
+        <div className="row">
+          <span>Shallowest on route</span>
+          {/*
+            "local" spelled out. The warning below this quotes the same instant in
+            UTC with a Z, and an unlabelled 09:58 next to a labelled 14:58Z reads as
+            two different times rather than one time in two zones.
+          */}
+          <span style={{ color: depth.concerns.length > 0 ? 'var(--port)' : undefined }}>
+            {s.depthNowM != null
+              ? `${s.depthNowM.toFixed(1)} m at ${fmtLocalHm(s.t)} local`
+              : `${s.depthMslM.toFixed(1)} m (uncorrected)`}
+          </span>
+        </div>
+        <div className="row">
+          <span>Under the keel</span>
+          {/*
+            "no draft set" rather than an em dash. Pass 3's lesson: a dash means
+            "no data" everywhere else in this app, and this is "bad state" — a
+            question the user can answer in Setup in ten seconds.
+          */}
+          <span style={{ color: s.underKeelM != null && s.underKeelM < 1 ? 'var(--port)' : undefined }}>
+            {s.underKeelM != null ? `${s.underKeelM.toFixed(1)} m` : 'no draft set'}
+          </span>
+        </div>
+        <div className="row">
+          <span>At leg</span>
+          <span>
+            {s.legIndex + 1} · {s.lat.toFixed(4)}, {s.lon.toFixed(4)}
+          </span>
+        </div>
+        <div className="row">
+          <span>Legs sampled</span>
+          <span>
+            {depth.samples.length}
+            {depth.concerns.length > 0 ? ` · ${depth.concerns.length} shallow` : ''}
+          </span>
+        </div>
+      </div>
+
+      {tideLine && <div className="warnbox">{tideLine}</div>}
+      {depth.warnings.map((w) => (
+        <div className={depth.concerns.length > 0 ? 'errbox' : 'warnbox'} key={w}>
+          {w}
+        </div>
+      ))}
+      <p className="note">
+        Advisory only, and <strong>not a depth check</strong>. Depths are GEBCO 2020
+        on a 450&nbsp;m grid, which reads 18&nbsp;m shallow at the one nearby buoy
+        where a surveyed figure exists and cannot see a ledge, rock or dredged
+        channel at all. The router does <strong>not</strong> avoid shallow water.{' '}
+        {DEPTH_NOT_FOR_NAVIGATION}
+      </p>
+    </>
+  )
+}
+
+function ResultsSheet({
+  route,
+  depth,
+  levels,
+  onClose,
+}: {
+  route: RouteResult
+  depth: DepthAdvisory | null
+  levels: WaterLevelPrediction | null
+  onClose: () => void
+}) {
   const step = Math.max(1, Math.floor(route.legs.length / 40))
   const rows = route.legs.filter((_, i) => i % step === 0)
   const saved =
@@ -780,6 +942,8 @@ function ResultsSheet({ route, onClose }: { route: RouteResult; onClose: () => v
           <span>{(route.diagnostics.timeStepS / 60).toFixed(0)} min</span>
         </div>
       </div>
+
+      {depth?.shallowest && <DepthPanel depth={depth} levels={levels} />}
 
       {route.diagnostics.warnings.map((w) => (
         <div className="warnbox" key={w}>

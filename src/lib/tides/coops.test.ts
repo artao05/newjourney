@@ -9,13 +9,19 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  FEET_TO_M,
   flowAt,
   nextSlack,
+  nextTideEvent,
   parseCoopsTime,
   parseEvents,
   parseSeries,
+  parseWaterLevelEvents,
+  parseWaterLevelSeries,
   velocityAt,
+  waterLevelAt,
   type CurrentPrediction,
+  type WaterLevelPrediction,
 } from './coops'
 
 const EVENTS_BODY = {
@@ -229,5 +235,132 @@ describe('nextSlack', () => {
 
   it('is null once the last slack has passed', () => {
     expect(nextSlack(p, t0 + 10 * 3_600_000)).toBeNull()
+  })
+})
+
+// ------------------------------------------------------------- water levels
+
+/*
+ * Captured from station 8418150 (Portland, ME) for 2026-08-06 with
+ * product=predictions&datum=MLLW&units=english. Note the shape: a top-level
+ * `predictions` array with `t`/`v`, nothing like the currents product's
+ * `current_predictions.cp[]` with `Time`/`Velocity_Major`. That difference is why
+ * these get their own parser, and these fixtures are what pin it.
+ */
+const LEVEL_SERIES_BODY = {
+  predictions: [
+    { t: '2026-08-06 00:00', v: '4.702' },
+    { t: '2026-08-06 00:06', v: '4.464' },
+    { t: '2026-08-06 00:12', v: '4.227' },
+  ],
+}
+
+const LEVEL_EVENTS_BODY = {
+  predictions: [
+    { t: '2026-08-06 02:55', v: '0.405', type: 'L' },
+    { t: '2026-08-06 09:04', v: '8.779', type: 'H' },
+  ],
+}
+
+describe('parseWaterLevelSeries', () => {
+  it('converts NOAA feet to metres on the way in', () => {
+    // Done at the boundary so nothing downstream has to remember which unit it
+    // is holding — the mistake that would show up as a 3.3x depth error.
+    const s = parseWaterLevelSeries(LEVEL_SERIES_BODY)
+    expect(s).toHaveLength(3)
+    expect(s[0].m).toBeCloseTo(4.702 * FEET_TO_M, 6)
+    expect(s[0].m).toBeCloseTo(1.433, 3)
+  })
+
+  it('parses the timestamps as UTC', () => {
+    const s = parseWaterLevelSeries(LEVEL_SERIES_BODY)
+    expect(s[0].t).toBe(Date.UTC(2026, 7, 6, 0, 0))
+  })
+
+  it('sorts ascending and skips unparseable rows', () => {
+    const s = parseWaterLevelSeries({
+      predictions: [
+        { t: '2026-08-06 00:12', v: '4.227' },
+        { t: 'not a time', v: '1.0' },
+        { t: '2026-08-06 00:00', v: '4.702' },
+        { t: '2026-08-06 00:06', v: 'nope' },
+      ],
+    })
+    expect(s.map((p) => p.t)).toEqual([
+      Date.UTC(2026, 7, 6, 0, 0),
+      Date.UTC(2026, 7, 6, 0, 12),
+    ])
+  })
+
+  it('rejects rather than returning an empty series', () => {
+    // A partly-filled prediction is worse than none: the depth arithmetic would
+    // return null for every time and look like a coverage problem.
+    expect(() => parseWaterLevelSeries({ predictions: [] })).toThrow(/empty prediction/)
+    expect(() => parseWaterLevelSeries({})).toThrow(/no predictions array/)
+    expect(() => parseWaterLevelSeries('nope')).toThrow(/not an object/)
+    expect(() =>
+      parseWaterLevelSeries({ predictions: [{ t: 'x', v: 'y' }] }),
+    ).toThrow(/no parseable rows/)
+  })
+
+  it('surfaces NOAA’s 200-with-an-error-body', () => {
+    expect(() =>
+      parseWaterLevelSeries({ error: { message: ' Wrong Datum ' } }),
+    ).toThrow(/NOAA said "Wrong Datum"/)
+  })
+})
+
+describe('parseWaterLevelEvents', () => {
+  it('reads H and L into words', () => {
+    const e = parseWaterLevelEvents(LEVEL_EVENTS_BODY)
+    expect(e.map((x) => x.type)).toEqual(['low', 'high'])
+    expect(e[0].m).toBeCloseTo(0.405 * FEET_TO_M, 6)
+    expect(e[1].m).toBeCloseTo(2.676, 3)
+  })
+
+  it('drops a row whose type is neither, rather than guessing', () => {
+    // Guessing which way a tide is going is not a guess worth making.
+    const e = parseWaterLevelEvents({
+      predictions: [
+        { t: '2026-08-06 02:55', v: '0.405', type: 'L' },
+        { t: '2026-08-06 05:00', v: '4.0', type: '?' },
+        { t: '2026-08-06 09:04', v: '8.779', type: 'H' },
+      ],
+    })
+    expect(e).toHaveLength(2)
+  })
+})
+
+describe('waterLevelAt', () => {
+  const p: WaterLevelPrediction = {
+    stationId: '8418150',
+    datum: 'MLLW',
+    series: parseWaterLevelSeries(LEVEL_SERIES_BODY),
+    events: parseWaterLevelEvents(LEVEL_EVENTS_BODY),
+    fetchedAt: 0,
+  }
+
+  it('interpolates between 6-minute samples', () => {
+    const mid = Date.UTC(2026, 7, 6, 0, 3)
+    expect(waterLevelAt(p, mid)).toBeCloseTo(((4.702 + 4.464) / 2) * FEET_TO_M, 6)
+  })
+
+  it('is exact on a sample', () => {
+    expect(waterLevelAt(p, Date.UTC(2026, 7, 6, 0, 6))).toBeCloseTo(4.464 * FEET_TO_M, 6)
+  })
+
+  it('is null outside the window rather than holding the last value flat', () => {
+    // A level held flat past the end reads as a stand, and a depth computed from
+    // it is wrong in whichever direction the tide was actually going.
+    expect(waterLevelAt(p, Date.UTC(2026, 7, 5, 23, 0))).toBeNull()
+    expect(waterLevelAt(p, Date.UTC(2026, 7, 6, 1, 0))).toBeNull()
+  })
+
+  it('finds the next high or low', () => {
+    const e = nextTideEvent(p, Date.UTC(2026, 7, 6, 0, 0))
+    expect(e?.type).toBe('low')
+    const later = nextTideEvent(p, Date.UTC(2026, 7, 6, 4, 0))
+    expect(later?.type).toBe('high')
+    expect(nextTideEvent(p, Date.UTC(2026, 7, 7, 0, 0))).toBeNull()
   })
 })
