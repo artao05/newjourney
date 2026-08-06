@@ -12,9 +12,11 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useStore } from '@/state/store'
 import { cubeNotes, fetchWindCube } from '@/lib/weather/openmeteo'
 import { RoutingClient } from '@/lib/routing/client'
+import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
 import { bboxOf, distance } from '@/lib/geo'
-import type { RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
-import { fmtClock } from '@/components/Tile'
+import type { Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
+import { fmtDuration } from '@/components/Tile'
+import { DepartureChart } from '@/components/DepartureChart'
 import { PILOT_VENUE } from '@/data/venues'
 import { landFractionOf, loadVenueLandMask, type LoadedLandMask } from '@/data/landmask'
 
@@ -62,6 +64,16 @@ const STYLE: maplibregl.StyleSpecification = {
   ],
 }
 
+/**
+ * How far ahead the departure sweep looks, hours.
+ *
+ * Twelve covers a full tidal cycle at Portland (~12 h 25 min between successive
+ * high waters) plus the sea-breeze cycle, which are the two things that make one
+ * morning departure genuinely better than another inshore. It is also 13 solves,
+ * which is the most that finishes in a tolerable wait.
+ */
+const SWEEP_HOURS = 12
+
 export function RouteScreen() {
   const mapRef = useRef<maplibregl.Map | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -73,6 +85,10 @@ export function RouteScreen() {
   const [showResults, setShowResults] = useState(false)
   const [landPack, setLandPack] = useState<LoadedLandMask | null>(null)
   const [landError, setLandError] = useState<string | null>(null)
+  const [sweep, setSweep] = useState<DepartureSweep | null>(null)
+  const [showDepart, setShowDepart] = useState(false)
+  /** Departure the drawn route was solved for. Null means "now". */
+  const [departAt, setDepartAt] = useState<Millis | null>(null)
 
   const state = useStore((s) => s.state)
   const boat = useStore((s) => s.boat)
@@ -250,24 +266,35 @@ export function RouteScreen() {
     }
   }, [state, course.marks, ready, setRouteError])
 
-  const run = useCallback(async () => {
-    if (!state || !polar || course.marks.length === 0) return
-    let workingCube = cube
-    if (!workingCube) {
-      workingCube = await loadWeather()
+  /*
+   * Declared before the callbacks that list it as a dependency. A dependency array
+   * is evaluated during render, so a `useCallback` above this line referencing
+   * `legNm` would read it in its temporal dead zone and throw on first paint.
+   */
+  const legNm = useMemo(() => {
+    if (!state || course.marks.length === 0) return null
+    let total = 0
+    let prev = state.position
+    for (const m of course.marks) {
+      total += distance(prev, m.position)
+      prev = m.position
     }
-    if (!workingCube) {
-      setRouteError('No forecast loaded — tap Forecast first.')
-      return
-    }
-    setBusy('Routing…')
-    setProgress(0)
-    setRouteError(null)
-    try {
-      clientRef.current ??= new RoutingClient()
-      const req: RouteRequest = {
+    return total
+  }, [state, course.marks])
+
+  /**
+   * The request shared by a single route and a departure sweep.
+   *
+   * Built in one place on purpose: a sweep that ranked departures under different
+   * constraints or scalings from the route the user then sails would recommend a
+   * time for a boat that is not theirs.
+   */
+  const buildRequest = useCallback(
+    (startTime: Millis, computeSensitivity: boolean): RouteRequest | null => {
+      if (!state || course.marks.length === 0) return null
+      return {
         start: state.position,
-        startTime: Date.now(),
+        startTime,
         marks: course.marks.map((m) => m.position),
         constraints: {
           avoidLand: landPack != null,
@@ -283,22 +310,46 @@ export function RouteScreen() {
           currentScalePct: 100,
         },
         resolution: 'balanced',
-        computeSensitivity: true,
+        computeSensitivity,
       }
+    },
+    [state, course.marks, landPack, boat],
+  )
+
+  const landPayload = useCallback(
+    () =>
+      landPack
+        ? {
+            bbox: landPack.meta.bbox,
+            nx: landPack.meta.nx,
+            ny: landPack.meta.ny,
+            bits: landPack.bits,
+          }
+        : undefined,
+    [landPack],
+  )
+
+  const run = useCallback(async (leaveAt?: Millis) => {
+    if (!state || !polar || course.marks.length === 0) return
+    let workingCube = cube
+    if (!workingCube) {
+      workingCube = await loadWeather()
+    }
+    if (!workingCube) {
+      setRouteError('No forecast loaded — tap Forecast first.')
+      return
+    }
+    setBusy('Routing…')
+    setProgress(0)
+    setRouteError(null)
+    try {
+      clientRef.current ??= new RoutingClient()
+      const startTime = leaveAt ?? Date.now()
+      const req = buildRequest(startTime, true)
+      if (!req) return
       const result = await clientRef.current.route(
         req,
-        {
-          cube: workingCube,
-          polar,
-          landRaster: landPack
-            ? {
-                bbox: landPack.meta.bbox,
-                nx: landPack.meta.nx,
-                ny: landPack.meta.ny,
-                bits: landPack.bits,
-              }
-            : undefined,
-        },
+        { cube: workingCube, polar, landRaster: landPayload() },
         (f) => setProgress(f),
       )
       if (!landPack) {
@@ -317,6 +368,7 @@ export function RouteScreen() {
         )
       }
       setRoute(result)
+      setDepartAt(leaveAt ?? null)
       if (!result.ok) setRouteError(result.error ?? 'Routing failed')
     } catch (e) {
       setRouteError(e instanceof Error ? e.message : 'Routing failed')
@@ -338,7 +390,8 @@ export function RouteScreen() {
     polar,
     course.marks,
     cube,
-    boat,
+    buildRequest,
+    landPayload,
     landPack,
     landError,
     loadWeather,
@@ -346,18 +399,80 @@ export function RouteScreen() {
     setRouteError,
   ])
 
-  useEffect(() => () => clientRef.current?.dispose(), [])
-
-  const legNm = useMemo(() => {
-    if (!state || course.marks.length === 0) return null
-    let total = 0
-    let prev = state.position
-    for (const m of course.marks) {
-      total += distance(prev, m.position)
-      prev = m.position
+  /**
+   * Sweep the next `SWEEP_HOURS` for a better time to leave.
+   *
+   * Hourly, which is both the forecast cadence and about as fine as a departure
+   * recommendation can honestly be — the wind field itself only changes hourly, so
+   * a 15-minute sweep would be ranking interpolation artefacts.
+   */
+  const runSweep = useCallback(async () => {
+    if (!state || !polar || course.marks.length === 0) return
+    let workingCube = cube
+    if (!workingCube) workingCube = await loadWeather()
+    if (!workingCube) {
+      setRouteError('No forecast loaded — tap Forecast first.')
+      return
     }
-    return total
-  }, [state, course.marks])
+
+    /*
+     * Never sweep past the forecast. The cube ends at a hard edge, and a departure
+     * close to it would be solved against a field that runs out mid-passage: the
+     * kernel would either fail it or extrapolate, and either way the ranking would
+     * be an artefact of where the download stopped rather than of the weather.
+     * Reserve the direct-rhumb time as the minimum passage left after departure.
+     */
+    const from = Date.now()
+    const cubeEndMs = workingCube.t0 + (workingCube.nt - 1) * workingCube.dtMs
+    const reserveMs = Math.max(2, Math.min(24, (legNm ?? 10) / 4)) * 3_600_000
+    const to = Math.min(from + SWEEP_HOURS * 3_600_000, cubeEndMs - reserveMs)
+    if (to <= from) {
+      setRouteError(
+        'The loaded forecast does not reach far enough ahead to compare departure times. Download a longer forecast first.',
+      )
+      return
+    }
+
+    setBusy('Comparing departures…')
+    setProgress(0)
+    setRouteError(null)
+    try {
+      clientRef.current ??= new RoutingClient()
+      const req = buildRequest(from, false)
+      if (!req) return
+      const s = await clientRef.current.sweep(
+        req,
+        { cube: workingCube, polar, landRaster: landPayload() },
+        { from, to, stepMs: 3_600_000, maxSolves: SWEEP_HOURS + 1 },
+        (f) => setProgress(f),
+      )
+      if (!landPack) {
+        s.warnings.unshift(
+          'Land avoidance is OFF for this comparison — departures were ranked without a coastline.',
+        )
+      }
+      setSweep(s)
+      setShowDepart(true)
+      if (!s.best) setRouteError(s.warnings[0] ?? 'No departure in the window produced a route.')
+    } catch (e) {
+      setRouteError(e instanceof Error ? e.message : 'Departure comparison failed')
+    } finally {
+      setBusy(null)
+    }
+  }, [
+    state,
+    polar,
+    course.marks,
+    cube,
+    legNm,
+    buildRequest,
+    landPayload,
+    landPack,
+    loadWeather,
+    setRouteError,
+  ])
+
+  useEffect(() => () => clientRef.current?.dispose(), [])
 
   const canRoute = !!state && !!polar && course.marks.length > 0 && !busy
   const forecastNotes = useMemo(() => (cube ? cubeNotes(cube) : []), [cube])
@@ -380,6 +495,17 @@ export function RouteScreen() {
             </span>
           ) : (
             <span className="chip chip--bad">{landError ? 'land pack failed' : 'no land pack'}</span>
+          )}
+          {/*
+            Say which departure the drawn route belongs to whenever it is not
+            "now". A route solved for 14:00 looks identical to one solved for the
+            current minute, and quietly showing yesterday's plan as today's is the
+            same class of mistake as the stale gun timer on the Start tab.
+          */}
+          {departAt != null && route?.ok && (
+            <span className="chip chip--warn" title="This route was solved for a future departure">
+              leaves {fmtLocalHm(departAt)}
+            </span>
           )}
           {busy && (
             <span className="chip chip--warn">
@@ -423,8 +549,16 @@ export function RouteScreen() {
         <button className="btn btn--sm" onClick={loadWeather} disabled={!state || !!busy}>
           FORECAST
         </button>
-        <button className="btn btn--sm btn--primary" onClick={run} disabled={!canRoute}>
+        {/*
+          `() => run()` rather than `run`: `run` takes an optional departure time,
+          and passing the handler directly would hand it a MouseEvent as the
+          departure — a number-shaped argument that is not a number.
+        */}
+        <button className="btn btn--sm btn--primary" onClick={() => run()} disabled={!canRoute}>
           ROUTE
+        </button>
+        <button className="btn btn--sm btn--ghost" onClick={runSweep} disabled={!canRoute}>
+          WHEN
         </button>
         <button
           className="btn btn--sm btn--ghost"
@@ -444,11 +578,163 @@ export function RouteScreen() {
       {showResults && route?.ok && (
         <ResultsSheet route={route} onClose={() => setShowResults(false)} />
       )}
+
+      {showDepart && sweep && (
+        <DepartureSheet
+          sweep={sweep}
+          selected={departAt}
+          busy={!!busy}
+          onClose={() => setShowDepart(false)}
+          onPick={(t) => {
+            setShowDepart(false)
+            void run(t)
+          }}
+        />
+      )}
     </div>
   )
 }
 
 // ------------------------------------------------------------------- sheets
+
+function fmtLocalHm(ms: Millis): string {
+  const d = new Date(ms)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/**
+ * The departure comparison.
+ *
+ * Led by the advice line rather than the winner, because "it does not matter"
+ * is a legitimate and common answer, and one this view has to be willing to give.
+ * A screen that always names a best time trains you to believe there always is
+ * one.
+ */
+function DepartureSheet({
+  sweep,
+  selected,
+  busy,
+  onClose,
+  onPick,
+}: {
+  sweep: DepartureSweep
+  selected: Millis | null
+  busy: boolean
+  onClose: () => void
+  onPick: (t: Millis) => void
+}) {
+  const advice = departureAdvice(sweep)
+  const best = sweep.best
+  return (
+    <div className="sheet">
+      <div className="sheet__grip" onClick={onClose} />
+
+      {advice && (
+        <div className={advice.matters ? 'legend' : 'warnbox'} style={{ marginBottom: 10 }}>
+          {advice.text}
+        </div>
+      )}
+
+      <DepartureChart sweep={sweep} selected={selected} />
+
+      <div className="rows" style={{ margin: '12px 0' }}>
+        <div className="row">
+          <span>Best departure</span>
+          <span>{best ? `${fmtLocalHm(best.departAt)} local` : '—'}</span>
+        </div>
+        <div className="row">
+          <span>Passage then</span>
+          <span>{fmtDuration(best?.elapsedS ?? null) ?? '—'}</span>
+        </div>
+        <div className="row">
+          <span>Spread over window</span>
+          {/*
+            Explicitly "not enough data" rather than a dash, which this app also
+            uses for a forecast hole. One successful solve cannot support a spread,
+            and the reader should be told which of the two it is looking at.
+          */}
+          <span>
+            {sweep.spreadS == null
+              ? sweep.succeeded < 2
+                ? 'needs 2+ departures'
+                : '—'
+              : (fmtDuration(sweep.spreadS) ?? '—')}
+          </span>
+        </div>
+        <div className="row">
+          <span>Router resolution</span>
+          <span>
+            {sweep.stepFloorS == null ? '—' : `±${Math.round(sweep.stepFloorS / 60)} min`}
+          </span>
+        </div>
+        <div className="row">
+          <span>Departures solved</span>
+          <span>
+            {sweep.succeeded} of {sweep.attempted}
+          </span>
+        </div>
+      </div>
+
+      {sweep.warnings.map((w) => (
+        <div className="warnbox" key={w}>
+          {w}
+        </div>
+      ))}
+
+      <table className="results">
+        <thead>
+          <tr>
+            <th>leave</th>
+            <th>arrive</th>
+            <th>passage</th>
+            <th>cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sweep.options.map((d) => (
+            <tr
+              key={d.departAt}
+              style={
+                best && d.departAt === best.departAt
+                  ? { color: 'var(--stbd)', fontWeight: 600 }
+                  : undefined
+              }
+            >
+              <td>{fmtLocalHm(d.departAt)}</td>
+              <td>{d.etaMs == null ? '—' : fmtLocalHm(d.etaMs)}</td>
+              <td>{fmtDuration(d.elapsedS) ?? '—'}</td>
+              <td>
+                {d.costS == null
+                  ? (d.error ?? 'no route')
+                  : d.costS === 0
+                    ? 'best'
+                    : `+${Math.round(d.costS / 60)} min`}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="note">
+        Each row is a full route solve from that time, using the same boat, polar
+        and constraints as the ROUTE button. Ranked on elapsed passage time —
+        differences smaller than the router resolution above are not real.
+      </p>
+
+      <div className="actions" style={{ background: 'none', border: 'none', padding: 0 }}>
+        <button
+          className="btn btn--sm btn--primary"
+          disabled={!best || busy}
+          onClick={() => best && onPick(best.departAt)}
+        >
+          ROUTE FROM {best ? fmtLocalHm(best.departAt) : '—'}
+        </button>
+        <button className="btn btn--sm" onClick={onClose}>
+          CLOSE
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function ResultsSheet({ route, onClose }: { route: RouteResult; onClose: () => void }) {
   const step = Math.max(1, Math.floor(route.legs.length / 40))
@@ -465,14 +751,20 @@ function ResultsSheet({ route, onClose }: { route: RouteResult; onClose: () => v
           <span>ETA</span>
           <span>{route.etaMs ? new Date(route.etaMs).toUTCString().slice(5, 22) + ' UTC' : '—'}</span>
         </div>
+        {/*
+          `fmtDuration`, not `fmtClock`. These were showing a five-hour passage as
+          "309:14" — the start-timer format applied to a passage length. Found while
+          building the departure sheet next door, which had inherited the same
+          mistake.
+        */}
         <div className="row">
           <span>Elapsed</span>
-          <span>{fmtClock(route.elapsedS) ?? '—'}</span>
+          <span>{fmtDuration(route.elapsedS) ?? '—'}</span>
         </div>
         <div className="row">
           <span>vs. direct</span>
           <span style={{ color: saved && saved > 0 ? 'var(--stbd)' : undefined }}>
-            {saved == null ? '—' : `${saved > 0 ? '-' : '+'}${fmtClock(Math.abs(saved))}`}
+            {saved == null ? '—' : `${saved > 0 ? '-' : '+'}${fmtDuration(Math.abs(saved))}`}
           </span>
         </div>
         <div className="row">

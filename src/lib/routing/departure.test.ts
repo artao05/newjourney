@@ -16,11 +16,14 @@ import {
 import { routeIsochrone, type RouteContext } from './isochrone'
 import type {
   PolarLattice,
+  PolarTable,
   RouteRequest,
   RouteResult,
   Targets,
+  WeatherCube,
   WeatherField,
 } from '../types'
+import type { SweepWorkerResponse } from './worker'
 
 const T0 = Date.UTC(2026, 7, 6, 6, 0)
 const MIN = 60_000
@@ -46,7 +49,7 @@ const REQUEST = {
 const CTX = {} as RouteContext
 
 /** A result carrying just the fields the sweep reads. */
-function ok(startTime: number, elapsedS: number): RouteResult {
+function ok(startTime: number, elapsedS: number, timeStepS = 60): RouteResult {
   return {
     ok: true,
     legs: [],
@@ -56,7 +59,7 @@ function ok(startTime: number, elapsedS: number): RouteResult {
     isochrones: [],
     reverseIsochrones: [],
     sensitivity: null,
-    diagnostics: { nodesExplored: 0, timeStepS: 60, computeMs: 0, warnings: [] },
+    diagnostics: { nodesExplored: 0, timeStepS, computeMs: 0, warnings: [] },
   } as unknown as RouteResult
 }
 
@@ -287,6 +290,22 @@ describe('sweepDepartures', () => {
     expect(sweep.warnings.join(' ')).toMatch(/widened/)
   })
 
+  it('forces sensitivity off — the sweep never reads it and pays twice for one', () => {
+    const flags: unknown[] = []
+    sweepDepartures({
+      request: { ...REQUEST, computeSensitivity: true } as RouteRequest,
+      ctx: CTX,
+      route: (req) => {
+        flags.push(req.computeSensitivity)
+        return ok(req.startTime, 600)
+      },
+      from: T0,
+      to: T0 + 2 * HOUR,
+      stepMs: HOUR,
+    })
+    expect(flags).toEqual([false, false, false])
+  })
+
   it('reports progress once per departure', () => {
     const onProgress = vi.fn()
     sweepDepartures({
@@ -300,6 +319,72 @@ describe('sweepDepartures', () => {
     })
     expect(onProgress).toHaveBeenCalledTimes(3)
     expect(onProgress).toHaveBeenLastCalledWith(3, 3)
+  })
+})
+
+describe('the resolution floor', () => {
+  /*
+   * The kernel probes the wind at `startTime` to pick its time step, so a sweep
+   * genuinely solves each departure at a different discretisation — and a
+   * departure into light air gets the coarsest search of the set. These pin the
+   * consequence: the sweep reports how coarse it was, and refuses to rank inside
+   * that.
+   */
+  it('takes the floor from the coarsest successful solve, not the average', () => {
+    const steps = new Map([
+      [T0, 1800],
+      [T0 + HOUR, 300],
+      [T0 + 2 * HOUR, 600],
+    ])
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      route: (req) => ok(req.startTime, 7200, steps.get(req.startTime)),
+      from: T0,
+      to: T0 + 2 * HOUR,
+      stepMs: HOUR,
+    })
+    expect(sweep.stepFloorS).toBe(1800)
+    expect(sweep.options.map((d) => d.timeStepS)).toEqual([1800, 300, 600])
+  })
+
+  it('ignores the step of a departure that failed', () => {
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      route: (req) => (req.startTime === T0 ? fail('no route') : ok(req.startTime, 3600, 120)),
+      from: T0,
+      to: T0 + HOUR,
+      stepMs: HOUR,
+    })
+    expect(sweep.options[0].timeStepS).toBeNull()
+    expect(sweep.stepFloorS).toBe(120)
+  })
+
+  it('warns in the sweep itself when the spread is inside the floor', () => {
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      // 5 min apart, solved with a 30 min step.
+      route: (req) => ok(req.startTime, req.startTime === T0 ? 3600 : 3900, 1800),
+      from: T0,
+      to: T0 + HOUR,
+      stepMs: HOUR,
+    })
+    expect(sweep.spreadS).toBe(300)
+    expect(sweep.warnings.join(' ')).toMatch(/not distinguishable at this resolution/)
+  })
+
+  it('is null when nothing routed, so no floor is implied', () => {
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      route: () => fail('nope'),
+      from: T0,
+      to: T0 + HOUR,
+      stepMs: HOUR,
+    })
+    expect(sweep.stepFloorS).toBeNull()
   })
 })
 
@@ -337,6 +422,56 @@ describe('departureAdvice', () => {
     const long = departureAdvice(sweepWith(72 * HOUR / 1000, 900))
     expect(short?.matters).toBe(true)
     expect(long?.matters).toBe(false)
+  })
+
+  it('refuses to rank a spread inside the router’s own time step', () => {
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      route: (req) => ok(req.startTime, req.startTime === T0 ? 3600 : 4200, 1800),
+      from: T0,
+      to: T0 + HOUR,
+      stepMs: HOUR,
+    })
+    const a = departureAdvice(sweep)
+    expect(a?.matters).toBe(false)
+    expect(a?.text).toMatch(/No usable difference/)
+    expect(a?.text).toMatch(/30 min time step/)
+  })
+
+  it('checks the floor before the fraction, which is where it actually bites', () => {
+    /*
+     * This ordering is the whole point. A 10 min spread on a 1 h race is 17% of
+     * the passage — "departure dominates" by the fraction rule — while the search
+     * that produced it was stepping 30 min at a time. A short race is exactly the
+     * case where a small spread looks significant AND where the step is
+     * proportionally largest, so the fraction rule alone is confidently wrong
+     * precisely when it matters most.
+     */
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      route: (req) => ok(req.startTime, req.startTime === T0 ? 3600 : 4200, 1800),
+      from: T0,
+      to: T0 + HOUR,
+      stepMs: HOUR,
+    })
+    expect(sweep.spreadS! / sweep.best!.elapsedS!).toBeGreaterThan(0.1)
+    expect(departureAdvice(sweep)?.matters).toBe(false)
+  })
+
+  it('still ranks a spread comfortably clear of the floor', () => {
+    // Same shape, fine step: now the difference is real and it says so.
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      route: (req) => ok(req.startTime, req.startTime === T0 ? 3600 : 4200, 60),
+      from: T0,
+      to: T0 + HOUR,
+      stepMs: HOUR,
+    })
+    expect(departureAdvice(sweep)?.matters).toBe(true)
+    expect(departureAdvice(sweep)?.text).toMatch(/dominates/)
   })
 
   it('is null when there is nothing honest to say', () => {
@@ -483,6 +618,19 @@ describe('sweepDepartures against the real isochrone kernel', () => {
     expect(advice?.matters).toBe(true)
   })
 
+  it('pins every departure to the same step at buoy-race scale', () => {
+    /*
+     * On a leg this short (~17 nm) the §5 leg table asks for 300 s and the `fast`
+     * preset floor is also 300 s, so the wind-dependent term never binds: every
+     * departure really is compared at one discretisation. Worth pinning, because
+     * it is the case where the sweep's ranking is cleanest — and it is not the
+     * general case (see below).
+     */
+    const steps = sweep.options.map((d) => d.timeStepS!)
+    expect(new Set(steps).size).toBe(1)
+    expect(sweep.stepFloorS).toBe(steps[0])
+  })
+
   it('costs are monotonic as the breeze builds', () => {
     // Each later departure is at least as good as the one before it, so the cost
     // relative to the winner never increases going down the list.
@@ -490,5 +638,200 @@ describe('sweepDepartures against the real isochrone kernel', () => {
     for (let i = 1; i < costs.length; i++) {
       expect(costs[i]).toBeLessThanOrEqual(costs[i - 1] + 1e-6)
     }
+  })
+})
+
+describe('the step really does vary with departure, on a coastal leg', () => {
+  /*
+   * Why `stepFloorS` exists, demonstrated rather than argued.
+   *
+   * `routeIsochrone` sizes its time step from the boat speed it probes at
+   * `startTime` (§5: `leg / speed / target_steps`). Below about 20 nm the leg
+   * table and the preset floor both ask for 300 s and that term never binds — the
+   * test above. Past 20 nm it binds hard, and it binds *asymmetrically*: a
+   * departure into light air is solved coarsely and a departure into fresh air
+   * finely, over the identical course. The discretisation is therefore correlated
+   * with the quantity the sweep is trying to compare, and the comparison is only
+   * as trustworthy as the coarsest solve in it.
+   *
+   * Same filling breeze, same beam reach, ~30 nm instead of ~17.
+   */
+  const from = Date.UTC(2026, 7, 6, 0, 0)
+  const ctx: RouteContext = { field: fillingBreeze(from, 6), lattice: lattice() }
+  const req = {
+    start: { lat: 43.5, lon: -70.4 },
+    marks: [{ lat: 43.5, lon: -69.71 }],
+    startTime: from,
+    constraints: { avoidLand: false },
+    scalings: {
+      polarPct: 100,
+      polarPctNight: 100,
+      windScalePct: 100,
+      windRotateDeg: 0,
+      windTimeShiftS: 0,
+      currentScalePct: 100,
+    },
+    resolution: 'fast',
+    computeSensitivity: false,
+  } as unknown as RouteRequest
+
+  const sweep = sweepDepartures({
+    request: req,
+    ctx,
+    route: routeIsochrone,
+    from,
+    to: from + 6 * HOUR,
+    stepMs: 3 * HOUR,
+  })
+
+  it('gives the lightest departure the coarsest search', () => {
+    const steps = sweep.options.map((d) => d.timeStepS!)
+    expect(new Set(steps).size).toBeGreaterThan(1)
+    expect(steps[0]).toBeGreaterThan(steps[steps.length - 1])
+  })
+
+  it('takes the floor from the lightest, most coarsely solved departure', () => {
+    const steps = sweep.options.map((d) => d.timeStepS!)
+    expect(sweep.stepFloorS).toBe(Math.max(...steps))
+    expect(sweep.stepFloorS).toBe(steps[0])
+  })
+
+  it('still calls this spread decisive, because it clears the floor by a lot', () => {
+    // The floor is a guard against over-claiming, not a gag: a filling breeze
+    // moves the ETA by hours and the coarsest step here is half an hour.
+    expect(sweep.spreadS!).toBeGreaterThan(sweep.stepFloorS!)
+    expect(departureAdvice(sweep)?.matters).toBe(true)
+  })
+})
+
+// ------------------------------------------------------------- worker protocol
+
+/**
+ * The sweep crosses to a worker, so the wire contract needs its own test: a
+ * cube and a polar table in, one progress tick per departure out, a
+ * `DepartureSweep` at the end. `handleSweepMessage` is exported precisely so this
+ * can run in plain Node without a real `Worker`.
+ */
+describe('sweep worker protocol', () => {
+  const T = Date.UTC(2026, 7, 6, 12, 0)
+
+  /** 12 kn from due east, uniform over a 2° box, hourly for 24 h. */
+  function cube(): WeatherCube {
+    const nx = 9
+    const ny = 9
+    const nt = 25
+    const n = nx * ny * nt
+    const u = new Float32Array(n)
+    const v = new Float32Array(n)
+    // Meteorological u/v for a wind FROM 090.
+    u.fill(-12 * Math.sin((90 * Math.PI) / 180))
+    v.fill(-12 * Math.cos((90 * Math.PI) / 180))
+    return {
+      model: 'test',
+      run: '2026-08-06T06:00:00Z',
+      bbox: { west: -71, south: 39.5, east: -69, north: 41.5 },
+      nx,
+      ny,
+      dx: 0.25,
+      dy: 0.25,
+      t0: T - HOUR,
+      dtMs: HOUR,
+      nt,
+      params: ['u10', 'v10'],
+      data: { u10: u, v10: v },
+    } as unknown as WeatherCube
+  }
+
+  function polarTable(): PolarTable {
+    const twas = [0, 30, 40, 50, 60, 75, 90, 110, 120, 135, 150, 165, 180]
+    const bspAt = (tws: number, twa: number) => {
+      const a = Math.abs(twa)
+      if (a < 35) return 0
+      return tws * 0.5 * Math.sin(((a - 35) / 145) * Math.PI) ** 0.5
+    }
+    return {
+      name: 'analytic',
+      reference: '10m',
+      tws: [4, 8, 12, 16, 20],
+      rows: [4, 8, 12, 16, 20].map((w) => ({ twa: twas, bsp: twas.map((a) => bspAt(w, a)) })),
+    }
+  }
+
+  it('round-trips a sweep through the worker handler', async () => {
+    const { handleSweepMessage } = await import('./worker')
+    const messages: SweepWorkerResponse[] = []
+    await handleSweepMessage(
+      {
+        type: 'sweep',
+        id: 11,
+        // Due north from mid-box: a beam reach in an easterly.
+        req: {
+          start: { lat: 40, lon: -70 },
+          startTime: T,
+          marks: [{ lat: 40.2, lon: -70 }],
+          constraints: { avoidLand: false },
+          scalings: {
+            polarPct: 100,
+            polarPctNight: 100,
+            windScalePct: 100,
+            windRotateDeg: 0,
+            windTimeShiftS: 0,
+            currentScalePct: 100,
+          },
+          resolution: 'fast',
+          // Left on to prove the wire accepts a template with it set; the sweep
+          // strips it per solve, which the unit test above pins directly.
+          computeSensitivity: true,
+        } as unknown as RouteRequest,
+        cube: cube(),
+        polarTable: polarTable(),
+        from: T,
+        to: T + 3 * HOUR,
+        stepMs: HOUR,
+      },
+      (m) => messages.push(m),
+    )
+
+    const result = messages.find((m) => m.type === 'sweepResult')
+    expect(result).toBeDefined()
+    expect(result!.id).toBe(11)
+    if (result?.type !== 'sweepResult') throw new Error('unreachable')
+
+    expect(result.sweep.attempted).toBe(4)
+    expect(result.sweep.succeeded).toBe(4)
+    expect(result.sweep.best?.elapsedS).toBeGreaterThan(0)
+    // A uniform, steady wind: every departure must take the same time, so the
+    // spread is zero and the advice must not manufacture a preference from it.
+    expect(result.sweep.spreadS).toBe(0)
+    expect(departureAdvice(result.sweep)?.matters).toBe(false)
+
+    // One progress tick per departure, ending at 1.
+    const ticks = messages.filter((m) => m.type === 'progress')
+    expect(ticks).toHaveLength(4)
+    expect(ticks[ticks.length - 1]).toMatchObject({ fraction: 1 })
+  })
+
+  it('reports a bad polar in-band rather than throwing', async () => {
+    const { handleSweepMessage } = await import('./worker')
+    const messages: SweepWorkerResponse[] = []
+    await handleSweepMessage(
+      {
+        type: 'sweep',
+        id: 12,
+        req: { start: { lat: 40, lon: -70 }, marks: [{ lat: 40.2, lon: -70 }] } as RouteRequest,
+        cube: cube(),
+        // Not a polar. `buildLattice` must fail and the failure must arrive as a
+        // sweep with no best, the same shape as "nothing routed".
+        polarTable: { name: 'broken' } as unknown as PolarTable,
+        from: T,
+        to: T + HOUR,
+        stepMs: HOUR,
+      },
+      (m) => messages.push(m),
+    )
+    const result = messages.find((m) => m.type === 'sweepResult')
+    if (result?.type !== 'sweepResult') throw new Error('expected a sweepResult')
+    expect(result.sweep.best).toBeNull()
+    expect(result.sweep.warnings.join(' ')).toMatch(/could not start the sweep/)
   })
 })

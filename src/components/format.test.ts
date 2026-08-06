@@ -8,7 +8,49 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { fmtAgo, fmtClock, fmtSigned } from './Tile'
+import { fmtAgo, fmtClock, fmtDuration, fmtSigned } from './Tile'
+
+describe('fmtDuration', () => {
+  it('carries units at every scale, so no reader has to guess the convention', () => {
+    expect(fmtDuration(45)).toBe('45s')
+    expect(fmtDuration(2880)).toBe('48m')
+    expect(fmtDuration(18_554)).toBe('5h 09m')
+    expect(fmtDuration(180_000)).toBe('2d 02h')
+  })
+
+  it('is the fix for a passage rendered as a race clock', () => {
+    /*
+     * The bug that motivated it: the departure sheet showed a 5 h 09 min passage
+     * as "309:14" because it reused `fmtClock`, the start-timer formatter. Pinned
+     * side by side so the difference is impossible to reintroduce by accident.
+     */
+    expect(fmtClock(18_554)).toBe('309:14')
+    expect(fmtDuration(18_554)).toBe('5h 09m')
+  })
+
+  it('keeps the minutes that a coarse phrase would round away', () => {
+    // `fmtAgo` is right for "how stale is this" and wrong for "how long is this":
+    // the minutes are the whole comparison when ranking departures.
+    expect(fmtAgo(18_554)).toBe('5 h')
+    expect(fmtDuration(18_554)).toBe('5h 09m')
+  })
+
+  it('pads so a column of them lines up', () => {
+    expect(fmtDuration(3600 + 5 * 60)).toBe('1h 05m')
+    expect(fmtDuration(3600 + 55 * 60)).toBe('1h 55m')
+  })
+
+  it('signs a negative rather than dropping it', () => {
+    expect(fmtDuration(-600)).toBe('-10m')
+    expect(fmtDuration(-7200)).toBe('-2h 00m')
+  })
+
+  it('is null for unknown rather than guessing zero', () => {
+    expect(fmtDuration(null)).toBeNull()
+    expect(fmtDuration(undefined)).toBeNull()
+    expect(fmtDuration(NaN)).toBeNull()
+  })
+})
 
 describe('fmtClock', () => {
   it('renders m:ss', () => {

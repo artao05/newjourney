@@ -35,4 +35,4 @@ export {
   type SweepOptions,
 } from './departure'
 
-export { RoutingClient, type RoutePayload } from './client'
+export { RoutingClient, type RoutePayload, type SweepWindow } from './client'

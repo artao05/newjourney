@@ -9,18 +9,22 @@
  *
  * Protocol
  *   in   { type: 'route', id, req, cube, polarTable, landData? }
- *   out  { type: 'progress', id, fraction }
- *        { type: 'result',   id, result }
+ *        { type: 'sweep', id, req, cube, polarTable, from, to, stepMs, … }
+ *   out  { type: 'progress',    id, fraction }
+ *        { type: 'result',      id, result }
+ *        { type: 'sweepResult', id, sweep }
  *
  * Cancellation is by termination — `RoutingClient.cancel()` kills the worker and
  * builds a fresh one. A cooperative flag would need a yield point in the inner
  * loop, and the inner loop is where the whole performance budget lives.
  */
 
+import { sweepDepartures, type DepartureSweep } from './departure'
 import { routeIsochrone, type RouteContext } from './isochrone'
 import { RasterLandMask, buildLandMask, type LandMask } from './land'
 import type {
   BBox,
+  Millis,
   PolarLattice,
   PolarTable,
   RouteRequest,
@@ -45,9 +49,8 @@ export interface LandRasterPayload {
   bits: Uint32Array
 }
 
-export interface RouteWorkerRequest {
-  type: 'route'
-  id: number
+/** Everything needed to rebuild a routing context, shared by both request kinds. */
+interface WorkerInputs {
   req: RouteRequest
   cube: WeatherCube
   polarTable: PolarTable
@@ -58,9 +61,46 @@ export interface RouteWorkerRequest {
   landCellDeg?: number
 }
 
+export interface RouteWorkerRequest extends WorkerInputs {
+  type: 'route'
+  id: number
+}
+
+/**
+ * Sweep a window of departure times.
+ *
+ * This is on the worker for the reason the single route is: it is N full solves
+ * back to back, and N is up to `maxSolves`. On the main thread that is tens of
+ * seconds of frozen UI, and unlike a single route there is no version of it that
+ * is fast enough to get away with.
+ *
+ * `req.startTime` is ignored — the sweep supplies one per solve.
+ */
+export interface SweepWorkerRequest extends WorkerInputs {
+  type: 'sweep'
+  id: number
+  from: Millis
+  to: Millis
+  stepMs: number
+  maxSolves?: number
+}
+
+/**
+ * Response to a `route`.
+ *
+ * Kept narrow, without the sweep case folded in, so `if (msg.type === 'result')`
+ * still narrows to a `RouteResult` everywhere it already did.
+ */
 export type RouteWorkerResponse =
   | { type: 'progress'; id: number; fraction: number }
   | { type: 'result'; id: number; result: RouteResult }
+
+export type SweepWorkerResponse =
+  | { type: 'progress'; id: number; fraction: number }
+  | { type: 'sweepResult'; id: number; sweep: DepartureSweep }
+
+export type WorkerRequest = RouteWorkerRequest | SweepWorkerRequest
+export type WorkerResponse = RouteWorkerResponse | SweepWorkerResponse
 
 /**
  * The polar and weather modules are pulled in *here and only here*, and lazily.
@@ -144,6 +184,34 @@ function courseBBox(req: RouteRequest, cube: WeatherCube): BBox {
   }
 }
 
+/** Rebuild the lattice, field and land mask a solve needs from a wire payload. */
+async function buildContext(msg: WorkerInputs): Promise<Omit<RouteContext, 'onProgress'>> {
+  const [lattice, field] = await Promise.all([
+    rebuildLattice(msg.polarTable),
+    rebuildField(msg.cube),
+  ])
+  // A validated venue raster beats rasterising GeoJSON per request.
+  const land =
+    adoptLandRaster(msg.landRaster) ??
+    rebuildLand(msg.landData, courseBBox(msg.req, msg.cube), msg.landCellDeg ?? 0.01)
+  return { field, lattice, land }
+}
+
+function failedResult(error: string): RouteResult {
+  return {
+    ok: false,
+    error,
+    legs: [],
+    etaMs: null,
+    elapsedS: null,
+    directTimeS: null,
+    isochrones: [],
+    reverseIsochrones: [],
+    sensitivity: null,
+    diagnostics: { nodesExplored: 0, timeStepS: 0, computeMs: 0, warnings: [] },
+  }
+}
+
 /**
  * Run one request. Exported so the protocol can be exercised in Node without a
  * real `Worker`, and so a server-side caller can reuse it verbatim.
@@ -153,19 +221,10 @@ export async function handleRouteMessage(
   post: (m: RouteWorkerResponse) => void,
 ): Promise<void> {
   try {
-    const [lattice, field] = await Promise.all([
-      rebuildLattice(msg.polarTable),
-      rebuildField(msg.cube),
-    ])
-    // A validated venue raster beats rasterising GeoJSON per request.
-    const land =
-      adoptLandRaster(msg.landRaster) ??
-      rebuildLand(msg.landData, courseBBox(msg.req, msg.cube), msg.landCellDeg ?? 0.01)
+    const base = await buildContext(msg)
     let lastPost = 0
     const ctx: RouteContext = {
-      field,
-      lattice,
-      land,
+      ...base,
       onProgress: (fraction) => {
         // Throttled: progress messages that outnumber the frames that can show
         // them just steal cycles from the search.
@@ -178,20 +237,50 @@ export async function handleRouteMessage(
     post({ type: 'result', id: msg.id, result: routeIsochrone(msg.req, ctx) })
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
+    post({ type: 'result', id: msg.id, result: failedResult(`worker could not start the route: ${message}`) })
+  }
+}
+
+/**
+ * Run a departure sweep. Same exported-for-Node reasoning as above.
+ *
+ * Progress is one tick per completed departure, not per isochrone step. The
+ * inner searches deliberately report nothing: a sweep of 13 solves each posting
+ * throttled progress would interleave 13 independent 0→1 ramps, which reads as a
+ * broken progress bar. "Departure 4 of 13" is both truer and more useful.
+ */
+export async function handleSweepMessage(
+  msg: SweepWorkerRequest,
+  post: (m: SweepWorkerResponse) => void,
+): Promise<void> {
+  try {
+    const ctx: RouteContext = await buildContext(msg)
+    const sweep = sweepDepartures({
+      request: msg.req,
+      ctx,
+      route: routeIsochrone,
+      from: msg.from,
+      to: msg.to,
+      stepMs: msg.stepMs,
+      maxSolves: msg.maxSolves,
+      onProgress: (done, total) => post({ type: 'progress', id: msg.id, fraction: done / total }),
+    })
+    post({ type: 'sweepResult', id: msg.id, sweep })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    // Report in-band, in the same shape a sweep with no successful departure
+    // returns, so the UI has one rendering path rather than two.
     post({
-      type: 'result',
+      type: 'sweepResult',
       id: msg.id,
-      result: {
-        ok: false,
-        error: `worker could not start the route: ${message}`,
-        legs: [],
-        etaMs: null,
-        elapsedS: null,
-        directTimeS: null,
-        isochrones: [],
-        reverseIsochrones: [],
-        sensitivity: null,
-        diagnostics: { nodesExplored: 0, timeStepS: 0, computeMs: 0, warnings: [] },
+      sweep: {
+        options: [],
+        best: null,
+        spreadS: null,
+        stepFloorS: null,
+        attempted: 0,
+        succeeded: 0,
+        warnings: [`worker could not start the sweep: ${message}`],
       },
     })
   }
@@ -213,8 +302,10 @@ if (
   typeof scope.document === 'undefined'
 ) {
   scope.addEventListener('message', (e: MessageEvent) => {
-    const data = e.data as RouteWorkerRequest | undefined
-    if (!data || data.type !== 'route') return
-    void handleRouteMessage(data, (m) => scope.postMessage?.(m))
+    const data = e.data as WorkerRequest | undefined
+    if (!data) return
+    const post = (m: WorkerResponse) => scope.postMessage?.(m)
+    if (data.type === 'route') void handleRouteMessage(data, post)
+    else if (data.type === 'sweep') void handleSweepMessage(data, post)
   })
 }

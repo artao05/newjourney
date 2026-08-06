@@ -35,6 +35,13 @@ export interface DepartureOption {
    * Null when this departure produced no route at all.
    */
   costS: Seconds | null
+  /**
+   * Isochrone time step this solve chose, seconds. Null when it failed.
+   *
+   * Kept per departure rather than once for the sweep because it genuinely
+   * varies — see `stepFloorS`.
+   */
+  timeStepS: Seconds | null
   /** Why this departure produced nothing, when it produced nothing. */
   error?: string
 }
@@ -51,6 +58,26 @@ export interface DepartureSweep {
    * spread needs two points and one solve tells you nothing about sensitivity.
    */
   spreadS: Seconds | null
+  /**
+   * The coarsest isochrone time step any successful solve used, seconds — the
+   * resolution floor below which this sweep cannot honestly name a winner.
+   *
+   * This is not a detail. `routeIsochrone` probes the wind **at `startTime`** to
+   * pick its time step (§"typicalSpeed"), so every departure in a sweep is solved
+   * at a *different* discretisation — and the discretisation is correlated with
+   * the very thing being measured. A departure into 4 kn gets a coarser search
+   * than the same course into 14 kn, because a slower boat needs fewer, longer
+   * steps to cover the leg. The sweep is therefore not quite comparing like with
+   * like, and the size of that mismatch is bounded by the coarsest step used.
+   *
+   * Arrival is a sub-step interpolated hop, so elapsed times are not quantised to
+   * the step — but the *frontier* those hops start from is only sampled every
+   * step, so two departures separated by less than one step have not been
+   * meaningfully distinguished. `departureAdvice` refuses to claim they have.
+   *
+   * Null when nothing succeeded.
+   */
+  stepFloorS: Seconds | null
   /** Departures attempted, and how many produced a usable route. */
   attempted: number
   succeeded: number
@@ -153,7 +180,18 @@ export function sweepDepartures(o: SweepOptions): DepartureSweep {
     const departAt = departures[i]
     let result: RouteResult
     try {
-      result = o.route({ ...o.request, startTime: departAt }, o.ctx)
+      /*
+       * `computeSensitivity: false` regardless of what the template asked for.
+       * The sweep ranks departures by elapsed time and never looks at a
+       * sensitivity field, so computing one per departure is a second full
+       * backward pass and a grid allocation bought for nothing — and there are up
+       * to `maxSolves` of them. A caller who wants the envelope routes the winning
+       * departure once, afterwards.
+       */
+      result = o.route(
+        { ...o.request, startTime: departAt, computeSensitivity: false },
+        o.ctx,
+      )
     } catch (e) {
       // The kernel contracts never to throw, but a sweep must not die on one bad
       // departure and lose the other 23 answers.
@@ -162,19 +200,28 @@ export function sweepDepartures(o: SweepOptions): DepartureSweep {
         elapsedS: null,
         etaMs: null,
         costS: null,
+        timeStepS: null,
         error: e instanceof Error ? e.message : String(e),
       })
       o.onProgress?.(i + 1, departures.length)
       continue
     }
+    const stepS = result.diagnostics?.timeStepS
     options.push(
       result.ok && result.elapsedS != null
-        ? { departAt, elapsedS: result.elapsedS, etaMs: result.etaMs, costS: null }
+        ? {
+            departAt,
+            elapsedS: result.elapsedS,
+            etaMs: result.etaMs,
+            costS: null,
+            timeStepS: Number.isFinite(stepS) && stepS > 0 ? stepS : null,
+          }
         : {
             departAt,
             elapsedS: null,
             etaMs: null,
             costS: null,
+            timeStepS: null,
             error: result.error ?? 'no route',
           },
     )
@@ -184,14 +231,26 @@ export function sweepDepartures(o: SweepOptions): DepartureSweep {
   const ok = options.filter((d): d is DepartureOption & { elapsedS: Seconds } => d.elapsedS != null)
   if (ok.length === 0) {
     warnings.push('No departure in the window produced a route.')
-    return { options, best: null, spreadS: null, attempted: options.length, succeeded: 0, warnings }
+    return {
+      options,
+      best: null,
+      spreadS: null,
+      stepFloorS: null,
+      attempted: options.length,
+      succeeded: 0,
+      warnings,
+    }
   }
 
   let best = ok[0]
   let slowest = ok[0]
+  let stepFloorS: Seconds | null = null
   for (const d of ok) {
     if (d.elapsedS < best.elapsedS) best = d
     if (d.elapsedS > slowest.elapsedS) slowest = d
+    if (d.timeStepS != null && (stepFloorS == null || d.timeStepS > stepFloorS)) {
+      stepFloorS = d.timeStepS
+    }
   }
   // Cost is relative to the winner, so the table reads as "leaving then costs you
   // 40 minutes" rather than making the reader subtract.
@@ -199,10 +258,22 @@ export function sweepDepartures(o: SweepOptions): DepartureSweep {
     d.costS = d.elapsedS == null ? null : d.elapsedS - best.elapsedS
   }
 
+  const spreadS = ok.length >= 2 ? slowest.elapsedS - best.elapsedS : null
+  // Say it here as well as in the advice: a caller reading the table directly
+  // should not have to derive this from two numbers to know the ranking is noise.
+  if (spreadS != null && stepFloorS != null && spreadS <= stepFloorS) {
+    warnings.push(
+      `The spread across this window (${Math.round(spreadS / 60)} min) is inside the ` +
+        `router's own time step (${Math.round(stepFloorS / 60)} min), so these departures ` +
+        `are not distinguishable at this resolution.`,
+    )
+  }
+
   return {
     options,
     best,
-    spreadS: ok.length >= 2 ? slowest.elapsedS - best.elapsedS : null,
+    spreadS,
+    stepFloorS,
     attempted: options.length,
     succeeded: ok.length,
     warnings,
@@ -212,10 +283,20 @@ export function sweepDepartures(o: SweepOptions): DepartureSweep {
 /**
  * Plain-language read on whether departure timing matters here.
  *
- * The threshold is a fraction of the passage rather than a fixed number of
- * minutes: twenty minutes across a two-hour harbour race is the whole result,
- * and across a three-day passage it is noise. Returns null when there is nothing
- * honest to say — one successful solve cannot support a claim either way.
+ * Two thresholds, in this order.
+ *
+ * The first is the router's own resolution (`stepFloorS`). A spread inside one
+ * time step is a ranking of numerical noise, and it must not be reported as a
+ * preference no matter how large a fraction of the passage it is — that check has
+ * to come first, because a short race is exactly where a small spread looks
+ * significant *and* where the step is proportionally largest.
+ *
+ * The second is a fraction of the passage rather than a fixed number of minutes:
+ * twenty minutes across a two-hour harbour race is the whole result, and across a
+ * three-day passage it is noise.
+ *
+ * Returns null when there is nothing honest to say — one successful solve cannot
+ * support a claim either way.
  */
 export function departureAdvice(
   sweep: DepartureSweep,
@@ -224,6 +305,15 @@ export function departureAdvice(
   const spread = sweep.spreadS
   const fraction = spread / sweep.best.elapsedS
   const mins = Math.round(spread / 60)
+  if (sweep.stepFloorS != null && spread <= sweep.stepFloorS) {
+    return {
+      matters: false,
+      text:
+        `No usable difference: the ${mins} min between best and worst is inside the ` +
+        `router's ${Math.round(sweep.stepFloorS / 60)} min time step. Leave when you like, ` +
+        `or re-run at a finer resolution.`,
+    }
+  }
   if (fraction < 0.02) {
     return {
       matters: false,

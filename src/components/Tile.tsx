@@ -52,6 +52,32 @@ export function Tile({ label, value, unit, dp = 1, sub, tone, small, onClick }: 
   )
 }
 
+/**
+ * A passage length: "45s", "48m", "5h 09m", "2d 03h".
+ *
+ * The third formatter here, and it exists because the other two are both wrong
+ * for a passage. `fmtClock` is a race clock — it renders a five-hour passage as
+ * "309:14", which is honestly minutes and seconds and reads as either 309 hours
+ * or nothing at all. `fmtAgo` rounds a five-hour-nine-minute passage to "5 h",
+ * and the nine minutes are exactly what you are comparing when you rank
+ * departures.
+ *
+ * Always carries its units, so no reader has to work out which of the three
+ * conventions a given number is in.
+ */
+export function fmtDuration(seconds: number | null | undefined): string | null {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return null
+  const neg = seconds < 0
+  const s = Math.round(Math.abs(seconds))
+  const sign = neg ? '-' : ''
+  if (s < 60) return `${sign}${s}s`
+  const mins = Math.floor(s / 60)
+  if (mins < 60) return `${sign}${mins}m`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${sign}${hrs}h ${String(mins % 60).padStart(2, '0')}m`
+  return `${sign}${Math.floor(hrs / 24)}d ${String(hrs % 24).padStart(2, '0')}h`
+}
+
 /** mm:ss, or -mm:ss after the gun. Handles null. */
 export function fmtClock(seconds: number | null | undefined): string | null {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return null
