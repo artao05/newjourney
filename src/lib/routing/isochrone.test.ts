@@ -176,10 +176,10 @@ function makeField(o: FieldOpts): WeatherField {
       t1: t0 + hours * 3_600_000,
     }),
   }
-  if (o.gribStepS != null) {
-    ;(field as unknown as { dtMs: number }).dtMs = o.gribStepS * 1000
-  }
-  return field as WeatherField
+  // `dtMs` is a declared optional member of WeatherField, so a test field sets it
+  // like any other property. It used to be bolted on through a cast, which is how
+  // this test came to pass against a production path where nothing had it at all.
+  return { ...field, ...(o.gribStepS != null ? { dtMs: o.gribStepS * 1000 } : {}) }
 }
 
 const T0 = Date.UTC(2026, 5, 15, 12, 0, 0)

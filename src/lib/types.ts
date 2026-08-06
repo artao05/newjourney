@@ -135,6 +135,19 @@ export interface WeatherField {
   current(lat: number, lon: number, t: Millis): WindSample | null
   waves(lat: number, lon: number, t: Millis): WaveState | null
   coverage(): { bbox: BBox; t0: Millis; t1: Millis }
+  /**
+   * The field's own time cadence in milliseconds, when it has a regular one.
+   *
+   * Declared here because the router needs it and guessing is not an option: the
+   * isochrone time step is clamped to never exceed the forecast cadence, and a
+   * step coarser than the data is how a router sails through a front and never
+   * notices (docs/03-algorithms/routing-isochrone.md §5).
+   *
+   * Optional because not every field has a cadence — a constant field and a
+   * station interpolation have none — and `undefined` correctly means "no opinion,
+   * use the leg table" rather than "instantaneous".
+   */
+  readonly dtMs?: number
 }
 
 /** Compact transferable weather cube — the wire + worker format. */

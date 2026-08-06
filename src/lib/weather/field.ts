@@ -81,6 +81,15 @@ export class CubeField implements WeatherField {
   coverage(): { bbox: BBox; t0: Millis; t1: Millis } {
     return cubeCoverage(this.cube)
   }
+
+  /**
+   * The cube's own step, which is the forecast cadence the router must not
+   * outrun. Undefined for a single-slice cube: one time step is a snapshot and
+   * has no cadence to respect.
+   */
+  get dtMs(): number | undefined {
+    return this.cube.nt > 1 && this.cube.dtMs > 0 ? this.cube.dtMs : undefined
+  }
 }
 
 /**
@@ -148,6 +157,23 @@ export class StackedField implements WeatherField {
       t1 = Math.max(t1, c.t1)
     }
     return { bbox, t0, t1 }
+  }
+
+  /**
+   * The *finest* cadence in the stack, not the top provider's.
+   *
+   * The clamp exists so the router never steps over forecast structure, and the
+   * provider with the shortest step is the one that has structure to miss. Taking
+   * the top provider's instead would let a coarse manual override hide an hourly
+   * model sitting under it. Undefined when no member declares one.
+   */
+  get dtMs(): number | undefined {
+    let best: number | undefined
+    for (const p of this.providers) {
+      const dt = p.dtMs
+      if (typeof dt === 'number' && dt > 0 && (best === undefined || dt < best)) best = dt
+    }
+    return best
   }
 }
 
@@ -303,6 +329,14 @@ export class ScaledField implements WeatherField {
     const c = this.inner.coverage()
     // Sampling at t - shift means the queryable window moves the other way.
     return { bbox: c.bbox, t0: c.t0 + this.shiftMs, t1: c.t1 + this.shiftMs }
+  }
+
+  /**
+   * Unchanged by the scalings. A time *shift* slides the window (see `coverage`)
+   * but does not resample, so the cadence underneath is still the inner field's.
+   */
+  get dtMs(): number | undefined {
+    return this.inner.dtMs
   }
 }
 

@@ -547,11 +547,17 @@ function baseStepS(nm: number, res: RouteResolution): number {
  *   Δt = clamp(min(grib_step, leg / speed / target_steps, max_step),
  *              min_isochrone_resolution, max_step)
  *
- * The GRIB cadence is not part of the `WeatherField` interface, so we read an
- * optional `dtMs` if the concrete field happens to expose one (a `CubeField`
- * built from a `WeatherCube` does) and otherwise fall back to the leg table.
- * Stepping past the forecast cadence is how a router sails through a front and
- * never notices.
+ * The cadence comes from `WeatherField.dtMs`, which is optional: a field with no
+ * regular step (constant, station interpolation) declares none and the leg table
+ * decides alone. Stepping past the forecast cadence is how a router sails through
+ * a front and never notices.
+ *
+ * This clamp was dead for its first two commits. `dtMs` was read off the field
+ * through a cast rather than being part of the interface, no implementation
+ * actually had the property, and the only test that covered it bolted one on by
+ * hand — so it passed while the production path always fell through to the leg
+ * table. Duck-typing across a module boundary is exactly how that hides: nothing
+ * fails, the feature simply never happens.
  *
  * The floor matters as much as the ceiling: §4.2 explains that too fine a step
  * against a fixed bucket makes every branch land in the same bucket, distinct
@@ -573,7 +579,7 @@ function chooseTimeStepS(
 }
 
 function gribStepOf(field: WeatherField): number | null {
-  const dt = (field as unknown as { dtMs?: unknown }).dtMs
+  const dt = field.dtMs
   return typeof dt === 'number' && dt > 0 ? dt / 1000 : null
 }
 
