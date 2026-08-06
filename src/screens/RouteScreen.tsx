@@ -18,9 +18,6 @@ import { fmtClock } from '@/components/Tile'
 import { PILOT_VENUE } from '@/data/venues'
 import { landFractionOf, loadVenueLandMask, type LoadedLandMask } from '@/data/landmask'
 
-// The map data is not yet a routing-grade coastline package. Never represent
-// an OSM basemap as an obstacle mask: land avoidance stays explicitly disabled
-// until the Portland venue pack supplies its verified vector geometry.
 /*
  * The Portland venue land pack now exists — a 111 m OSM-derived raster,
  * validated against known-water station coordinates. See src/data/landmask.ts.
@@ -326,7 +323,28 @@ export function RouteScreen() {
     } finally {
       setBusy(null)
     }
-  }, [state, polar, course.marks, cube, boat, loadWeather, setRoute, setRouteError])
+    /*
+     * `landPack` and `landError` belong here, and their absence was a real bug.
+     *
+     * The mask loads asynchronously after mount. Without them in the deps this
+     * callback keeps the closure from the render before the pack arrived, so a
+     * route fired after loading would run with `avoidLand: false` AND print
+     * "Land avoidance is OFF — the coastline pack has not loaded yet" over a pack
+     * that had in fact loaded. Both halves wrong, in the unsafe direction, and
+     * invisible unless some other dependency happened to change first.
+     */
+  }, [
+    state,
+    polar,
+    course.marks,
+    cube,
+    boat,
+    landPack,
+    landError,
+    loadWeather,
+    setRoute,
+    setRouteError,
+  ])
 
   useEffect(() => () => clientRef.current?.dispose(), [])
 
