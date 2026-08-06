@@ -10,9 +10,10 @@
  *      lightness reversals at arbitrary values, so the eye reads a contour where
  *      the data is perfectly smooth. `wind` is viridis, `wave` is magma-class:
  *      both are monotonic in lightness and both survive the common colour-vision
- *      deficiencies. The one ramp built out of rainbow hues is `beaufort`, and
- *      it is `discrete` — there the edges the eye sees are the real class
- *      boundaries, which is the whole point of the scale.
+ *      deficiencies. The ramps built out of mixed hues — `beaufort` and `depth` —
+ *      are both `discrete`, and that is the exemption rather than a lapse: there
+ *      the edges the eye sees are the real class boundaries, which is the whole
+ *      point of the scale.
  *   2. **Stops carry units, not fractions.** `ColorStop.value` is in knots,
  *      metres, °C, hPa — never 0..1. That lets a stop sit on a threshold a
  *      sailor already knows (20 kn = first reef, 34 kn = gale) and it makes the
@@ -183,6 +184,10 @@ const BEAUFORT = defineRamp(
  * Significant wave height, 0-8 m. magma-class: monotonic in lightness, so the
  * field reads as a height even in greyscale, and weighted towards the low end
  * because that is where sea state actually lives.
+ *
+ * Currently unused: the wave-height layer was removed from `LAYERS`, so nothing
+ * asks for this ramp. Kept, like `sst` and `pressure`, because the ramp is the
+ * part that took the judgement and a sea-state view may earn its place back.
  */
 const WAVE = defineRamp('wave', 'Wave height', 'm', [
   [0, '#180f3d'],
@@ -195,6 +200,38 @@ const WAVE = defineRamp('wave', 'Wave height', 'm', [
   [5.5, '#feca8d'],
   [8, '#fcfdbf'],
 ])
+
+/**
+ * Water depth below mean sea level, metres. Discrete, and warm-to-cool rather
+ * than dark-to-light.
+ *
+ * Discrete because depth is the one field on the chart where a sailor's question
+ * is genuinely a threshold — "is there more water here than my draft plus what I
+ * am willing to lose?" — so the bands an ECDIS draws (S-52 depth areas) beat a
+ * smooth wash that has to be read against a legend. The bands are deliberately
+ * coarse: 2, 5, 10, 20, 30 m, not the 1 m contours a survey would support. A
+ * 450 m bathymetric model has no business drawing fine contours, and the band
+ * widths are themselves a statement about the resolution.
+ *
+ * Warm at the shallow end because that end is a hazard and the eye should go
+ * there first, cool and increasingly transparent as the water deepens past the
+ * point where any of this matters — deep water needs no ink, and letting the
+ * chart show through is worth more than colouring it in.
+ */
+const DEPTH = defineRamp(
+  'depth',
+  'Water depth',
+  'm',
+  [
+    [0, '#ff3b5c', 255], // 0-2 m    drying, awash, or aground
+    [2, '#ff8a3d', 250], // 2-5 m    shoal for anything with a keel
+    [5, '#ffd24a', 240], // 5-10 m   shallow
+    [10, '#79c8f0', 210], // 10-20 m  comfortable
+    [20, '#3f7fc8', 185], // 20-30 m  deep
+    [30, '#24406f', 165], // 30 m +   irrelevant to a keelboat
+  ],
+  true,
+)
 
 /**
  * Sea surface temperature, °C. Diverging is right here and only here: unlike
@@ -271,6 +308,7 @@ export const RAMPS: Record<string, ColorRamp> = {
   wind: WIND,
   beaufort: BEAUFORT,
   wave: WAVE,
+  depth: DEPTH,
   sst: SST,
   rain: RAIN,
   current: CURRENT,
@@ -431,7 +469,7 @@ export function rampToMapLibreExpression(
 // -------------------------------------------------------------------- layers
 
 /**
- * The layer catalogue: what we can draw from a `WeatherCube`, and how.
+ * The layer catalogue: what we can draw on the chart, and how.
  *
  * `kind` decides the renderer, not the parameter name — a vector field drawn as
  * a colour ramp loses the direction, which for sailing is the whole point, and a
@@ -440,19 +478,28 @@ export function rampToMapLibreExpression(
  * you are reading, arrows for current because a 0.4 kn set needs a legible
  * direction more than it needs a pretty animation.
  *
+ * Every layer here but `depth` reads a parameter of the live `WeatherCube`.
+ * `depth` reads the static venue bathymetry asset instead, wrapped as a
+ * single-step cube by `depthRenderCube` in `src/data/bathymetry.ts` — the field
+ * does not vary with the forecast clock, and the timeline leaves it alone.
+ *
  * There is deliberately no `sst` layer even though the ramp exists: no fetcher
  * populates an SST parameter yet (`src/lib/weather/openmeteo.ts` requests u10,
- * v10, gust, prmsl, hs, wdir, wper, uo, vo). Adding a layer whose parameter is
- * never present would render an empty field with a confident legend, which is
- * the exact failure this project refuses. Add the entry with the fetcher.
+ * v10, gust, prmsl, uo, vo, and wave parameters only when asked). Adding a layer
+ * whose parameter is never present would render an empty field with a confident
+ * legend, which is the exact failure this project refuses. Add the entry with the
+ * fetcher.
  *
- * `gust` and `pressure` had layers and no longer do. Neither earned a full-screen
- * field: a gust is a number you want at a point, not a wash of colour, and mean
- * sea-level pressure tells an inshore racer nothing they can sail on. Both are
- * still fetched and both still appear in the tap-to-inspect readout, and `gust`
- * remains a routing constraint (`WeatherField.gust`, used by the isochrone
- * kernel), so nothing downstream lost data — only two chips went away. The
- * `pressure` ramp is kept below for the same reason as `sst`.
+ * `gust`, `pressure` and `waveHeight` had layers and no longer do. None earned a
+ * full-screen field: a gust is a number you want at a point, not a wash of
+ * colour; mean sea-level pressure tells an inshore racer nothing they can sail
+ * on; and significant wave height over a bay this size is a near-uniform smear
+ * that the Weather screen no longer even downloads. `gust` and `pressure` are
+ * still fetched and still appear in the tap-to-inspect readout, `gust` remains a
+ * routing constraint (`WeatherField.gust`, used by the isochrone kernel), and the
+ * router can still fetch and limit on wave height (`maxWaveHeightM`) — the chips
+ * went away, not the plumbing. The `wave` and `pressure` ramps are kept above for
+ * the same reason as `sst`.
  */
 export const LAYERS: Record<string, LayerSpec> = {
   wind: {
@@ -465,13 +512,20 @@ export const LAYERS: Record<string, LayerSpec> = {
     unit: 'kn',
     defaultMode: 'particles',
   },
-  waveHeight: {
-    id: 'waveHeight',
-    label: 'Wave height',
+  depth: {
+    id: 'depth',
+    label: 'Depth',
     kind: 'scalar',
-    params: ['hs'],
-    ramp: 'wave',
-    domain: [0, 8],
+    params: ['depth'],
+    ramp: 'depth',
+    /*
+     * Top of the scale at 40 m, not at the 180 m the venue actually reaches.
+     * The legend weights each band by its share of the domain, so a domain wide
+     * enough to hold the deepest water would squeeze every band a keelboat cares
+     * about into a few pixels. Everything past the last stop clamps to the
+     * deepest colour, which is the correct answer for water nobody is sounding.
+     */
+    domain: [0, 40],
     unit: 'm',
   },
   current: {
@@ -493,7 +547,7 @@ export const LAYERS: Record<string, LayerSpec> = {
  * checked against it in a test: the picker looks up `LAYERS[id]` and skips a miss,
  * so a stale id here would make a chip disappear without any error.
  */
-export const LAYER_ORDER = ['wind', 'waveHeight', 'current'] as const
+export const LAYER_ORDER = ['wind', 'depth', 'current'] as const
 
 /** The ramp a layer names, or the wind ramp if it names one we do not have. */
 export function rampFor(layer: LayerSpec): ColorRamp {

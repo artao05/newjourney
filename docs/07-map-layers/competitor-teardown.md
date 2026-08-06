@@ -139,11 +139,11 @@ forecast is a precision claim that a forecast cannot support. Our
 |---|---|---|---|---|---|
 | Nautical charts | ❌ none | ❌ none | ✅ S-57/S-63/C-MAP | OSM + OpenSeaMap raster | **NOAA ENC vector** |
 | Basemap | custom | custom | — | OSM raster | custom vector |
-| Bathymetry | ❌ | ✅ | ✅ | ❌ | GEBCO + CUDEM |
+| Bathymetry | ❌ | ✅ | ✅ | ✅ GEBCO 15″ venue pack | GEBCO + CUDEM |
 | Wind: streamlines | ✅ | — | ❌ | ✅ GPU | ✅ |
 | Wind: barbs | ✅ | — | ✅ | ✅ | ✅ |
 | Wind: arrows | ✅ | — | ✅ | ✅ | ✅ |
-| Wave layer | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Wave layer | ✅ | ✅ | ✅ | ❌ **removed on purpose** | P2 |
 | Current layer | ✅ 3 products | ✅ | ✅ | ✅ ocean model + speed labels | ✅ |
 | Tidal current turn times | ✅ | ❌ | ✅ | ✅ NOAA CO-OPS station | ✅ |
 | SST | ✅ | ✅ | ✅ | ❌ (no fetcher) | ✅ |
@@ -159,11 +159,24 @@ forecast is a precision claim that a forecast cannot support. Our
 The two columns that matter: **we already have the racing tactics neither of them has,
 and they have the layer rendering we don't.** The rendering is the smaller gap.
 
-Two rows are deliberate subtractions rather than gaps. A gust is a number you want at a
-point, not a full-screen wash of colour, and mean sea-level pressure is not something an
-inshore racer sails on — both are still fetched and both still appear in the
-tap-to-inspect readout, and gust is still a routing constraint. Matching a competitor's
-layer list is not the goal; three layers a sailor uses beats five they scroll past.
+Three rows are deliberate subtractions rather than gaps. A gust is a number you want at a
+point, not a full-screen wash of colour; mean sea-level pressure is not something an
+inshore racer sails on; and significant wave height across a bay 30 km wide is a
+near-uniform smear that told nobody anything, so the Weather screen no longer even
+downloads it. Gust and pressure are still fetched and still appear in the tap-to-inspect
+readout, gust is still a routing constraint, and the router can still fetch waves and
+limit on them (`maxWaveHeightM`) — the chips went, not the plumbing. Matching a
+competitor's layer list is not the goal; three layers a sailor uses beats five they
+scroll past.
+
+The row that replaced it is bathymetry, which is the one layer on this table neither
+competitor treats as tactical and every sailor in a shoal-draft bay reads first. Ours is
+a 49 kB GEBCO 2020 venue pack drawn as discrete depth bands, and its limits are measured
+rather than assumed: 18 m out against NOAA's published depth at buoy 44007, referenced to
+MSL rather than a chart datum, and blind to anything narrower than 450 m. It is a display
+layer, deliberately not wired to the router — the same separation as the chart-data caveat
+below. Being able to see where the shoals are, with the error stated, beats not knowing;
+it does not begin to approach a chart.
 
 One row is a source correction worth recording. The current *field* comes from a global
 ocean model, and measured over Casco Bay that model gives 0.05–0.54 kn with **zero
@@ -201,12 +214,15 @@ the compression and the interpolation are done. What is missing is the renderer.
 
 ### The honest chart-data caveat
 
-`RouteScreen.tsx` currently carries `HAS_ROUTING_LAND_DATA = false` and disables land
-avoidance, on the correct grounds that an OSM raster basemap is not a routing-grade
-obstacle mask. Rendering ENC would not by itself change that: **a chart you can see is
-not the same as a coastline the router can test against.** Those are two separate
-deliverables — vector chart tiles for the eye, and validated polygon geometry for the
-router — and they should stay separately tracked.
+`RouteScreen.tsx` used to disable land avoidance outright, on the correct grounds that an
+OSM raster basemap is not a routing-grade obstacle mask. It now enables it from a
+purpose-built 111 m raster (`src/data/landmask.ts`) and reports at runtime whether that
+pack actually loaded. Rendering ENC would not by itself have changed anything: **a chart
+you can see is not the same as a coastline the router can test against.** Those are two
+separate deliverables — vector chart tiles for the eye, and validated geometry for the
+router — and they stay separately tracked. The depth layer is the same distinction
+applied to soundings: a bathymetry wash for the eye is not a safety contour the router
+can test against, and the router does not read it.
 
 ---
 

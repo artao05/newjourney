@@ -39,6 +39,40 @@ US5ME13M** (Casco Bay). They remain useful search terms and historical reference
 but the corresponding NOAA paper/raster charts were cancelled in 2023. NOAA ENC is
 the primary product; see the [NOAA charts overview](https://marinenavigation.noaa.gov/charts.html).
 
+### Bathymetry: the shipped depth layer
+
+| Item | Value |
+|---|---|
+| Source | GEBCO 2020 Grid, 15 arc-second global bathymetry |
+| Access used | NOAA CoastWatch ERDDAP griddap, dataset `GEBCO_2020`, CSV subset |
+| Request | `https://coastwatch.pfeg.noaa.gov/erddap/griddap/GEBCO_2020.csv?elevation[(43.38):(43.95)][(-70.55):(-69.8)]` |
+| Asset | `public/venue/portland-depth.bin` — 181 x 138 Int16 decimetres, 49 956 bytes |
+| Builder | `scripts/build-depth-grid.mjs` |
+| Consumer | `src/data/bathymetry.ts`, Weather-screen `Depth` layer |
+| Datum | Mean sea level, **not** the MLLW datum used for displayed heights |
+| Role | Display only. Not a routing input, not a safety contour. |
+
+Three limits are measured rather than assumed, and all three are stated in the UI:
+
+- **Accuracy.** At NDBC `44007` (43.525, -70.140) GEBCO reads 31 m against NOAA's
+  published 49 m water depth for the same mooring — 18 m, at a position known to a metre.
+- **Datum.** Station `8418150` datums for the 1983-2001 epoch put MSL at 13.49 ft and
+  MLLW at 8.55 ft, so GEBCO depths are **1.51 m optimistic** against a chart. The venue's
+  displayed-height datum stays MLLW; this layer is the one place MSL appears, and it is
+  labelled.
+- **Resolution.** A 450 m cell holds no ledge, rock, jetty or dredged channel, and GEBCO
+  calls the island at the venue centre 10 m of water — land the 111 m coastline mask
+  resolves correctly. Where the two assets disagree, the coastline mask is the one the
+  router trusts.
+
+Cross-check worth keeping: GEBCO puts 44.7% of the shared venue box below sea level and
+the independently derived OSM coastline mask puts 44.1% of it in water. Two unrelated
+derivations landing within a point of each other is the best validation either asset has.
+
+Higher-resolution replacements, in preference order, are NOAA CUDEM (1/9 arc-second for
+US coasts) then ENC `DEPARE`/`DEPCNT` extraction — see
+[charts-and-bathymetry.md](charts-and-bathymetry.md) §1 and §5.
+
 ### Tide, water level, and local meteorology
 
 Use the [NOAA CO-OPS Data API](https://api.tidesandcurrents.noaa.gov/api/prod/datagetter)

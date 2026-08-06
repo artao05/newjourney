@@ -17,6 +17,15 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useStore } from '@/state/store'
 import { PILOT_VENUE } from '@/data/venues'
+import {
+  DEPTH_NOT_FOR_NAVIGATION,
+  PORTLAND_MSL_ABOVE_MLLW_M,
+  depthAt,
+  depthRenderCube,
+  loadVenueDepthGrid,
+  waterFractionOf,
+  type LoadedDepthGrid,
+} from '@/data/bathymetry'
 import { MODELS, cubeNotes, fetchWindCube, type ModelId } from '@/lib/weather/openmeteo'
 import { sampleCube } from '@/lib/weather/cube'
 import { ParticleLayer } from '@/lib/maplayers/particleLayer'
@@ -130,17 +139,27 @@ export function WeatherScreen() {
   const [tide, setTide] = useState<CurrentPrediction | null>(null)
   const [tideError, setTideError] = useState<string | null>(null)
   const [showChart, setShowChart] = useState(true)
+  const [depthGrid, setDepthGrid] = useState<LoadedDepthGrid | null>(null)
+  const [depthError, setDepthError] = useState<string | null>(null)
 
   const boatState = useStore((s) => s.state)
 
   const layer: LayerSpec = LAYERS[layerId] ?? LAYERS.wind
   const ramp = useMemo(() => rampFor(layer), [layer])
   const isVector = layer.kind === 'vector'
+  const isDepth = layer.id === 'depth'
   /** Wind streamlines can sit on top of any scalar field, which is the useful combo. */
   const showParticles = (isVector && mode === 'particles') || (!isVector && windOverlay)
   const particleParams: [string, string] = isVector
     ? (layer.params as [string, string])
     : ['u10', 'v10']
+
+  /*
+   * Depth comes from a static venue asset, not the forecast, so the scalar
+   * renderer is fed from whichever of the two the open layer belongs to.
+   */
+  const depthCube = useMemo(() => (depthGrid ? depthRenderCube(depthGrid) : null), [depthGrid])
+  const scalarCube = isDepth ? depthCube : cube
 
   // ------------------------------------------------------------------ map init
   useEffect(() => {
@@ -349,7 +368,10 @@ export function WeatherScreen() {
           stepDeg,
           hours: 72,
           model: which,
-          includeWaves: true,
+          // Nothing on this screen displays sea state any more, and the marine
+          // endpoint is a separate, slower request. The router still asks for
+          // waves — see RouteScreen — because it can constrain on them.
+          includeWaves: false,
           includeCurrent: true,
         })
         setCube(c)
@@ -368,21 +390,65 @@ export function WeatherScreen() {
     void load(model)
   }, [model, load])
 
-  // --------------------------------------------------------- push data to GL
+  /*
+   * Venue bathymetry, once per session. 49 kB, and small enough to fetch
+   * eagerly rather than on first tap of the chip.
+   *
+   * Cross-checked against its own metadata before it is trusted, exactly as the
+   * Route screen does with the land pack: a payload that decodes but disagrees
+   * about how much of the box is water is a payload we have misread.
+   */
   useEffect(() => {
-    if (!ready || !cube) return
-    const scalar = scalarRef.current
-    const particles = particleRef.current
-    if (!scalar || !particles) return
+    let cancelled = false
+    loadVenueDepthGrid()
+      .then((g) => {
+        if (cancelled) return
+        const frac = waterFractionOf(g.elevDm)
+        if (Math.abs(frac - g.meta.waterFraction) > 0.01) {
+          throw new Error(
+            `depth grid is ${(frac * 100).toFixed(1)}% water, expected ${(
+              g.meta.waterFraction * 100
+            ).toFixed(1)}%`,
+          )
+        }
+        setDepthGrid(g)
+        setDepthError(null)
+      })
+      .catch((e) => {
+        if (!cancelled) setDepthError(e instanceof Error ? e.message : String(e))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
-    if (!isVector) {
+  // --------------------------------------------------------- push data to GL
+  /*
+   * A static field ignores the clock, so pin its time: otherwise a playing
+   * timeline re-encodes and re-uploads the depth texture on every tick to
+   * produce the identical image.
+   */
+  const scalarT = scalarCube && scalarCube.nt > 1 ? t : 0
+
+  useEffect(() => {
+    if (!ready) return
+    const scalar = scalarRef.current
+    if (!scalar) return
+
+    if (!isVector && scalarCube) {
       scalar.setParam(layer.params[0], layer.domain)
       scalar.setColorRamp(rampToLUT(ramp, layer.domain))
-      scalar.setData(cube, t)
+      scalar.setData(scalarCube, scalarT)
       scalar.setVisible(true)
     } else {
       scalar.setVisible(false)
     }
+  }, [ready, scalarCube, scalarT, layer, ramp, isVector])
+
+  useEffect(() => {
+    if (!ready || !cube) return
+    const particles = particleRef.current
+    if (!particles) return
 
     if (showParticles) {
       const speedLayer = isVector ? layer : LAYERS.wind
@@ -403,7 +469,7 @@ export function WeatherScreen() {
     } else {
       particles.setVisible(false)
     }
-  }, [ready, cube, t, layer, ramp, isVector, showParticles, particleParams])
+  }, [ready, cube, t, layer, isVector, showParticles, particleParams])
 
   /*
    * Station current prediction, fetched only when the Current layer is open.
@@ -552,17 +618,22 @@ export function WeatherScreen() {
 
   // ------------------------------------------------------------------ readout
   const probeValues = useMemo(() => {
-    if (!cube || !probe) return null
-    const wind = readVector(cube, ['u10', 'v10'], probe, t)
-    const cur = readVector(cube, ['uo', 'vo'], probe, t)
+    if (!probe) return null
+    // Depth needs no forecast, so a tap still answers when the download failed —
+    // the forecast rows go to em-dashes rather than taking the readout with them.
     return {
-      wind,
-      gust: sampleCube(cube, 'gust', probe.lat, probe.lon, t),
-      hs: sampleCube(cube, 'hs', probe.lat, probe.lon, t),
-      prmsl: sampleCube(cube, 'prmsl', probe.lat, probe.lon, t),
-      current: cur,
+      wind: cube ? readVector(cube, ['u10', 'v10'], probe, t) : null,
+      gust: cube ? sampleCube(cube, 'gust', probe.lat, probe.lon, t) : null,
+      prmsl: cube ? sampleCube(cube, 'prmsl', probe.lat, probe.lon, t) : null,
+      current: cube ? readVector(cube, ['uo', 'vo'], probe, t) : null,
+      /*
+       * Sampled from the grid, never through `sampleCube`: the depth cube is a
+       * one-step container for the renderer and every query at a real clock time
+       * falls outside its coverage. See `depthRenderCube`.
+       */
+      depth: depthGrid ? depthAt(depthGrid, probe.lat, probe.lon) : null,
     }
-  }, [cube, probe, t])
+  }, [cube, probe, t, depthGrid])
 
   const notes = cube ? cubeNotes(cube) : []
   const modelInfo = MODELS.find((m) => m.id === model)
@@ -593,12 +664,26 @@ export function WeatherScreen() {
    */
   const layerCaveat =
     layer.id === 'current' ? ' · ocean model, does not resolve tidal reversal' : ''
-  const source = cube
-    ? `${modelLabel}${resolutionNote}${layerCaveat} · ${new Date(t)
-        .toISOString()
-        .slice(0, 16)
-        .replace('T', ' ')}Z`
-    : undefined
+  /*
+   * Depth answers to a different source, a different datum and a different set of
+   * caveats from anything on the forecast clock, so it gets its own provenance
+   * line rather than a suffix on the model's.
+   *
+   * The datum sentence is the one a sailor has to read: GEBCO is referenced to
+   * mean sea level, charts are referenced to MLLW, and at Portland that is 1.5 m
+   * of water this layer shows and the tide can take away.
+   */
+  const depthSource =
+    `GEBCO 2020 · ~450 m grid, no ledges or channels · depths below MSL, ` +
+    `~${PORTLAND_MSL_ABOVE_MLLW_M.toFixed(1)} m less at MLLW · not for navigation`
+  const source = isDepth
+    ? depthSource
+    : cube
+      ? `${modelLabel}${resolutionNote}${layerCaveat} · ${new Date(t)
+          .toISOString()
+          .slice(0, 16)
+          .replace('T', ' ')}Z`
+      : undefined
 
   return (
     <div className="screen screen--flush" style={{ position: 'relative' }}>
@@ -682,10 +767,26 @@ export function WeatherScreen() {
             {n}
           </div>
         ))}
+        {isDepth && depthError && (
+          // Say what is missing rather than showing an empty chart with a legend.
+          <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
+            Depth data unavailable ({depthError}). Nothing is drawn for it.
+          </div>
+        )}
+        {isDepth && depthGrid && (
+          /*
+           * GEBCO's own sentence, and only that. The datum and the resolution are
+           * in the legend and the readout already, and a caveat repeated three
+           * times on a phone screen is a caveat nobody reads.
+           */
+          <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
+            {DEPTH_NOT_FOR_NAVIGATION}
+          </div>
+        )}
       </div>
 
       {/* ---- legend ---- */}
-      {cube && (
+      {(isDepth ? depthGrid != null : cube != null) && (
         // An explicit width is required: inside an absolutely-positioned box with
         // no width the legend shrink-wraps to its narrowest possible column and
         // the tick labels wrap to one character per line.
@@ -722,7 +823,8 @@ export function WeatherScreen() {
               : '—'}
           </div>
           <div>gust {fmt(probeValues.gust, 1, ' kn')}</div>
-          <div>waves {fmt(probeValues.hs, 1, ' m')}</div>
+          {/* "(MSL)" is not clutter: the number is 1.5 m optimistic at low water. */}
+          <div>depth {fmt(probeValues.depth, 1, ' m (MSL)')}</div>
           <div>
             current{' '}
             {probeValues.current

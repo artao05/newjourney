@@ -29,7 +29,7 @@ function lutRgba(lut: Uint8Array, i: number): [number, number, number, number] {
 
 describe('RAMPS', () => {
   it('provides every ramp the spec requires', () => {
-    for (const id of ['wind', 'beaufort', 'wave', 'sst', 'rain', 'current']) {
+    for (const id of ['wind', 'beaufort', 'wave', 'depth', 'sst', 'rain', 'current']) {
       expect(RAMPS[id], id).toBeDefined()
       expect(RAMPS[id].id).toBe(id)
     }
@@ -51,10 +51,31 @@ describe('RAMPS', () => {
     }
   })
 
-  it('marks only Beaufort as discrete', () => {
-    expect(RAMPS.beaufort.discrete).toBe(true)
-    expect(RAMPS.wind.discrete).toBeFalsy()
-    expect(RAMPS.wave.discrete).toBeFalsy()
+  it('marks Beaufort and depth as discrete, and nothing else', () => {
+    // The two scales whose classes are meaningful in themselves: a Beaufort force
+    // and a depth band. Everything else is a continuous field and a hard edge in
+    // one would be an edge the data does not have.
+    const discrete = Object.entries(RAMPS)
+      .filter(([, r]) => r.discrete)
+      .map(([id]) => id)
+    expect(discrete.sort()).toEqual(['beaufort', 'depth'])
+  })
+
+  it('runs depth warm-to-cool and increasingly transparent', () => {
+    /*
+     * The two properties the depth ramp is *for*: shoal water grabs the eye, and
+     * deep water gets out of the way of the chart underneath. Both are easy to
+     * lose in a colour tweak, and neither would fail any other test here.
+     */
+    const sample = makeSampler(RAMPS.depth)
+    const [rShoal, , bShoal] = sample(1)
+    const [rDeep, , bDeep] = sample(35)
+    expect(rShoal).toBeGreaterThan(bShoal) // warm at 1 m
+    expect(bDeep).toBeGreaterThan(rDeep) // cool at 35 m
+
+    const lut = rampToLUT(RAMPS.depth, [0, 40], 256)
+    expect(lutRgba(lut, 0)[3]).toBe(255)
+    expect(lutRgba(lut, 255)[3]).toBeLessThan(200)
   })
 
   it('is not a rainbow for wind: lightness rises monotonically', () => {
@@ -271,29 +292,46 @@ describe('rampToMapLibreExpression', () => {
 
 describe('LAYERS', () => {
   it('defines the layers the spec requires', () => {
-    for (const id of ['wind', 'waveHeight', 'current']) {
+    for (const id of ['wind', 'depth', 'current']) {
       expect(LAYERS[id], id).toBeDefined()
       expect(LAYERS[id].id).toBe(id)
     }
   })
 
-  it('no longer offers gust or pressure as map layers', () => {
-    // Both were removed deliberately: a gust is a number you want at a point, and
-    // MSLP is not something an inshore racer sails on. Both are still fetched and
-    // still shown in the tap-to-inspect readout, and gust remains a routing
-    // constraint — so this asserts the CHIP is gone, not the data.
+  it('no longer offers gust, pressure or wave height as map layers', () => {
+    /*
+     * All three were removed deliberately: a gust is a number you want at a point,
+     * MSLP is not something an inshore racer sails on, and significant wave height
+     * over one bay is a near-uniform smear. Gust and pressure are still fetched and
+     * still shown in the tap-to-inspect readout, gust remains a routing constraint,
+     * and the router can still limit on wave height — so this asserts the CHIPS are
+     * gone, not the data.
+     */
     expect(LAYERS.gust).toBeUndefined()
     expect(LAYERS.pressure).toBeUndefined()
+    expect(LAYERS.waveHeight).toBeUndefined()
   })
 
-  it('gives wind and current the right kinds, params and default modes', () => {
+  it('gives every layer the right kind, params and default mode', () => {
     expect(LAYERS.wind.kind).toBe('vector')
     expect(LAYERS.wind.params).toEqual(['u10', 'v10'])
     expect(LAYERS.wind.defaultMode).toBe('particles')
     expect(LAYERS.current.kind).toBe('vector')
     expect(LAYERS.current.params).toEqual(['uo', 'vo'])
     expect(LAYERS.current.defaultMode).toBe('arrows')
-    expect(LAYERS.waveHeight.params).toEqual(['hs'])
+    expect(LAYERS.depth.kind).toBe('scalar')
+    expect(LAYERS.depth.params).toEqual(['depth'])
+    expect(LAYERS.depth.unit).toBe('m')
+  })
+
+  it('keeps the depth domain inside the bands a keelboat cares about', () => {
+    // The legend weights each band by its share of the domain, so widening this to
+    // the venue's real 180 m would crush every shoal band into a sliver. The top of
+    // the scale is a display choice; deeper water clamps to the deepest colour.
+    expect(LAYERS.depth.domain).toEqual([0, 40])
+    const bands = RAMPS.depth.stops.map((s) => s.value)
+    expect(bands[0]).toBe(0)
+    expect(Math.max(...bands)).toBeLessThan(LAYERS.depth.domain[1])
   })
 
   it('keeps LAYER_ORDER and LAYERS in step', () => {
@@ -321,7 +359,7 @@ describe('LAYERS', () => {
   })
 
   it('resolves a layer to its ramp', () => {
-    expect(rampFor(LAYERS.waveHeight)).toBe(RAMPS.wave)
+    expect(rampFor(LAYERS.depth)).toBe(RAMPS.depth)
     const bogus: ColorRamp = rampFor({ ...LAYERS.wind, ramp: 'nope' })
     expect(bogus).toBe(RAMPS.wind)
   })

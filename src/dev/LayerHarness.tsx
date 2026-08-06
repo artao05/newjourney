@@ -226,7 +226,7 @@ export function LayerHarness() {
             particles
           </button>
           <button aria-pressed={showScalar} onClick={() => setShowScalar((v) => !v)}>
-            wave field
+            scalar field
           </button>
         </div>
         <div className="field field--wide" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>

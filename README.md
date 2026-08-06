@@ -10,14 +10,16 @@ in five minutes — built entirely on public data.
 > **Status: working prototype on branch `MVP1`, piloting Portland & Casco Bay, Maine.**
 > `main` holds the research and specification work; `MVP1` adds a running React PWA
 > with the start-line tools, tactical numbers, an isochrone weather router and GPU
-> wind/wave layers. See [RUNNING.md](RUNNING.md) to try it — including a boat
-> simulator so you can use the whole app from a desk, with no GPS fix needed.
+> wind, depth and current layers. See [RUNNING.md](RUNNING.md) to try it — including
+> a boat simulator so you can use the whole app from a desk, with no GPS fix needed.
 >
-> 299 tests passing · typecheck clean · build clean · 93 KB gzipped first load.
+> 352 tests passing · typecheck clean · build clean · 93 KB gzipped first load.
 > **Not for navigation** — see the caveats in [RUNNING.md](RUNNING.md#whats-real-and-what-isnt).
 > Land avoidance now works, but only inside the Portland venue box and only as a
-> land check, never a depth check; and the bundled polars are generated from
-> published dimensions rather than measured.
+> land check, never a depth check. The depth layer is a 450 m bathymetric model
+> referenced to mean sea level, not a chart and not a routing input — it reads 18 m
+> shallow at a NOAA buoy and 1.5 m deep against chart datum, and it says so. The
+> bundled polars are generated from published dimensions rather than measured.
 
 ## Branches
 
@@ -67,6 +69,7 @@ and a wet pocket.
 | `src/lib/angles.ts`, `src/lib/geo.ts` | Angle discipline and spherical geodesy |
 | `src/lib/polar.ts`, `src/data/polars.ts` | Polar parsing/interpolation, derived targets, class library |
 | `src/data/venues.ts` | Pilot-venue identity, extent, public source IDs, and provenance links |
+| `src/data/landmask.ts`, `src/data/bathymetry.ts` | The two venue assets: an OSM coastline raster the router tests against, and a GEBCO depth grid the chart draws |
 | `src/lib/wind.ts` | Wind triangle, leeway, set & drift, ground-vs-true wind |
 | `src/lib/startline.ts` | Bias, distance below line, time to line and time to burn |
 | `src/lib/tactics.ts` | Laylines, VMG/VMC, beat split, time to mark |

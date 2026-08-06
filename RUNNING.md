@@ -72,12 +72,22 @@ prediction with its slack times.
 **Not real yet:**
 
 - Charts are an OpenStreetMap + OpenSeaMap raster overlay, not rendered NOAA ENC.
+- **The Depth layer is a bathymetric model, not a chart, and three separate things
+  are wrong with it as a depth source.** It is GEBCO 2020 at 15 arc-seconds
+  (~450 m) for the Portland venue only (`src/data/bathymetry.ts`, 49 kB). (1) At
+  NDBC buoy 44007 it reads 31 m where NOAA publishes 49 m. (2) Depths are below
+  *mean sea level*, while charts are below MLLW — at Portland that is 1.51 m of
+  water the tide can take away. (3) A 450 m cell cannot hold a ledge, a rock, a
+  jetty or a dredged channel, and it calls the island at the venue centre 10 m of
+  water. It is there to show you where the bay is shallow, and it is a display
+  layer only: the router never consults it. GEBCO's own words are in the banner.
 - **Land avoidance is now ON for the Portland venue, and only there.** It uses a
   111 m land raster built from OSM coastline (`src/data/landmask.ts`, 4.8 kB
   gzipped), validated against coordinates that are water by definition — the NOAA
   tide and current stations and both NDBC buoys. Outside that bounding box the
   mask reports open water and avoidance does nothing. It is a *land* check, not a
-  depth check: it will happily route you through two feet of water over a mudflat.
+  depth check: it will happily route you through two feet of water over a mudflat,
+  and the Depth layer above is not wired into it.
   The Route tab shows a `land pack` chip when the mask is loaded and a red chip
   when it is not; every route carries a warning stating which applied.
 - **The Current view draws on two different sources, and they disagree.** The
