@@ -62,6 +62,27 @@ export function fmtClock(seconds: number | null | undefined): string | null {
   return `${neg ? '-' : ''}${m}:${String(r).padStart(2, '0')}`
 }
 
+/**
+ * A duration as a coarse human phrase: "12 min", "3 h", "2 days".
+ *
+ * For elapsed times long enough that precision stops meaning anything. `fmtClock`
+ * would render a day-old race timer as "1323:38", which is technically minutes and
+ * seconds and practically nonsense.
+ */
+export function fmtAgo(seconds: number | null | undefined): string | null {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return null
+  const s = Math.max(0, Math.round(seconds))
+  if (s < 90) return `${s}s`
+  const min = Math.round(s / 60)
+  if (min < 90) return `${min} min`
+  const hr = s / 3600
+  // Days from 24 h, not 36: at a 36 h cutoff `Math.round(36/24)` is already 2, so
+  // "1 day" was unreachable. "1 day ago" also reads better than "24 h ago".
+  if (hr < 24) return `${Math.round(hr)} h`
+  const days = Math.round(hr / 24)
+  return `${days} day${days === 1 ? '' : 's'}`
+}
+
 /** Signed seconds as +18s / -4s — for time to burn, where the sign is the point. */
 export function fmtSigned(seconds: number | null | undefined): string | null {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return null

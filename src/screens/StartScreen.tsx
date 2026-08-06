@@ -9,12 +9,21 @@ import { useMemo, useState } from 'react'
 import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
 import { StartCanvas } from '@/components/StartCanvas'
-import { Tile, fmtClock, fmtSigned } from '@/components/Tile'
+import { Tile, fmtAgo, fmtClock, fmtSigned } from '@/components/Tile'
 import { computeStart, spareTimeS } from '@/lib/startline'
 import { buildLattice } from '@/lib/polar'
 import type { PolarLattice, StartNumbers } from '@/lib/types'
 
 const ROLL_OPTIONS = [5, 4, 3, 1]
+
+/**
+ * How long after the gun a timer is still worth showing, seconds.
+ *
+ * Ten minutes covers the start and the first beat's worth of "how late was I?",
+ * which is the window where counting up from the gun still tells you something.
+ * Beyond that it is yesterday's race.
+ */
+const STALE_AFTER_S = 600
 
 /** Everything unknown. Used until the first fix arrives. */
 const EMPTY_START_NUMBERS: StartNumbers = {
@@ -111,14 +120,6 @@ export function StartScreen() {
     spare == null ? undefined : spare > 8 ? 'early' : spare < -3 ? 'late' : 'good'
 
   /*
-   * When the bow is over the line, `timeToLine` is negative by definition, so
-   * `timeToBurn = timeToLine − timeToGun` reads as a large negative "you'll be
-   * late" — the opposite of the truth. Being over early is its own state, not a
-   * point on the burn scale, so it gets its own display.
-   */
-  const showBurn = !numbers.ocs && burn != null
-
-  /*
    * A line more than ~45° off square is almost certainly a mis-ping rather than
    * a real course. Saying so is better than confidently reporting a favoured end
    * that means nothing.
@@ -126,36 +127,79 @@ export function StartScreen() {
   const lineSuspect =
     numbers.biasAngleDeg != null && Math.abs(numbers.biasAngleDeg) > 45
 
+  /*
+   * A gun time long past is not a start sequence, it is litter.
+   *
+   * `timeToGunS` keeps counting negative forever, which is right for the minute
+   * after the gun and absurd after that: a timer left running from yesterday
+   * rendered as "LATE BY -1323:38", a number with no meaning that also happens to
+   * be the largest thing on the screen. Anything more than STALE_AFTER_S past the
+   * gun is treated as no timer at all, with a line offering to clear it.
+   *
+   * Presentation only. The stored gun time is left alone — silently mutating a
+   * race timer the user set is worse than showing it as expired.
+   */
+  const sinceGunS = numbers.timeToGunS == null ? null : -numbers.timeToGunS
+  const timerStale = sinceGunS != null && sinceGunS > STALE_AFTER_S
+  /*
+   * When the bow is over the line, `timeToLine` is negative by definition, so
+   * `timeToBurn = timeToLine − timeToGun` reads as a large negative "you'll be
+   * late" — the opposite of the truth. Being over early is its own state, not a
+   * point on the burn scale, so it gets its own display. A stale timer suppresses
+   * the burn hero for the same reason: it is not a live number.
+   */
+  const showBurn = !numbers.ocs && burn != null && !timerStale
+
   return (
     <>
       <div className="hero">
         <div className="hero__label">
-          {numbers.ocs
-            ? 'over the line'
-            : !showBurn
-              ? 'time to gun'
-              : spare != null && spare < 0
-                ? 'late by'
-                : 'time to burn'}
+          {timerStale
+            ? 'timer expired'
+            : numbers.ocs
+              ? 'over the line'
+              : !showBurn
+                ? 'time to gun'
+                : spare != null && spare < 0
+                  ? 'late by'
+                  : 'time to burn'}
         </div>
         <div
           className={`hero__value${
-            numbers.ocs ? ' hero__value--late' : burnTone ? ` hero__value--${burnTone}` : ''
+            timerStale
+              ? ''
+              : numbers.ocs
+                ? ' hero__value--late'
+                : burnTone
+                  ? ` hero__value--${burnTone}`
+                  : ''
           }`}
         >
-          {numbers.ocs
-            ? numbers.distanceBelowLineBoatLengths == null
-              ? 'OVER'
-              : `${Math.abs(numbers.distanceBelowLineBoatLengths).toFixed(1)} BL`
-            : gun == null
-              ? '—'
-              : showBurn
-                ? (fmtSigned(spare) ?? '—')
-                : (fmtClock(numbers.timeToGunS) ?? '—')}
+          {timerStale
+            ? '—'
+            : numbers.ocs
+              ? numbers.distanceBelowLineBoatLengths == null
+                ? 'OVER'
+                : `${Math.abs(numbers.distanceBelowLineBoatLengths).toFixed(1)} BL`
+              : gun == null
+                ? '—'
+                : showBurn
+                  ? (fmtSigned(spare) ?? '—')
+                  : (fmtClock(numbers.timeToGunS) ?? '—')}
         </div>
-        {!numbers.ocs && <BurnBar spare={spare} />}
+        {!numbers.ocs && !timerStale && <BurnBar spare={spare} />}
         <div style={{ marginTop: 9, fontSize: 12, color: 'var(--ink-faint)' }}>
-          {numbers.ocs ? (
+          {timerStale ? (
+            <span>
+              gun was {fmtAgo(sinceGunS)} ago ·{' '}
+              <button
+                onClick={() => setGunTime(null)}
+                style={{ color: 'var(--accent)', textDecoration: 'underline' }}
+              >
+                clear
+              </button>
+            </span>
+          ) : numbers.ocs ? (
             <span style={{ color: 'var(--port)' }}>
               get back below the line — gun in {fmtClock(numbers.timeToGunS) ?? '—'}
             </span>
