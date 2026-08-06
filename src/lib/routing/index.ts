@@ -25,4 +25,14 @@ export {
   type PolygonCoords,
 } from './land'
 
+export {
+  departureAdvice,
+  planDepartures,
+  sweepDepartures,
+  type DepartureOption,
+  type DepartureSweep,
+  type RouteFn,
+  type SweepOptions,
+} from './departure'
+
 export { RoutingClient, type RoutePayload } from './client'
