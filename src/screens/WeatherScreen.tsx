@@ -1,10 +1,15 @@
 /**
- * Weather screen — the data-layer viewer.
+ * Weather overlay — the data-layer viewer.
  *
  * Structurally this is the PredictWind equivalent, built from the pieces in
  * `src/lib/maplayers`: a basemap, one primary data layer, three render modes for
  * vector fields (streamlines / barbs / arrows), a time axis, model selection, and
  * a legend that always states its provenance.
+ *
+ * The map, the forecast cube and the clock are not owned here — they belong to
+ * `ChartSurface`, which Start, Race and Route will share
+ * (docs/05-spec/start-on-chart.md §2). What is owned here is a *reading* of that
+ * chart: which field, which symbols, which legend, which caveats.
  *
  * See docs/07-map-layers/competitor-teardown.md for what we are matching and,
  * more importantly, what we are deliberately not chasing: PredictWind's 1 km
@@ -12,10 +17,15 @@
  * them. What we can match is the rendering and the honesty.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import maplibregl from 'maplibre-gl'
-import 'maplibre-gl/dist/maplibre-gl.css'
-import { useStore } from '@/state/store'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type maplibregl from 'maplibre-gl'
+import {
+  BOAT_LAYER_ID,
+  ChartSurface,
+  emptyFC,
+  setVisible,
+  useChart,
+} from '@/components/ChartSurface'
 import { PILOT_VENUE } from '@/data/venues'
 import {
   DEPTH_NOT_FOR_NAVIGATION,
@@ -26,10 +36,8 @@ import {
   waterFractionOf,
   type LoadedDepthGrid,
 } from '@/data/bathymetry'
-import { MODELS, cubeNotes, fetchWindCube, type ModelId } from '@/lib/weather/openmeteo'
+import { MODELS, cubeNotes, type ModelId } from '@/lib/weather/openmeteo'
 import { sampleCube } from '@/lib/weather/cube'
-import { ParticleLayer } from '@/lib/maplayers/particleLayer'
-import { ScalarLayer } from '@/lib/maplayers/scalarLayer'
 import {
   LAYERS,
   LAYER_ORDER,
@@ -44,9 +52,8 @@ import {
   thinVectorField,
   vectorSamplesToFC,
 } from '@/lib/maplayers/vectorSymbols'
-import { barbImageExpression, barbToImageData, buildBarbSprites } from '@/lib/maplayers/barbs'
+import { barbImageExpression } from '@/lib/maplayers/barbs'
 import { Legend } from '@/components/Legend'
-import { Timeline } from '@/components/Timeline'
 import { CurrentChart } from '@/components/CurrentChart'
 import {
   fetchCurrentPrediction,
@@ -68,73 +75,35 @@ const MODES: Array<{ id: VectorMode; label: string }> = [
 ]
 
 /**
- * A deliberately quiet basemap. The data is the subject; the chart is context.
- * PredictWind does the same thing, and it is why their layers read so clearly.
- */
-const STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      maxzoom: 18,
-      attribution: '© OpenStreetMap contributors',
-    },
-  },
-  layers: [
-    { id: 'bg', type: 'background', paint: { 'background-color': '#061320' } },
-    {
-      id: 'osm',
-      type: 'raster',
-      source: 'osm',
-      paint: {
-        // Bright enough that the coastline survives a streamline layer on top,
-        // desaturated enough that it never competes with the data for attention.
-        'raster-opacity': 0.62,
-        'raster-saturation': -0.85,
-        'raster-brightness-max': 0.72,
-        'raster-contrast': 0.2,
-      },
-    },
-  ],
-}
-
-const emptyFC = () => ({ type: 'FeatureCollection' as const, features: [] })
-
-/**
- * Set a layer's visibility, tolerating a layer that is not there.
+ * Layers and sources this overlay adds to the shared map.
  *
- * MapLibre raises "Cannot style non-existing layer" as a map `error` event, which
- * this screen surfaces as a red banner. During development that fires every time
- * HMR swaps this module after `load` has already run, and in production it would
- * turn a layer-ordering slip into an alarming message about nothing the user can
- * act on. Missing layer means nothing to show — that is not an error.
+ * Listed so unmount can take them back off again. Layers first: MapLibre refuses
+ * to remove a source that a layer still references.
  */
-function setVisible(map: maplibregl.Map, id: string, visible: boolean) {
-  if (!map.getLayer(id)) return
-  map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none')
-}
+const OWNED_LAYERS = [
+  'wx-barbs',
+  'wx-arrows',
+  'wx-speed-labels',
+  'wx-station-pt',
+  'wx-station-label',
+]
+const OWNED_SOURCES = ['wx-symbols', 'wx-station']
 
 export function WeatherScreen() {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<maplibregl.Map | null>(null)
-  const particleRef = useRef<ParticleLayer | null>(null)
-  const scalarRef = useRef<ScalarLayer | null>(null)
-  const spritesAdded = useRef(false)
+  return (
+    <ChartSurface>
+      <WeatherOverlay />
+    </ChartSurface>
+  )
+}
 
-  const [ready, setReady] = useState(false)
-  const [cube, setCube] = useState<WeatherCube | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [model, setModel] = useState<ModelId>('best_match')
+function WeatherOverlay() {
+  const { map, ready, scalar, particles, cube, model, setModel, modelLabel, busy, error, t } =
+    useChart()
+
   const [layerId, setLayerId] = useState<string>('wind')
   const [mode, setMode] = useState<VectorMode>('particles')
   const [windOverlay, setWindOverlay] = useState(true)
-  const [t, setT] = useState<number>(() => Date.now())
-  const [playing, setPlaying] = useState(false)
-  const [speed, setSpeed] = useState(1)
   const [probe, setProbe] = useState<{ lat: number; lon: number } | null>(null)
   const [tide, setTide] = useState<CurrentPrediction | null>(null)
   const [tideError, setTideError] = useState<string | null>(null)
@@ -142,17 +111,18 @@ export function WeatherScreen() {
   const [depthGrid, setDepthGrid] = useState<LoadedDepthGrid | null>(null)
   const [depthError, setDepthError] = useState<string | null>(null)
 
-  const boatState = useStore((s) => s.state)
-
   const layer: LayerSpec = LAYERS[layerId] ?? LAYERS.wind
   const ramp = useMemo(() => rampFor(layer), [layer])
   const isVector = layer.kind === 'vector'
   const isDepth = layer.id === 'depth'
   /** Wind streamlines can sit on top of any scalar field, which is the useful combo. */
   const showParticles = (isVector && mode === 'particles') || (!isVector && windOverlay)
-  const particleParams: [string, string] = isVector
-    ? (layer.params as [string, string])
-    : ['u10', 'v10']
+  // Memoised: a fresh array literal every render would re-upload the field to the
+  // GPU on every render rather than when the field actually changes.
+  const particleParams = useMemo<[string, string]>(
+    () => (isVector ? (layer.params as [string, string]) : ['u10', 'v10']),
+    [isVector, layer],
+  )
 
   /*
    * Depth comes from a static venue asset, not the forecast, so the scalar
@@ -161,28 +131,13 @@ export function WeatherScreen() {
   const depthCube = useMemo(() => (depthGrid ? depthRenderCube(depthGrid) : null), [depthGrid])
   const scalarCube = isDepth ? depthCube : cube
 
-  // ------------------------------------------------------------------ map init
+  // -------------------------------------------------------- own map resources
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: STYLE,
-      center: [PILOT_VENUE.center.lon, PILOT_VENUE.center.lat],
-      zoom: PILOT_VENUE.defaultZoom,
-      attributionControl: { compact: true },
-    })
-    mapRef.current = map
+    if (!map || !ready) return
 
-    map.on('load', () => {
-      const scalar = new ScalarLayer({ id: 'wx-scalar' })
-      const particles = new ParticleLayer({ id: 'wx-particles' })
-      map.addLayer(scalar as unknown as maplibregl.LayerSpecification)
-      map.addLayer(particles as unknown as maplibregl.LayerSpecification)
-      scalarRef.current = scalar
-      particleRef.current = particles
-
-      map.addSource('wx-symbols', { type: 'geojson', data: emptyFC() })
-      map.addLayer({
+    map.addSource('wx-symbols', { type: 'geojson', data: emptyFC() })
+    map.addLayer(
+      {
         id: 'wx-barbs',
         type: 'symbol',
         source: 'wx-symbols',
@@ -196,8 +151,11 @@ export function WeatherScreen() {
           'icon-size': 0.9,
           visibility: 'none',
         },
-      })
-      map.addLayer({
+      },
+      BOAT_LAYER_ID,
+    )
+    map.addLayer(
+      {
         id: 'wx-arrows',
         type: 'symbol',
         source: 'wx-symbols',
@@ -213,18 +171,21 @@ export function WeatherScreen() {
           visibility: 'none',
         },
         paint: { 'text-halo-color': '#04101c', 'text-halo-width': 1 },
-      })
-      /*
-       * Numeric speed beside each arrow — Expedition's "tidal stream labels"
-       * (docs/01-expedition-analysis/feature-inventory.md §5). A 0.4 kn set is a
-       * tactical fact you act on, and no arrow length conveys it precisely enough.
-       *
-       * Shares the `wx-symbols` source, so it inherits the thinning already done by
-       * `thinVectorField` and costs no extra sampling. Unlike the arrows this layer
-       * does NOT allow overlap: MapLibre then drops colliding labels by itself, so
-       * a dense grid stays readable instead of turning into a smear of digits.
-       */
-      map.addLayer({
+      },
+      BOAT_LAYER_ID,
+    )
+    /*
+     * Numeric speed beside each arrow — Expedition's "tidal stream labels"
+     * (docs/01-expedition-analysis/feature-inventory.md §5). A 0.4 kn set is a
+     * tactical fact you act on, and no arrow length conveys it precisely enough.
+     *
+     * Shares the `wx-symbols` source, so it inherits the thinning already done by
+     * `thinVectorField` and costs no extra sampling. Unlike the arrows this layer
+     * does NOT allow overlap: MapLibre then drops colliding labels by itself, so
+     * a dense grid stays readable instead of turning into a smear of digits.
+     */
+    map.addLayer(
+      {
         id: 'wx-speed-labels',
         type: 'symbol',
         source: 'wx-symbols',
@@ -247,12 +208,15 @@ export function WeatherScreen() {
           'text-halo-color': '#04101c',
           'text-halo-width': 1.4,
         },
-      })
+      },
+      BOAT_LAYER_ID,
+    )
 
-      // NOAA station: drawn as a distinct diamond-ish marker so it reads as a
-      // different kind of thing from the model arrows around it.
-      map.addSource('wx-station', { type: 'geojson', data: emptyFC() })
-      map.addLayer({
+    // NOAA station: drawn as a distinct diamond-ish marker so it reads as a
+    // different kind of thing from the model arrows around it.
+    map.addSource('wx-station', { type: 'geojson', data: emptyFC() })
+    map.addLayer(
+      {
         id: 'wx-station-pt',
         type: 'circle',
         source: 'wx-station',
@@ -262,8 +226,11 @@ export function WeatherScreen() {
           'circle-stroke-color': '#04101c',
           'circle-stroke-width': 2,
         },
-      })
-      map.addLayer({
+      },
+      BOAT_LAYER_ID,
+    )
+    map.addLayer(
+      {
         id: 'wx-station-label',
         type: 'symbol',
         source: 'wx-station',
@@ -280,115 +247,38 @@ export function WeatherScreen() {
           'text-halo-color': '#04101c',
           'text-halo-width': 1.6,
         },
-      })
-
-      map.addSource('wx-boat', { type: 'geojson', data: emptyFC() })
-      map.addLayer({
-        id: 'wx-boat-pt',
-        type: 'circle',
-        source: 'wx-boat',
-        paint: {
-          'circle-radius': 5,
-          'circle-color': '#35d07f',
-          'circle-stroke-color': '#eaf2fa',
-          'circle-stroke-width': 2,
-        },
-      })
-
-      setReady(true)
-      if (import.meta.env.DEV) {
-        // Console handle for tuning symbol sizes and inspecting the field.
-        ;(window as unknown as Record<string, unknown>).__wx = { map, scalar, particles }
-      }
-    })
-
-    map.on('click', (e) => setProbe({ lat: e.lngLat.lat, lon: e.lngLat.lng }))
-    map.on('error', (e) => setError(e.error?.message ?? 'map error'))
+      },
+      BOAT_LAYER_ID,
+    )
 
     return () => {
-      map.remove()
-      mapRef.current = null
-      particleRef.current = null
-      scalarRef.current = null
-      spritesAdded.current = false
-      setReady(false)
-    }
-  }, [])
-
-  // Barb sprites are shape-per-speed, so they must be registered as images once.
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready || spritesAdded.current) return
-    spritesAdded.current = true
-    let cancelled = false
-    void (async () => {
-      for (const sprite of buildBarbSprites({ color: '#eaf2fa' })) {
-        try {
-          const img = await barbToImageData(sprite, 2)
-          if (cancelled || map.hasImage(sprite.id)) continue
-          map.addImage(sprite.id, img, { pixelRatio: 2 })
-        } catch {
-          /* a missing sprite degrades one speed bucket, not the whole layer */
-        }
-      }
-      if (!cancelled) map.triggerRepaint()
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [ready])
-
-  // ------------------------------------------------------------------- fetch
-  const load = useCallback(
-    async (which: ModelId) => {
-      setBusy('Downloading forecast…')
-      setError(null)
+      /*
+       * The surface may have torn the map down first, in which case every one of
+       * these throws and there is nothing left to clean up. Removing what we
+       * added matters in the other case: this overlay unmounting while the map
+       * survives, which is what a tab switch becomes once Start and Race are
+       * overlays too.
+       */
       try {
-        /*
-         * Pad the venue so panning a little does not run off the data, then pick
-         * a sample step from the span rather than taking the library default.
-         *
-         * The default is 0.25 degrees, about 27 km — wider than Casco Bay itself,
-         * which produced a 4x2 grid for the entire venue and a wind field with no
-         * spatial structure at all. Aim for roughly 40 samples across instead.
-         */
-        const v = PILOT_VENUE.bbox
-        const padX = (v.east - v.west) * 0.35
-        const padY = (v.north - v.south) * 0.35
-        const bbox = {
-          west: v.west - padX,
-          south: v.south - padY,
-          east: v.east + padX,
-          north: v.north + padY,
-        }
-        const span = Math.max(bbox.east - bbox.west, bbox.north - bbox.south)
-        const stepDeg = Math.max(0.02, span / 40)
-        const c = await fetchWindCube({
-          bbox,
-          stepDeg,
-          hours: 72,
-          model: which,
-          // Nothing on this screen displays sea state any more, and the marine
-          // endpoint is a separate, slower request. The router still asks for
-          // waves — see RouteScreen — because it can constrain on them.
-          includeWaves: false,
-          includeCurrent: true,
-        })
-        setCube(c)
-        // Snap the clock into the cube's window rather than leaving it outside.
-        setT((prev) => Math.min(Math.max(prev, c.t0), c.t0 + (c.nt - 1) * c.dtMs))
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Forecast download failed')
-      } finally {
-        setBusy(null)
+        for (const id of OWNED_LAYERS) if (map.getLayer(id)) map.removeLayer(id)
+        for (const id of OWNED_SOURCES) if (map.getSource(id)) map.removeSource(id)
+      } catch {
+        /* the map went away first */
       }
-    },
-    [],
-  )
+    }
+  }, [map, ready])
 
+  // Probe on tap. Which overlay is mounted decides what a tap means, so this is
+  // registered here rather than on the surface.
   useEffect(() => {
-    void load(model)
-  }, [model, load])
+    if (!map) return
+    const handler = (e: maplibregl.MapMouseEvent) =>
+      setProbe({ lat: e.lngLat.lat, lon: e.lngLat.lng })
+    map.on('click', handler)
+    return () => {
+      map.off('click', handler)
+    }
+  }, [map])
 
   /*
    * Venue bathymetry, once per session. 49 kB, and small enough to fetch
@@ -431,9 +321,7 @@ export function WeatherScreen() {
   const scalarT = scalarCube && scalarCube.nt > 1 ? t : 0
 
   useEffect(() => {
-    if (!ready) return
-    const scalar = scalarRef.current
-    if (!scalar) return
+    if (!ready || !scalar) return
 
     if (!isVector && scalarCube) {
       scalar.setParam(layer.params[0], layer.domain)
@@ -443,12 +331,10 @@ export function WeatherScreen() {
     } else {
       scalar.setVisible(false)
     }
-  }, [ready, scalarCube, scalarT, layer, ramp, isVector])
+  }, [ready, scalar, scalarCube, scalarT, layer, ramp, isVector])
 
   useEffect(() => {
-    if (!ready || !cube) return
-    const particles = particleRef.current
-    if (!particles) return
+    if (!ready || !cube || !particles) return
 
     if (showParticles) {
       const speedLayer = isVector ? layer : LAYERS.wind
@@ -469,7 +355,7 @@ export function WeatherScreen() {
     } else {
       particles.setVisible(false)
     }
-  }, [ready, cube, t, layer, isVector, showParticles, particleParams])
+  }, [ready, particles, cube, t, layer, isVector, showParticles, particleParams])
 
   /*
    * Station current prediction, fetched only when the Current layer is open.
@@ -510,7 +396,6 @@ export function WeatherScreen() {
 
   // Station marker: the tidal truth, sitting next to the model arrows.
   useEffect(() => {
-    const map = mapRef.current
     if (!map || !ready) return
     const src = map.getSource('wx-station') as maplibregl.GeoJSONSource | undefined
     if (!src) return
@@ -533,11 +418,10 @@ export function WeatherScreen() {
         },
       ],
     })
-  }, [ready, layerId, stationFlow])
+  }, [map, ready, layerId, stationFlow])
 
   // Barbs / arrows are thinned per view, so they refresh on move as well as time.
   const refreshSymbols = useCallback(() => {
-    const map = mapRef.current
     if (!map || !cube) return
     const src = map.getSource('wx-symbols') as maplibregl.GeoJSONSource | undefined
     if (!src) return
@@ -570,46 +454,20 @@ export function WeatherScreen() {
       'text-color',
       rampToMapLibreExpression(ramp, layer.domain, PROP_MAGNITUDE) as never,
     )
-  }, [cube, isVector, mode, layer, t, ramp])
+  }, [map, cube, isVector, mode, layer, t, ramp])
 
   useEffect(() => {
     refreshSymbols()
   }, [refreshSymbols])
 
   useEffect(() => {
-    const map = mapRef.current
     if (!map || !ready) return
     const handler = () => refreshSymbols()
     map.on('moveend', handler)
     return () => {
       map.off('moveend', handler)
     }
-  }, [ready, refreshSymbols])
-
-  // Own boat, when there is a fix.
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready) return
-    const src = map.getSource('wx-boat') as maplibregl.GeoJSONSource | undefined
-    if (!src) return
-    src.setData(
-      boatState
-        ? {
-            type: 'FeatureCollection',
-            features: [
-              {
-                type: 'Feature',
-                properties: {},
-                geometry: {
-                  type: 'Point',
-                  coordinates: [boatState.position.lon, boatState.position.lat],
-                },
-              },
-            ],
-          }
-        : emptyFC(),
-    )
-  }, [ready, boatState])
+  }, [map, ready, refreshSymbols])
 
   // Reset the render mode when switching to a layer that prefers another.
   useEffect(() => {
@@ -637,7 +495,6 @@ export function WeatherScreen() {
 
   const notes = cube ? cubeNotes(cube) : []
   const modelInfo = MODELS.find((m) => m.id === model)
-  const modelLabel = modelInfo?.label ?? model
   /*
    * Report the MODEL's native resolution, not our sample grid.
    *
@@ -686,9 +543,7 @@ export function WeatherScreen() {
       : undefined
 
   return (
-    <div className="screen screen--flush" style={{ position: 'relative' }}>
-      <div ref={containerRef} className="map" />
-
+    <>
       {/* ---- top controls ---- */}
       <div
         style={{
@@ -921,36 +776,7 @@ export function WeatherScreen() {
           </div>
         </div>
       )}
-
-      {/* ---- time axis ---- */}
-      {cube && (
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            // Extra bottom padding keeps the speed control clear of MapLibre's
-            // attribution, which is legally required to stay legible.
-            padding: 'var(--pad) var(--pad) 26px',
-            background: 'linear-gradient(to top, rgba(5,13,22,0.96), rgba(5,13,22,0))',
-          }}
-        >
-          <Timeline
-            t0={cube.t0}
-            dtMs={cube.dtMs}
-            nt={cube.nt}
-            value={t}
-            onChange={setT}
-            playing={playing}
-            onPlayingChange={setPlaying}
-            speed={speed}
-            onSpeedChange={setSpeed}
-            runLabel={modelLabel}
-          />
-        </div>
-      )}
-    </div>
+    </>
   )
 }
 
