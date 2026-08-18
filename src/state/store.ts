@@ -163,13 +163,30 @@ export const useStore = create<AppState>()(
           },
           activeMarkIndex: 0,
         }),
-      removeMark: (id) =>
+      /*
+       * Removing a mark has to move the active-mark pointer with it.
+       *
+       * `replaceMarks` and `clearCourse` both reset it and this did not, so
+       * deleting mark 1 of 3 while mark 3 was active left the index past the end:
+       * the Race header read "Leg 3/2" with a blank mark name, and every tactical
+       * number went quiet — `tactics.ts` returns null for an out-of-range index,
+       * which is the right thing for a library to do and invisible in a UI.
+       *
+       * Removing an earlier mark keeps the same mark active (the index shifts
+       * down with it); removing the active mark itself lands on the next one, or
+       * the last one if that was the end.
+       */
+      removeMark: (id) => {
+        const { course, activeMarkIndex } = get()
+        const at = course.marks.findIndex((m) => m.id === id)
+        if (at < 0) return
+        const marks = course.marks.filter((m) => m.id !== id)
+        const shifted = at < activeMarkIndex ? activeMarkIndex - 1 : activeMarkIndex
         set({
-          course: {
-            ...get().course,
-            marks: get().course.marks.filter((m) => m.id !== id),
-          },
-        }),
+          course: { ...course, marks },
+          activeMarkIndex: marks.length === 0 ? 0 : Math.min(Math.max(0, shifted), marks.length - 1),
+        })
+      },
       clearCourse: () => set({ course: EMPTY_COURSE, activeMarkIndex: 0 }),
       activeMarkIndex: 0,
       setActiveMark: (i) => set({ activeMarkIndex: i }),
