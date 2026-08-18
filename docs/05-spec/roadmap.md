@@ -2,9 +2,18 @@
 
 Phases, not dates. Each phase ends with something a sailor can use.
 
+> **Where we actually are:** the `MVP1` prototype has shipped most of phases 1–4
+> out of order — start-line math, tactics, the chart and weather layers, and the
+> isochrone router with its confidence band and departure-time sweep all run. What
+> is *not* done is the ORC polar question, a real pilot programme with a coach and
+> a fleet, ENC charting, and everything in phase 5. The per-phase checkboxes below
+> were never maintained; treat the phase order as the intended *sequence of
+> deliverables*, and [RUNNING.md](../../RUNNING.md#whats-real-and-what-isnt) as the
+> statement of what is real today.
+
 ---
 
-## Phase 0 — Research and specification ← **we are here**
+## Phase 0 — Research and specification
 
 **Goal:** know what we're building and what we're allowed to build on, before writing app
 code.
@@ -29,7 +38,9 @@ tier — and to an engineer, exactly how the router works.
 
 See [mvp-scope.md](mvp-scope.md).
 
-- Core geodesy and units package, fully tested
+- [x] Core geodesy and units package, fully tested — `angles.test.ts` and
+      `geo.test.ts` closed the last of this in pass 4 of the improvement plan; the
+      claim was made three phases before it was true
 - Start-line math: bias, distance, time to line, time to burn
 - Chartless start display
 - PWA shell, offline, wake lock, track recording

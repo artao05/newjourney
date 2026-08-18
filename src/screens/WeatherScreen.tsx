@@ -65,9 +65,6 @@ import { uvToWind } from '@/lib/wind'
 import type { LayerSpec, VectorMode } from '@/lib/maplayers/types'
 import type { WeatherCube } from '@/lib/types'
 
-// LAYER_ORDER now lives beside LAYERS in colormap.ts so the two can be checked
-// against each other in a test — a stale id here silently drops a chip.
-
 const MODES: Array<{ id: VectorMode; label: string }> = [
   { id: 'particles', label: 'Streamlines' },
   { id: 'barbs', label: 'Barbs' },
