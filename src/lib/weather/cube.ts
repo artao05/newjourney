@@ -15,9 +15,19 @@
  *      is precisely the failure mode that puts a boat somewhere it did not
  *      plan to be. See technical-spec.md §4.
  *   3. Int16 with a per-parameter scale, plus a delta+shuffle filter, is what
- *      makes offline work: the reference cube (5°x5° at 0.25°, 48 hourly steps,
- *      u/v+gust) measures 127 318 bytes raw and 30 242 gzipped — a race-morning
- *      download on a phone, and inside the 35 KB budget in the spec.
+ *      makes offline work. The reference cube — 5°x5° at 0.25°, 48 hourly steps,
+ *      u/v+gust — has a **body of 127 008 bytes**: `params × nt × ny × nx × 2`,
+ *      and the only part of the size that geometry alone determines. The total
+ *      adds a 12-byte preamble and a JSON header whose length depends on the
+ *      model name, run label and coordinates it carries, so it lands around
+ *      127.3 kB but is not a fixed number. Gzipped, a smooth field of that shape
+ *      comes in near 30 kB — inside the 35 KB race-morning budget in the spec,
+ *      though the exact figure is a property of the weather, not of the format.
+ *
+ *      An earlier version of this note quoted "127 318 bytes raw and 30 242
+ *      gzipped" as bare facts. Neither was reproducible: the first depends on
+ *      header strings nobody recorded, the second on the field's own content.
+ *      `cube.test.ts` pins what is actually checkable.
  */
 
 import { clamp, toDeg, toRad, wrap360 } from '../angles'
