@@ -72,15 +72,27 @@ export function crossTrack(p: LatLon, a: LatLon, b: LatLon): NauticalMiles {
   const δ13 = distance(a, p) / R_NM
   const θ13 = bearing(a, p) * DEG
   const θ12 = bearing(a, b) * DEG
+  // Two bearings subtracted with `-`, which angles.ts forbids everywhere else.
+  // Safe here and only here because the difference goes straight into `sin`,
+  // which is 2π-periodic: an unwrapped difference and its wrapped equivalent
+  // give the identical result. Do not copy the pattern outside a sin/cos.
   return Math.asin(clampUnit(Math.sin(δ13) * Math.sin(θ13 - θ12))) * R_NM
 }
 
-/** Distance along the a→b track to the projection of p. Nautical miles. */
+/**
+ * Distance along the a→b track to the projection of p. Nautical miles.
+ * Negative when p lies behind `a`, so a boat short of the start of a leg reads
+ * as not yet on it.
+ */
 export function alongTrack(p: LatLon, a: LatLon, b: LatLon): NauticalMiles {
   const δ13 = distance(a, p) / R_NM
   const xt = crossTrack(p, a, b) / R_NM
   const c = Math.cos(δ13) / Math.cos(xt)
-  return Math.acos(clampUnit(c)) * R_NM * Math.sign(Math.cos(bearing(a, p) * DEG - bearing(a, b) * DEG) || 1)
+  // The bearing subtraction is inside `cos` and safe for the reason given in
+  // `crossTrack`. The `|| 1` matters too: exactly abeam gives cos = 0, and
+  // `Math.sign(0)` is 0, which would collapse a real distance to zero.
+  const ahead = Math.sign(Math.cos(bearing(a, p) * DEG - bearing(a, b) * DEG) || 1)
+  return Math.acos(clampUnit(c)) * R_NM * ahead
 }
 
 // ------------------------------------------------------------ rhumb lines
@@ -108,9 +120,28 @@ export function rhumbBearing(a: LatLon, b: LatLon): Degrees {
 // ------------------------------------------------- local tangent plane (fast)
 
 /**
- * A local flat projection anchored at `origin`. Accurate to well under a metre
- * within ~20 nm, and roughly 40x cheaper than great-circle math — which is why
- * the start line and buoy-racing code all run in here.
+ * A local flat projection anchored at `origin`, and roughly 40x cheaper than
+ * great-circle math — which is why the start line and buoy-racing code all run
+ * in here.
+ *
+ * Accuracy is **not** uniform with direction, and the previous claim here ("well
+ * under a metre within ~20 nm") was only true along a meridian. Longitude is
+ * scaled by `cos(origin.lat)` alone, so the easting error grows with how far the
+ * point has moved in latitude. Measured against `distance` from 43.6°N, error in
+ * the distance from the origin:
+ *
+ * | course | 1 nm | 5 nm | 20 nm |
+ * |---|---|---|---|
+ * | due N/S | 0 m | 0 m | 0 m |
+ * | due E/W | 0 m | 0.004 m | 0.24 m |
+ * | NE diagonal | 0.09 m | 2.3 m | 36.5 m |
+ *
+ * Which is fine for everything that uses it, and the numbers say why rather than
+ * asking you to trust it: a start line spans a few hundred metres, where even the
+ * diagonal case is sub-centimetre, and a buoy leg of a few miles lands well inside
+ * a GPS fix's own ±5 m. Do not reach for this at ocean scale, and do not use it
+ * for the routing kernel's leg geometry — `distance`/`bearing` are there for that.
+ * `geo.test.ts` pins the table above.
  */
 export class LocalFrame {
   readonly origin: LatLon

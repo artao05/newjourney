@@ -16,10 +16,22 @@ export const RAD = 180 / Math.PI
 export const toRad = (d: Degrees): Radians => d * DEG
 export const toDeg = (r: Radians): Degrees => r * RAD
 
-/** Normalise to [0, 360). */
+/**
+ * Normalise to [0, 360).
+ *
+ * The half-open interval is the contract, and `r + 360` alone does not honour it.
+ * For a tiny negative `r` — which every trig-derived bearing eventually produces,
+ * `atan2` returning -8e-16 for something that is mathematically due north — the
+ * sum rounds to *exactly* 360 in float64 and the function returns a value it
+ * promises never to return. `meanBearing([350, 10])` came back as 360°, and the
+ * hazard beyond the display is anything that bins or indexes by a bearing:
+ * `Math.floor` of 360 is one past the end of a 360-element table.
+ */
 export function wrap360(a: number): Degrees {
   const r = a % 360
-  return r < 0 ? r + 360 : r
+  if (r >= 0) return r
+  const s = r + 360
+  return s < 360 ? s : 0
 }
 
 /** Normalise to (-180, 180]. */
@@ -51,7 +63,17 @@ export function meanBearing(bearings: Degrees[]): Degrees | null {
     s += Math.sin(toRad(b))
     c += Math.cos(toRad(b))
   }
-  if (s === 0 && c === 0) return null
+  /*
+   * Guard on the resultant LENGTH, not on `s` and `c` being exactly zero.
+   *
+   * Antipodal bearings cancel mathematically but not in binary: `sin(180°)` is
+   * 1.2e-16, not 0, so `[0, 180]` left `s` non-zero and this returned a
+   * confident 90° — a direction neither input pointed in — where the contract
+   * says null. The old test could only have been satisfied by inputs that
+   * cancel exactly in both components, which floating point rarely produces.
+   */
+  const n = bearings.length
+  if (Math.hypot(s / n, c / n) < 1e-9) return null
   return wrap360(toDeg(Math.atan2(s, c)))
 }
 
