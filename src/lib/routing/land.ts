@@ -251,7 +251,6 @@ export class RasterLandMask implements LandMask {
   private readonly bits: Uint32Array
   /** Exact second stage. Null means the raster is the final word. */
   private readonly exact: PolygonLandMask | null
-  private readonly maxWalk: number
 
   constructor(
     bbox: BBox,
@@ -267,7 +266,6 @@ export class RasterLandMask implements LandMask {
     this.exact = exact
     this.dLon = (bbox.east - bbox.west) / nx
     this.dLat = (bbox.north - bbox.south) / ny
-    this.maxWalk = nx + ny + 8
   }
 
   /** True if cell (ix, iy) is flagged. Out of range reads as open water. */
@@ -304,18 +302,67 @@ export class RasterLandMask implements LandMask {
 
     const dx = fx1 - fx0
     const dy = fy1 - fy0
-    let ix = Math.floor(fx0)
-    let iy = Math.floor(fy0)
-    const ex = Math.floor(fx1)
-    const ey = Math.floor(fy1)
+
+    /*
+     * Clip the segment to the raster box before walking it — a ray/AABB slab
+     * test, in cell space.
+     *
+     * The walk used to start at the segment's own first point and run under a
+     * fixed budget of `nx + ny + 8` steps, returning "maybe land" when it ran
+     * out. A segment beginning outside the box spent that budget getting there,
+     * so a long enough approach reported land in water it never touched: on the
+     * shipped 750x570 Portland raster the threshold was about 1.3°, roughly 80 nm,
+     * which is inside the reach of a single offshore leg. It also contradicted the
+     * promise made in `src/data/landmask.ts` and on the Route screen, that outside
+     * the box the mask reports open water and avoidance does nothing.
+     *
+     * Clipping first makes the budget structurally unable to decide anything: both
+     * ends of the walk are inside the box, so it visits at most `nx + ny` cells no
+     * matter how long the original segment was. Note that a segment already
+     * starting inside the box clips to `t0 = 0` and therefore walks *exactly* as
+     * it did before — the change cannot alter any answer that was previously
+     * reachable from inside the venue.
+     */
+    let t0 = 0
+    let t1 = 1
+    // Slab test, one axis at a time and deliberately allocation-free: this runs
+    // once per candidate state in the routing inner loop, millions of times per
+    // solve, so a pair of four-element arrays here would be pure GC churn.
+    for (let axis = 0; axis < 2; axis++) {
+      const d = axis === 0 ? dx : dy
+      const f0 = axis === 0 ? fx0 : fy0
+      const hi = axis === 0 ? this.nx : this.ny
+      if (d === 0) {
+        // No motion on this axis: the segment is inside its slab or it never is.
+        if (f0 < 0 || f0 > hi) return false
+        continue
+      }
+      const ta = -f0 / d
+      const tb = (hi - f0) / d
+      const enter = ta < tb ? ta : tb
+      const exit = ta < tb ? tb : ta
+      if (enter > t0) t0 = enter
+      if (exit < t1) t1 = exit
+      if (t0 > t1) return false
+    }
+
+    const sx = fx0 + dx * t0
+    const sy = fy0 + dy * t0
+    let ix = Math.floor(sx)
+    let iy = Math.floor(sy)
+    const ex = Math.floor(fx0 + dx * t1)
+    const ey = Math.floor(fy0 + dy * t1)
     const stepX = dx > 0 ? 1 : dx < 0 ? -1 : 0
     const stepY = dy > 0 ? 1 : dy < 0 ? -1 : 0
     const tdx = dx !== 0 ? Math.abs(1 / dx) : Infinity
     const tdy = dy !== 0 ? Math.abs(1 / dy) : Infinity
-    let tmx = dx > 0 ? (ix + 1 - fx0) / dx : dx < 0 ? (ix - fx0) / dx : Infinity
-    let tmy = dy > 0 ? (iy + 1 - fy0) / dy : dy < 0 ? (iy - fy0) / dy : Infinity
+    let tmx = dx > 0 ? (ix + 1 - sx) / dx : dx < 0 ? (ix - sx) / dx : Infinity
+    let tmy = dy > 0 ? (iy + 1 - sy) / dy : dy < 0 ? (iy - sy) / dy : Infinity
 
-    for (let guard = 0; guard <= this.maxWalk; guard++) {
+    // Exactly the cells the clipped segment passes through, plus slack for a
+    // graze along a boundary. Bounded by the grid, never by the segment's length.
+    const steps = Math.abs(ex - ix) + Math.abs(ey - iy) + 2
+    for (let guard = 0; guard <= steps; guard++) {
       if (this.cellIsLand(ix, iy)) return true
       if (ix === ex && iy === ey) return false
       if (tmx < tmy) {
@@ -326,8 +373,9 @@ export class RasterLandMask implements LandMask {
         iy += stepY
       }
     }
-    // Ran out of budget — a segment longer than the mask. Be conservative and
-    // let the exact stage (or the caller) decide.
+    // Unreachable: the clip guarantees the walk terminates at (ex, ey) within
+    // `steps`. Kept, and conservative, because the alternative if it ever were
+    // reachable is a route over land.
     return true
   }
 }
