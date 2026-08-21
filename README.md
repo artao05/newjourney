@@ -7,13 +7,14 @@ tactical software stack (Expedition and its peers) with something a 16-year-old 
 420 or a first-time offshore navigator on a J/105 can open on a phone and understand
 in five minutes — built entirely on public data.
 
-> **Status: working prototype on branch `MVP1`, piloting Portland & Casco Bay, Maine.**
-> `main` holds the research and specification work; `MVP1` adds a running React PWA
-> with the start-line tools, tactical numbers, an isochrone weather router and GPU
-> wind, depth and current layers. See [RUNNING.md](RUNNING.md) to try it — including
-> a boat simulator so you can use the whole app from a desk, with no GPS fix needed.
+> **Status: working prototype on `main`, piloting Portland & Casco Bay, Maine.**
+> A running React PWA with the start-line tools, tactical numbers, an isochrone
+> weather router with departure-time optimisation, and GPU wind, depth and current
+> layers, alongside the research and specification work it was built from. See
+> [RUNNING.md](RUNNING.md) to try it — including a boat simulator so you can use the
+> whole app from a desk, with no GPS fix needed.
 >
-> 352 tests passing · typecheck clean · build clean · 93 KB gzipped first load.
+> 590 tests passing · typecheck clean · build clean · 94 KB gzipped first load.
 > **Not for navigation** — see the caveats in [RUNNING.md](RUNNING.md#whats-real-and-what-isnt).
 > Land avoidance now works, but only inside the Portland venue box and only as a
 > land check, never a depth check. The depth layer is a 450 m bathymetric model
@@ -25,9 +26,13 @@ in five minutes — built entirely on public data.
 
 | Branch | Contents |
 |---|---|
-| `main` | Phase 0 research and specification only — no application code |
-| **`MVP1`** | The working prototype. Start here. |
+| **`main`** | The prototype and the research behind it. Start here. |
+| `MVP1` | An earlier snapshot of the prototype, now strictly behind `main`. Kept for history. |
 | `UIunderstanding` | Research into how PredictWind and SeaLegs handle charting and map layers, and the resulting render architecture |
+
+`main` held research and specification only until the prototype was promoted onto
+it; the application code arrived from `feature/tide-depth`, which is where the
+chart-surface and depth work was done.
 
 ---
 
@@ -60,9 +65,9 @@ and a wet pocket.
 | [docs/05-spec](docs/05-spec/) | Product spec, technical spec, MVP scope, roadmap |
 | [docs/06-decisions](docs/06-decisions/) | Architecture decision records |
 | [docs/SOURCES.md](docs/SOURCES.md) | Master bibliography — every URL cited across the research |
-| [RUNNING.md](RUNNING.md) | How to run the `MVP1` prototype |
+| [RUNNING.md](RUNNING.md) | How to run the prototype |
 
-## Code layout (`MVP1`)
+## Code layout
 
 | Path | What |
 |---|---|
