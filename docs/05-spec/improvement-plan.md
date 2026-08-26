@@ -13,7 +13,65 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 6 — 2026-08-06
+## 0. Pass 7 — 2026-08-20 — bug hunt
+
+A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
+useful result was that **the ranking method from earlier passes was wrong**. Sorting
+by "has no `*.test.ts` file next to it" put `data/polars.ts` at the top, when it is
+thoroughly covered *from* `polar.test.ts` — library invariants, unique ids, per-entry
+validation. Ranking by how many test files actually import a module gives the real
+picture, and it left exactly four with none:
+
+| Module | Lines | Verdict |
+|---|---|---|
+| `maplayers/particleLayer.ts` | 821 | Needs a real GL context. Exercised by the dev harness. Left alone. |
+| `maplayers/scalarLayer.ts` | 325 | Same. |
+| `routing/client.ts` | 212 | **Tested this pass — one bug found.** |
+| `sim.ts` | 232 | **Tested this pass — one bug and three dead lines found.** |
+
+### A crashed worker hung the UI forever
+
+`client.ts` is the layer every route passes through, and what it owns is lifecycle
+rather than arithmetic. `onerror` cleared the pending request but left the dead
+worker in place, so the next `route()` saw nothing pending, skipped `cancel()`,
+reused the crashed worker and posted into the void. That promise never settled: the
+Route tab sat on "Routing" with no route and no error, and the only escape was
+pressing ROUTE again, which cancelled the hung request and rebuilt the worker.
+
+An in-band error at least renders. A hang renders nothing, which makes it the worst
+of the failure modes available here. The worker is now torn down alongside the
+request, guarded on identity so that a newer worker already in place is not taken
+down with it.
+
+### A replay that did not replay
+
+`sim.ts` promises "deterministic pseudo-random so a simulated race replays
+identically — essential when you are chasing a bug in the tactical numbers". The
+random walk was seeded, but the **wind oscillation took its phase from `Date.now()`**,
+so the same seed produced a different breeze depending on what time of day you
+pressed simulate, and the race diverged from step one. A simulator that quietly does
+something different every run is worse than none: the bug you were chasing moves
+while you look at it.
+
+Phase now runs from elapsed time since construction, with a test that `t` stays a
+real epoch timestamp so the fix cannot later be "simplified" into a relative clock.
+The wander also decayed per call rather than per second, so the breeze behaved
+differently at 0.5 s steps than at 30 s ones. Three dead lines went too: a `dNm`
+computed and discarded with `void`, and a position update that projected the frame's
+own origin twice to add a displacement to zero.
+
+### Still uncovered, deliberately
+
+`openmeteo.ts` (657 lines) is covered only indirectly, through mocked fetch in
+`field.test.ts` — the next target. The two GL layers stay untested until there is a
+reason to stand up a headless WebGL context; the dev harness at `?harness` is the
+current answer and it is a reasonable one.
+
+625 tests (up from 590), typecheck clean, build clean.
+
+---
+
+## 0b. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -69,7 +127,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0b. Pass 5 — 2026-08-06
+## 0c. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -121,7 +179,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0c. Pass 4 — 2026-08-06
+## 0d. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -181,7 +239,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0d. Pass 3 — 2026-08-06
+## 0e. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -223,7 +281,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0e. Pass 2 — 2026-08-06
+## 0f. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
