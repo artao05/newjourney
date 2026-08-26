@@ -201,6 +201,24 @@ export class RoutingClient {
     worker.onerror = (e: ErrorEvent) => {
       const p = this.pending
       this.pending = null
+      /*
+       * Drop the worker, not just the request.
+       *
+       * An uncaught error reaching here means the module never loaded or the
+       * thread is gone - `handleRouteMessage` catches everything else and reports
+       * failure in-band. Keeping the reference meant the next `route()` saw no
+       * pending request, skipped `cancel()`, reused the dead worker, and posted
+       * into the void: that promise never settled, so the UI sat on "Routing" with
+       * no route and no error until someone pressed ROUTE a second time. A hang
+       * with no feedback is the worst of the failure modes available here.
+       *
+       * Guarded on identity because a newer worker may already have replaced this
+       * one, and tearing that one down would move the hang rather than fix it.
+       */
+      if (this.worker === worker) {
+        worker.terminate()
+        this.worker = null
+      }
       if (!p) return
       const why = `routing worker crashed: ${e.message}`
       if (p.kind === 'sweep') p.resolve(cancelledSweep(why))
