@@ -13,7 +13,61 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 9 — 2026-08-27 — property sweep
+## 0. Pass 10 — 2026-08-27 — kernel invariants
+
+`isochrone.ts` was the last big gap by tests-per-line: 1915 lines, 25 example cases,
+77 lines per case against 8.5 for `departure.ts`. The existing suite is the §10
+validation list from the routing doc — analytic cases where the answer can be written
+down — which is the right foundation and is not the same thing as coverage.
+
+Eleven property checks now run over twelve scenarios: beats, reaches, runs, cross
+current, a wind gradient with latitude, a wind veering with time, a two-leg course,
+light air, a scaled polar with rotated wind, across all three resolutions.
+
+**Everything held. My assumptions failed three times**, and each failure turned out
+to be a fact about the kernel that was written down nowhere:
+
+| Assumption | Reality |
+|---|---|
+| `distanceNm` is the distance sailed *to* a leg | It is the distance *out of* it. The emit site reads `P.dist[nxt]` while `twa`, `bsp` and `heading` read `src`, so leg *i* carries the distance from *i* to *i+1* and the last leg carries zero. |
+| Leg timestamps strictly increase | Non-decreasing. Arriving at a mark exactly on a step boundary yields a zero-duration leg. Harmless — the property that would break an ETA is the clock going *backwards*. |
+| Isochrones are monotonic in time | Not globally. A multi-leg route concatenates one series per leg, and leg two starts from the arrival at mark one while leg one's grid may have reached past it. |
+
+The first of those got a fix rather than just a test: `RouteLeg.distanceNm` now
+documents which distance it is, because the natural reading is the other one and the
+value leaves the app as the `dist_nm` column of the CSV export. It also records that
+on a beating leg the figure measures the drawn VMG-equivalent path, not the distance
+actually sailed through the water while tacking — so summing the column gives the
+length of the drawn route, which is not the same number a log would show.
+
+### The check worth keeping above all others
+
+Determinism: identical inputs must produce byte-identical leg positions and speeds.
+Map iteration order, float accumulation or a stray `Date.now()` in the kernel would
+each break it silently, and the symptom would be a route that changes when you press
+the button again — quietly invalidating every claim this project makes about its
+confidence band. It holds.
+
+Also verified across all twelve: no NaN or infinity in any leg field, angles inside
+their documented ranges, elapsed matching both the ETA and the leg clock, each leg
+moving at the speed it claims, no leg faster than the polar allows for the angle it
+reports, every route finishing at its last mark, and diagnostics describing a solve
+of at least two steps.
+
+667 tests (up from 656), typecheck clean, build clean.
+
+### Method note for the next pass
+
+Two passes running, the bugs found were in *my tests* rather than the code, and the
+tests still paid for themselves by turning three undocumented behaviours into
+documented ones. That is a real result, but it is also the signal that the
+`src/lib` seam is close to exhausted. What is genuinely untested now is the UI
+layer — `StartCanvas.tsx` (387 lines, 0 cases) and the screens — which needs
+`@testing-library/react` and the MapLibre stub described in Tier 1 C.
+
+---
+
+## 0b. Pass 9 — 2026-08-27 — property sweep
 
 Coverage is now broad enough that hunting for untested *modules* has stopped paying:
 the only two left with no test imports are the GL layers, which need a real context.
@@ -68,7 +122,7 @@ a skip.
 
 ---
 
-## 0b. Pass 8 — 2026-08-26 — bug hunt
+## 0c. Pass 8 — 2026-08-26 — bug hunt
 
 ### The forecast cache could serve a cube that did not cover the request
 
@@ -123,7 +177,7 @@ animation, the simulator and the particle layer do not.
 
 ---
 
-## 0c. Pass 7 — 2026-08-20 — bug hunt
+## 0d. Pass 7 — 2026-08-20 — bug hunt
 
 A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
 useful result was that **the ranking method from earlier passes was wrong**. Sorting
@@ -181,7 +235,7 @@ current answer and it is a reasonable one.
 
 ---
 
-## 0d. Pass 6 — 2026-08-06
+## 0e. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -237,7 +291,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0e. Pass 5 — 2026-08-06
+## 0f. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -289,7 +343,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0f. Pass 4 — 2026-08-06
+## 0g. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -349,7 +403,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0g. Pass 3 — 2026-08-06
+## 0h. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -391,7 +445,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0h. Pass 2 — 2026-08-06
+## 0i. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
