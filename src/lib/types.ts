@@ -364,6 +364,16 @@ export interface RouteLeg {
   tack: 'port' | 'starboard'
   currentSet: Degrees | null
   currentDrift: Knots | null
+  /**
+   * Distance from this leg to the NEXT one, not the distance already sailed to
+   * reach it. Zero on the final leg, which has nowhere to go.
+   *
+   * Stated because the natural reading is the other one, and this value leaves the
+   * app: it is the `dist_nm` column of the CSV export. On a beating leg it is the
+   * distance along the drawn VMG-equivalent path, so summing the column gives the
+   * length of the drawn route rather than the distance actually sailed through the
+   * water while tacking.
+   */
   distanceNm: NauticalMiles
 }
 

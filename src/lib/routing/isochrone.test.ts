@@ -878,3 +878,291 @@ describe('solar helper', () => {
     expect(bearing({ lat: 0, lon: 0 }, { lat: 1, lon: 0 })).toBeCloseTo(0, 6)
   })
 })
+
+// --------------------------------------------------------------------------
+// Kernel invariants, swept rather than exemplified.
+//
+// The suite above establishes correctness on the cases where the answer can be
+// written down. This section asserts the properties that must hold on EVERY
+// solve, across a spread of winds, currents, courses and resolutions. 1915 lines
+// of kernel had 25 example tests; these are the checks that do not need to know
+// the right answer in order to catch a wrong one.
+// --------------------------------------------------------------------------
+
+describe('kernel invariants', () => {
+  interface Scenario {
+    label: string
+    req: RouteRequest
+    field: WeatherField
+  }
+
+  function scenarios(): Scenario[] {
+    const start = { lat: 40, lon: -70 }
+    const out: Scenario[] = []
+    const resolutions = ['fast', 'balanced', 'best'] as const
+
+    // A spread of beats, reaches and runs.
+    const winds = [0, 45, 90, 180, 270]
+    for (let i = 0; i < winds.length; i++) {
+      const twd = winds[i]
+      out.push({
+        label: `twd ${twd}, 12 kn, no current`,
+        field: makeField({ twd, tws: 12 }),
+        req: request({ marks: [north(start, 12)], resolution: resolutions[i % 3] }),
+      })
+    }
+
+    out.push({
+      label: 'cross current',
+      field: makeField({ twd: 180, tws: 12, current: { u: 1.5, v: 0 } }),
+      req: request({ marks: [north(start, 10)] }),
+    })
+    out.push({
+      label: 'wind gradient with latitude',
+      field: makeField({ twd: 200, tws: (lat) => 6 + (lat - 40) * 20 }),
+      req: request({ marks: [north(start, 8)] }),
+    })
+    out.push({
+      label: 'veering wind with time',
+      field: makeField({ twd: (_lat, _lon, t) => 180 + ((t - T0) / 3_600_000) * 10, tws: 11 }),
+      req: request({ marks: [north(start, 10)] }),
+    })
+    out.push({
+      label: 'two legs',
+      field: makeField({ twd: 225, tws: 13 }),
+      req: request({ marks: [north(start, 6), destination(north(start, 6), 90, 5)] }),
+    })
+    out.push({
+      label: 'light air',
+      field: makeField({ twd: 90, tws: 3.5 }),
+      req: request({ marks: [north(start, 4)] }),
+    })
+    out.push({
+      label: 'scaled polar and rotated wind',
+      field: makeField({ twd: 200, tws: 14 }),
+      req: request({
+        marks: [north(start, 9)],
+        scalings: { ...defaultScalings(), polarPct: 85, windRotateDeg: 12, windScalePct: 110 },
+      }),
+    })
+    return out
+  }
+
+  const solved = scenarios().map((s) => ({
+    ...s,
+    result: routeIsochrone(s.req, { field: s.field, lattice: LATTICE, land: null }),
+  }))
+
+  it('solves every scenario', () => {
+    for (const s of solved) {
+      expect(s.result.ok, `${s.label}: ${s.result.error ?? ''}`).toBe(true)
+      expect(s.result.legs.length, s.label).toBeGreaterThan(1)
+    }
+  })
+
+  it('never emits a NaN or an infinity in a leg', () => {
+    for (const s of solved) {
+      for (let i = 0; i < s.result.legs.length; i++) {
+        const l = s.result.legs[i]
+        for (const [k, v] of Object.entries(l)) {
+          if (typeof v === 'number') {
+            expect(Number.isFinite(v), `${s.label} leg ${i}: ${k} is ${v}`).toBe(true)
+          }
+        }
+        expect(Number.isFinite(l.position.lat), `${s.label} leg ${i}: lat`).toBe(true)
+        expect(Number.isFinite(l.position.lon), `${s.label} leg ${i}: lon`).toBe(true)
+      }
+    }
+  })
+
+  it('keeps every angle in its documented range', () => {
+    for (const s of solved) {
+      for (let i = 0; i < s.result.legs.length; i++) {
+        const l = s.result.legs[i]
+        const at = `${s.label} leg ${i}`
+        expect(l.twd, `${at} twd`).toBeGreaterThanOrEqual(0)
+        expect(l.twd, `${at} twd`).toBeLessThan(360)
+        expect(l.heading, `${at} heading`).toBeGreaterThanOrEqual(0)
+        expect(l.heading, `${at} heading`).toBeLessThan(360)
+        expect(Math.abs(l.twa), `${at} twa`).toBeLessThanOrEqual(180)
+        expect(l.tws, `${at} tws`).toBeGreaterThanOrEqual(0)
+        expect(l.bsp, `${at} bsp`).toBeGreaterThanOrEqual(0)
+        expect(l.distanceNm, `${at} distanceNm`).toBeGreaterThanOrEqual(0)
+      }
+    }
+  })
+
+  it('reports an elapsed time that matches its own ETA and leg clock', () => {
+    for (const s of solved) {
+      const legs = s.result.legs
+      expect(s.result.etaMs, s.label).not.toBeNull()
+      expect(s.result.elapsedS, s.label).not.toBeNull()
+      const eta = s.result.etaMs as number
+      const elapsed = s.result.elapsedS as number
+
+      expect(eta - s.req.startTime, `${s.label}: eta vs elapsed`).toBeCloseTo(elapsed * 1000, 3)
+      expect(legs[legs.length - 1].t, `${s.label}: last leg is the ETA`).toBeCloseTo(eta, 3)
+      /*
+       * Non-decreasing, not strictly increasing. A zero-duration leg does occur -
+       * arriving at a mark exactly on a step boundary produces one - and it is
+       * harmless as long as the clock never runs backwards, which is the property
+       * that would actually break an ETA.
+       */
+      for (let i = 1; i < legs.length; i++) {
+        expect(legs[i].t, `${s.label} leg ${i} clock`).toBeGreaterThanOrEqual(legs[i - 1].t)
+      }
+    }
+  })
+
+  it('moves each leg at the speed it claims to be sailing', () => {
+    /*
+     * The invariant that needs no ground truth: whatever the kernel decided, the
+     * distance between two consecutive legs must equal the reported speed times
+     * the time between them. If those disagree, every derived number - the ETA,
+     * distance to finish, the results table - describes a boat that did not sail
+     * the drawn line.
+     *
+     * Checked only where there is no current, because with a set running, speed
+     * through the water is deliberately not speed over ground. Beating legs are
+     * included: their bsp is the VMG-equivalent speed along the drawn path, which
+     * is exactly what this measures.
+     */
+    for (const s of solved) {
+      if (s.label.includes('current')) continue
+      const legs = s.result.legs
+      for (let i = 1; i < legs.length; i++) {
+        const dtH = (legs[i].t - legs[i - 1].t) / 3_600_000
+        if (dtH <= 0) continue
+        const moved = distance(legs[i - 1].position, legs[i].position)
+        const claimed = legs[i].bsp * dtH
+        // 2% or a tenth of a mile, whichever is larger: leg positions are
+        // great-circle steps and the speed is a mean over the step.
+        const tol = Math.max(0.1, claimed * 0.02)
+        expect(
+          Math.abs(moved - claimed),
+          `${s.label} leg ${i}: moved ${moved.toFixed(3)} nm, claimed ${claimed.toFixed(3)} nm`,
+        ).toBeLessThan(tol)
+      }
+    }
+  })
+
+  it('measures distanceNm forward, to the next leg', () => {
+    /*
+     * The field is the distance OUT of a leg, not into it - `P.dist[nxt]` at the
+     * emit site, while twa, bsp and heading all come from `src`. The natural
+     * reading is the other one, which is why this is pinned and why the type now
+     * says so: the value leaves the app as the `dist_nm` CSV column.
+     */
+    for (const s of solved) {
+      const legs = s.result.legs
+      for (let i = 0; i < legs.length - 1; i++) {
+        const ahead = distance(legs[i].position, legs[i + 1].position)
+        const tol = Math.max(0.1, ahead * 0.02)
+        expect(
+          Math.abs(legs[i].distanceNm - ahead),
+          `${s.label} leg ${i}: distanceNm ${legs[i].distanceNm.toFixed(3)} vs ${ahead.toFixed(3)} ahead`,
+        ).toBeLessThan(tol)
+      }
+      // Nowhere left to go from the last one.
+      expect(legs[legs.length - 1].distanceNm, `${s.label}: last leg`).toBe(0)
+    }
+  })
+
+  it('never sails faster than the polar allows for the angle it reports', () => {
+    // Excludes beating legs, whose reported bsp is a VMG-equivalent along a
+    // zigzag rather than the polar speed at the drawn heading.
+    for (const s of solved) {
+      const pct = s.req.scalings.polarPct / 100
+      for (let i = 0; i < s.result.legs.length; i++) {
+        const l = s.result.legs[i]
+        if (l.isBeating) continue
+        const ceiling = LATTICE.speed(l.tws, l.twa) * pct
+        expect(
+          l.bsp,
+          `${s.label} leg ${i}: bsp ${l.bsp.toFixed(3)} over polar ${ceiling.toFixed(3)} at twa ${l.twa.toFixed(1)}`,
+        ).toBeLessThan(ceiling + 0.35)
+      }
+    }
+  })
+
+  it('finishes at the last mark', () => {
+    for (const s of solved) {
+      const marks = s.req.marks
+      const last = s.result.legs[s.result.legs.length - 1]
+      expect(
+        distance(last.position, marks[marks.length - 1]),
+        `${s.label}: finished short of the mark`,
+      ).toBeLessThan(0.75)
+    }
+  })
+
+  it('gives the same answer twice for the same question', { timeout: 60_000 }, () => {
+    /*
+     * Determinism is not a nicety. Every claim this project makes about the
+     * confidence band, and every bug anyone chases in a route, assumes the same
+     * inputs produce the same route. Map iteration order, float accumulation or a
+     * stray Date.now() in the kernel would each break it silently, and the symptom
+     * would be a route that changes when you press the button again.
+     */
+    for (const s of solved) {
+      const again = routeIsochrone(s.req, { field: s.field, lattice: LATTICE, land: null })
+      expect(again.ok, s.label).toBe(s.result.ok)
+      expect(again.legs.length, `${s.label}: leg count`).toBe(s.result.legs.length)
+      expect(again.elapsedS, `${s.label}: elapsed`).toBe(s.result.elapsedS)
+      for (let i = 0; i < again.legs.length; i++) {
+        expect(again.legs[i].position.lat, `${s.label} leg ${i} lat`).toBe(
+          s.result.legs[i].position.lat,
+        )
+        expect(again.legs[i].position.lon, `${s.label} leg ${i} lon`).toBe(
+          s.result.legs[i].position.lon,
+        )
+        expect(again.legs[i].bsp, `${s.label} leg ${i} bsp`).toBe(s.result.legs[i].bsp)
+      }
+    }
+  })
+
+  it('emits isochrones in increasing time order, inside the route window', () => {
+    for (const s of solved) {
+      const iso = s.result.isochrones
+      expect(iso.length, s.label).toBeGreaterThan(0)
+      /*
+       * NOT globally monotonic, and that is structural rather than a defect: a
+       * multi-leg route concatenates one series per leg, and leg two starts from
+       * the arrival time at mark one while leg one's grid may have reached past it.
+       * So the assertion is that the series only ever steps backwards where a new
+       * leg begins, never within a leg.
+       */
+      let backwards = 0
+      for (let k = 1; k < iso.length; k++) {
+        if (iso[k].t < iso[k - 1].t) backwards++
+      }
+      expect(backwards, `${s.label}: isochrone series restarts`).toBeLessThan(
+        Math.max(1, s.req.marks.length),
+      )
+      for (const ring of iso) {
+        expect(ring.t, `${s.label}: isochrone before the start`).toBeGreaterThanOrEqual(
+          s.req.startTime,
+        )
+        for (const p of ring.points) {
+          expect(Number.isFinite(p.lat), `${s.label}: isochrone lat`).toBe(true)
+          expect(Number.isFinite(p.lon), `${s.label}: isochrone lon`).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('reports diagnostics that describe the solve it actually did', () => {
+    for (const s of solved) {
+      const d = s.result.diagnostics
+      expect(d.nodesExplored, s.label).toBeGreaterThan(0)
+      expect(d.timeStepS, s.label).toBeGreaterThan(0)
+      expect(Number.isFinite(d.computeMs), s.label).toBe(true)
+      expect(Array.isArray(d.warnings), s.label).toBe(true)
+      // The step must not exceed the whole elapsed time, which would mean the
+      // route was decided in fewer than two steps.
+      expect(d.timeStepS, `${s.label}: step vs elapsed`).toBeLessThanOrEqual(
+        (s.result.elapsedS as number) + 1,
+      )
+    }
+  })
+})
