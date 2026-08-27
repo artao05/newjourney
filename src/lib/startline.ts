@@ -479,9 +479,13 @@ export function computeStart(i: StartInputs): StartNumbers {
   const preStartRef = fromPolar(wrap360(lineBrg + 90), lineLenNm)
   const orient = Math.sign(signedDistanceToLine(preStartRef, pxy, sxy)) || 1
   const belowNm = orient * signedDistanceToLine(bowXY, pxy, sxy)
-  out.distanceBelowLineM = nmToM(belowNm)
+  // A distance is only a distance if the fix it came from was a position. These
+  // stay null for a non-finite one rather than rendering "NaN boat lengths" -
+  // the same discipline the rest of this file applies to a bad COG or SOG.
+  const belowKnown = Number.isFinite(belowNm)
+  out.distanceBelowLineM = belowKnown ? nmToM(belowNm) : null
   out.distanceBelowLineBoatLengths =
-    boat.loaMetres > 0 ? nmToM(belowNm) / boat.loaMetres : null
+    belowKnown && boat.loaMetres > 0 ? nmToM(belowNm) / boat.loaMetres : null
 
   // OCS only if the bow is over AND the gun has not fired yet.
   out.ocs = belowNm < 0 && out.timeToGunS !== null && out.timeToGunS > 0

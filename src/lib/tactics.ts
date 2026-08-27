@@ -373,7 +373,18 @@ function attempt(fn: () => void): void {
 /** Every running tactical number, degrading field by field. Never throws. */
 export function computeTactics(i: TacticalInputs): TacticalNumbers {
   const out = emptyTactics()
-  const { state, boat, wind } = i
+  const { state, boat } = i
+  /*
+   * A non-finite wind is no wind.
+   *
+   * Every field on the way out is nullable so it can say "unknown", and `twd` was
+   * the one place a NaN walked straight through to the display and from there into
+   * every angle derived from it. `waterSpeed` below already applies exactly this
+   * rule to the boat's own speed - "non-finite in, zero out: one NaN fix must not
+   * poison every channel" - so this closes the same gap on the other input.
+   */
+  const wind =
+    i.wind && Number.isFinite(i.wind.twd) && Number.isFinite(i.wind.tws) ? i.wind : null
   const lattice = i.lattice ?? null
   const current = i.current ?? null
 
@@ -403,7 +414,20 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
   })
 
   const marks = i.course?.marks ?? []
-  const mark = marks[i.activeMarkIndex] ?? null
+  /*
+   * The active mark, if there is one at that index *and* it is somewhere.
+   *
+   * The index guard is what keeps an out-of-range pointer from throwing - it has
+   * been out of range in the wild, see the `removeMark` fix in `store.ts`. The
+   * finite check is the same rule as the wind above: a mark with a non-finite
+   * position is not a mark, and letting it through put NaN into every range,
+   * bearing and time-to-mark derived from it.
+   */
+  const marked = marks[i.activeMarkIndex] ?? null
+  const mark =
+    marked && Number.isFinite(marked.position.lat) && Number.isFinite(marked.position.lon)
+      ? marked
+      : null
   if (!mark) return out
 
   // --- mark geometry: GPS only, no polar involved ---------------------------
