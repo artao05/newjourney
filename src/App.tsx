@@ -133,7 +133,21 @@ export function App() {
 
   // Estimated set & drift, gated on rate of turn — see navigation-math.md §5.
   useEffect(() => {
-    if (!state || state.bsp == null || state.heading == null) return
+    if (!state || state.bsp == null || state.heading == null) {
+      /*
+       * Clear it. The early return used to just leave the previous value in place,
+       * so a set and drift measured while the instruments were reporting stayed on
+       * screen indefinitely after they stopped, still labelled "measured".
+       *
+       * Not cosmetic: `tactics.ts` corrects the laylines with this and
+       * `startline.ts` uses it for time-to-line, so a stale estimate quietly bends
+       * every tactical number toward a tide that is no longer there. The path is
+       * ordinary - run the simulator, which supplies a boat speed, then switch to
+       * phone GPS, which does not.
+       */
+      setCurrent(null)
+      return
+    }
     const c = estimateCurrent({
       cog: state.cog,
       sog: state.sog,
