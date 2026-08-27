@@ -13,7 +13,62 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 7 — 2026-08-20 — bug hunt
+## 0. Pass 8 — 2026-08-26 — bug hunt
+
+### The forecast cache could serve a cube that did not cover the request
+
+`cacheKey` quantised the bbox to 0.25° "so panning the map by a pixel does not miss
+the cache", but `buildCube` fetched the caller's *exact* bbox. The key and the data
+described different rectangles: two boxes rounding to the same quarter-degree shared
+one entry, and the second caller silently received a cube built for the first
+caller's box — offset by up to 0.125°, about 7.5 nm, with a strip of the requested
+area holding no data at all.
+
+Nothing downstream reads that as an error. `sampleCube` correctly returns null
+outside coverage, so the router finds no wind in the missing strip and reports "no
+legal move from the frontier" — the same message it gives for a route walled in by
+land. `RouteScreen` derives its bbox from the course marks, so two different courses
+in the same corner of the bay collide on one key.
+
+**The pan case the quantisation was written for does not exist.** `ChartSurface`
+fetches on model change and `RouteScreen` on a button press; neither refetches on map
+movement. So the key now rounds only enough to absorb float noise, which costs
+nothing today. The right fix *if* a map-driven refetch ever lands is written down
+where the next person will look: snap the fetched box outward to a grid and key on
+that, so the two agree — not widen the key alone.
+
+`openmeteo.test.ts` is new, 11 cases over the cache, units, ocean currents and
+holes. Ten passed first time, and three of those are worth naming because they could
+each have been silently wrong: the response unit is trusted over the requested one
+(a model answering km/h while kn was asked for would be a 1.9× error in every
+routing decision); ocean current stores a positive `u` for an easterly set in the
+same cube as a wind FROM 090 with a negative `u`; and a location whose time axis runs
+ahead of the cube's is left as holes rather than shifted into the wrong slots.
+
+### A browser pass that found nothing, and why that is worth recording
+
+The app has gained the chart surface, the depth advisory and the departure sweep
+since anyone drove it end to end. All five tabs mount with no console errors and no
+error boxes, and both venue assets serve (`portland-land.bin` 53 440 bytes,
+`portland-depth.bin` 49 956 bytes).
+
+One apparent bug turned out not to be. The header read "SIM stale 22s" and the number
+grew about three times faster than wall-clock, which looks exactly like a broken
+simulator clock. It is not: `document.hidden` is true for the preview pane in this
+environment, so the browser throttles `setInterval` — and throttles the measuring
+`setTimeout` alongside it, which is where the 3× came from. The staleness badge was
+doing its job, correctly reporting that the fixes had stopped arriving. Verified
+before reporting, which is the point.
+
+Consequence for future passes: a browser smoke test in this environment cannot
+exercise anything time-driven. Deterministic interaction and mount-crash sweeps work;
+animation, the simulator and the particle layer do not.
+
+636 tests (up from 625), typecheck clean, build clean.
+
+---
+
+## 0b. Pass 7 — 2026-08-20 — bug hunt
 
 A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
 useful result was that **the ranking method from earlier passes was wrong**. Sorting
@@ -71,7 +126,7 @@ current answer and it is a reasonable one.
 
 ---
 
-## 0b. Pass 6 — 2026-08-06
+## 0c. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -127,7 +182,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0c. Pass 5 — 2026-08-06
+## 0d. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -179,7 +234,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0d. Pass 4 — 2026-08-06
+## 0e. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -239,7 +294,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0e. Pass 3 — 2026-08-06
+## 0f. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -281,7 +336,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0f. Pass 2 — 2026-08-06
+## 0g. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
