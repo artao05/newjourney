@@ -13,7 +13,55 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 11 — 2026-08-27 — the UI layer, at last
+## 0. Pass 12 — 2026-08-27 — the canvas renderers
+
+Four components draw with `getContext('2d')` and none had a test:
+`StartCanvas` (387 lines, the beachhead display), `PolarPlot`, `CurrentChart`,
+`DepartureChart`. Their output is pixels, so this pass substituted a recording
+context and asserted on the *calls*.
+
+### Why canvas code deserves its own invariant
+
+**A NaN coordinate silently draws nothing.** `moveTo(NaN, 10)` does not throw, does
+not warn, and leaves the canvas exactly as it was — the line you expected is simply
+absent, with nothing in the console to explain it. That makes it the one bug class
+here that testing can find and eyeballing cannot.
+
+Result: **no NaN reaches the context in any of them.** `StartCanvas` holds across
+sixteen degenerate states (no fix, no wind, one end pinged, neither end pinged, both
+ends in the same spot, no gun time, before and after the gun, stationary, no compass,
+no accuracy figure, over the line, miles from the line), plus tracks of 0, 1, 2 and
+500 points, a zero-length boat, a collapsed extent where the scale divides by zero,
+and a parent with no size.
+
+### The finding
+
+`StartCanvas` was **the only one of the four without the zero-size-parent guard**,
+and it survives `w === 0` purely by accident: every `arc` radius in it is a constant,
+and `scale` collapses to 0 rather than dividing by zero, so the picture degenerates
+to a point instead of throwing.
+
+`PolarPlot` was not so lucky, and its own docstring records what happened — ring
+radii derived from the width went negative, `ctx.arc` threw `IndexSizeError` from
+inside an effect, React unmounted the tree, and the error boundary replaced the whole
+Setup screen. The one radius somebody later derives from `w` inside `StartCanvas`
+would do that to the Start screen instead. The guard is now in all four.
+
+The recorder throws `IndexSizeError` on a negative radius exactly as a browser does,
+which is what makes those guards testable: without it, removing one would still show
+green. That is the same lesson as pass 11 — the instrument has to be able to fail.
+
+### Not covered
+
+`CurrentChart` and `DepartureChart` already carry the guard but have no rendering
+tests; they need a `CurrentPrediction` and a `DepartureSweep` fixture. Obvious next
+step, and small now that the recorder exists.
+
+699 tests (up from 688), typecheck clean, build clean.
+
+---
+
+## 0b. Pass 11 — 2026-08-27 — the UI layer, at last
 
 Tier 1 C, opened in pass 1 and finally done: `@testing-library/react` plus a MapLibre
 stub, and the first tests in this repo that render anything.
@@ -69,7 +117,7 @@ build toolchain, which deserves its own commit and its own verification.
 
 ---
 
-## 0b. Pass 10 — 2026-08-27 — kernel invariants
+## 0c. Pass 10 — 2026-08-27 — kernel invariants
 
 `isochrone.ts` was the last big gap by tests-per-line: 1915 lines, 25 example cases,
 77 lines per case against 8.5 for `departure.ts`. The existing suite is the §10
@@ -123,7 +171,7 @@ layer — `StartCanvas.tsx` (387 lines, 0 cases) and the screens — which needs
 
 ---
 
-## 0c. Pass 9 — 2026-08-27 — property sweep
+## 0d. Pass 9 — 2026-08-27 — property sweep
 
 Coverage is now broad enough that hunting for untested *modules* has stopped paying:
 the only two left with no test imports are the GL layers, which need a real context.
@@ -178,7 +226,7 @@ a skip.
 
 ---
 
-## 0d. Pass 8 — 2026-08-26 — bug hunt
+## 0e. Pass 8 — 2026-08-26 — bug hunt
 
 ### The forecast cache could serve a cube that did not cover the request
 
@@ -233,7 +281,7 @@ animation, the simulator and the particle layer do not.
 
 ---
 
-## 0e. Pass 7 — 2026-08-20 — bug hunt
+## 0f. Pass 7 — 2026-08-20 — bug hunt
 
 A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
 useful result was that **the ranking method from earlier passes was wrong**. Sorting
@@ -291,7 +339,7 @@ current answer and it is a reasonable one.
 
 ---
 
-## 0f. Pass 6 — 2026-08-06
+## 0g. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -347,7 +395,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0g. Pass 5 — 2026-08-06
+## 0h. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -399,7 +447,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0h. Pass 4 — 2026-08-06
+## 0i. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -459,7 +507,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0i. Pass 3 — 2026-08-06
+## 0j. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -501,7 +549,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0j. Pass 2 — 2026-08-06
+## 0k. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
