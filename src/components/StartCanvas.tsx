@@ -46,6 +46,24 @@ export function StartCanvas(props: Props) {
       const dpr = Math.min(window.devicePixelRatio || 1, 2.5)
       const w = parent.clientWidth
       const h = parent.clientHeight
+      /*
+       * Nothing to draw in a box with no area, and the same guard PolarPlot,
+       * CurrentChart and DepartureChart all carry. This was the last of the four
+       * without it.
+       *
+       * Harmless here today, and only by accident: every `arc` radius below is a
+       * constant, and `scale` at w === 0 collapses to 0 rather than dividing by
+       * zero, so the picture degenerates to a point instead of throwing. PolarPlot
+       * was not so lucky - its ring radii are derived from the width, went negative,
+       * and `ctx.arc` threw IndexSizeError from inside an effect, which unmounted
+       * the tree and let the error boundary replace the entire Setup screen. The
+       * one radius someone later derives from `w` in here would do the same to the
+       * Start screen, which is the one screen this app exists for.
+       *
+       * Reachable whenever the pane has not been laid out at first paint: a
+       * collapsed container, a display:none ancestor, a zero-size viewport.
+       */
+      if (w <= 0 || h <= 0) return
       if (cv.width !== w * dpr || cv.height !== h * dpr) {
         cv.width = w * dpr
         cv.height = h * dpr

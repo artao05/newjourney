@@ -1,0 +1,504 @@
+/**
+ * The canvas renderers, tested through a recording 2D context.
+ *
+ * Four components draw with `getContext('2d')` — `StartCanvas` (387 lines, the
+ * beachhead display), `PolarPlot`, `CurrentChart` and `DepartureChart` — and none
+ * had a single test. They are hard to assert on in the usual way because their
+ * output is pixels, so this substitutes a fake context and asserts on the *calls*.
+ *
+ * The invariant that justifies the whole file:
+ *
+ *   **A NaN coordinate silently draws nothing.**
+ *
+ * `moveTo(NaN, 10)` does not throw, does not warn, and leaves the canvas exactly as
+ * it was. So a NaN reaching a drawing call is invisible in a browser — the line you
+ * expected simply is not there, and there is nothing in the console to explain it.
+ * That makes it the one bug class in this part of the codebase that testing can find
+ * and eyeballing cannot. Every case below drives the component with degenerate
+ * inputs and asserts that no non-finite number ever reaches the context.
+ *
+ * @vitest-environment jsdom
+ */
+
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { cleanup, render } from '@testing-library/react'
+import { StartCanvas } from './StartCanvas'
+import { PolarPlot } from './PolarPlot'
+import { findPolar } from '@/data/polars'
+import { computeStart } from '@/lib/startline'
+import { buildLattice } from '@/lib/polar'
+import type {
+  Boat,
+  BoatState,
+  StartLine,
+  StartNumbers,
+  TrackPoint,
+  WindEstimate,
+} from '@/lib/types'
+
+// ------------------------------------------------------- recording 2d context
+
+interface Call {
+  op: string
+  args: unknown[]
+}
+
+class RecordingContext {
+  calls: Call[] = []
+  // Properties the components set; recorded so colour choices can be asserted.
+  fillStyle = ''
+  strokeStyle = ''
+  lineWidth = 0
+  font = ''
+  textAlign = ''
+  globalAlpha = 1
+  readonly styles: string[] = []
+
+  private rec(op: string, args: unknown[]) {
+    this.calls.push({ op, args })
+  }
+
+  setTransform(...a: unknown[]) {
+    this.rec('setTransform', a)
+  }
+  save() {
+    this.rec('save', [])
+  }
+  restore() {
+    this.rec('restore', [])
+  }
+  translate(...a: unknown[]) {
+    this.rec('translate', a)
+  }
+  rotate(...a: unknown[]) {
+    this.rec('rotate', a)
+  }
+  beginPath() {
+    this.rec('beginPath', [])
+  }
+  closePath() {
+    this.rec('closePath', [])
+  }
+  moveTo(...a: unknown[]) {
+    this.rec('moveTo', a)
+  }
+  lineTo(...a: unknown[]) {
+    this.rec('lineTo', a)
+  }
+  quadraticCurveTo(...a: unknown[]) {
+    this.rec('quadraticCurveTo', a)
+  }
+  arc(...a: unknown[]) {
+    // A browser throws IndexSizeError on a negative radius, and that is exactly
+    // how the zero-width-parent crash took out the Setup screen. Reproduce it, or
+    // the guards protecting against it cannot be tested.
+    const r = a[2]
+    if (typeof r === 'number' && r < 0) {
+      throw new DOMException('The radius provided is negative', 'IndexSizeError')
+    }
+    this.rec('arc', a)
+  }
+  fill() {
+    this.rec('fill', [])
+    this.styles.push(String(this.fillStyle))
+  }
+  stroke() {
+    this.rec('stroke', [])
+    this.styles.push(String(this.strokeStyle))
+  }
+  fillRect(...a: unknown[]) {
+    this.rec('fillRect', a)
+    this.styles.push(String(this.fillStyle))
+  }
+  fillText(...a: unknown[]) {
+    this.rec('fillText', a)
+  }
+  setLineDash(...a: unknown[]) {
+    this.rec('setLineDash', a)
+  }
+  clearRect(...a: unknown[]) {
+    this.rec('clearRect', a)
+  }
+  strokeRect(...a: unknown[]) {
+    this.rec('strokeRect', a)
+    this.styles.push(String(this.strokeStyle))
+  }
+  rect(...a: unknown[]) {
+    this.rec('rect', a)
+  }
+  clip() {
+    this.rec('clip', [])
+  }
+}
+
+let ctx: RecordingContext
+
+/** Every numeric argument that reached the context, with the call that carried it. */
+function numericArgs(c: RecordingContext): Array<[string, number, number]> {
+  const out: Array<[string, number, number]> = []
+  for (const call of c.calls) {
+    call.args.forEach((a, i) => {
+      if (typeof a === 'number') out.push([call.op, i, a])
+      else if (Array.isArray(a)) {
+        a.forEach((x, j) => {
+          if (typeof x === 'number') out.push([`${call.op}[${j}]`, i, x])
+        })
+      }
+    })
+  }
+  return out
+}
+
+/**
+ * The assertion this file exists for. Also excludes the text calls: `fillText`
+ * carries a string that would render the word "NaN" on the chart, which is the
+ * same defect wearing different clothes.
+ */
+function expectNothingUndrawable(c: RecordingContext, label: string): void {
+  for (const [op, i, n] of numericArgs(c)) {
+    expect(Number.isFinite(n), `${label}: ${op} arg ${i} is ${n}`).toBe(true)
+  }
+  for (const call of c.calls) {
+    if (call.op !== 'fillText') continue
+    expect(String(call.args[0]), `${label}: fillText`).not.toMatch(/NaN|Infinity|undefined/)
+  }
+}
+
+class NoopResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+beforeEach(() => {
+  ctx = new RecordingContext()
+  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = NoopResizeObserver
+  // jsdom returns null from getContext; hand back the recorder instead, and give
+  // the parent a non-zero size so the components have something to lay out in.
+  HTMLCanvasElement.prototype.getContext = (() => ctx) as unknown as typeof HTMLCanvasElement.prototype.getContext
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', { value: 380, configurable: true })
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', { value: 620, configurable: true })
+})
+
+afterEach(() => {
+  cleanup()
+})
+
+// ------------------------------------------------------------------ fixtures
+
+const BOAT: Boat = {
+  id: 'me',
+  name: 'test',
+  className: 'J/70',
+  loaMetres: 6.93,
+  bowToGpsMetres: 3,
+  mastHeightMetres: 11,
+  polarPct: 100,
+  polarPctNight: 96,
+  tackPenaltyS: 12,
+  gybePenaltyS: 8,
+}
+
+const NOW = Date.UTC(2026, 7, 27, 14, 0, 0)
+const MID = { lat: 43.6675, lon: -70.1735 }
+
+const LINE: StartLine = {
+  port: { lat: MID.lat, lon: MID.lon - 0.0012 },
+  starboard: { lat: MID.lat, lon: MID.lon + 0.0012 },
+  gunTime: NOW + 120_000,
+}
+
+function stateOf(over: Partial<BoatState> = {}): BoatState {
+  return {
+    t: NOW,
+    position: { lat: MID.lat - 0.0008, lon: MID.lon },
+    cog: 350,
+    sog: 4.6,
+    accuracyM: 4,
+    heading: 352,
+    bsp: 4.5,
+    heelDeg: 8,
+    ...over,
+  }
+}
+
+const WIND: WindEstimate = {
+  twd: 0,
+  tws: 11,
+  source: 'manual',
+  uncertaintyDeg: 8,
+  t: NOW,
+}
+
+const lattice = buildLattice(findPolar('j70')!.polar)
+
+function numbersFor(line: StartLine, state: BoatState | null, wind: WindEstimate | null): StartNumbers {
+  return computeStart({
+    line,
+    state: state ?? stateOf(),
+    wind,
+    boat: BOAT,
+    lattice,
+    now: NOW,
+  })
+}
+
+function track(n: number): TrackPoint[] {
+  const out: TrackPoint[] = []
+  for (let i = 0; i < n; i++) {
+    out.push({
+      t: NOW - (n - i) * 1000,
+      lat: MID.lat - 0.002 + i * 0.00002,
+      lon: MID.lon - 0.0005 + i * 0.00001,
+      sog: 4 + (i % 5) * 0.1,
+      cog: 350,
+    })
+  }
+  return out
+}
+
+// ---------------------------------------------------------------- StartCanvas
+
+describe('StartCanvas', () => {
+  it('draws something at all', () => {
+    render(
+      <StartCanvas
+        line={LINE}
+        state={stateOf()}
+        wind={WIND}
+        numbers={numbersFor(LINE, stateOf(), WIND)}
+        boat={BOAT}
+        track={[]}
+        secondsSinceGun={null}
+      />,
+    )
+    expect(ctx.calls.length).toBeGreaterThan(10)
+    expect(ctx.calls.some((c) => c.op === 'stroke' || c.op === 'fill')).toBe(true)
+  })
+
+  it('passes nothing undrawable to the context, across every degenerate input', () => {
+    /*
+     * The heart of the file. Each of these is a state the app really reaches: no
+     * fix yet, no wind yet, one end pinged, neither end pinged, a line pinged twice
+     * in the same spot, and the gun already fired.
+     */
+    const cases: Array<[string, StartLine, BoatState | null, WindEstimate | null, number | null]> = [
+      ['everything present', LINE, stateOf(), WIND, null],
+      ['no fix', LINE, null, WIND, null],
+      ['no wind', LINE, stateOf(), null, null],
+      ['no fix and no wind', LINE, null, null, null],
+      ['only the pin pinged', { ...LINE, starboard: null }, stateOf(), WIND, null],
+      ['only the boat pinged', { ...LINE, port: null }, stateOf(), WIND, null],
+      ['neither end pinged', { port: null, starboard: null, gunTime: LINE.gunTime }, stateOf(), WIND, null],
+      ['no gun time', { ...LINE, gunTime: null }, stateOf(), WIND, null],
+      [
+        'degenerate line, both ends the same point',
+        { port: { ...MID }, starboard: { ...MID }, gunTime: LINE.gunTime },
+        stateOf(),
+        WIND,
+        null,
+      ],
+      ['after the gun', LINE, stateOf(), WIND, 45],
+      ['long after the gun', LINE, stateOf(), WIND, 600],
+      ['stationary boat', LINE, stateOf({ sog: 0, bsp: 0 }), WIND, null],
+      ['no compass', LINE, stateOf({ heading: null }), WIND, null],
+      ['no accuracy figure', LINE, stateOf({ accuracyM: null }), WIND, null],
+      ['over the line early', LINE, stateOf({ position: { lat: MID.lat + 0.0006, lon: MID.lon } }), WIND, null],
+      ['miles from the line', LINE, stateOf({ position: { lat: MID.lat + 0.4, lon: MID.lon + 0.4 } }), WIND, null],
+    ]
+
+    for (const [label, line, state, wind, since] of cases) {
+      ctx = new RecordingContext()
+      const view = render(
+        <StartCanvas
+          line={line}
+          state={state}
+          wind={wind}
+          numbers={numbersFor(line, state, wind)}
+          boat={BOAT}
+          track={[]}
+          secondsSinceGun={since}
+        />,
+      )
+      expectNothingUndrawable(ctx, label)
+      view.unmount()
+      cleanup()
+    }
+  })
+
+  it('stays drawable with a track, including a single point and a long one', () => {
+    for (const n of [0, 1, 2, 500]) {
+      ctx = new RecordingContext()
+      const view = render(
+        <StartCanvas
+          line={LINE}
+          state={stateOf()}
+          wind={WIND}
+          numbers={numbersFor(LINE, stateOf(), WIND)}
+          boat={BOAT}
+          track={track(n)}
+          secondsSinceGun={null}
+        />,
+      )
+      expectNothingUndrawable(ctx, `track of ${n}`)
+      view.unmount()
+      cleanup()
+    }
+  })
+
+  it('survives a collapsed extent, where the scale divides by zero', () => {
+    /*
+     * `scale` is min(w / (maxX - minX), h / (maxY - minY)). If everything the
+     * canvas has to show sits on one point, both extents are zero and the scale is
+     * a division by zero - Infinity, or NaN when the canvas has no size either.
+     * Every coordinate downstream is then non-finite, and a non-finite coordinate
+     * draws nothing at all without raising anything.
+     *
+     * Reached by pinging both ends in the same place - a double tap without moving
+     * - and then losing the fix.
+     */
+    const samePoint: StartLine = { port: { ...MID }, starboard: { ...MID }, gunTime: null }
+    ctx = new RecordingContext()
+    const view = render(
+      <StartCanvas
+        line={samePoint}
+        state={null}
+        wind={null}
+        numbers={numbersFor(samePoint, null, null)}
+        boat={BOAT}
+        track={[]}
+        secondsSinceGun={null}
+      />,
+    )
+    expectNothingUndrawable(ctx, 'collapsed extent')
+    view.unmount()
+    cleanup()
+  })
+
+  it('draws nothing rather than garbage when its parent has no size', () => {
+    // The guard PolarPlot, CurrentChart and DepartureChart all carry and this one
+    // did not. A zero-size parent happens whenever the pane has not been laid out
+    // at first paint: a collapsed container, a display:none ancestor, a zero-size
+    // viewport.
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { value: 0, configurable: true })
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { value: 0, configurable: true })
+    ctx = new RecordingContext()
+    const view = render(
+      <StartCanvas
+        line={LINE}
+        state={stateOf()}
+        wind={WIND}
+        numbers={numbersFor(LINE, stateOf(), WIND)}
+        boat={BOAT}
+        track={[]}
+        secondsSinceGun={null}
+      />,
+    )
+    expectNothingUndrawable(ctx, 'zero-size parent')
+    // With the guard in place it declines to draw at all, rather than drawing a
+    // picture collapsed onto a single point.
+    expect(ctx.calls.length).toBe(0)
+    view.unmount()
+    cleanup()
+  })
+
+  it('survives a boat with no length, which would divide by zero', () => {
+    ctx = new RecordingContext()
+    render(
+      <StartCanvas
+        line={LINE}
+        state={stateOf()}
+        wind={WIND}
+        numbers={numbersFor(LINE, stateOf(), WIND)}
+        boat={{ ...BOAT, loaMetres: 0 }}
+        track={[]}
+        secondsSinceGun={null}
+      />,
+    )
+    expectNothingUndrawable(ctx, 'zero-length boat')
+  })
+
+  it('draws differently when the boat is over the line early', () => {
+    // OCS is the state the screen exists to shout about, so it must change the
+    // picture rather than only a number somewhere else.
+    const below = stateOf()
+    const over = stateOf({ position: { lat: MID.lat + 0.0006, lon: MID.lon } })
+
+    ctx = new RecordingContext()
+    const a = render(
+      <StartCanvas
+        line={LINE}
+        state={below}
+        wind={WIND}
+        numbers={numbersFor(LINE, below, WIND)}
+        boat={BOAT}
+        track={[]}
+        secondsSinceGun={null}
+      />,
+    )
+    const stylesBelow = ctx.styles.join('|')
+    a.unmount()
+    cleanup()
+
+    ctx = new RecordingContext()
+    render(
+      <StartCanvas
+        line={LINE}
+        state={over}
+        wind={WIND}
+        numbers={numbersFor(LINE, over, WIND)}
+        boat={BOAT}
+        track={[]}
+        secondsSinceGun={null}
+      />,
+    )
+    const stylesOver = ctx.styles.join('|')
+
+    expect(numbersFor(LINE, over, WIND).ocs).toBe(true)
+    expect(stylesOver).not.toBe(stylesBelow)
+  })
+})
+
+// ------------------------------------------------------------------ PolarPlot
+
+describe('PolarPlot', () => {
+  it('draws a polar without passing anything undrawable', () => {
+    render(<PolarPlot lattice={lattice} />)
+    expect(ctx.calls.length).toBeGreaterThan(10)
+    expectNothingUndrawable(ctx, 'j70 lattice')
+  })
+
+  it('copes with every class in the library, at silly speed sets', () => {
+    for (const id of ['optimist', 'ilca7', 'j105', 'nacra17', 'cruiser-40']) {
+      for (const speeds of [[6, 10, 14, 20], [0], [0.5, 100], []]) {
+        ctx = new RecordingContext()
+        const view = render(
+          <PolarPlot lattice={buildLattice(findPolar(id)!.polar)} speeds={speeds} />,
+        )
+        expectNothingUndrawable(ctx, `${id} at ${JSON.stringify(speeds)}`)
+        view.unmount()
+        cleanup()
+      }
+    }
+  })
+
+  it('draws nothing rather than throwing when its parent has no width', () => {
+    /*
+     * The documented crash this component already carries a guard for: R is
+     * min(w/2 - 26, h - 34), so w === 0 makes every ring radius negative and
+     * ctx.arc throws IndexSizeError - inside an effect, so React unmounts the tree
+     * and the boundary replaces the whole Setup screen. The recorder throws on a
+     * negative radius exactly as a browser does, so the guard cannot be removed
+     * without this failing.
+     */
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { value: 0, configurable: true })
+    ctx = new RecordingContext()
+    expect(() => render(<PolarPlot lattice={lattice} />)).not.toThrow()
+    expect(ctx.calls.length).toBe(0)
+  })
+
+  it('copes with a null lattice', () => {
+    ctx = new RecordingContext()
+    expect(() => render(<PolarPlot lattice={null} />)).not.toThrow()
+  })
+})
