@@ -13,7 +13,63 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 10 — 2026-08-27 — kernel invariants
+## 0. Pass 11 — 2026-08-27 — the UI layer, at last
+
+Tier 1 C, opened in pass 1 and finally done: `@testing-library/react` plus a MapLibre
+stub, and the first tests in this repo that render anything.
+
+### The bug was in the test config
+
+`vitest`'s `include` was `src/**/*.test.ts`, which does not match `.tsx`. A screen
+test has to render JSX, so the very first one **could not be collected — silently**.
+With `screens.test.tsx` on disk and the old pattern in place, the suite reports *27
+files, 667 tests, green*. I verified that by stashing the fix and re-running.
+
+A whole UI suite could therefore have been written, committed and trusted while never
+running once. That is worse than having no tests at all, because the green run is
+evidence of something nobody checked. `include` is now `src/**/*.test.{ts,tsx}`.
+
+This is the third time in eleven passes that the *instrument* was the problem rather
+than the code — after the `gribStepOf` cast whose test bolted on the property it was
+meant to be checking, and the vacuous `vmcOptimum` case in pass 9. Worth treating as
+a category: **when a test suite is the thing asserting quality, something has to
+assert the suite.**
+
+### What the screens said
+
+Nothing broken, stated plainly. All five mount with an empty store and a populated
+one, and the map is torn down on unmount — a leaked WebGL context per tab switch is
+how a phone runs out of memory during a regatta.
+
+The honesty invariants have teeth for the first time:
+
+- no screen renders the literal `NaN`, `undefined` or `null` as a value, in either
+  store state — the outside-in check for what pass 9 hardened from within
+- Race and Start show em-dashes rather than zeros with no fix and no wind
+- the Route screen says the land pack is absent and never claims a
+  distance-qualified pack before one has loaded
+- the Weather screen offers exactly Wind, Depth and Current, with no wave-height chip
+- it renders no legend at all rather than an unattributed one
+
+Every one of those is a claim this project makes about itself in its own
+documentation, and until now nothing enforced any of them.
+
+### Notes
+
+MapLibre is mocked at the module boundary and deliberately never fires `load`, which
+exercises the pre-map state a real phone shows for the first few hundred
+milliseconds. jsdom has no `ResizeObserver`, which `StartCanvas` legitimately uses, so
+that is stubbed; `StartCanvas` already copes with the null 2D context jsdom returns.
+
+`npm audit` reports one high-severity advisory: `nanoid` via `vite → postcss`. It
+predates this work and is dev-only. Left alone because `audit fix` would bump the
+build toolchain, which deserves its own commit and its own verification.
+
+688 tests (up from 667), typecheck clean, build clean.
+
+---
+
+## 0b. Pass 10 — 2026-08-27 — kernel invariants
 
 `isochrone.ts` was the last big gap by tests-per-line: 1915 lines, 25 example cases,
 77 lines per case against 8.5 for `departure.ts`. The existing suite is the §10
@@ -67,7 +123,7 @@ layer — `StartCanvas.tsx` (387 lines, 0 cases) and the screens — which needs
 
 ---
 
-## 0b. Pass 9 — 2026-08-27 — property sweep
+## 0c. Pass 9 — 2026-08-27 — property sweep
 
 Coverage is now broad enough that hunting for untested *modules* has stopped paying:
 the only two left with no test imports are the GL layers, which need a real context.
@@ -122,7 +178,7 @@ a skip.
 
 ---
 
-## 0c. Pass 8 — 2026-08-26 — bug hunt
+## 0d. Pass 8 — 2026-08-26 — bug hunt
 
 ### The forecast cache could serve a cube that did not cover the request
 
@@ -177,7 +233,7 @@ animation, the simulator and the particle layer do not.
 
 ---
 
-## 0d. Pass 7 — 2026-08-20 — bug hunt
+## 0e. Pass 7 — 2026-08-20 — bug hunt
 
 A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
 useful result was that **the ranking method from earlier passes was wrong**. Sorting
@@ -235,7 +291,7 @@ current answer and it is a reasonable one.
 
 ---
 
-## 0e. Pass 6 — 2026-08-06
+## 0f. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -291,7 +347,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0f. Pass 5 — 2026-08-06
+## 0g. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -343,7 +399,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0g. Pass 4 — 2026-08-06
+## 0h. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -403,7 +459,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0h. Pass 3 — 2026-08-06
+## 0i. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -445,7 +501,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0i. Pass 2 — 2026-08-06
+## 0j. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
@@ -577,6 +633,13 @@ venue.
 
 **Cost.** Small — `depthAt` already exists and the warnings array is already
 rendered.
+
+### C — **done in pass 11.** Harness landed, screens covered, config bug found
+
+The original write-up follows. What actually shipped: `@testing-library/react`, a
+MapLibre module stub, screen smoke tests for all five screens in two store states,
+and the four honesty invariants as executable checks. The `include` pattern that
+would have silently skipped every one of them is fixed.
 
 ### C. A test harness above `src/lib`
 
