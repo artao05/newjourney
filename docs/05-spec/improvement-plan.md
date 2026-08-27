@@ -13,7 +13,62 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 8 — 2026-08-26 — bug hunt
+## 0. Pass 9 — 2026-08-27 — property sweep
+
+Coverage is now broad enough that hunting for untested *modules* has stopped paying:
+the only two left with no test imports are the GL layers, which need a real context.
+So this pass changed method — a property and fuzz sweep over the tactical core
+(`polar.ts`, `startline.ts`, `tactics.ts`: 2 363 lines, 116 example-based tests
+between them) asserting only what must hold for **every** input, not the cases
+someone thought of.
+
+Three invariants: never throw, never NaN, stay in range. Seeded generators, so any
+failure replays.
+
+### Three NaN leaks, all the same shape
+
+A non-finite input walking through to a field whose type is nullable *precisely* so
+it can say "unknown". A NaN says "known", then poisons every arithmetic consumer
+downstream in silence.
+
+| Where | Leak |
+|---|---|
+| `computeTactics` | A non-finite wind reached `out.twd`, and from there every angle derived from it |
+| `computeStart` | `distanceBelowLineM` and the boat-lengths figure computed from a non-finite fix — "NaN boat lengths" on the one screen a sailor stares at during a start |
+| `computeTactics` | A mark with a non-finite position taken as a real mark, putting NaN into every range, bearing and time-to-mark |
+
+**These are consistency gaps, not reachable bugs.** I could not find a path from
+today's UI that produces a non-finite position or wind: `Number('')` is 0, GPS and
+the simulator both give finite values, JSON cannot carry NaN through `localStorage`,
+and the GPX importer was taught to reject non-finite coordinates in pass 2.
+
+They were still worth closing, because **these modules already apply exactly this
+rule and only half-finished the job**. `waterSpeed` says "non-finite in, zero out:
+one NaN fix must not poison every channel". `boundsFrom` checks `uncertaintyDeg`.
+The GPS approach in `startline.ts` checks `cog` and `sog`. The guards were the
+intent; the gaps were the oversight.
+
+### What passed, and one lesson about the tests themselves
+
+Everything else held: polar speed symmetric in ±TWA and never negative across 15
+adversarial wind and angle values including the three that are not numbers, the
+lattice agreeing with the table within its own quantisation step, derived targets
+keeping VMG ≤ BSP with angles on the correct side of the wind, `computeStart`
+surviving every combination of missing line end, missing wind and missing gun, and
+`headingToMakeGood` returning null rather than NaN when the current beats the boat.
+
+One fuzz case was **vacuous on its first run**: it called `vmcOptimum` with
+`markBearing` where the parameter is `bearingToMark`, so every call returned null and
+the assertions were skipped by an `if (!best) continue`. Vitest was perfectly happy;
+`tsc` caught it. Worth remembering that a passing property test can be testing
+nothing, and that the guard clause is where that hides — it is now an assertion, not
+a skip.
+
+656 tests (up from 636), typecheck clean, build clean.
+
+---
+
+## 0b. Pass 8 — 2026-08-26 — bug hunt
 
 ### The forecast cache could serve a cube that did not cover the request
 
@@ -68,7 +123,7 @@ animation, the simulator and the particle layer do not.
 
 ---
 
-## 0b. Pass 7 — 2026-08-20 — bug hunt
+## 0c. Pass 7 — 2026-08-20 — bug hunt
 
 A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
 useful result was that **the ranking method from earlier passes was wrong**. Sorting
@@ -126,7 +181,7 @@ current answer and it is a reasonable one.
 
 ---
 
-## 0c. Pass 6 — 2026-08-06
+## 0d. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -182,7 +237,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0d. Pass 5 — 2026-08-06
+## 0e. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -234,7 +289,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0e. Pass 4 — 2026-08-06
+## 0f. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -294,7 +349,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0f. Pass 3 — 2026-08-06
+## 0g. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -336,7 +391,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0g. Pass 2 — 2026-08-06
+## 0h. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
