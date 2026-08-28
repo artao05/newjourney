@@ -179,6 +179,20 @@ export function RouteScreen() {
     }
   }, [])
 
+  /*
+   * A departure sweep belongs to a course too.
+   *
+   * The store drops the route when the marks change, because a route computed for
+   * marks that no longer exist is describing someone else's race. The sweep is the
+   * same claim on a different axis - "leave at 14:20 and you save eleven minutes" -
+   * and it lives in local state here, so it needs clearing alongside or the panel
+   * keeps recommending a departure for a course that is gone.
+   */
+  useEffect(() => {
+    setSweep(null)
+    setDepartAt(null)
+  }, [course.marks])
+
   // Follow the boat once, on first fix.
   const centred = useRef(false)
   useEffect(() => {

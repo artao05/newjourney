@@ -14,7 +14,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useStore } from './store'
-import type { LatLon } from '@/lib/types'
+import type { LatLon, RouteResult } from '@/lib/types'
 
 const at = (lat: number, lon: number): LatLon => ({ lat, lon })
 
@@ -163,5 +163,88 @@ describe('persistence', () => {
     expect(persisted.wind).toBeUndefined()
     expect(persisted.route).toBeUndefined()
     expect(persisted.track).toBeUndefined()
+  })
+})
+
+describe('a computed route does not outlive the course it was computed for', () => {
+  /*
+   * `setRoute` is called from exactly one place - RouteScreen, on a successful
+   * solve - and used to be called with null from nowhere at all. So changing the
+   * course left the drawn magenta line, the isochrones, the confidence band and the
+   * RESULTS sheet on screen, all describing a course that no longer existed. The
+   * marks layer updates on its own effect, so the screen would show new marks and
+   * an old route to a deleted one at the same time.
+   *
+   * Same family as the stale set-and-drift in App.tsx and the dangling
+   * activeMarkIndex above: state that outlives the thing that justified it.
+   */
+  const fakeRoute = (): RouteResult => ({
+    ok: true,
+    legs: [
+      {
+        t: 1,
+        position: at(43.6, -70.2),
+        twd: 220,
+        tws: 12,
+        twa: 45,
+        bsp: 6,
+        heading: 265,
+        isBeating: false,
+        tack: 'starboard',
+        currentSet: null,
+        currentDrift: null,
+        distanceNm: 0.5,
+      },
+    ],
+    etaMs: 2,
+    elapsedS: 1,
+    directTimeS: 1,
+    isochrones: [],
+    reverseIsochrones: [],
+    sensitivity: null,
+    diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, warnings: [] },
+  })
+
+  beforeEach(() => {
+    courseOf(2)
+    useStore.getState().setRoute(fakeRoute())
+    useStore.getState().setRouteError('stale error')
+    expect(useStore.getState().route).not.toBeNull()
+  })
+
+  it('clears when a mark is added', () => {
+    useStore.getState().addMark('new', at(43.7, -70.1))
+    expect(useStore.getState().route).toBeNull()
+    expect(useStore.getState().routeError).toBeNull()
+  })
+
+  it('clears when a mark is removed', () => {
+    const marks = useStore.getState().course.marks
+    useStore.getState().removeMark(marks[0].id)
+    expect(useStore.getState().route).toBeNull()
+  })
+
+  it('clears when the marks are replaced wholesale, as a GPX import does', () => {
+    useStore.getState().replaceMarks([{ name: 'A', position: at(43.9, -70.3) }])
+    expect(useStore.getState().route).toBeNull()
+  })
+
+  it('clears when the course is cleared', () => {
+    useStore.getState().clearCourse()
+    expect(useStore.getState().route).toBeNull()
+  })
+
+  it('survives a remove that matched nothing, because the course did not change', () => {
+    useStore.getState().removeMark('no-such-id')
+    expect(useStore.getState().route).not.toBeNull()
+  })
+
+  it('survives a start-line ping, which does not invalidate a route', () => {
+    // The route starts from the boat, not from the line: pinging an end changes
+    // the start numbers and nothing the router computed.
+    useStore.getState().setStartEnd('port', at(43.6, -70.21))
+    useStore.getState().setGunTime(Date.now() + 60_000)
+    useStore.getState().setActiveMark(1)
+    expect(useStore.getState().route).not.toBeNull()
   })
 })

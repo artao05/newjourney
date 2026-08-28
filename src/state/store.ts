@@ -112,6 +112,22 @@ const EMPTY_COURSE: Course = {
 
 let markSeq = 0
 
+/**
+ * What a course change invalidates.
+ *
+ * A route is computed *for* a set of marks. Change them and the drawn magenta line,
+ * its isochrones, its confidence band and the RESULTS sheet are all describing a
+ * course that no longer exists — and the Route screen draws the marks from a
+ * different effect, so it will happily show the new marks and the old route to a
+ * deleted one at the same time.
+ *
+ * Spread into every mutator that changes which marks exist. Deliberately NOT applied
+ * to the start line or the active-mark pointer: the router starts from the boat, so
+ * pinging an end or switching the active leg changes the tactical numbers and
+ * nothing the router computed.
+ */
+const COURSE_CHANGED = { route: null, routeError: null } as const
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -142,6 +158,7 @@ export const useStore = create<AppState>()(
         }),
       addMark: (name, at) =>
         set({
+          ...COURSE_CHANGED,
           course: {
             ...get().course,
             marks: [
@@ -152,6 +169,7 @@ export const useStore = create<AppState>()(
         }),
       replaceMarks: (marks) =>
         set({
+          ...COURSE_CHANGED,
           course: {
             ...get().course,
             marks: marks.map((m) => ({
@@ -183,11 +201,12 @@ export const useStore = create<AppState>()(
         const marks = course.marks.filter((m) => m.id !== id)
         const shifted = at < activeMarkIndex ? activeMarkIndex - 1 : activeMarkIndex
         set({
+          ...COURSE_CHANGED,
           course: { ...course, marks },
           activeMarkIndex: marks.length === 0 ? 0 : Math.min(Math.max(0, shifted), marks.length - 1),
         })
       },
-      clearCourse: () => set({ course: EMPTY_COURSE, activeMarkIndex: 0 }),
+      clearCourse: () => set({ ...COURSE_CHANGED, course: EMPTY_COURSE, activeMarkIndex: 0 }),
       activeMarkIndex: 0,
       setActiveMark: (i) => set({ activeMarkIndex: i }),
 
