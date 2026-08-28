@@ -123,9 +123,10 @@ See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next, and
 
 ## Verified state
 
-At the last commit: **208 tests passing**, `tsc --noEmit` clean, `npm run build`
-clean, all four tabs rendering. First load is 92 KB gzipped; the map chunk
-(~290 KB gzipped, mostly MapLibre) loads only when you open the Route tab.
+At the last commit: **748 tests passing**, `tsc --noEmit` clean, `npm run build`
+clean, all five tabs rendering — there is now a test that mounts each of them, so
+that last claim is checked rather than asserted. First load is 94 KB gzipped; the map
+chunk (~285 KB gzipped, mostly MapLibre) loads only when you open a chart tab.
 
 **Not for navigation.** Prototype. Advisory only. Nothing here replaces official
 charts, official tide tables, or your own judgment.

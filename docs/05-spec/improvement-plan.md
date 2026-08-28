@@ -13,7 +13,64 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 16 — 2026-08-28 — the service worker
+## 0. Pass 17 — 2026-08-28 — the install surface
+
+Staying in the family pass 16 opened: the delivery plumbing, where the bugs have the
+widest blast radius and nobody had looked. `index.html`, the web manifest and the
+icons.
+
+### The icon claimed to be maskable and was not
+
+The manifest declared its single icon `purpose: "any maskable"`. Android believes
+that: it applies its own mask — circle, squircle, rounded square, by launcher — and
+crops everything outside a circle of 80% of the canvas. The icon was drawn for
+neither half of the promise. It carried **its own rounded rect** for the platform mask
+to fight, and its waterline ended **233.7 px from centre against a safe radius of
+204.8**, so the ends were being cut off on any adaptive launcher.
+
+Split rather than compromising the artwork: `icon.svg` keeps its rounded corners and
+full-bleed drawing and is now declared `any`; a new `icon-maskable.svg` bleeds to the
+edge with the artwork scaled into the central 80%. Furthest content point is now
+187 px against 204.8 — computed, not eyeballed.
+
+### Two theme colours
+
+`index.html` said `#0b1a2b`, the manifest said `#08131f`. The browser paints the
+address bar from the first and the installed app's title bar from the second, so the
+colour visibly changed when a user installed. `styles.css` has `--bg: #08131f`, which
+settles which was stale.
+
+### The guard, which earned itself immediately
+
+`pwa.test.ts` defends the install surface: the manifest parses and carries what a
+browser needs to offer installation, `start_url` and `scope` stay relative so the
+subpath deploy `base: './'` exists for actually works, every named icon exists on disk
+*and in `dist`*, the manifest link and the service-worker registration are relative,
+the theme colours agree, and any icon claiming `maskable` bleeds to the edge with its
+content inside the safe zone.
+
+The first run after adding the maskable icon failed on "missing from dist" — the
+manifest referenced a file the previous build had not copied. Exactly the shape of
+bug it exists to catch, caught within a minute of existing.
+
+### Recorded rather than half-fixed
+
+iOS ignores manifest icons for Add to Home Screen and ignores SVG for
+`apple-touch-icon`, so on the platform this app is most likely to be installed on,
+the tile is whatever Safari decides. That needs a rasterised 180×180 PNG — a real
+asset, not a link tag, because pointing `apple-touch-icon` at the SVG would look like
+a fix and change nothing. In RUNNING.md with the other honest gaps, along with the
+deliberate WCAG 1.4.4 trade in disabling pinch zoom.
+
+Also refreshed RUNNING.md's "Verified state", which claimed **208 tests** and "all
+four tabs" against 748 and five. That block is now checked rather than asserted:
+there is a test that mounts every tab.
+
+748 tests (up from 738), typecheck clean, build clean.
+
+---
+
+## 0b. Pass 16 — 2026-08-28 — the service worker
 
 Everything in `src` now has tests, so this pass went outside it. `public/sw.js` is 83
 lines deciding what a sailor sees when the dockside 3G drops out, it is not imported
@@ -65,7 +122,7 @@ Worth remembering that the build and deploy plumbing is part of the product.
 
 ---
 
-## 0b. Pass 15 — 2026-08-28 — the derived-state sweep, and clearing the debt
+## 0c. Pass 15 — 2026-08-28 — the derived-state sweep, and clearing the debt
 
 The sweep promised in pass 14: enumerate every piece of derived state, ask what
 invalidates it, and check whether anything actually does.
@@ -119,7 +176,7 @@ that "lower expected value" is not "no value", especially for the cheap item.
 
 ---
 
-## 0c. Pass 14 — 2026-08-27 — a route that outlived its course
+## 0d. Pass 14 — 2026-08-27 — a route that outlived its course
 
 Rather than pick the next untested file, this pass hunted the **category named in
 pass 13**: state that outlives the thing that justified it. That turned out to be the
@@ -176,7 +233,7 @@ losing the coin toss.
 
 ---
 
-## 0d. Pass 13 — 2026-08-27 — the app shell
+## 0e. Pass 13 — 2026-08-27 — the app shell
 
 `App.tsx` is 319 lines of wiring that nothing tested: which polar loads, how the wind
 estimate and its uncertainty are assembled, how set and drift are derived, how the
@@ -224,7 +281,7 @@ step.
 
 ---
 
-## 0e. Pass 12 — 2026-08-27 — the canvas renderers
+## 0f. Pass 12 — 2026-08-27 — the canvas renderers
 
 Four components draw with `getContext('2d')` and none had a test:
 `StartCanvas` (387 lines, the beachhead display), `PolarPlot`, `CurrentChart`,
@@ -272,7 +329,7 @@ step, and small now that the recorder exists.
 
 ---
 
-## 0f. Pass 11 — 2026-08-27 — the UI layer, at last
+## 0g. Pass 11 — 2026-08-27 — the UI layer, at last
 
 Tier 1 C, opened in pass 1 and finally done: `@testing-library/react` plus a MapLibre
 stub, and the first tests in this repo that render anything.
@@ -328,7 +385,7 @@ build toolchain, which deserves its own commit and its own verification.
 
 ---
 
-## 0g. Pass 10 — 2026-08-27 — kernel invariants
+## 0h. Pass 10 — 2026-08-27 — kernel invariants
 
 `isochrone.ts` was the last big gap by tests-per-line: 1915 lines, 25 example cases,
 77 lines per case against 8.5 for `departure.ts`. The existing suite is the §10
@@ -382,7 +439,7 @@ layer — `StartCanvas.tsx` (387 lines, 0 cases) and the screens — which needs
 
 ---
 
-## 0h. Pass 9 — 2026-08-27 — property sweep
+## 0i. Pass 9 — 2026-08-27 — property sweep
 
 Coverage is now broad enough that hunting for untested *modules* has stopped paying:
 the only two left with no test imports are the GL layers, which need a real context.
@@ -437,7 +494,7 @@ a skip.
 
 ---
 
-## 0i. Pass 8 — 2026-08-26 — bug hunt
+## 0j. Pass 8 — 2026-08-26 — bug hunt
 
 ### The forecast cache could serve a cube that did not cover the request
 
@@ -492,7 +549,7 @@ animation, the simulator and the particle layer do not.
 
 ---
 
-## 0j. Pass 7 — 2026-08-20 — bug hunt
+## 0k. Pass 7 — 2026-08-20 — bug hunt
 
 A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
 useful result was that **the ranking method from earlier passes was wrong**. Sorting
@@ -550,7 +607,7 @@ current answer and it is a reasonable one.
 
 ---
 
-## 0k. Pass 6 — 2026-08-06
+## 0l. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -606,7 +663,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0l. Pass 5 — 2026-08-06
+## 0m. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -658,7 +715,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0m. Pass 4 — 2026-08-06
+## 0n. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -718,7 +775,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0n. Pass 3 — 2026-08-06
+## 0o. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -760,7 +817,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0o. Pass 2 — 2026-08-06
+## 0p. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
