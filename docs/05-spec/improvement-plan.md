@@ -13,7 +13,61 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 14 — 2026-08-27 — a route that outlived its course
+## 0. Pass 15 — 2026-08-28 — the derived-state sweep, and clearing the debt
+
+The sweep promised in pass 14: enumerate every piece of derived state, ask what
+invalidates it, and check whether anything actually does.
+
+### The sweep found no reachable bug, which is itself the result
+
+After three consecutive passes finding real bugs in this category, the fourth found
+none that a user can reach today. Checked and cleared: `wind` (both producing effects
+re-run on a mode change), the what-if shift (component-local, resets with the screen,
+never pushed into the history), `track` (a recording, deliberately persistent),
+`polar`/`polarId` (set together), `cube` (refetched on model change), the boat fix
+(stale but honestly labelled "stale Ns", verified in pass 8).
+
+Two latent hazards found and guarded rather than left:
+
+**Wind history spans wind sources.** `boundsFrom` reads the observed oscillation
+from `windHistory` but decides whether to trust it from `wind.source` — the source of
+the *latest* estimate. Nothing kept those in step. Sit in manual for fifteen minutes,
+filling 900 samples of one typed number whose σ is exactly zero, then switch to a
+source in `MEASURED_SOURCES`, and the layline band is trusted at **0°**: perfect
+knowledge of the wind, inferred from a number somebody guessed. Unreachable today —
+checked rather than assumed, nothing in the app produces an `instrument` or
+`estimated` wind — but invisible when it does bite, and Signal K is on the roadmap
+that makes it bite. Changing the source now empties the history; re-selecting the
+same source does not.
+
+### The deferred debt, cleared, and a real NaN
+
+`CurrentChart` and `DepartureChart` were the last two canvas renderers with no tests,
+deferred three passes running. Done — and they produced **the first genuine
+NaN-into-canvas the recorder has caught**.
+
+`CurrentChart` divides by its window span to project time onto x. A `windowHours` of
+zero makes `t0 === t1`, so every projection divides by zero and NaN reaches `moveTo`
+— which does not throw, does not warn, and draws nothing. The chart comes out blank
+with nothing anywhere to explain it. `plotW` and `plotH` two lines above are already
+floored with `Math.max(1, …)`; the span never got the same treatment. Latent (the
+only caller passes a hardcoded 12) and stops being latent the moment the window
+becomes adjustable, which is an obvious feature for a chart with a timeline under it.
+
+That is the payoff for the premise of pass 12: this bug class is invisible in a
+browser and only a recording context finds it.
+
+### On deferring
+
+Three passes of "next time" was too many. The seam-hunting genuinely out-earned it
+each time, and the debt still turned out to hold a real defect. Worth remembering
+that "lower expected value" is not "no value", especially for the cheap item.
+
+726 tests (up from 716), typecheck clean, build clean.
+
+---
+
+## 0b. Pass 14 — 2026-08-27 — a route that outlived its course
 
 Rather than pick the next untested file, this pass hunted the **category named in
 pass 13**: state that outlives the thing that justified it. That turned out to be the
@@ -70,7 +124,7 @@ losing the coin toss.
 
 ---
 
-## 0b. Pass 13 — 2026-08-27 — the app shell
+## 0c. Pass 13 — 2026-08-27 — the app shell
 
 `App.tsx` is 319 lines of wiring that nothing tested: which polar loads, how the wind
 estimate and its uncertainty are assembled, how set and drift are derived, how the
@@ -118,7 +172,7 @@ step.
 
 ---
 
-## 0c. Pass 12 — 2026-08-27 — the canvas renderers
+## 0d. Pass 12 — 2026-08-27 — the canvas renderers
 
 Four components draw with `getContext('2d')` and none had a test:
 `StartCanvas` (387 lines, the beachhead display), `PolarPlot`, `CurrentChart`,
@@ -166,7 +220,7 @@ step, and small now that the recorder exists.
 
 ---
 
-## 0d. Pass 11 — 2026-08-27 — the UI layer, at last
+## 0e. Pass 11 — 2026-08-27 — the UI layer, at last
 
 Tier 1 C, opened in pass 1 and finally done: `@testing-library/react` plus a MapLibre
 stub, and the first tests in this repo that render anything.
@@ -222,7 +276,7 @@ build toolchain, which deserves its own commit and its own verification.
 
 ---
 
-## 0e. Pass 10 — 2026-08-27 — kernel invariants
+## 0f. Pass 10 — 2026-08-27 — kernel invariants
 
 `isochrone.ts` was the last big gap by tests-per-line: 1915 lines, 25 example cases,
 77 lines per case against 8.5 for `departure.ts`. The existing suite is the §10
@@ -276,7 +330,7 @@ layer — `StartCanvas.tsx` (387 lines, 0 cases) and the screens — which needs
 
 ---
 
-## 0f. Pass 9 — 2026-08-27 — property sweep
+## 0g. Pass 9 — 2026-08-27 — property sweep
 
 Coverage is now broad enough that hunting for untested *modules* has stopped paying:
 the only two left with no test imports are the GL layers, which need a real context.
@@ -331,7 +385,7 @@ a skip.
 
 ---
 
-## 0g. Pass 8 — 2026-08-26 — bug hunt
+## 0h. Pass 8 — 2026-08-26 — bug hunt
 
 ### The forecast cache could serve a cube that did not cover the request
 
@@ -386,7 +440,7 @@ animation, the simulator and the particle layer do not.
 
 ---
 
-## 0h. Pass 7 — 2026-08-20 — bug hunt
+## 0i. Pass 7 — 2026-08-20 — bug hunt
 
 A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
 useful result was that **the ranking method from earlier passes was wrong**. Sorting
@@ -444,7 +498,7 @@ current answer and it is a reasonable one.
 
 ---
 
-## 0i. Pass 6 — 2026-08-06
+## 0j. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -500,7 +554,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0j. Pass 5 — 2026-08-06
+## 0k. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -552,7 +606,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0k. Pass 4 — 2026-08-06
+## 0l. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -612,7 +666,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0l. Pass 3 — 2026-08-06
+## 0m. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -654,7 +708,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0m. Pass 2 — 2026-08-06
+## 0n. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
