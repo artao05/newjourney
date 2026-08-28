@@ -13,7 +13,59 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 15 — 2026-08-28 — the derived-state sweep, and clearing the debt
+## 0. Pass 16 — 2026-08-28 — the service worker
+
+Everything in `src` now has tests, so this pass went outside it. `public/sw.js` is 83
+lines deciding what a sailor sees when the dockside 3G drops out, it is not imported
+by the app, and nothing had ever run it.
+
+The harness loads the file and evaluates it against a fake worker global — a `self`
+that collects listeners, a `caches` that is a Map of Maps, a `fetch` the test
+controls — then dispatches real-shaped events at the handlers. Worth building because
+the decisions in there are product claims, not implementation details.
+
+### An installed user was frozen on the build they first visited
+
+`index.html` was served **cache-first**. It is the one same-origin file whose name
+never changes while its contents change on every deploy, because it carries the
+`<script src>` pointing at the newly hashed bundle. So an installed user kept running
+whatever version they first opened — and `VERSION` is a hand-edited constant, so
+nothing invalidated it unless a developer remembered to bump it.
+
+Concretely: the land-mask clip, the depth datum caveats, the stale-current fix and
+every other correction of the last fortnight **would never have reached an installed
+phone**. The offline story worked. The update story did not, and the two look
+identical from the inside.
+
+Navigations now go network-first with a fallback to the cached shell, so a deploy
+lands on next launch and offline still opens the app. Both directions tested.
+
+### And the venue packs were frozen with it
+
+`portland-land.bin`, `portland-depth.bin` and the manifest keep their filenames
+across deploys, so cache-first froze whatever was downloaded first. The depth grid
+has already been regenerated once in development; an installed user would still be
+routing against the first copy.
+
+Now cache-first with a background revalidate — instant response, current next
+launch. Only `/assets/` output skips the revalidate, because a cached copy of a
+content-hashed name cannot be the wrong copy. Verified against the real build output:
+the pattern matches all 13 emitted assets and none of `index.html`, the manifest,
+`sw.js` or the venue packs.
+
+### Why this was the best-value target left
+
+Sixteen passes in, the bugs have moved steadily outward: from arithmetic, to module
+seams, to state lifetimes, and now to the delivery mechanism. This one had the widest
+blast radius of anything found so far — it does not corrupt a number, it prevents
+every future fix from arriving — and it sat in the one file nobody thought of as code.
+Worth remembering that the build and deploy plumbing is part of the product.
+
+738 tests (up from 726), typecheck clean, build clean.
+
+---
+
+## 0b. Pass 15 — 2026-08-28 — the derived-state sweep, and clearing the debt
 
 The sweep promised in pass 14: enumerate every piece of derived state, ask what
 invalidates it, and check whether anything actually does.
@@ -67,7 +119,7 @@ that "lower expected value" is not "no value", especially for the cheap item.
 
 ---
 
-## 0b. Pass 14 — 2026-08-27 — a route that outlived its course
+## 0c. Pass 14 — 2026-08-27 — a route that outlived its course
 
 Rather than pick the next untested file, this pass hunted the **category named in
 pass 13**: state that outlives the thing that justified it. That turned out to be the
@@ -124,7 +176,7 @@ losing the coin toss.
 
 ---
 
-## 0c. Pass 13 — 2026-08-27 — the app shell
+## 0d. Pass 13 — 2026-08-27 — the app shell
 
 `App.tsx` is 319 lines of wiring that nothing tested: which polar loads, how the wind
 estimate and its uncertainty are assembled, how set and drift are derived, how the
@@ -172,7 +224,7 @@ step.
 
 ---
 
-## 0d. Pass 12 — 2026-08-27 — the canvas renderers
+## 0e. Pass 12 — 2026-08-27 — the canvas renderers
 
 Four components draw with `getContext('2d')` and none had a test:
 `StartCanvas` (387 lines, the beachhead display), `PolarPlot`, `CurrentChart`,
@@ -220,7 +272,7 @@ step, and small now that the recorder exists.
 
 ---
 
-## 0e. Pass 11 — 2026-08-27 — the UI layer, at last
+## 0f. Pass 11 — 2026-08-27 — the UI layer, at last
 
 Tier 1 C, opened in pass 1 and finally done: `@testing-library/react` plus a MapLibre
 stub, and the first tests in this repo that render anything.
@@ -276,7 +328,7 @@ build toolchain, which deserves its own commit and its own verification.
 
 ---
 
-## 0f. Pass 10 — 2026-08-27 — kernel invariants
+## 0g. Pass 10 — 2026-08-27 — kernel invariants
 
 `isochrone.ts` was the last big gap by tests-per-line: 1915 lines, 25 example cases,
 77 lines per case against 8.5 for `departure.ts`. The existing suite is the §10
@@ -330,7 +382,7 @@ layer — `StartCanvas.tsx` (387 lines, 0 cases) and the screens — which needs
 
 ---
 
-## 0g. Pass 9 — 2026-08-27 — property sweep
+## 0h. Pass 9 — 2026-08-27 — property sweep
 
 Coverage is now broad enough that hunting for untested *modules* has stopped paying:
 the only two left with no test imports are the GL layers, which need a real context.
@@ -385,7 +437,7 @@ a skip.
 
 ---
 
-## 0h. Pass 8 — 2026-08-26 — bug hunt
+## 0i. Pass 8 — 2026-08-26 — bug hunt
 
 ### The forecast cache could serve a cube that did not cover the request
 
@@ -440,7 +492,7 @@ animation, the simulator and the particle layer do not.
 
 ---
 
-## 0i. Pass 7 — 2026-08-20 — bug hunt
+## 0j. Pass 7 — 2026-08-20 — bug hunt
 
 A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
 useful result was that **the ranking method from earlier passes was wrong**. Sorting
@@ -498,7 +550,7 @@ current answer and it is a reasonable one.
 
 ---
 
-## 0j. Pass 6 — 2026-08-06
+## 0k. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -554,7 +606,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0k. Pass 5 — 2026-08-06
+## 0l. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -606,7 +658,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0l. Pass 4 — 2026-08-06
+## 0m. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -666,7 +718,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0m. Pass 3 — 2026-08-06
+## 0n. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -708,7 +760,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0n. Pass 2 — 2026-08-06
+## 0o. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
