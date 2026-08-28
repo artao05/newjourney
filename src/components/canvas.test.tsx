@@ -24,6 +24,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { StartCanvas } from './StartCanvas'
 import { PolarPlot } from './PolarPlot'
+import { CurrentChart } from './CurrentChart'
+import { DepartureChart } from './DepartureChart'
 import { findPolar } from '@/data/polars'
 import { computeStart } from '@/lib/startline'
 import { buildLattice } from '@/lib/polar'
@@ -500,5 +502,148 @@ describe('PolarPlot', () => {
   it('copes with a null lattice', () => {
     ctx = new RecordingContext()
     expect(() => render(<PolarPlot lattice={null} />)).not.toThrow()
+  })
+})
+
+// --------------------------------------------------- CurrentChart / DepartureChart
+
+describe('CurrentChart', () => {
+  const T = Date.UTC(2026, 7, 28, 6, 0, 0)
+
+  /** A tidal curve reversing about every six hours, as a station really does. */
+  function prediction(points: number) {
+    const series = []
+    for (let i = 0; i < points; i++) {
+      const t = T + i * 6 * 60_000
+      series.push({ t, kn: 1.2 * Math.sin((i / 60) * Math.PI) })
+    }
+    return {
+      stationId: 'CAB1401',
+      floodDir: 310,
+      ebbDir: 138,
+      series,
+      events: [
+        { t: T + 30 * 60_000, type: 'slack' as const, kn: 0 },
+        { t: T + 3 * 3_600_000, type: 'flood' as const, kn: 1.17 },
+        { t: T + 6 * 3_600_000, type: 'slack' as const, kn: 0 },
+      ],
+      fetchedAt: T,
+    }
+  }
+
+  it('draws a curve and passes nothing undrawable', () => {
+    render(<CurrentChart prediction={prediction(480)} t={T + 2 * 3_600_000} windowHours={12} />)
+    expect(ctx.calls.length).toBeGreaterThan(10)
+    expectNothingUndrawable(ctx, 'twelve-hour window')
+  })
+
+  it('copes with an empty series, one point, and a marker outside the window', () => {
+    /*
+     * All three happen. An empty series is a station that answered with no data; a
+     * single point is the first sample of a fetch in progress; a marker outside the
+     * window is the timeline scrubbed beyond the prediction, which is easy to do
+     * because the forecast runs 72 hours and the current prediction runs 48.
+     */
+    const cases: Array<[string, number, number]> = [
+      ['empty series', 0, T],
+      ['one point', 1, T],
+      ['two points', 2, T],
+      ['marker before the series', 480, T - 5 * 3_600_000],
+      ['marker after the series', 480, T + 96 * 3_600_000],
+    ]
+    for (const [label, n, at] of cases) {
+      ctx = new RecordingContext()
+      const view = render(<CurrentChart prediction={prediction(n)} t={at} windowHours={12} />)
+      expectNothingUndrawable(ctx, label)
+      view.unmount()
+      cleanup()
+    }
+  })
+
+  it('copes with a zero-width window and a zero height', () => {
+    for (const [w, h] of [[0, 120], [12, 0]]) {
+      ctx = new RecordingContext()
+      const view = render(
+        <CurrentChart prediction={prediction(480)} t={T} windowHours={w} height={h} />,
+      )
+      expectNothingUndrawable(ctx, `window ${w} h, height ${h}`)
+      view.unmount()
+      cleanup()
+    }
+  })
+
+  it('draws nothing rather than throwing when its parent has no width', () => {
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { value: 0, configurable: true })
+    ctx = new RecordingContext()
+    expect(() => render(<CurrentChart prediction={prediction(480)} t={T} />)).not.toThrow()
+    expect(ctx.calls.length).toBe(0)
+  })
+})
+
+describe('DepartureChart', () => {
+  const T = Date.UTC(2026, 7, 28, 6, 0, 0)
+
+  function sweep(n: number, opts: { allFail?: boolean } = {}) {
+    const options = []
+    for (let i = 0; i < n; i++) {
+      const departAt = T + i * 3_600_000
+      const failed = opts.allFail || i === 2
+      options.push({
+        departAt,
+        elapsedS: failed ? null : 7200 + i * 240,
+        etaMs: failed ? null : departAt + (7200 + i * 240) * 1000,
+        costS: failed ? null : i * 240,
+        timeStepS: failed ? null : 600,
+        ...(failed ? { error: 'no legal move from the frontier' } : {}),
+      })
+    }
+    const ok = options.filter((o) => o.elapsedS != null)
+    return {
+      options,
+      best: ok[0] ?? null,
+      spreadS: ok.length > 1 ? 240 * (ok.length - 1) : null,
+      stepFloorS: ok.length > 0 ? 600 : null,
+      attempted: n,
+      succeeded: ok.length,
+      warnings: [],
+    }
+  }
+
+  it('draws the sweep and passes nothing undrawable', () => {
+    render(<DepartureChart sweep={sweep(13)} selected={T + 3_600_000} />)
+    expect(ctx.calls.length).toBeGreaterThan(10)
+    expectNothingUndrawable(ctx, 'thirteen departures')
+  })
+
+  it('copes with a sweep where nothing succeeded', () => {
+    // The honest outcome of a course walled in by land, and the one where every
+    // scale is degenerate: no best, no spread, no step floor.
+    ctx = new RecordingContext()
+    render(<DepartureChart sweep={sweep(6, { allFail: true })} />)
+    expectNothingUndrawable(ctx, 'all failed')
+  })
+
+  it('copes with an empty sweep, a single departure, and a selection off the scale', () => {
+    const cases: Array<[string, number, number | null]> = [
+      ['no departures', 0, null],
+      ['one departure', 1, T],
+      ['selection before the window', 13, T - 20 * 3_600_000],
+      ['selection after the window', 13, T + 200 * 3_600_000],
+      ['no selection', 13, null],
+    ]
+    for (const [label, n, selected] of cases) {
+      ctx = new RecordingContext()
+      const view = render(<DepartureChart sweep={sweep(n)} selected={selected} />)
+      expectNothingUndrawable(ctx, label)
+      view.unmount()
+      cleanup()
+    }
+  })
+
+  it('draws nothing rather than throwing when its parent has no width', () => {
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { value: 0, configurable: true })
+    ctx = new RecordingContext()
+    expect(() => render(<DepartureChart sweep={sweep(13)} />)).not.toThrow()
+    expect(ctx.calls.length).toBe(0)
   })
 })

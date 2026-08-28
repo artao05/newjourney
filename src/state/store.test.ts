@@ -248,3 +248,36 @@ describe('a computed route does not outlive the course it was computed for', () 
     expect(useStore.getState().route).not.toBeNull()
   })
 })
+
+describe('wind history belongs to one wind source', () => {
+  /*
+   * `tactics.boundsFrom` reads the observed oscillation from the history but
+   * decides whether to trust it from `wind.source` - the source of the latest
+   * estimate. If the two disagree, a spread measured from typed numbers can be
+   * trusted as though it were measured from a masthead unit, and 900 samples of one
+   * typed number have a standard deviation of exactly zero.
+   */
+  /** No action empties the history directly, so a source change is the reset. */
+  function freshHistory() {
+    useStore.getState().setWindMode('forecast')
+    useStore.getState().setWindMode('manual')
+    expect(useStore.getState().windHistory).toEqual([])
+  }
+
+  it('clears the history when the source changes', () => {
+    freshHistory()
+    for (let i = 0; i < 20; i++) useStore.getState().pushWind({ t: i, twd: 270, tws: 12 })
+    expect(useStore.getState().windHistory.length).toBe(20)
+    useStore.getState().setWindMode('forecast')
+    expect(useStore.getState().windHistory).toEqual([])
+  })
+
+  it('keeps the history when the same source is set again', () => {
+    // Re-selecting the current mode is a no-op a UI does constantly; it must not
+    // throw away fifteen minutes of breeze.
+    freshHistory()
+    for (let i = 0; i < 20; i++) useStore.getState().pushWind({ t: i, twd: 270, tws: 12 })
+    useStore.getState().setWindMode('manual')
+    expect(useStore.getState().windHistory.length).toBe(20)
+  })
+})

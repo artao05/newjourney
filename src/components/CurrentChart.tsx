@@ -119,7 +119,16 @@ function render(
   const plotW = Math.max(1, w - padL - padR)
   const plotH = Math.max(1, h - padT - padB)
 
-  const half = (windowHours * HOUR) / 2
+  /*
+   * Floor the span, the way `plotW` and `plotH` are floored just above.
+   *
+   * A zero or negative window makes `t0 === t1`, so every x projection divides by
+   * zero and NaN reaches `moveTo`. That does not throw and does not warn — a
+   * non-finite coordinate simply draws nothing — so the chart would come out blank
+   * with no error anywhere to explain it. One minute rather than something larger
+   * so a caller asking for a genuinely short window still gets what it asked for.
+   */
+  const half = (Math.max(1 / 60, windowHours) * HOUR) / 2
   const t0 = t - half
   const t1 = t + half
 

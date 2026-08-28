@@ -222,7 +222,26 @@ export const useStore = create<AppState>()(
       manualWind: { twd: 270, tws: 12 },
       setManualWind: (twd, tws) => set({ manualWind: { twd, tws } }),
       windMode: 'manual',
-      setWindMode: (m) => set({ windMode: m }),
+      /*
+       * Changing the wind source empties the history, because the history is
+       * evidence about one measurement process and the new source is a different
+       * one.
+       *
+       * `tactics.boundsFrom` decides how far to trust the observed oscillation from
+       * `wind.source` — the source of the *latest* estimate — while reading the
+       * spread from a history that may have been filled by something else entirely.
+       * Sit in manual for fifteen minutes, which fills 900 samples of one typed
+       * number with a standard deviation of exactly zero, then switch to a source
+       * in MEASURED_SOURCES, and the layline band would be trusted at 0 degrees:
+       * perfect knowledge of the wind, inferred from a number somebody guessed.
+       *
+       * Latent today — nothing in the app yet produces an 'instrument' or
+       * 'estimated' wind, so the max-with-nominal branch always applies. Guarded
+       * now because it is invisible when it does bite, and because Signal K ingest
+       * is on the roadmap that would make it bite.
+       */
+      setWindMode: (m) =>
+        set(m === get().windMode ? { windMode: m } : { windMode: m, windHistory: [] }),
       windHistory: [],
       pushWind: (s) => {
         const h = get().windHistory
