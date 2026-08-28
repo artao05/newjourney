@@ -13,7 +13,61 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 17 — 2026-08-28 — the install surface
+## 0. Pass 18 — 2026-08-28 — the documentation, and a note on instruments
+
+With `src` and the delivery plumbing covered, the remaining untested surface is the
+half of this repo that is prose: 34 markdown files citing each other heavily, whose
+whole value is that a reader can follow a claim to its source.
+
+**96 relative file links all resolve.** The anchors are where the rot was: three
+pointed at `#wind-height-scaling` and `#weather-field-merging` after those headings
+gained section numbers. A broken anchor does not 404 — it silently succeeds at the
+wrong thing, dropping the reader at the top of a 400-line document instead of at the
+section being cited, which is why nobody had noticed.
+
+`docs-links.test.ts` now checks both levels, plus that the README's reading order
+names files that exist, since that is the front door for a new contributor.
+
+### The instrument was wrong again, and this time it nearly did damage
+
+The first slug implementation reported **ten** broken anchors. Seven were fine and
+the checker was wrong. GitHub turns *each* space into a hyphen and does not collapse
+runs, so `## 8. Polars — the data model` slugs to `8-polars--the-data-model`, keeping
+the double hyphen where the em-dash was. Collapsing whitespace makes seven correct
+links look broken — and "fixing" them would have broken all seven for real.
+
+That is the fourth time in this run:
+
+| Pass | The instrument |
+|---|---|
+| 4 | `gribStepOf` read a property through a cast, and the test bolted that property on |
+| 9 | a `vmcOptimum` case passed the wrong parameter name and silently asserted nothing |
+| 11 | the vitest `include` pattern skipped `.tsx`, so the first screen test never ran |
+| 18 | a slug rule that collapsed whitespace, condemning seven correct links |
+
+Every one of them looked green. The pattern is specific enough to act on: **a check is
+code, and an unverified check is worse than none, because it converts absence of
+evidence into evidence of absence.** Each of the four is now itself tested — the slug
+rule has unit tests including the em-dash case.
+
+### Verified in passing
+
+The `?harness` route really is dev-only, gated on `import.meta.env.DEV`, so the claim
+in `main.tsx` that a stray query string cannot replace the app in production holds.
+
+### Noted, not done
+
+**There is no CI.** 753 tests, a clean typecheck and a clean build are all things
+somebody has to remember to run. A workflow that runs `npm run build` and `npm test`
+on push would make every guard in this document actually binding. Not added here
+because it is infrastructure rather than a bug, and it is the user's call whether this
+repo runs Actions.
+
+753 tests (up from 748), typecheck clean, build clean.
+
+---
+
+## 0b. Pass 17 — 2026-08-28 — the install surface
 
 Staying in the family pass 16 opened: the delivery plumbing, where the bugs have the
 widest blast radius and nobody had looked. `index.html`, the web manifest and the
@@ -70,7 +124,7 @@ there is a test that mounts every tab.
 
 ---
 
-## 0b. Pass 16 — 2026-08-28 — the service worker
+## 0c. Pass 16 — 2026-08-28 — the service worker
 
 Everything in `src` now has tests, so this pass went outside it. `public/sw.js` is 83
 lines deciding what a sailor sees when the dockside 3G drops out, it is not imported
@@ -122,7 +176,7 @@ Worth remembering that the build and deploy plumbing is part of the product.
 
 ---
 
-## 0c. Pass 15 — 2026-08-28 — the derived-state sweep, and clearing the debt
+## 0d. Pass 15 — 2026-08-28 — the derived-state sweep, and clearing the debt
 
 The sweep promised in pass 14: enumerate every piece of derived state, ask what
 invalidates it, and check whether anything actually does.
@@ -176,7 +230,7 @@ that "lower expected value" is not "no value", especially for the cheap item.
 
 ---
 
-## 0d. Pass 14 — 2026-08-27 — a route that outlived its course
+## 0e. Pass 14 — 2026-08-27 — a route that outlived its course
 
 Rather than pick the next untested file, this pass hunted the **category named in
 pass 13**: state that outlives the thing that justified it. That turned out to be the
@@ -233,7 +287,7 @@ losing the coin toss.
 
 ---
 
-## 0e. Pass 13 — 2026-08-27 — the app shell
+## 0f. Pass 13 — 2026-08-27 — the app shell
 
 `App.tsx` is 319 lines of wiring that nothing tested: which polar loads, how the wind
 estimate and its uncertainty are assembled, how set and drift are derived, how the
@@ -281,7 +335,7 @@ step.
 
 ---
 
-## 0f. Pass 12 — 2026-08-27 — the canvas renderers
+## 0g. Pass 12 — 2026-08-27 — the canvas renderers
 
 Four components draw with `getContext('2d')` and none had a test:
 `StartCanvas` (387 lines, the beachhead display), `PolarPlot`, `CurrentChart`,
@@ -329,7 +383,7 @@ step, and small now that the recorder exists.
 
 ---
 
-## 0g. Pass 11 — 2026-08-27 — the UI layer, at last
+## 0h. Pass 11 — 2026-08-27 — the UI layer, at last
 
 Tier 1 C, opened in pass 1 and finally done: `@testing-library/react` plus a MapLibre
 stub, and the first tests in this repo that render anything.
@@ -385,7 +439,7 @@ build toolchain, which deserves its own commit and its own verification.
 
 ---
 
-## 0h. Pass 10 — 2026-08-27 — kernel invariants
+## 0i. Pass 10 — 2026-08-27 — kernel invariants
 
 `isochrone.ts` was the last big gap by tests-per-line: 1915 lines, 25 example cases,
 77 lines per case against 8.5 for `departure.ts`. The existing suite is the §10
@@ -439,7 +493,7 @@ layer — `StartCanvas.tsx` (387 lines, 0 cases) and the screens — which needs
 
 ---
 
-## 0i. Pass 9 — 2026-08-27 — property sweep
+## 0j. Pass 9 — 2026-08-27 — property sweep
 
 Coverage is now broad enough that hunting for untested *modules* has stopped paying:
 the only two left with no test imports are the GL layers, which need a real context.
@@ -494,7 +548,7 @@ a skip.
 
 ---
 
-## 0j. Pass 8 — 2026-08-26 — bug hunt
+## 0k. Pass 8 — 2026-08-26 — bug hunt
 
 ### The forecast cache could serve a cube that did not cover the request
 
@@ -549,7 +603,7 @@ animation, the simulator and the particle layer do not.
 
 ---
 
-## 0k. Pass 7 — 2026-08-20 — bug hunt
+## 0l. Pass 7 — 2026-08-20 — bug hunt
 
 A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
 useful result was that **the ranking method from earlier passes was wrong**. Sorting
@@ -607,7 +661,7 @@ current answer and it is a reasonable one.
 
 ---
 
-## 0l. Pass 6 — 2026-08-06
+## 0m. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -663,7 +717,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0m. Pass 5 — 2026-08-06
+## 0n. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -715,7 +769,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0n. Pass 4 — 2026-08-06
+## 0o. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -775,7 +829,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0o. Pass 3 — 2026-08-06
+## 0p. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -817,7 +871,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0p. Pass 2 — 2026-08-06
+## 0q. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
