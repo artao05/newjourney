@@ -1,5 +1,5 @@
 {
-  "name": "newjourney — sailing tactics",
+  "name": "newjourney \u2014 sailing tactics",
   "short_name": "newjourney",
   "description": "Start line, laylines, targets and weather routing. Free, offline-capable, phone-first.",
   "start_url": "./",
@@ -8,13 +8,23 @@
   "orientation": "portrait",
   "background_color": "#08131f",
   "theme_color": "#08131f",
-  "categories": ["navigation", "sports", "utilities"],
+  "categories": [
+    "navigation",
+    "sports",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "./icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }

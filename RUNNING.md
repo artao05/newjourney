@@ -105,6 +105,17 @@ prediction with its slack times.
 - **Every polar in the class library is generated from published dimensions, not
   measured.** They are labelled that way in `src/data/polars.ts`. Treat target
   speeds as indicative, not as your boat.
+- **The iOS home-screen icon is not the app icon.** iOS ignores the web manifest's
+  icons for "Add to Home Screen" and ignores SVG for `apple-touch-icon`, and the only
+  icons here are SVG. So on the platform this app is most likely to be installed on,
+  the home-screen tile is whatever Safari decides rather than the boat-and-sail mark.
+  Fixing it needs a rasterised PNG at 180x180 — a real asset, not a link tag, since
+  pointing `apple-touch-icon` at the SVG would look like a fix and change nothing.
+  Android is fine: it takes the SVG, and there is now a properly masked variant for
+  adaptive launchers.
+- Pinch zoom is disabled (`user-scalable=no`) for an app-like feel. That is a
+  deliberate trade against WCAG 1.4.4, and worth revisiting for anyone who needs
+  larger text than the layout offers.
 - No account, sync, fleet sharing, or Signal K ingest.
 
 See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next, and
