@@ -13,7 +13,64 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 13 — 2026-08-27 — the app shell
+## 0. Pass 14 — 2026-08-27 — a route that outlived its course
+
+Rather than pick the next untested file, this pass hunted the **category named in
+pass 13**: state that outlives the thing that justified it. That turned out to be the
+right instinct — it found the third instance in three passes, and a more visible one
+than either of the first two.
+
+### The bug
+
+`setRoute` was called from exactly one place — `RouteScreen`, on a successful solve —
+and with `null` from nowhere at all. Changing the course therefore left the drawn
+magenta line, its isochrones, the confidence band and the RESULTS sheet on screen,
+all describing a course that no longer existed. The marks layer redraws from its own
+effect, so the screen would show **the new marks and the old route to a deleted one
+at the same time**, with an ETA table to match.
+
+Fixed in the store, beside the `activeMarkIndex` fix from the same family: one
+`COURSE_CHANGED` constant spread into every mutator that changes which marks exist —
+`addMark`, `removeMark`, `replaceMarks`, `clearCourse`. Deliberately *not* applied to
+the start line or the active-mark pointer, because the router starts from the boat:
+pinging an end or switching the active leg changes the tactical numbers and nothing
+the router computed. Tested in both directions, including that a remove which matched
+no id leaves the route alone, since nothing actually changed.
+
+The departure sweep is the same claim on a different axis — "leave at 14:20 and save
+eleven minutes" — and lives in local state on the screen, so it is cleared alongside.
+
+### The category, now with three members
+
+| Pass | Stale thing | Justified by |
+|---|---|---|
+| 3 | `activeMarkIndex` pointing past the end | a mark that was deleted |
+| 13 | a set and drift labelled `measured` | instruments that stopped reporting |
+| 14 | a route, its band and its ETA table | a course that changed |
+
+**None of the three was findable from inside the module that owned the data.** In
+each case the owning module behaved correctly in isolation — `tactics.ts` refuses an
+out-of-range index, `estimateCurrent` returns what it is asked for, the router solves
+the marks it is given. The bug only exists in the relationship between a value and
+the thing it was derived from, which lives one layer up.
+
+That is an argument about where the remaining effort should go, not about any one of
+these bugs: **the seams between modules are now a better hunting ground than the
+modules.** A useful sweep for a future pass is every piece of derived state in the
+store and in screen-local state, asking what invalidates it and whether anything
+actually does that.
+
+716 tests (up from 710), typecheck clean, build clean.
+
+### Still deferred
+
+`CurrentChart` and `DepartureChart` rendering tests, now three passes running. Being
+honest that the seam-hunting keeps out-earning them; they remain worth doing and keep
+losing the coin toss.
+
+---
+
+## 0b. Pass 13 — 2026-08-27 — the app shell
 
 `App.tsx` is 319 lines of wiring that nothing tested: which polar loads, how the wind
 estimate and its uncertainty are assembled, how set and drift are derived, how the
@@ -61,7 +118,7 @@ step.
 
 ---
 
-## 0b. Pass 12 — 2026-08-27 — the canvas renderers
+## 0c. Pass 12 — 2026-08-27 — the canvas renderers
 
 Four components draw with `getContext('2d')` and none had a test:
 `StartCanvas` (387 lines, the beachhead display), `PolarPlot`, `CurrentChart`,
@@ -109,7 +166,7 @@ step, and small now that the recorder exists.
 
 ---
 
-## 0c. Pass 11 — 2026-08-27 — the UI layer, at last
+## 0d. Pass 11 — 2026-08-27 — the UI layer, at last
 
 Tier 1 C, opened in pass 1 and finally done: `@testing-library/react` plus a MapLibre
 stub, and the first tests in this repo that render anything.
@@ -165,7 +222,7 @@ build toolchain, which deserves its own commit and its own verification.
 
 ---
 
-## 0d. Pass 10 — 2026-08-27 — kernel invariants
+## 0e. Pass 10 — 2026-08-27 — kernel invariants
 
 `isochrone.ts` was the last big gap by tests-per-line: 1915 lines, 25 example cases,
 77 lines per case against 8.5 for `departure.ts`. The existing suite is the §10
@@ -219,7 +276,7 @@ layer — `StartCanvas.tsx` (387 lines, 0 cases) and the screens — which needs
 
 ---
 
-## 0e. Pass 9 — 2026-08-27 — property sweep
+## 0f. Pass 9 — 2026-08-27 — property sweep
 
 Coverage is now broad enough that hunting for untested *modules* has stopped paying:
 the only two left with no test imports are the GL layers, which need a real context.
@@ -274,7 +331,7 @@ a skip.
 
 ---
 
-## 0f. Pass 8 — 2026-08-26 — bug hunt
+## 0g. Pass 8 — 2026-08-26 — bug hunt
 
 ### The forecast cache could serve a cube that did not cover the request
 
@@ -329,7 +386,7 @@ animation, the simulator and the particle layer do not.
 
 ---
 
-## 0g. Pass 7 — 2026-08-20 — bug hunt
+## 0h. Pass 7 — 2026-08-20 — bug hunt
 
 A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
 useful result was that **the ranking method from earlier passes was wrong**. Sorting
@@ -387,7 +444,7 @@ current answer and it is a reasonable one.
 
 ---
 
-## 0h. Pass 6 — 2026-08-06
+## 0i. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -443,7 +500,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0i. Pass 5 — 2026-08-06
+## 0j. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -495,7 +552,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0j. Pass 4 — 2026-08-06
+## 0k. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -555,7 +612,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0k. Pass 3 — 2026-08-06
+## 0l. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -597,7 +654,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0l. Pass 2 — 2026-08-06
+## 0m. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
