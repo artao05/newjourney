@@ -293,6 +293,12 @@ describe('StartCanvas', () => {
       ['only the boat pinged', { ...LINE, port: null }, stateOf(), WIND, null],
       ['neither end pinged', { port: null, starboard: null, gunTime: LINE.gunTime }, stateOf(), WIND, null],
       ['no gun time', { ...LINE, gunTime: null }, stateOf(), WIND, null],
+      // A real fix that carries no course: the GPS reports position but reports
+      // `speed` and `heading` as null, which it does whenever the boat is not
+      // moving. `useSensors` puts NaN in the state rather than a fabricated due
+      // north, so every canvas has to cope with a NaN bearing on a valid fix.
+      ['a fix with no course', LINE, stateOf({ cog: NaN, sog: NaN, heading: null }), WIND, null],
+      ['a fix with no course but a compass', LINE, stateOf({ cog: NaN, sog: NaN }), WIND, null],
       [
         'degenerate line, both ends the same point',
         { port: { ...MID }, starboard: { ...MID }, gunTime: LINE.gunTime },
@@ -402,6 +408,49 @@ describe('StartCanvas', () => {
     expect(ctx.calls.length).toBe(0)
     view.unmount()
     cleanup()
+  })
+
+  it('draws the boat without a bow when there is no heading to point', () => {
+    /*
+     * A stationary GPS reports no course, so the bearing the hull is rotated by is
+     * legitimately NaN. `ctx.rotate(NaN)` poisons the transform and the hull simply
+     * vanishes — no error, no warning, just a missing boat, which reads as a broken
+     * app rather than as an unknown heading. The marker falls back to a circle: we
+     * know where you are and not which way you point, drawn as exactly that.
+     */
+    ctx = new RecordingContext()
+    const state = stateOf({ cog: NaN, sog: NaN, heading: null })
+    render(
+      <StartCanvas
+        line={LINE}
+        state={state}
+        wind={WIND}
+        numbers={numbersFor(LINE, state, WIND)}
+        boat={BOAT}
+        track={[]}
+        secondsSinceGun={null}
+      />,
+    )
+    expectNothingUndrawable(ctx, 'no heading')
+    // Still drawn, and drawn as an arc rather than the pointed hull.
+    expect(ctx.calls.some((c) => c.op === 'arc')).toBe(true)
+    expect(ctx.calls.some((c) => c.op === 'quadraticCurveTo')).toBe(false)
+  })
+
+  it('still draws the pointed hull when the heading is known', () => {
+    ctx = new RecordingContext()
+    render(
+      <StartCanvas
+        line={LINE}
+        state={stateOf()}
+        wind={WIND}
+        numbers={numbersFor(LINE, stateOf(), WIND)}
+        boat={BOAT}
+        track={[]}
+        secondsSinceGun={null}
+      />,
+    )
+    expect(ctx.calls.some((c) => c.op === 'quadraticCurveTo')).toBe(true)
   })
 
   it('survives a boat with no length, which would divide by zero', () => {

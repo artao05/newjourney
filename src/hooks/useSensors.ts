@@ -19,20 +19,37 @@ export function useGeolocation(enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) return
-    if (!('geolocation' in navigator)) {
+    // Truthiness, not `in`: the property can be present and still be undefined —
+    // an insecure origin is the usual way — and `in` is satisfied by a key that
+    // holds nothing, so the check passed and the next line threw.
+    const geo = navigator.geolocation
+    if (!geo) {
       setGpsError('This device has no geolocation API.')
       return
     }
-    const id = navigator.geolocation.watchPosition(
+    const id = geo.watchPosition(
       (pos) => {
         setGpsError(null)
         const c = pos.coords
         const state: BoatState = {
           t: pos.timestamp,
           position: { lat: c.latitude, lon: c.longitude },
-          // speed is m/s; heading is COG in degrees true, null when stationary.
-          sog: c.speed != null && Number.isFinite(c.speed) ? c.speed * 1.94384 : 0,
-          cog: c.heading != null && Number.isFinite(c.heading) ? c.heading : 0,
+          /*
+           * speed is m/s; heading is COG in degrees true, and both are null when
+           * the device cannot supply them — stationary, or a platform that simply
+           * does not report them.
+           *
+           * NaN, not 0, for the same reason `gpx.ts` uses NaN: 0 is a real
+           * reading. A fabricated COG of 0 is due north, and it does not stay in
+           * this file — it becomes the bow direction on the start canvas, the
+           * dead-reckoned position at the gun, the TWA the tactics panel shows and
+           * the VMC it ranks marks by. Every consumer that matters already tests
+           * `Number.isFinite`, and every tile formatter renders a non-finite value
+           * as an em dash, so NaN degrades to "we do not know" at each of them
+           * while 0 degrades to a confident lie.
+           */
+          sog: c.speed != null && Number.isFinite(c.speed) ? c.speed * 1.94384 : NaN,
+          cog: c.heading != null && Number.isFinite(c.heading) ? c.heading : NaN,
           accuracyM: c.accuracy ?? null,
           heading: null,
           bsp: null,
@@ -43,7 +60,7 @@ export function useGeolocation(enabled: boolean) {
       (err) => setGpsError(err.message || 'Location unavailable'),
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 },
     )
-    return () => navigator.geolocation.clearWatch(id)
+    return () => geo.clearWatch(id)
   }, [enabled, setBoatState, setGpsError])
 }
 

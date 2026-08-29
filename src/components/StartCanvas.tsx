@@ -302,7 +302,12 @@ function render(
     const s = S(boatXY)
     const hdg = state.heading ?? state.cog
     const hv = rot(fromPolar(hdg, 1))
-    const ang = Math.atan2(hv.x, hv.y)
+    // A stationary GPS reports no course, so `hdg` can legitimately be NaN. A NaN
+    // rotation makes the hull disappear, which reads as a broken app rather than
+    // as an unknown heading, so the marker falls back to bow-up and the shape
+    // below switches to a circle: position known, heading not.
+    const known = Number.isFinite(hdg)
+    const ang = known ? Math.atan2(hv.x, hv.y) : 0
 
     // COG predictor: where you'll be in 30 s at current SOG.
     if (state.sog > 0.2) {
@@ -327,10 +332,15 @@ function render(
     ctx.rotate(ang)
     ctx.fillStyle = numbers.ocs ? '#ff4d4d' : '#ffd54a'
     ctx.beginPath()
-    ctx.moveTo(0, -lenPx * 0.5)
-    ctx.quadraticCurveTo(lenPx * 0.19, -lenPx * 0.1, lenPx * 0.15, lenPx * 0.42)
-    ctx.lineTo(-lenPx * 0.15, lenPx * 0.42)
-    ctx.quadraticCurveTo(-lenPx * 0.19, -lenPx * 0.1, 0, -lenPx * 0.5)
+    if (known) {
+      ctx.moveTo(0, -lenPx * 0.5)
+      ctx.quadraticCurveTo(lenPx * 0.19, -lenPx * 0.1, lenPx * 0.15, lenPx * 0.42)
+      ctx.lineTo(-lenPx * 0.15, lenPx * 0.42)
+      ctx.quadraticCurveTo(-lenPx * 0.19, -lenPx * 0.1, 0, -lenPx * 0.5)
+    } else {
+      // No bow, because there is no bow direction to point.
+      ctx.arc(0, 0, lenPx * 0.3, 0, Math.PI * 2)
+    }
     ctx.closePath()
     ctx.fill()
     ctx.restore()
