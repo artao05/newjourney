@@ -19,7 +19,6 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -246,53 +245,44 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
   }, [map, ready])
 
   // ------------------------------------------------------------------- fetch
-  const loadCube = useCallback(async (which: ModelId) => {
-    setBusy('Downloading forecast…')
-    setError(null)
-    try {
-      /*
-       * Pad the venue so panning a little does not run off the data, then pick
-       * a sample step from the span rather than taking the library default.
-       *
-       * The default is 0.25 degrees, about 27 km — wider than Casco Bay itself,
-       * which produced a 4x2 grid for the entire venue and a wind field with no
-       * spatial structure at all. Aim for roughly 40 samples across instead.
-       */
-      const v = PILOT_VENUE.bbox
-      const padX = (v.east - v.west) * 0.35
-      const padY = (v.north - v.south) * 0.35
-      const bbox = {
-        west: v.west - padX,
-        south: v.south - padY,
-        east: v.east + padX,
-        north: v.north + padY,
-      }
-      const span = Math.max(bbox.east - bbox.west, bbox.north - bbox.south)
-      const stepDeg = Math.max(0.02, span / 40)
-      const c = await fetchWindCube({
-        bbox,
-        stepDeg,
-        hours: 72,
-        model: which,
-        // Nothing on the chart displays sea state any more, and the marine
-        // endpoint is a separate, slower request. The router still asks for
-        // waves — see RouteScreen — because it can constrain on them.
-        includeWaves: false,
-        includeCurrent: true,
-      })
-      setCube(c)
-      // Snap the clock into the cube's window rather than leaving it outside.
-      setT((prev) => Math.min(Math.max(prev, c.t0), c.t0 + (c.nt - 1) * c.dtMs))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Forecast download failed')
-    } finally {
-      setBusy(null)
-    }
-  }, [])
-
   useEffect(() => {
-    void loadCube(model)
-  }, [model, loadCube])
+    let cancelled = false
+    const run = async () => {
+      setBusy('Downloading forecast…')
+      setError(null)
+      try {
+        const v = PILOT_VENUE.bbox
+        const padX = (v.east - v.west) * 0.35
+        const padY = (v.north - v.south) * 0.35
+        const bbox = {
+          west: v.west - padX,
+          south: v.south - padY,
+          east: v.east + padX,
+          north: v.north + padY,
+        }
+        const span = Math.max(bbox.east - bbox.west, bbox.north - bbox.south)
+        const stepDeg = Math.max(0.02, span / 40)
+        const c = await fetchWindCube({
+          bbox,
+          stepDeg,
+          hours: 72,
+          model,
+          includeWaves: false,
+          includeCurrent: true,
+        })
+        if (cancelled) return
+        setCube(c)
+        setT((prev) => Math.min(Math.max(prev, c.t0), c.t0 + (c.nt - 1) * c.dtMs))
+      } catch (e) {
+        if (cancelled) return
+        setError(e instanceof Error ? e.message : 'Forecast download failed')
+      } finally {
+        if (!cancelled) setBusy(null)
+      }
+    }
+    void run()
+    return () => { cancelled = true }
+  }, [model])
 
   // Own boat, when there is a fix.
   useEffect(() => {
