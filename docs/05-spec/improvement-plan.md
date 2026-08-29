@@ -13,6 +13,72 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
+## 0. Passes 22–23 — 2026-08-29 — following the pattern to its other two homes
+
+Pass 21 named a category and predicted where else it would live: **a claim made by
+the side that cannot verify it**. The two candidates were `depthAdvisory` and the
+departure sweep. Both had it.
+
+### Pass 22 — the destination could go unchecked, and be counted twice
+
+`stride` skips most legs on a long route, so the destination is sampled explicitly.
+The guard asked whether the last *sample* was the last leg. It should have asked
+whether the loop had *visited* it, and the difference broke both ways.
+
+**Skipped.** The guard required a non-empty `samples`, so when every strided sample
+missed the grid the destination was never looked at. Ten legs at `maxSamples: 2`
+visits legs 0 and 5; with those off-grid, a boat drawing 1.8 m arriving in 0.4 m of
+water was told *"No depth data along this route — no grounding check was made."* The
+route whose other samples have no data is the one whose destination most needs
+checking, not the one where the check can be dropped.
+
+**Double-counted.** When the stride did visit the last leg and it had no depth, the
+explicit pass sampled it again — one leg without data reported as two.
+
+Also, `underKeel` returns null for two different reasons and the warning blamed only
+one: a sailor with a draft entered, on a leg outside the tide prediction, was told
+"No draft set" and sent to Setup to retype a number that was already right.
+
+### An equivalent mutant, and why it is recorded rather than tested
+
+The same sentence took its leg number from `concerns[0]` and its depth and tide
+wording from `shallowest`. Making all of it come from one leg is obviously better,
+but **mutating it back survives**, and a 40,000-case randomised sweep over leg
+counts, drafts, tide windows and seabeds found no input where the two differ: a
+no-clearance sample sorts on `depthMsl` and a with-clearance sample on
+`depthNow - draft`, so for any draft >= 0 whichever sorts worst also has the
+smallest depth.
+
+The first draft of the test for it could not fail. It was deleted and replaced by
+that argument in a comment. A test that cannot fail is worse than no test, because
+it is counted.
+
+### Pass 23 — advice about a window it had only partly explored
+
+`best` and `spreadS` are computed over the departures that produced a route. When
+some produced none, the sweep said nothing, and `departureAdvice` — which receives
+only the summary — ended its sentence "in this window".
+
+The usual cause of partial coverage is a forecast that ends inside the window, which
+fails the later departures and bunches the survivors at the early end. So *"Departure
+dominates: 60 min between the best and worst time in this window"* could be a
+five-hour claim drawn from the first hour, and from the part least affected by
+whatever cut the forecast short. The sweep now warns, and the advice names the scope
+it covered. The resolution check still comes first.
+
+### What the category is really about
+
+All three are the same shape: **the type that crosses the boundary had no field that
+could contradict the caller.** `RouteResult` could not say whether land was consulted;
+`DepthSample` could not say why clearance was missing; `DepartureSweep` could say how
+many departures succeeded but nothing downstream read it. The fix each time was to
+widen the summary, not to add a check.
+
+Worth applying to the remaining boundaries: `WeatherCube` → `cubeNotes`, and the
+sensor hook's fix quality → the tiles that render it.
+
+---
+
 ## 0. Pass 21 — 2026-08-29 — mutating the code this run did not write
 
 Pass 20 proved this run's own fixes are protected. That is the easy half: those tests
