@@ -136,8 +136,8 @@ export function planDepartures(
   let widened = false
   if (count > cap) {
     // Widen to fit, keeping both ends of the window in the sweep.
-    step = Math.ceil(span / (cap - 1 || 1))
-    count = Math.floor(span / step) + 1
+    step = Math.ceil(span / Math.max(1, cap - 1))
+    count = Math.min(cap, Math.floor(span / step) + 1)
     widened = true
   }
   const departures: Millis[] = []

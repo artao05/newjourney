@@ -126,6 +126,18 @@ describe('planDepartures', () => {
     const { departures } = planDepartures(T0, T0 - HOUR, 30 * MIN)
     expect(departures).toEqual([T0])
   })
+
+  it('respects maxSolves = 1 rather than producing two departures', () => {
+    const { departures } = planDepartures(T0, T0 + HOUR, 10 * MIN, 1)
+    expect(departures).toHaveLength(1)
+    expect(departures[0]).toBe(T0)
+  })
+
+  it('fits exactly two departures at the endpoints for maxSolves = 2', () => {
+    const { departures, widened } = planDepartures(T0, T0 + HOUR, 10 * MIN, 2)
+    expect(widened).toBe(true)
+    expect(departures).toEqual([T0, T0 + HOUR])
+  })
 })
 
 describe('sweepDepartures', () => {
