@@ -106,12 +106,13 @@ vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}))
 
 import { StartScreen } from './StartScreen'
 import { RaceScreen } from './RaceScreen'
-import { SetupScreen } from './SetupScreen'
+import { SetupScreen, tideStationLabel } from './SetupScreen'
 import { WeatherScreen } from './WeatherScreen'
 import { RouteScreen } from './RouteScreen'
 import { useStore } from '@/state/store'
 import { findPolar } from '@/data/polars'
 import { PILOT_VENUE } from '@/data/venues'
+import { PORTLAND_DATUM } from '@/lib/tides/datum'
 
 // ------------------------------------------------------------------ fixtures
 
@@ -327,5 +328,40 @@ describe('the Setup screen does not claim a polar it has not loaded', () => {
     for (const name of ['Optimist', 'ILCA 7 (Laser)', 'J/105', 'Nacra 17']) {
       expect(text, name).toContain(name)
     }
+  })
+
+  it('names the tide station the app actually queries', () => {
+    /*
+     * Provenance read from a different source than the one in use is not
+     * provenance. The screen used to print `PILOT_VENUE.tideStations[0]` while
+     * every fetch and every depth correction went through
+     * `PORTLAND_DATUM.stationId` — two literals in two files that nothing tied
+     * together. `venues.test.ts` now keeps them equal; this keeps the screen
+     * reading from the one that decides the answer.
+     */
+    render(<SetupScreen />)
+    expect(document.body.textContent ?? '').toContain(PORTLAND_DATUM.stationId)
+  })
+
+  it('names the datum station, and says so, when the manifest does not list it', () => {
+    /*
+     * The branch that only matters once the two sources disagree — which is
+     * exactly when it is needed and exactly when it cannot be reached through the
+     * real data, since `venues.test.ts` keeps them equal. Taking both sources as
+     * arguments is what makes it testable at all.
+     *
+     * The requirement is that a divergence surfaces rather than resolving quietly
+     * in favour of the prettier string.
+     */
+    const label = tideStationLabel({ tideStations: [{ id: '8419317', name: 'Wells' }] }, { stationId: '8418150' })
+    expect(label).toContain('8418150')
+    expect(label).not.toContain('Wells')
+    expect(label).toMatch(/not listed in the venue manifest/)
+  })
+
+  it('uses the manifest name when the manifest does list it', () => {
+    const label = tideStationLabel(PILOT_VENUE, PORTLAND_DATUM)
+    expect(label).toContain(PORTLAND_DATUM.stationId)
+    expect(label).toContain('Portland, ME')
   })
 })

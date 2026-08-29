@@ -12,6 +12,24 @@ import { POLAR_LIBRARY, findPolar } from '@/data/polars'
 import { buildLattice, parsePolar, validatePolar } from '@/lib/polar'
 import { PolarPlot } from '@/components/PolarPlot'
 import { PILOT_VENUE } from '@/data/venues'
+import { PORTLAND_DATUM } from '@/lib/tides/datum'
+
+/**
+ * How to name the tide station on the venue panel.
+ *
+ * Takes both sources rather than reading them, because the whole point is which
+ * one wins: the station the app queries is the datum's, and the manifest only
+ * supplies a human name for it. Exported because the interesting branch is the
+ * one where they disagree, and that branch is unreachable while they do not.
+ */
+export function tideStationLabel(
+  venue: { tideStations: ReadonlyArray<{ id: string; name: string }> },
+  datum: { stationId: string },
+): string {
+  const id = datum.stationId
+  const listed = venue.tideStations.find((st) => st.id === id)
+  return listed ? `${id} · ${listed.name}` : `${id} · not listed in the venue manifest`
+}
 
 export function SetupScreen() {
   const boat = useStore((s) => s.boat)
@@ -66,7 +84,15 @@ export function SetupScreen() {
           </div>
           <div className="row">
             <span>Tide station</span>
-            <span>{PILOT_VENUE.tideStations[0].id} · {PILOT_VENUE.tideStations[0].name}</span>
+            {/*
+              * The station the app actually queries, which is the datum's, not the
+              * manifest's. They are the same station and `venues.test.ts` keeps
+              * them that way — but this line is provenance, and provenance read
+              * from a different source than the one in use is not provenance. If
+              * they ever diverge this shows the truth and says the manifest does
+              * not list it, rather than quietly naming the wrong station.
+              */}
+            <span>{tideStationLabel(PILOT_VENUE, PORTLAND_DATUM)}</span>
           </div>
         </div>
         <p className="note">
