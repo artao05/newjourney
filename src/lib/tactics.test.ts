@@ -416,7 +416,7 @@ describe('computeTactics', () => {
     // Mark dead upwind: beat time = range/cos0 along the wind at target VMG,
     // 1 / (6 cos40) h = 783.24 s, plus one tack penalty.
     expect(r.markTimeS).toBeCloseTo(3600 / (6 * COS40) + 10, 1)
-    expect(r.nextMarkBearing).not.toBeNull()
+    expectAngle(r.nextMarkBearing, 180, 3)
     expect(r.distanceToFinishNm).toBeCloseTo(2.5, 4)
     expect(r.laylines).not.toBeNull()
     expect(r.laylines!.distanceToPortLayline).toBeCloseTo(1 / (2 * COS40), 4)
@@ -504,8 +504,8 @@ describe('computeTactics', () => {
     expect(noHeading.targetTwa).toBeNull()
     expect(noHeading.laylines).toBeNull()
     // But mark bearing and range still work — they come from position, not heading.
-    expect(noHeading.markBearing).not.toBeNull()
-    expect(noHeading.markRange).not.toBeNull()
+    expectAngle(noHeading.markBearing, 0, 3)
+    expect(noHeading.markRange).toBeCloseTo(1, 3)
     // A lattice that blows up costs its own fields and nothing else.
     const bad = {
       ...fakeLattice(),
@@ -515,7 +515,7 @@ describe('computeTactics', () => {
     }
     const r = computeTactics({ ...inputs, lattice: bad })
     expect(r.twd).toBe(0)
-    expect(r.markBearing).not.toBeNull()
+    expectAngle(r.markBearing, 0, 3)
   })
 
   it('corrects the heading to steer for current', () => {
