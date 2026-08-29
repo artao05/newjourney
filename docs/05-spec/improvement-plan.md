@@ -13,6 +13,62 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
+## 0. Pass 27 — 2026-08-29 — the measurement written down twice
+
+Three passes of NaN-hardening was enough; the detection strategy changed. Instead
+of reading files, this pass scanned every `.ts`/`.tsx` in `src/` for numeric
+literals of three or more significant digits appearing in **more than one file**,
+comments stripped so prose repetition would not dominate the ranking.
+
+Most hits were coincidental drawing constants — `0.35`, `0.85`, a dozen others that
+mean nothing in common. Four were real semantic couplings, and three of those were
+held together by nothing but a comment.
+
+### The live one had not even a comment
+
+Every fetch and every depth correction goes through `PORTLAND_DATUM.stationId` in
+`lib/tides`. The Setup screen printed `PILOT_VENUE.tideStations[0]` from `data/venues`.
+**Two literals, two files, nothing tying them together — and the screen reported the
+one that is not used.**
+
+They name the same station today, which makes it provenance that happens to be right
+rather than provenance that is. A divergence would be silent and physical:
+predictions from one station corrected by another station's MSL-to-MLLW gap, a
+quantity that varies by more than a metre along this coast — most of the water a
+keelboat has under it at low tide in Casco Bay.
+
+### Why the duplication cannot simply be removed
+
+`src/lib` never imports `src/data`, and that rule is worth keeping: the routing and
+tide maths should not know what a venue is. **The copy is the price of the layering.**
+`venues.test.ts` — the first test this file has ever had — is what makes the price
+safe to pay, pinning all four couplings:
+
+| coupling | what drift would do |
+|---|---|
+| datum station = venue tide station | corrects one station's tide with another's datum |
+| datum offset = `PORTLAND_MSL_ABOVE_MLLW_M` | Weather caption and route advisory quote different water |
+| `DEPTH_MISSING` = cube `MISSING` | a real depth decodes as a hole, or a hole as a depth |
+| default boat length = its polar's `loaM` | start line misreports boat-lengths-below in the last ten seconds |
+
+It also pins the arithmetic the datum comment performs (13.49 − 8.55 ft), because
+comments do not run.
+
+### The branch that only exists once something is wrong
+
+The station label is now an exported function taking **both** sources as arguments.
+The interesting branch is the one where they disagree, and that branch is
+unreachable through the real data precisely because the test above keeps them equal
+— so the mutation "read the manifest instead" survived until the logic was lifted
+out where both cases could be driven directly.
+
+A divergence now surfaces as "not listed in the venue manifest" rather than
+resolving quietly in favour of the prettier string.
+
+Ten mutations, all caught. Suite 832 → 845.
+
+---
+
 ## 0. Passes 25–26 — 2026-08-29 — the comparison that is false against NaN
 
 ### Pass 25 — the forecast clock rendered "undefined NaN:NaNZ"
