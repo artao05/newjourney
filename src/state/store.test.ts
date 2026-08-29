@@ -202,7 +202,7 @@ describe('a computed route does not outlive the course it was computed for', () 
     isochrones: [],
     reverseIsochrones: [],
     sensitivity: null,
-    diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, warnings: [] },
+    diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: false, warnings: [] },
   })
 
   beforeEach(() => {

@@ -398,13 +398,20 @@ export function RouteScreen() {
         { cube: workingCube, polar, landRaster: landPayload() },
         (f) => setProgress(f),
       )
-      if (!landPack) {
+      // Follow what the kernel actually did, not what this side hoped it would.
+      // The two disagree when the pack loads here but the worker rejects it as
+      // corrupt, and that disagreement used to resolve in favour of the
+      // reassuring message — telling a sailor land was avoided on a route that
+      // was never checked against it.
+      if (!result.diagnostics.landAvoided) {
         result.diagnostics.warnings.unshift(
           landError
             ? `Land avoidance is OFF — the coastline pack failed to load (${landError}). This route may cross land.`
-            : 'Land avoidance is OFF — the coastline pack has not loaded yet. This route may cross land.',
+            : !landPack
+              ? 'Land avoidance is OFF — the coastline pack has not loaded yet. This route may cross land.'
+              : 'Land avoidance is OFF — the router rejected the coastline pack as unusable. This route may cross land.',
         )
-      } else {
+      } else if (landPack) {
         // State the limits of the thing that is now on, rather than implying it
         // is a substitute for looking at a chart.
         result.diagnostics.warnings.push(

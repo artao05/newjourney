@@ -116,7 +116,7 @@ const aResult = (marker: number): RouteResult => ({
   isochrones: [],
   reverseIsochrones: [],
   sensitivity: null,
-  diagnostics: { nodesExplored: marker, timeStepS: 0, computeMs: 0, warnings: [] },
+  diagnostics: { nodesExplored: marker, timeStepS: 0, computeMs: 0, landAvoided: false, warnings: [] },
 })
 
 const aSweep = (marker: number): DepartureSweep => ({

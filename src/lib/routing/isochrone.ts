@@ -1564,6 +1564,7 @@ function failed(
   timeStepS: number,
   nodes: number,
   started: number,
+  landAvoided: boolean,
 ): RouteResult {
   return {
     ok: false,
@@ -1579,6 +1580,7 @@ function failed(
       nodesExplored: nodes,
       timeStepS,
       computeMs: nowMs() - started,
+      landAvoided,
       warnings,
     },
   }
@@ -1596,9 +1598,12 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
   const warnings: string[] = []
   let timeStepS = 0
   let evaluated = 0
+  // False until the mask is resolved below, so an early failure reports the
+  // truth rather than a default: this route consulted no land data.
+  let landAvoided = false
   try {
     if (!req.marks || req.marks.length === 0) {
-      return failed('route needs at least one mark to sail to', warnings, 0, 0, started)
+      return failed('route needs at least one mark to sail to', warnings, 0, 0, started, landAvoided)
     }
     const preset = PRESETS[req.resolution] ?? PRESETS.balanced
     const waypoints = [req.start, ...req.marks]
@@ -1608,7 +1613,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       totalNm += distance(waypoints[i - 1], waypoints[i])
     }
     if (totalNm < 1e-6) {
-      return failed('start and destination are the same point', warnings, 0, 0, started)
+      return failed('start and destination are the same point', warnings, 0, 0, started, landAvoided)
     }
 
     const padNm = Math.min(0.3 * totalNm, 200) + 10
@@ -1632,7 +1637,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       warnings,
     )
     if (hyd.field === null) {
-      return failed(hyd.error ?? 'weather field unusable', warnings, 0, 0, started)
+      return failed(hyd.error ?? 'weather field unusable', warnings, 0, 0, started, landAvoided)
     }
     const dense = hyd.field
 
@@ -1651,6 +1656,16 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       req.constraints.avoidLand && ctx.land != null && ctx.land !== NULL_LAND_MASK
         ? ctx.land
         : null
+    landAvoided = land !== null
+    if (req.constraints.avoidLand && !landAvoided) {
+      // The caller asked for land avoidance and is not getting it. Silence here
+      // is the worst outcome available: the route looks exactly like one that
+      // was checked, and the UI upstream has no other way to tell the
+      // difference between a mask that was used and one that was rejected.
+      warnings.push(
+        'Land avoidance was requested but no usable coastline data reached the router. This route has NOT been checked against land.',
+      )
+    }
 
     const dtS = chooseTimeStepS(totalNm, typicalSpeed, req.resolution, gribStepOf(ctx.field))
     timeStepS = dtS
@@ -1717,6 +1732,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
           timeStepS,
           evaluated,
           started,
+          landAvoided,
         )
       }
       appendLegs(legs, search, reconstruct(search, out.finishNode), dense.hasCurrent, li > 0)
@@ -1725,7 +1741,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
     }
 
     if (legs.length === 0) {
-      return failed('route collapsed to zero length', warnings, timeStepS, evaluated, started)
+      return failed('route collapsed to zero length', warnings, timeStepS, evaluated, started, landAvoided)
     }
 
     const etaMs = clock
@@ -1815,6 +1831,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
         nodesExplored: evaluated,
         timeStepS,
         computeMs: nowMs() - started,
+        landAvoided,
         warnings,
       },
     }
@@ -1826,6 +1843,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       timeStepS,
       evaluated,
       started,
+      landAvoided,
     )
   }
 }

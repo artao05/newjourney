@@ -59,7 +59,7 @@ function ok(startTime: number, elapsedS: number, timeStepS = 60): RouteResult {
     isochrones: [],
     reverseIsochrones: [],
     sensitivity: null,
-    diagnostics: { nodesExplored: 0, timeStepS, computeMs: 0, warnings: [] },
+    diagnostics: { nodesExplored: 0, timeStepS, computeMs: 0, landAvoided: false, warnings: [] },
   } as unknown as RouteResult
 }
 
@@ -74,7 +74,7 @@ function fail(error: string): RouteResult {
     isochrones: [],
     reverseIsochrones: [],
     sensitivity: null,
-    diagnostics: { nodesExplored: 0, timeStepS: 0, computeMs: 0, warnings: [] },
+    diagnostics: { nodesExplored: 0, timeStepS: 0, computeMs: 0, landAvoided: false, warnings: [] },
   } as unknown as RouteResult
 }
 

@@ -52,7 +52,7 @@ function route(n: number, ok = true): RouteResult {
     isochrones: [],
     reverseIsochrones: [],
     sensitivity: null,
-    diagnostics: { nodesExplored: 0, timeStepS: 60, computeMs: 0, warnings: [] },
+    diagnostics: { nodesExplored: 0, timeStepS: 60, computeMs: 0, landAvoided: false, warnings: [] },
   } as unknown as RouteResult
 }
 

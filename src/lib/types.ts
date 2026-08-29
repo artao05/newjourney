@@ -405,6 +405,17 @@ export interface RouteResult {
     nodesExplored: number
     timeStepS: Seconds
     computeMs: number
+    /**
+     * Whether the search actually consulted a land mask.
+     *
+     * Separate from `constraints.avoidLand`, because the two disagree in exactly
+     * the case that matters: avoidance is requested, the mask never reaches the
+     * kernel or is rejected as corrupt, and the route is then computed over open
+     * water. Only the kernel knows which happened, so only the kernel may say. A
+     * caller that infers this from whether its own copy of the coastline pack
+     * loaded will tell a sailor land was avoided when it was not.
+     */
+    landAvoided: boolean
     warnings: string[]
   }
 }

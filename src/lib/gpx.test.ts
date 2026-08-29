@@ -211,7 +211,7 @@ describe('route export', () => {
     isochrones: [],
     reverseIsochrones: [],
     sensitivity: null,
-    diagnostics: { nodesExplored: 1, timeStepS: 600, computeMs: 5, warnings: [] },
+    diagnostics: { nodesExplored: 1, timeStepS: 600, computeMs: 5, landAvoided: false, warnings: [] },
   } satisfies RouteResult
 
   it('timestamps each leg so a plotter loads it as a schedule', () => {

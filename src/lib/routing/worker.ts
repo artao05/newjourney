@@ -208,7 +208,7 @@ function failedResult(error: string): RouteResult {
     isochrones: [],
     reverseIsochrones: [],
     sensitivity: null,
-    diagnostics: { nodesExplored: 0, timeStepS: 0, computeMs: 0, warnings: [] },
+    diagnostics: { nodesExplored: 0, timeStepS: 0, computeMs: 0, landAvoided: false, warnings: [] },
   }
 }
 
