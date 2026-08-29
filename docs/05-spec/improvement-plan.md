@@ -13,7 +13,69 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
-## 0. Pass 19 — 2026-08-28 — the GL layers, and mutation-checking the checks
+## 0. Pass 20 — 2026-08-28 — mutation-testing the fixes
+
+Pass 19 ended by saying mutation-checking is "worth doing for any test whose whole
+value is that it fails one day — most of them have never been seen to fail." This
+pass honoured that against the whole run: **reintroduce each of the defects fixed in
+passes 2–17 and confirm a test catches it.**
+
+Fifteen mutations across eleven files. Fourteen were killed by exactly the guard
+intended, named individually rather than trusting a red file:
+
+| Mutation | Guard that fired |
+|---|---|
+| `wrap360` returns 360 again | the hair-negative-input test |
+| GPX invents `sog`/`cog` again | "NaN, never 0, where the geometry cannot supply" |
+| `removeMark` drops the clamp | "never leaves the index past the end" |
+| a course change stops clearing the route | the four route-staleness cases |
+| wind history survives a source change | "clears the history when the source changes" |
+| the DDA budget decides again | "does not invent land on a long approach" |
+| the cache key quantises again | "never serves a cube that does not cover the request" |
+| a crashed worker is reused | "does not reuse a crashed worker" |
+| the measured current outlives its instruments | all three clearing cases |
+| the current sign convention flips | the wind-vs-current comparison |
+| the simulator seeds from the wall clock | "replays identically, whatever the clock says" |
+| the page goes back to cache-first | "checks the network, so a deploy actually lands" |
+| `CurrentChart` divides by a zero window | the NaN-into-canvas sweep |
+| `StartCanvas` loses its zero-size guard | "draws nothing rather than garbage" |
+| the maskable icon keeps its corners | "bleeds to the edge and keeps its content in the safe zone" |
+
+### The one that survived was the interesting one
+
+Deleting `if (url.hostname.endsWith('open-meteo.com')) return` — the line that reads
+as **the** enforcement of this project's cardinal rule — broke nothing. Not a gap in
+the tests: that line is redundant. `open-meteo.com` is cross-origin, so the origin
+check three lines below already returns. **The cardinal rule was being enforced by
+accident.**
+
+And the accident expires. `venues.ts` plans an owned forecast ingest to replace the
+Open-Meteo path; the day a forecast is served from our own origin it falls into the
+cache-first branch and is stored, and the hostname check cannot help because the host
+would be ours.
+
+Caching is now **default-deny** for same-origin paths: an explicit list of what may be
+cached rather than what may not. Everything shipped today is on it; a route added
+tomorrow goes to the network until somebody decides otherwise. The new guard is itself
+mutation-checked — removing the default-deny line fails exactly one test.
+
+### What the technique is actually for
+
+The surviving mutation was an **equivalent mutant** — removing dead code changes no
+behaviour, so no test can kill it. That is normally mutation testing's classic false
+positive, and here it was the finding: it located dead code that was *impersonating*
+the most important rule in the file. A line that looks load-bearing and is not is
+worse than no line, because it stops anyone looking further.
+
+Nothing else in the run was found wanting. Nine fixes across nineteen passes are all
+genuinely protected, which is the first time that has been demonstrated rather than
+assumed.
+
+767 tests, typecheck clean, build clean.
+
+---
+
+## 0b. Pass 19 — 2026-08-28 — the GL layers, and mutation-checking the checks
 
 `particleLayer.ts` (821 lines) and `scalarLayer.ts` (325) were the last code in the
 repo with no direct tests, excused on the grounds that they need a WebGL context.
@@ -70,7 +132,7 @@ description into a constraint.
 
 ---
 
-## 0b. Pass 18 — 2026-08-28 — the documentation, and a note on instruments
+## 0c. Pass 18 — 2026-08-28 — the documentation, and a note on instruments
 
 With `src` and the delivery plumbing covered, the remaining untested surface is the
 half of this repo that is prose: 34 markdown files citing each other heavily, whose
@@ -124,7 +186,7 @@ repo runs Actions.
 
 ---
 
-## 0c. Pass 17 — 2026-08-28 — the install surface
+## 0d. Pass 17 — 2026-08-28 — the install surface
 
 Staying in the family pass 16 opened: the delivery plumbing, where the bugs have the
 widest blast radius and nobody had looked. `index.html`, the web manifest and the
@@ -181,7 +243,7 @@ there is a test that mounts every tab.
 
 ---
 
-## 0d. Pass 16 — 2026-08-28 — the service worker
+## 0e. Pass 16 — 2026-08-28 — the service worker
 
 Everything in `src` now has tests, so this pass went outside it. `public/sw.js` is 83
 lines deciding what a sailor sees when the dockside 3G drops out, it is not imported
@@ -233,7 +295,7 @@ Worth remembering that the build and deploy plumbing is part of the product.
 
 ---
 
-## 0e. Pass 15 — 2026-08-28 — the derived-state sweep, and clearing the debt
+## 0f. Pass 15 — 2026-08-28 — the derived-state sweep, and clearing the debt
 
 The sweep promised in pass 14: enumerate every piece of derived state, ask what
 invalidates it, and check whether anything actually does.
@@ -287,7 +349,7 @@ that "lower expected value" is not "no value", especially for the cheap item.
 
 ---
 
-## 0f. Pass 14 — 2026-08-27 — a route that outlived its course
+## 0g. Pass 14 — 2026-08-27 — a route that outlived its course
 
 Rather than pick the next untested file, this pass hunted the **category named in
 pass 13**: state that outlives the thing that justified it. That turned out to be the
@@ -344,7 +406,7 @@ losing the coin toss.
 
 ---
 
-## 0g. Pass 13 — 2026-08-27 — the app shell
+## 0h. Pass 13 — 2026-08-27 — the app shell
 
 `App.tsx` is 319 lines of wiring that nothing tested: which polar loads, how the wind
 estimate and its uncertainty are assembled, how set and drift are derived, how the
@@ -392,7 +454,7 @@ step.
 
 ---
 
-## 0h. Pass 12 — 2026-08-27 — the canvas renderers
+## 0i. Pass 12 — 2026-08-27 — the canvas renderers
 
 Four components draw with `getContext('2d')` and none had a test:
 `StartCanvas` (387 lines, the beachhead display), `PolarPlot`, `CurrentChart`,
@@ -440,7 +502,7 @@ step, and small now that the recorder exists.
 
 ---
 
-## 0i. Pass 11 — 2026-08-27 — the UI layer, at last
+## 0j. Pass 11 — 2026-08-27 — the UI layer, at last
 
 Tier 1 C, opened in pass 1 and finally done: `@testing-library/react` plus a MapLibre
 stub, and the first tests in this repo that render anything.
@@ -496,7 +558,7 @@ build toolchain, which deserves its own commit and its own verification.
 
 ---
 
-## 0j. Pass 10 — 2026-08-27 — kernel invariants
+## 0k. Pass 10 — 2026-08-27 — kernel invariants
 
 `isochrone.ts` was the last big gap by tests-per-line: 1915 lines, 25 example cases,
 77 lines per case against 8.5 for `departure.ts`. The existing suite is the §10
@@ -550,7 +612,7 @@ layer — `StartCanvas.tsx` (387 lines, 0 cases) and the screens — which needs
 
 ---
 
-## 0k. Pass 9 — 2026-08-27 — property sweep
+## 0l. Pass 9 — 2026-08-27 — property sweep
 
 Coverage is now broad enough that hunting for untested *modules* has stopped paying:
 the only two left with no test imports are the GL layers, which need a real context.
@@ -605,7 +667,7 @@ a skip.
 
 ---
 
-## 0l. Pass 8 — 2026-08-26 — bug hunt
+## 0m. Pass 8 — 2026-08-26 — bug hunt
 
 ### The forecast cache could serve a cube that did not cover the request
 
@@ -660,7 +722,7 @@ animation, the simulator and the particle layer do not.
 
 ---
 
-## 0m. Pass 7 — 2026-08-20 — bug hunt
+## 0n. Pass 7 — 2026-08-20 — bug hunt
 
 A different brief from passes 2 to 6: find and fix bugs rather than tidy. The first
 useful result was that **the ranking method from earlier passes was wrong**. Sorting
@@ -718,7 +780,7 @@ current answer and it is a reasonable one.
 
 ---
 
-## 0n. Pass 6 — 2026-08-06
+## 0o. Pass 6 — 2026-08-06
 
 `land.ts` is the highest-stakes file in the repo — the only thing between a
 computed route and an island — and it had **no direct tests**. It was exercised
@@ -774,7 +836,7 @@ unchanged (60 nm coastal 899 ms, 1500 nm offshore 906 ms, 2 nm buoy leg 571 ms).
 
 ---
 
-## 0o. Pass 5 — 2026-08-06
+## 0p. Pass 5 — 2026-08-06
 
 `cube.ts` opens by naming three load-bearing rules and calling one of them "a
 genuine trap". **Two of the three had no direct tests**, and both are live
@@ -826,7 +888,7 @@ say plainly which part varies, and put a test on the first.
 
 ---
 
-## 0p. Pass 4 — 2026-08-06
+## 0q. Pass 4 — 2026-08-06
 
 Both foundation modules — `angles.ts` and `geo.ts` — had **no direct tests**, while
 `roadmap.md` Phase 1 claimed "core geodesy and units package, fully tested". Every
@@ -886,7 +948,7 @@ or two, if the owner agrees.
 
 ---
 
-## 0q. Pass 3 — 2026-08-06
+## 0r. Pass 3 — 2026-08-06
 
 One defect, and it is a new class: **an invariant that holds *between* two store
 fields, which no pure module can defend.**
@@ -928,7 +990,7 @@ problem was localised to one module, not systemic.
 
 ---
 
-## 0r. Pass 2 — 2026-08-06
+## 0s. Pass 2 — 2026-08-06
 
 The chart-surface extraction landed cleanly (`85f0a79`) and the depth layer came
 through it intact. A sweep of all 67 `useEffect`/`useCallback`/`useMemo` dependency
