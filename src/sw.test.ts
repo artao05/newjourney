@@ -215,6 +215,23 @@ describe('the cardinal rule: never serve a cached forecast', () => {
     }
   })
 
+  it('does not cache a forecast served from our own origin', async () => {
+    /*
+     * Found by mutation testing: deleting the `open-meteo.com` guard changed nothing,
+     * because that host is cross-origin and the origin check already returned. The
+     * rule was enforced by accident, and the accident expires - `venues.ts` plans an
+     * owned forecast ingest, and a forecast on our own origin would have fallen into
+     * the cache-first branch and been stored.
+     *
+     * Caching is now default-deny for same-origin paths, so this passes for the
+     * reason it says rather than by luck.
+     */
+    for (const path of ['/api/forecast?lat=43.6', '/api/tides.json', '/data/cube.bin']) {
+      const { responded } = await fetchEvent(worker, `${ORIGIN}${path}`)
+      expect(responded, path).toBe(false)
+    }
+  })
+
   it('ignores non-GET requests', async () => {
     const { responded } = await fetchEvent(worker, `${ORIGIN}/index.html`, { method: 'POST' })
     expect(responded).toBe(false)

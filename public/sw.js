@@ -14,7 +14,7 @@
  *      cache-first kept an installed user on the version they first visited, and
  *      because VERSION below is a hand-edited constant, nothing ever invalidated
  *      it. Every fix shipped afterwards was invisible to them.
- *   4. **Everything else same-origin: cache first, then revalidate.** The hashed
+ *   4. **Same-origin, and on the cacheable list: cache first, then revalidate.** The hashed
  *      build output under /assets/ can be trusted forever, because a cached copy of
  *      a content-hashed name cannot be the wrong copy. The rest - the venue packs,
  *      the manifest - keep their filenames across deploys, so they are served from
@@ -53,6 +53,40 @@ async function trimCache(name, max) {
   for (const k of keys.slice(0, keys.length - max)) await cache.delete(k)
 }
 
+/**
+ * Same-origin paths this worker may serve from its cache.
+ *
+ * A list of what IS cacheable, not a list of what is not, and that direction is the
+ * whole point. Rule 1 above excludes forecasts by hostname, which reads like the
+ * thing enforcing the cardinal rule and is in fact redundant: `open-meteo.com` is
+ * cross-origin, so the origin check below already returns before it matters. The
+ * protection today is accidental.
+ *
+ * That accident expires. `venues.ts` plans an owned forecast ingest to replace the
+ * Open-Meteo prototype path, and the day a forecast is served from our own origin it
+ * would fall straight into the cache-first branch and be stored - "a stale forecast
+ * presented as current", which the top of this file calls the exact failure this
+ * project is trying to avoid.
+ *
+ * So caching is default-deny. Everything the app ships today is on this list; a route
+ * added tomorrow is served from the network until somebody decides otherwise, which
+ * is the safe direction for the one rule that must not bend.
+ */
+function isCacheable(pathname) {
+  return (
+    pathname.includes('/assets/') ||
+    pathname.includes('/venue/') ||
+    pathname.endsWith('.webmanifest') ||
+    pathname.endsWith('.svg') ||
+    pathname.endsWith('.png') ||
+    pathname.endsWith('.ico') ||
+    pathname.endsWith('.css') ||
+    pathname.endsWith('.js') ||
+    pathname === '/' ||
+    pathname.endsWith('/index.html')
+  )
+}
+
 /** Fetch and store, returning the network response. */
 function fromNetwork(req, cacheName) {
   return fetch(req).then((res) => {
@@ -69,7 +103,10 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return
   const url = new URL(req.url)
 
-  // Rule 1. Never serve a cached forecast.
+  // Rule 1. Never serve a cached forecast. Belt and braces rather than the load-
+  // bearing check: these hosts are cross-origin, so the origin test below already
+  // stops them. `isCacheable` is what will still be true after the ingest moves
+  // in-house.
   if (url.hostname.endsWith('open-meteo.com')) return
 
   const isTile =
@@ -102,7 +139,11 @@ self.addEventListener('fetch', (e) => {
     return
   }
 
-  // Rule 4. Content-hashed output is safe to trust without asking.
+  // Rule 4. Default-deny: anything not on the cacheable list goes to the network and
+  // stays there. See `isCacheable` for why the direction matters.
+  if (!isCacheable(url.pathname)) return
+
+  // Content-hashed output is safe to trust without asking.
   const hashed = /\/assets\/.+-[A-Za-z0-9_-]{6,}\.[a-z0-9]+$/.test(url.pathname)
 
   e.respondWith(
