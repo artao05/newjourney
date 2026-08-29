@@ -60,6 +60,24 @@ Both now stay null when COG is non-finite.
 Ten mutations across all sites, nine caught (the tenth is an equivalent rewrite
 of the step formula). Suite 891 → 894 / 41 files.
 
+### Passes 35–37 — clean
+
+- **Pass 35** (error paths in routing/weather/polar): all well-guarded. Zero-wind,
+  all-MISSING cubes, boundary time fractions, single-row polars — all handled. Also
+  scanned for weak test assertions; strengthened three `not.toBeNull()` checks in
+  `tactics.test.ts` to specific value assertions.
+
+- **Pass 36** (constants and configuration verification): every checkable physical
+  constant is correct — Earth radius, NM definition, ft→m, GEBCO resolution, tidal
+  datum arithmetic, missing sentinels. One cosmetic inconsistency (m/s-to-knots
+  truncated to 5 vs 7 decimal places in two files), immaterial at 0.00002 kn.
+
+- **Pass 37** (GPX import/export NaN handling): correct. `deriveMotion` uses NaN for
+  missing SOG/COG, handles non-monotonic timestamps, and the first-point-borrows
+  rule avoids a leading NaN hole. Import validates lat/lon and skips non-finite times.
+
+Suite 894 / 41 files.
+
 ---
 
 ## 0. Passes 31–33 — 2026-08-29 — plateau
