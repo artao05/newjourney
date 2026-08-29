@@ -13,6 +13,43 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
+## 0. Pass 24 — 2026-08-29 — a stationary GPS reported as sailing due north
+
+`useGeolocation` is the only place a real fix enters the app. It had no test, and
+its own comment described the bug: *"heading is COG in degrees true, null when
+stationary"* — followed by `: 0`.
+
+Zero is not a missing value there, it is a bearing. A boat drifting on the line
+with no course had its bow drawn pointing north, its position at the gun
+dead-reckoned northward, and its TWA and VMC computed from due north. The
+fabrication happened once, in one line, and reached every consumer as a
+measurement.
+
+The convention was already established and already relied on: `gpx.ts` writes NaN
+where the geometry cannot supply, and `startline.ts` and `wind.ts` have carried
+`Number.isFinite(state.cog)` guards all along — **for a case that could not arise,
+because this hook filled the hole before they saw it.** Dead guards for a live bug.
+
+### Two more, both found by writing the test rather than by reading the code
+
+  - `'geolocation' in navigator` is satisfied by a property that exists and holds
+    `undefined`, which is what an insecure origin gives you: the guard passed and
+    the next line threw. It checks the value now.
+  - A genuine "0 kt on 000°" is a reading and must not be flattened into the same
+    state as no reading at all. Pinned, and the mutation that breaks it is caught.
+
+### The rendering had to be fixed with the data
+
+`ctx.rotate(NaN)` does not throw — it makes the hull disappear. Honest data through
+an unprepared renderer looks like a broken app, so the marker falls back to a circle:
+position known, heading not. The canvas degenerate-input sweep gains the case it was
+missing, a valid fix carrying no course, which is the one it most needed given how
+the file describes itself.
+
+Eight mutations verified caught. Suite 767 → 810.
+
+---
+
 ## 0. Passes 22–23 — 2026-08-29 — following the pattern to its other two homes
 
 Pass 21 named a category and predicted where else it would live: **a claim made by
