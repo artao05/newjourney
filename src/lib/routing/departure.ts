@@ -258,6 +258,18 @@ export function sweepDepartures(o: SweepOptions): DepartureSweep {
     d.costS = d.elapsedS == null ? null : d.elapsedS - best.elapsedS
   }
 
+  // A sweep where some departures failed still returns a best and a spread, and
+  // both are computed only over the ones that worked. That is the right answer to
+  // a narrower question than the caller asked, so it has to say which question.
+  // The usual cause is a forecast that ends inside the window, which fails the
+  // later departures and leaves a confident-looking ranking of the early ones.
+  if (ok.length < options.length) {
+    warnings.push(
+      `${options.length - ok.length} of ${options.length} departures in this window produced ` +
+        `no route, so the comparison below covers only the ${ok.length} that did.`,
+    )
+  }
+
   const spreadS = ok.length >= 2 ? slowest.elapsedS - best.elapsedS : null
   // Say it here as well as in the advice: a caller reading the table directly
   // should not have to derive this from two numbers to know the ranking is noise.
@@ -305,6 +317,17 @@ export function departureAdvice(
   const spread = sweep.spreadS
   const fraction = spread / sweep.best.elapsedS
   const mins = Math.round(spread / 60)
+  /*
+   * `spread` is the range across the departures that produced a route, which is
+   * not the window when some of them did not. This function can only see the
+   * summary, so saying "in this window" was a claim about ground it had no way to
+   * know had been covered — and the usual cause of partial coverage, a forecast
+   * ending mid-window, biases the survivors to one end of it.
+   */
+  const scope =
+    sweep.succeeded < sweep.attempted
+      ? `the ${sweep.succeeded} of ${sweep.attempted} departures that produced a route`
+      : 'this window'
   if (sweep.stepFloorS != null && spread <= sweep.stepFloorS) {
     return {
       matters: false,
@@ -317,17 +340,17 @@ export function departureAdvice(
   if (fraction < 0.02) {
     return {
       matters: false,
-      text: `Departure barely matters: ${mins} min between the best and worst time in this window.`,
+      text: `Departure barely matters: ${mins} min between the best and worst time in ${scope}.`,
     }
   }
   if (fraction < 0.1) {
     return {
       matters: true,
-      text: `Departure is worth ${mins} min across this window — some gain, not decisive.`,
+      text: `Departure is worth ${mins} min across ${scope} — some gain, not decisive.`,
     }
   }
   return {
     matters: true,
-    text: `Departure dominates: ${mins} min between the best and worst time in this window.`,
+    text: `Departure dominates: ${mins} min between the best and worst time in ${scope}.`,
   }
 }

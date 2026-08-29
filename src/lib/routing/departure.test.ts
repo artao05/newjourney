@@ -835,3 +835,98 @@ describe('sweep worker protocol', () => {
     expect(result.sweep.warnings.join(' ')).toMatch(/could not start the sweep/)
   })
 })
+
+/*
+ * Coverage, and what may be claimed from it.
+ *
+ * `best` and `spreadS` are computed over the departures that produced a route.
+ * When some did not — the usual cause being a forecast that ends inside the
+ * window, which fails the later departures — that is a correct answer to a
+ * narrower question than the caller asked, and both the sweep and the advice
+ * have to say which question they answered.
+ */
+describe('a partly-solved window says so', () => {
+  it('warns when part of the window produced no route', () => {
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      route: (req) => (req.startTime > T0 + HOUR ? fail('forecast ran out') : ok(req.startTime, 3600 + (req.startTime - T0) / 1000)),
+      from: T0,
+      to: T0 + 5 * HOUR,
+      stepMs: HOUR,
+    })
+    expect(sweep.attempted).toBe(6)
+    expect(sweep.succeeded).toBe(2)
+    expect(sweep.warnings.join(' ')).toMatch(/4 of 6 departures in this window produced no route/)
+  })
+
+  it('stays quiet when every departure produced a route', () => {
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      route: (req) => ok(req.startTime, 3600),
+      from: T0,
+      to: T0 + 2 * HOUR,
+      stepMs: HOUR,
+    })
+    expect(sweep.warnings.join(' ')).not.toMatch(/produced no route/)
+  })
+
+  it('does not let the advice claim a window it never explored', () => {
+    /*
+     * Two solves out of six, an hour apart at the start of a five-hour window,
+     * with a spread big enough to trip the "dominates" branch. The sentence used
+     * to end "in this window" — a claim about five hours drawn from one, and from
+     * the end of the window least affected by whatever cut the forecast short.
+     */
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      route: (req) =>
+        req.startTime > T0 + HOUR
+          ? fail('forecast ran out')
+          : ok(req.startTime, req.startTime === T0 ? 3600 : 7200),
+      from: T0,
+      to: T0 + 5 * HOUR,
+      stepMs: HOUR,
+    })
+    const a = departureAdvice(sweep)
+    expect(a?.text).toMatch(/dominates/)
+    expect(a?.text).toMatch(/2 of 6 departures that produced a route/)
+    expect(a?.text).not.toMatch(/in this window/)
+  })
+
+  it('still says "this window" when the whole window was solved', () => {
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      route: (req) => ok(req.startTime, req.startTime === T0 ? 3600 : 7200),
+      from: T0,
+      to: T0 + 2 * HOUR,
+      stepMs: HOUR,
+    })
+    const a = departureAdvice(sweep)
+    expect(a?.text).toMatch(/in this window/)
+    expect(a?.text).not.toMatch(/produced a route/)
+  })
+
+  it('keeps the resolution check ahead of the coverage wording', () => {
+    // A spread inside the time step is noise whether or not coverage was partial,
+    // and that branch must still win — a partial sweep must not be dressed up as
+    // a finding just because it now names its own scope.
+    const sweep = sweepDepartures({
+      request: REQUEST,
+      ctx: CTX,
+      route: (req) =>
+        req.startTime > T0 + HOUR
+          ? fail('forecast ran out')
+          : ok(req.startTime, req.startTime === T0 ? 3600 : 3660, 600),
+      from: T0,
+      to: T0 + 5 * HOUR,
+      stepMs: HOUR,
+    })
+    expect(departureAdvice(sweep)?.matters).toBe(false)
+    expect(departureAdvice(sweep)?.text).toMatch(/No usable difference/)
+  })
+})
+
