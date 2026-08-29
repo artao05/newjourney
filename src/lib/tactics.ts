@@ -393,7 +393,8 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
     out.twd = wind.twd
     out.tws = wind.tws
     out.windSource = wind.source
-    out.twa = twaFrom(state.heading ?? state.cog, wind.twd)
+    const course = state.heading ?? state.cog
+    if (Number.isFinite(course)) out.twa = twaFrom(course, wind.twd)
   })
 
   attempt(() => {

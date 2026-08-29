@@ -28,6 +28,7 @@ export const toDeg = (r: Radians): Degrees => r * RAD
  * `Math.floor` of 360 is one past the end of a 360-element table.
  */
 export function wrap360(a: number): Degrees {
+  if (!Number.isFinite(a)) return NaN
   const r = a % 360
   if (r >= 0) return r
   const s = r + 360

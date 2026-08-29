@@ -490,6 +490,16 @@ describe('computeTactics', () => {
     expect(badFix.vmg).toBeCloseTo(0, 9)
     expect(badFix.twd).toBe(0)
     expect(Number.isNaN(badFix.vmg!)).toBe(false)
+    // A NaN heading (stationary GPS, no compass) must yield null TWA, not 180°.
+    const noHeading = computeTactics({
+      ...inputs,
+      state: stateOf({ cog: NaN, heading: null }),
+    })
+    expect(noHeading.twd).toBe(0)
+    expect(noHeading.twa).toBeNull()
+    expect(noHeading.vmg).toBeNull()
+    expect(noHeading.polarBsp).toBeNull()
+    expect(noHeading.targetTwa).toBeNull()
     // A lattice that blows up costs its own fields and nothing else.
     const bad = {
       ...fakeLattice(),

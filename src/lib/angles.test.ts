@@ -55,6 +55,12 @@ describe('wrap360', () => {
     expect(wrap360(-90)).toBeCloseTo(270, 9)
     expect(wrap360(-370)).toBeCloseTo(350, 9)
   })
+
+  it('propagates NaN and Infinity rather than fabricating north', () => {
+    expect(Number.isNaN(wrap360(NaN))).toBe(true)
+    expect(Number.isNaN(wrap360(Infinity))).toBe(true)
+    expect(Number.isNaN(wrap360(-Infinity))).toBe(true)
+  })
 })
 
 describe('wrap180', () => {

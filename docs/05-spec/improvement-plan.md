@@ -13,6 +13,37 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
+## 0. Pass 34 — 2026-08-29 — wrap360 fabricated north from NaN
+
+Detection method: **error-path analysis** — tracing what happens when inputs are
+null, NaN, zero, or out-of-range through every function that returns them.
+
+### The bug
+
+`wrap360(NaN)` returned `0`. The function's `%`, `>=`, `+`, and `<` operators all
+produce NaN or `false` for NaN input, and the final `s < 360 ? s : 0` fell through
+to the default — which is `0`, i.e. north.
+
+This turned every unknown bearing into a confident due-north. The path through the
+app: a stationary GPS reports `cog: NaN` (no heading at zero speed), `heading` is
+null (no compass), so `state.heading ?? state.cog` is NaN. `twaFrom(NaN, twd)`
+cascaded through `angdiff` → `wrap180` → `wrap360` and emerged as `180` — dead
+downwind — because `wrap360(NaN) - 180 = 0 - 180 = -180`, and `wrap180` maps that
+to `+180`. The tactical display showed TWA 180°, with matching downwind target
+speeds and negative VMG, when every one of those fields should have been null.
+
+### Same root cause, second site
+
+`computeStart` had no NaN guard on its wind input. `computeTactics` already had
+one (`i.wind && Number.isFinite(i.wind.twd) && Number.isFinite(i.wind.tws)`), but
+`computeStart` passed `i.wind` through unchecked. The `wrap360` fix exposed this:
+once NaN propagated instead of being swallowed, the start-line bias and approach
+calculations produced NaN distances. The same guard was applied.
+
+Six mutations, all caught. Suite 891 → 892 / 41 files.
+
+---
+
 ## 0. Passes 31–33 — 2026-08-29 — plateau
 
 Three consecutive passes, zero bugs. The codebase has reached a clear plateau.
