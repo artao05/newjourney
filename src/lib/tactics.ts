@@ -435,8 +435,10 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
   attempt(() => {
     out.markBearing = bearing(state.position, mark.position)
     out.markRange = distance(state.position, mark.position)
-    // Vmc: the component of SOG toward the mark.
-    out.vmc = state.sog * Math.cos(angdiff(out.markBearing, state.cog) * DEG)
+    // Vmc: the component of SOG toward the mark. Needs COG — a stationary GPS
+    // with NaN heading would produce NaN via 0 * NaN, not 0.
+    if (Number.isFinite(state.cog))
+      out.vmc = state.sog * Math.cos(angdiff(out.markBearing, state.cog) * DEG)
     out.headingToSteer = current
       ? headingToMakeGood({
           track: out.markBearing,
@@ -459,15 +461,17 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
     out.vmcOptimum = opt.vmc * (boat.polarPct / 100)
     out.vmcOptimumHeading = opt.heading
 
-    out.laylines = computeLaylines({
-      from: state.position,
-      mark: mark.position,
-      wind,
-      lattice,
-      state,
-      current,
-      windHistory: i.windHistory,
-    })
+    if (Number.isFinite(state.cog)) {
+      out.laylines = computeLaylines({
+        from: state.position,
+        mark: mark.position,
+        wind,
+        lattice,
+        state,
+        current,
+        windHistory: i.windHistory,
+      })
+    }
 
     const targets = lattice.targetsAt(wind.tws)
     const offWind = angsep(out.markBearing, wind.twd)

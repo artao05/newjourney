@@ -491,15 +491,21 @@ describe('computeTactics', () => {
     expect(badFix.twd).toBe(0)
     expect(Number.isNaN(badFix.vmg!)).toBe(false)
     // A NaN heading (stationary GPS, no compass) must yield null TWA, not 180°.
+    // VMC and laylines also stay null — 0 * NaN is NaN, not 0.
     const noHeading = computeTactics({
       ...inputs,
-      state: stateOf({ cog: NaN, heading: null }),
+      state: stateOf({ cog: NaN, sog: 0, heading: null }),
     })
     expect(noHeading.twd).toBe(0)
     expect(noHeading.twa).toBeNull()
     expect(noHeading.vmg).toBeNull()
+    expect(noHeading.vmc).toBeNull()
     expect(noHeading.polarBsp).toBeNull()
     expect(noHeading.targetTwa).toBeNull()
+    expect(noHeading.laylines).toBeNull()
+    // But mark bearing and range still work — they come from position, not heading.
+    expect(noHeading.markBearing).not.toBeNull()
+    expect(noHeading.markRange).not.toBeNull()
     // A lattice that blows up costs its own fields and nothing else.
     const bad = {
       ...fakeLattice(),
