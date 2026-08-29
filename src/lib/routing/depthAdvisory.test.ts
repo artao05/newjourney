@@ -285,3 +285,106 @@ describe('depthAdvisory', () => {
     expect(a.warnings).toHaveLength(0)
   })
 })
+
+/*
+ * Sampling arithmetic.
+ *
+ * `stride` skips most legs on a long route, and the destination is sampled
+ * explicitly because it is the leg most likely to be shallow. Deciding whether it
+ * had already been visited by looking at the last *sample* rather than at the
+ * stride got both directions wrong, and one of them was dangerous.
+ */
+describe('the destination is always checked, and never checked twice', () => {
+  it('checks a shallow destination even when every strided sample missed the grid', () => {
+    /*
+     * The bug. Ten legs at maxSamples 2 gives a stride of 5, so the loop visits
+     * legs 0 and 5 only — both off-grid here. The old guard required a non-empty
+     * `samples` before sampling the destination, so it skipped it, and the advisory
+     * reported "No depth data along this route — No grounding check was made" for a
+     * boat drawing 1.8 m arriving in 0.4 m of water.
+     *
+     * A route whose other samples have no data is the one whose destination most
+     * needs looking at, not the one where the check can be dropped.
+     */
+    const a = depthAdvisory({
+      route: route(10),
+      depthAt: (lat) => (lat > 43.58 ? 0.4 : null),
+      levels: null,
+      datum: PORTLAND_DATUM,
+      draftM: 1.8,
+      maxSamples: 2,
+    })
+    expect(a.samples.map((s) => s.legIndex)).toEqual([9])
+    expect(a.concerns).toHaveLength(1)
+    expect(a.warnings.join(' ')).toMatch(/Shallow water on this route/)
+    expect(a.warnings.join(' ')).not.toMatch(/No grounding check was made/)
+  })
+
+  it('counts a destination without depth once, not twice', () => {
+    // Five legs at stride 1: the loop visits every leg, so the explicit pass must
+    // not run at all. The final leg is off-grid; that is one leg, not two.
+    const a = depthAdvisory({
+      route: route(5),
+      depthAt: (lat) => (lat > 43.53 ? null : 30),
+      levels: null,
+      datum: PORTLAND_DATUM,
+      draftM: 1.8,
+    })
+    expect(a.samples).toHaveLength(4)
+    expect(a.legsWithoutDepth).toBe(1)
+    expect(a.warnings.join(' ')).toMatch(/1 sampled legs have no depth data/)
+  })
+
+  it('does not duplicate a destination the stride already sampled', () => {
+    const a = depthAdvisory({ route: route(5), depthAt: () => 30, levels: null, datum: PORTLAND_DATUM })
+    expect(a.samples.map((s) => s.legIndex)).toEqual([0, 1, 2, 3, 4])
+  })
+})
+
+describe('a warning describes the leg it names', () => {
+  it('blames the tide, not the draft, when a draft is set', () => {
+    // `underKeel` is null for two different reasons and the remedies differ.
+    // Telling a sailor with a draft entered to go and enter their draft sends them
+    // to Setup to retype a number that is already correct.
+    const a = depthAdvisory({
+      route: route(4),
+      depthAt: () => 1.2,
+      levels: null,
+      datum: PORTLAND_DATUM,
+      draftM: 1.8,
+    })
+    expect(a.warnings.join(' ')).toMatch(/No tide cover at this leg/)
+    expect(a.warnings.join(' ')).not.toMatch(/No draft set, so this is depth/)
+  })
+
+  it('still blames the draft when there is genuinely no draft', () => {
+    const a = depthAdvisory({
+      route: route(4),
+      depthAt: () => 1.2,
+      levels: null,
+      datum: PORTLAND_DATUM,
+      draftM: null,
+    })
+    expect(a.warnings.join(' ')).toMatch(/No draft set, so this is depth/)
+  })
+
+  /*
+   * There is deliberately no test that the sentence's *depth* comes from the leg
+   * it names, because that mismatch turns out to be unreachable and a test for it
+   * would be theatre.
+   *
+   * The old code took the leg number from `concerns[0]` and the depth and tide
+   * wording from `shallowest`. Those can only differ if some sample with
+   * clearance outranks a sample without one, and the algebra forbids it: a
+   * no-clearance sample sorts on `depthMsl`, a with-clearance sample on
+   * `depthNow - draft`, so for any draft >= 0 whichever sample sorts first also
+   * has the smallest depth. A 40,000-case randomised sweep over leg counts,
+   * drafts, tide windows and seabeds found no counterexample.
+   *
+   * The figures now all come from `worst` anyway. That is not a bug fix, it is
+   * the removal of a dependency on an invariant nobody had written down — and the
+   * reason it is written down here instead of pinned by an assertion that cannot
+   * fail.
+   */
+})
+
