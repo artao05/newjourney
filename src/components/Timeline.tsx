@@ -63,16 +63,31 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 
-const clamp = (x: number, lo: number, hi: number): number => (x < lo ? lo : x > hi ? hi : x)
+/** What every reading on this strip shows when there is no number behind it. */
+const NO_TIME = '—'
+
+/**
+ * Clamp, with a non-finite input pinned to `lo`.
+ *
+ * The plain three-way comparison returns NaN unchanged — both comparisons are
+ * false against NaN — so one bad number in the cube header used to flow straight
+ * through to the slider position and out again through `onChange`. `lo` is the
+ * honest answer for every caller here, because all of them are placing a forecast
+ * index and index 0 is the step the cube certainly has.
+ */
+const clamp = (x: number, lo: number, hi: number): number =>
+  !Number.isFinite(x) ? lo : x < lo ? lo : x > hi ? hi : x
 
 /** `Tue 14:00Z`. The day name matters: a 72-hour forecast wraps past midnight twice. */
 function fmtUtc(t: number): string {
+  if (!Number.isFinite(t)) return NO_TIME
   const d = new Date(t)
   return `${DAYS[d.getUTCDay()]} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}Z`
 }
 
 /** `Tue 10:00 EDT`, with whatever zone abbreviation the platform knows. */
 function fmtLocal(t: number): string {
+  if (!Number.isFinite(t)) return NO_TIME
   const d = new Date(t)
   const clock = `${DAYS[d.getDay()]} ${pad(d.getHours())}:${pad(d.getMinutes())}`
   try {
@@ -118,7 +133,7 @@ export function Timeline({
   onSpeedChange,
   runLabel,
 }: Props) {
-  const lastIndex = Math.max(0, nt - 1)
+  const lastIndex = Math.max(0, (Number.isFinite(nt) ? nt : 1) - 1)
   const idx = dtMs > 0 ? clamp((value - t0) / dtMs, 0, lastIndex) : 0
   const hidden = useHidden()
 
@@ -137,7 +152,11 @@ export function Timeline({
 
   const goToIndex = useCallback(
     (i: number) => {
-      onChangeRef.current(t0 + clamp(i, 0, lastIndex) * dtMs)
+      const t = t0 + clamp(i, 0, lastIndex) * dtMs
+      // A cube whose header did not survive decoding cannot be scrubbed. Emitting
+      // nothing leaves the map on the last good time; emitting NaN would push it
+      // into the layers, the router's start time and the tide lookup at once.
+      if (Number.isFinite(t)) onChangeRef.current(t)
     },
     [t0, dtMs, lastIndex],
   )
@@ -190,7 +209,7 @@ export function Timeline({
 
   const utc = useMemo(() => fmtUtc(value), [value])
   const local = useMemo(() => fmtLocal(value), [value])
-  const plus = Math.round((value - t0) / 3_600_000)
+  const plusH = (value - t0) / 3_600_000
 
   return (
     <div
@@ -214,7 +233,8 @@ export function Timeline({
         {/* UTC first and brightest: it is the frame the forecast is stated in. */}
         <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>{utc}</span>
         <span style={{ color: 'var(--ink-dim)' }}>{local}</span>
-        <span className="chip">T+{plus}h</span>
+        {/* Dropped rather than dashed: "T+—h" reads as a measurement of nothing. */}
+        {Number.isFinite(plusH) ? <span className="chip">T+{Math.round(plusH)}h</span> : null}
         {runLabel ? (
           <span className="chip" style={{ color: 'var(--ink-faint)' }}>
             {runLabel}
