@@ -13,6 +13,52 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
+## 0. Passes 29–30 — 2026-08-29 — state that outlives its justification, and the formatters nobody tested
+
+### Pass 29 — ChartSurface forecast fetch race
+
+Detection method: **systematic scan for stale-state bugs in React effects**. Read
+every screen and shared component for state that is set in one condition and read in
+another where the first condition can expire. Five files audited.
+
+The forecast-download effect in `ChartSurface.tsx` had no cancellation guard.
+`loadCube` was a `useCallback` with `[]` deps, called from an effect that fired on
+`[model]`. Switching models fast (ECMWF → GFS → ICON) launched three fetches in
+parallel; the last `setCube(c)` to resolve won, regardless of which model the user
+had settled on. The label showed one model while the map drew another.
+
+The fix: inline the fetch into the effect, gate every state setter on a `cancelled`
+flag cleared by the effect cleanup.
+
+Also found but not fixed: `RouteScreen.run` has a theoretical race when marks change
+mid-route. The callback is user-initiated (button click only), not effect-triggered,
+so the window is narrow — routing takes 100–500 ms and the user would have to
+navigate away AND edit marks inside that. Logged, deferred.
+
+### Pass 30 — Tile formatters
+
+`Tile.tsx` exports four pure formatting functions (`fmtDuration`, `fmtClock`,
+`fmtAgo`, `fmtSigned`) used on the Race, Start and Route screens. Zero tests.
+Every number a sailor reads — time to gun, passage length, time to burn, elapsed
+since gun — comes through one of these.
+
+No bugs found in the formatters themselves; the logic is correct and the edge cases
+(NaN, Infinity, negatives, boundary-crossing values, fractional seconds) are handled.
+But the absence of tests meant none of that was verified, and no mutation could be
+caught.
+
+Ten mutations, all caught. Suite 854 → 877 / 40 files.
+
+---
+
+## 0. Pass 28 — 2026-08-29 — the safety requirement had no test
+
+See prior conversation. `ErrorBoundary.tsx` — the component whose docstring calls
+itself "a safety requirement" — had no test. Six mutations caught, one documented
+as pinning less than its name suggests. Suite 845 → 854 / 39 files.
+
+---
+
 ## 0. Pass 27 — 2026-08-29 — the measurement written down twice
 
 Three passes of NaN-hardening was enough; the detection strategy changed. Instead
