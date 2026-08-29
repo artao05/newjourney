@@ -13,6 +13,82 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
+## 0. Passes 31–33 — 2026-08-29 — plateau
+
+Three consecutive passes, zero bugs. The codebase has reached a clear plateau.
+
+### Pass 31 — off-by-one/boundary errors and type coercion traps
+
+Detection method: **off-by-one and boundary errors in array/index arithmetic**,
+combined with **type coercion traps**. Scanned array-slicing, index arithmetic,
+loop bounds, and `==`/`===`/truthiness patterns across all tested and untested pure
+code. Nothing found — the existing NaN-hardening passes had already covered the
+coercion traps, and the boundary arithmetic in the routing kernel, polar lookup,
+and weather interpolation was correct.
+
+### Pass 32 — property-based invariant testing
+
+Detection method: **property-based / invariant testing**. Instead of testing
+specific expected values, 14 tests sweep structural properties that must hold for
+ALL inputs over 200–1000 random cases each:
+
+- `wrap360` / `wrap180` idempotence and range
+- `angdiff` antisymmetry
+- `twaFrom` / `courseFor` inverse roundtrip
+- `lerpBearing` endpoint identity
+- `destination(a, bearing(a,b), distance(a,b)) ≈ b` (geodesy roundtrip)
+- `distance` symmetry, non-negativity, identity of indiscernibles
+- `apparentToTrue` / `trueToApparent` roundtrip
+- `groundToTrue` / `trueToGround` roundtrip
+- `windToUV` / `uvToWind` roundtrip
+- heel correction identity at heel=0
+- `estimateCurrent` with zero drift
+- `TWS` non-negativity from `apparentToTrue`
+
+No bugs found. All properties held. Suite 877 → 891 / 41 files.
+
+### Pass 33 — concurrency and data-flow tracing
+
+Detection method: **concurrency and data-flow tracing**. Exhaustive examination of:
+
+- Timer/interval cleanup in all hooks and components (all correct)
+- Async operation cancellation — forecast fetch, sprite loading, wake lock (all use
+  cancelled flags and AbortControllers)
+- Data flow from store through wind estimation to tactics (consistent)
+- Stale closure patterns in React effects (only intentional exclusions)
+- StackedField zero-gust truthiness (correctly `!== null` for numbers, `if (s)` for
+  objects)
+- Store wind mode switching (properly clears windHistory)
+- Routing client cancel/error/ID-based response matching (correct)
+- Start-line geometry sign conventions and NaN guards (correct)
+
+No bugs found. Only 6 untested pure functions remain (`vecAdd`, `vecSub`,
+`vecScale`, `vecDot`, `toRad`, `toDeg`) — all trivial.
+
+### Assessment
+
+Twelve distinct detection strategies have been exhausted across 33 passes:
+
+1. Mutation-testing own fixes
+2. Mutating others' safety-critical code
+3. Hunting untested files by size
+4. Sweeping for a specific defect shape (NaN, duplicated constants)
+5. Testing safety-critical infrastructure
+6. Systematic scan for stale-state bugs in React effects
+7. Testing pure formatters
+8. Scanning for untested cross-module boundaries
+9. Off-by-one and boundary errors in array/index arithmetic
+10. Type coercion traps
+11. Property-based / invariant testing
+12. Concurrency and data-flow tracing
+
+Remaining untested code is almost entirely DOM/WebGL rendering (`RouteScreen`,
+`particleLayer`, `WeatherScreen`, `RaceScreen`, `StartCanvas`, `scalarLayer`) —
+code whose correctness is visual and whose tests would need a GL context or full
+browser. The pure logic underneath is thoroughly covered.
+
+---
+
 ## 0. Passes 29–30 — 2026-08-29 — state that outlives its justification, and the formatters nobody tested
 
 ### Pass 29 — ChartSurface forecast fetch race
