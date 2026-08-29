@@ -13,6 +13,67 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
+## 0. Passes 25–26 — 2026-08-29 — the comparison that is false against NaN
+
+### Pass 25 — the forecast clock rendered "undefined NaN:NaNZ"
+
+`Timeline.tsx` calls itself "the highest value per line of code" in the map effort.
+It had no test and nothing imported it from one.
+
+Every figure on the strip — both clocks, the T+ chip, the slider position — is
+arithmetic on the cube header, and none of it checked the number first. The carrier
+was the file's own three-line `clamp`: **both its comparisons are false against NaN,
+so it returns NaN unchanged.** From there a bad header reached the slider and went
+back out through `onChange` into the layers, the router's start time and the tide
+lookup.
+
+The clocks return an em dash. The T+ chip is dropped rather than dashed, because
+"T+—h" reads as a measurement of nothing. `goToIndex` refuses to emit a
+non-finite time at all, leaving the map on the last good one.
+
+#### Two mutations survived for want of a better assertion, not better code
+
+Both are worth recording, because both were tests that looked adequate:
+
+  - The "does not wrap" test clicked buttons that are `disabled` at the ends of the
+    forecast. **The attribute masked the arithmetic** — a `step` that wrapped
+    survived the test, because the click never reached it. It goes through the
+    arrow keys now, which are the only route to `step` that nothing guards.
+  - Asserting the slider position was merely *finite* was too weak: a range input
+    silently sanitizes an invalid value to the midpoint of its own min/max. NaN
+    presented as **the middle of the forecast** — a specific, wrong, entirely
+    plausible time. The assertion pins index 0.
+
+### Pass 26 — the same shape, found by sweeping for it
+
+Grepping every `clamp` and every `Math.max(0, Math.min(...))` in `src/` turned up
+`timeIndices`, which builds the shader's time uniforms. It already *declares* the
+right intent — `if (nt <= 1 || dtMs <= 0) return { i0: 0, i1: 0, frac: 0 }` — but
+`NaN <= 1` is false, so a broken header walked past it, and `Math.min`/`Math.max`
+pass NaN through. All three returned values reached the GPU as NaN.
+
+No exception, no console warning, just a layer that draws wrong or not at all.
+
+Now written as negated `>`, plus an explicit finiteness check. A test pins that the
+guard does **not** swallow the ordinary out-of-range case, which has its own correct
+answer — pinned to an end, not reset to the start. A guard that ate it would have
+looked like a fix.
+
+### Where the sweep deliberately stopped
+
+`clampUnit` and `clamp` in `angles.ts`, and the two Mercator helpers in the layers,
+were left alone. They are math-core, their callers already guard, and making them
+absorb NaN would hide real errors in the routing kernel instead of surfacing them.
+
+The distinction that decides it: **Timeline and `timeIndices` sit on an output
+boundary**, where the only two options are an honest blank and a confident wrong
+answer. A function in the middle of a calculation has a third and better option,
+which is to let the wrongness propagate to someone who can report it.
+
+Suite 810 → 832.
+
+---
+
 ## 0. Pass 24 — 2026-08-29 — a stationary GPS reported as sailing due north
 
 `useGeolocation` is the only place a real fix enters the app. It had no test, and
