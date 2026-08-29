@@ -40,7 +40,25 @@ one (`i.wind && Number.isFinite(i.wind.twd) && Number.isFinite(i.wind.tws)`), bu
 once NaN propagated instead of being swallowed, the start-line bias and approach
 calculations produced NaN distances. The same guard was applied.
 
-Six mutations, all caught. Suite 891 → 892 / 41 files.
+### Three more sites in the same family
+
+`computeTactics` also leaked NaN through:
+- **VMC** (line 439): `state.sog * Math.cos(angdiff(mark, state.cog) * DEG)` —
+  `0 * NaN = NaN`, not 0, so a stationary boat with NaN COG showed NaN VMC.
+- **Laylines**: `computeLaylines` built `fromPolar(state.cog, 1)` — NaN direction
+  vectors bypassed `rayIntersect`'s parallel-ray guard (`Math.abs(NaN) < ε` is false),
+  and NaN distances passed `!== null`.
+
+Both now stay null when COG is non-finite.
+
+### Also fixed: departure sweep cap overflow
+
+`planDepartures` with `maxSolves = 1` produced 2 departures because
+`step = ceil(span / (cap-1 || 1))` set `step = span`, giving
+`count = floor(span/span) + 1 = 2`. Capped with `Math.min(cap, count)`.
+
+Ten mutations across all sites, nine caught (the tenth is an equivalent rewrite
+of the step formula). Suite 891 → 894 / 41 files.
 
 ---
 
