@@ -13,6 +13,72 @@ router, and the parts of the codebase that have no safety net.
 
 ---
 
+## 0. Pass 21 — 2026-08-29 — mutating the code this run did not write
+
+Pass 20 proved this run's own fixes are protected. That is the easy half: those tests
+were written against those defects. The open question was whether the **rest** of the
+suite would catch anything, so this pass mutated safety-critical code nobody in this
+run had touched — tide datum arithmetic, start-line OCS and bias, layline geometry,
+great-circle bearing, masthead wind scaling, wave-direction interpolation.
+
+**Seven mutations, seven killed, none survived.** A reciprocal `bearing` alone fails 57
+tests. That ground is solid, and the useful conclusion is where to stop looking.
+
+### So the search moved to what has no tests at all
+
+Sorting `src/` by "has no sibling test file" put `src/lib/routing/worker.ts` near the
+top: 311 lines, one test, and the only file in `src/lib/routing/**` that turns a wire
+payload into a `RouteContext`. Every way of getting *that* wrong is invisible to the
+kernel tests, which are handed a context already built.
+
+### The bug: the router claimed to avoid land it had never looked at
+
+`adoptLandRaster` validates a transferred coastline raster and returns null when it
+does not add up — a short bit array reads as open water past its end. Its comment
+gives the reason:
+
+> a router that believes land is sea is worse than one with no land data at all — the
+> second warns you, the first does not.
+
+Half of that was true. The rejection worked. **The warning did not exist.**
+`routeIsochrone` fell back to `land = null` in silence, and `RouteScreen` decided what
+to tell the sailor from whether *its own* copy of the pack had loaded — not from what
+the kernel did. So a rejected raster produced a route computed over open water,
+labelled `Land avoided using a 111 m OSM coastline raster over the Portland venue`.
+
+The route through Portland's islands and the route around them are the same picture
+when the caption is written by the wrong side of the worker boundary.
+
+**Fix.** `diagnostics.landAvoided` is the kernel's own answer, and required rather than
+optional, so no caller can build a result that forgets to say. The kernel warns when
+avoidance was requested and not delivered, and stays quiet when it was never requested
+— a warning there would train sailors to ignore the one that matters. The screen now
+follows the flag and separates "the pack failed to load" from "the router rejected it".
+
+### A vacuous test, caught by the same method that found the bug
+
+`worker.test.ts` is new. Its first draft asserted that a raster arriving as a plain
+array still works — and that assertion could never fail, because a plain array of the
+right values indexes exactly like a `Uint32Array`. Mutating the conversion away left it
+green.
+
+The shape that actually punishes a missing conversion is an `ArrayBuffer`: no `length`,
+so the size check compares against `undefined` and passes; no integer indices, so every
+cell reads as open water. And it is only detectable with a **solid-land** raster — with
+an all-water one, a broken mask and a working one give the same answer. All four
+mutations of the fix are now caught.
+
+### Category, third sighting
+
+Passes 2–17 named two recurring shapes: *state that outlives its justification* and
+*the instrument was wrong*. This is a third: **a claim made by the side that cannot
+verify it.** The main thread knew the pack had loaded; only the worker knew whether it
+was used. The same split is worth checking wherever a message crosses a boundary and
+the sender narrates the outcome — `depthAdvisory` and the departure sweep are the
+next two places to look.
+
+---
+
 ## 0. Pass 20 — 2026-08-28 — mutation-testing the fixes
 
 Pass 19 ended by saying mutation-checking is "worth doing for any test whose whole
