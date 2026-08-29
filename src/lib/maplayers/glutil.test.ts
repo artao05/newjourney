@@ -153,4 +153,29 @@ describe('timeIndices', () => {
     const r = timeIndices(t0, dt, 1, t0 + dt * 5)
     expect(r).toEqual({ i0: 0, i1: 0, frac: 0 })
   })
+
+  it('refuses a non-finite header rather than passing NaN to the shader', () => {
+    /*
+     * Every value here becomes a uniform. `Math.min`/`Math.max` return NaN
+     * unchanged and `NaN <= 1` is false, so a cube whose header did not survive
+     * decoding used to produce `{ i0: NaN, i1: NaN, frac: NaN }` — which throws
+     * nothing, warns nothing, and draws a layer that is silently wrong.
+     */
+    for (const [label, args] of [
+      ['NaN t', [t0, dt, 5, Number.NaN]],
+      ['NaN t0', [Number.NaN, dt, 5, t0]],
+      ['NaN dtMs', [t0, Number.NaN, 5, t0]],
+      ['NaN nt', [t0, dt, Number.NaN, t0]],
+      ['infinite t', [t0, dt, 5, Number.POSITIVE_INFINITY]],
+    ] as Array<[string, [number, number, number, number]]>) {
+      const r = timeIndices(...args)
+      expect(r, label).toEqual({ i0: 0, i1: 0, frac: 0 })
+    }
+  })
+
+  it('still brackets normally when only the clock is at an extreme', () => {
+    // The guard must not swallow the ordinary out-of-range case, which has its
+    // own correct answer: pinned to an end, not reset to the start.
+    expect(timeIndices(t0, dt, 5, t0 + dt * 99)).toEqual({ i0: 4, i1: 4, frac: 0 })
+  })
 })

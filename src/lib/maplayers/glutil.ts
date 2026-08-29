@@ -287,8 +287,19 @@ export function timeIndices(
   nt: number,
   t: number,
 ): { i0: number; i1: number; frac: number } {
-  if (nt <= 1 || dtMs <= 0) return { i0: 0, i1: 0, frac: 0 }
+  // Written as negated `>` rather than `<=` so a non-finite `nt` or `dtMs` takes
+  // the safe branch: every comparison against NaN is false, and `NaN <= 1` would
+  // have let a broken cube header through.
+  if (!(nt > 1) || !(dtMs > 0)) return { i0: 0, i1: 0, frac: 0 }
   const raw = (t - t0) / dtMs
+  /*
+   * `Math.min`/`Math.max` return NaN unchanged, so without this the whole triple
+   * comes back non-finite and goes straight into shader uniforms. That is the
+   * quietest failure available on this path: not an exception, not a console
+   * warning, just a layer that draws wrong or not at all. Step 0 is the one the
+   * cube certainly has.
+   */
+  if (!Number.isFinite(raw)) return { i0: 0, i1: 0, frac: 0 }
   const clamped = Math.max(0, Math.min(nt - 1, raw))
   const i0 = Math.floor(clamped)
   const i1 = Math.min(nt - 1, i0 + 1)
