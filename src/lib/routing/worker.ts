@@ -19,6 +19,7 @@
  * loop, and the inner loop is where the whole performance budget lives.
  */
 
+import { bboxOf } from '../geo'
 import { sweepDepartures, type DepartureSweep } from './departure'
 import { routeIsochrone, type RouteContext } from './isochrone'
 import { RasterLandMask, buildLandMask, type LandMask } from './land'
@@ -166,21 +167,20 @@ function adoptLandRaster(p: LandRasterPayload | undefined): LandMask | null {
 
 /** Bounding box that covers the course, padded — used to size the land raster. */
 function courseBBox(req: RouteRequest, cube: WeatherCube): BBox {
-  const lats = [req.start.lat, ...req.marks.map((m) => m.lat)]
-  const lons = [req.start.lon, ...req.marks.map((m) => m.lon)]
+  const pts = [req.start, ...req.marks]
   const pad = 0.5
-  const bb: BBox = {
-    west: Math.min(...lons) - pad,
-    east: Math.max(...lons) + pad,
-    south: Math.min(...lats) - pad,
-    north: Math.max(...lats) + pad,
+  const bb = bboxOf(pts)
+  const padded: BBox = {
+    west: bb.west - pad,
+    east: bb.east + pad,
+    south: bb.south - pad,
+    north: bb.north + pad,
   }
-  // Never rasterise land outside the forecast box — nothing there is routable.
   return {
-    west: Math.max(bb.west, cube.bbox.west),
-    east: Math.min(bb.east, cube.bbox.east),
-    south: Math.max(bb.south, cube.bbox.south),
-    north: Math.min(bb.north, cube.bbox.north),
+    west: Math.max(padded.west, cube.bbox.west),
+    east: Math.min(padded.east, cube.bbox.east),
+    south: Math.max(padded.south, cube.bbox.south),
+    north: Math.min(padded.north, cube.bbox.north),
   }
 }
 

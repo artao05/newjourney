@@ -49,6 +49,7 @@ import {
   destination,
   distance,
   fromPolar,
+  lonSpan,
   vecAdd,
   vecBearing,
 } from '../geo'
@@ -196,7 +197,7 @@ class DenseField {
     this.dtMs = dtMs
     this.lon0 = bbox.west
     this.lat0 = bbox.south
-    this.dLon = nx > 1 ? (bbox.east - bbox.west) / (nx - 1) : 1
+    this.dLon = nx > 1 ? lonSpan(bbox.west, bbox.east) / (nx - 1) : 1
     this.dLat = ny > 1 ? (bbox.north - bbox.south) / (ny - 1) : 1
     const n = nx * ny * nt
     this.u = new Float32Array(n)
@@ -275,7 +276,7 @@ const MIN_CELL_DEG = 0.01
 
 function gridDims(bbox: BBox, budget: number, nt: number): { nx: number; ny: number } {
   const midLat = (bbox.north + bbox.south) / 2
-  const spanLonDeg = Math.max(1e-6, bbox.east - bbox.west)
+  const spanLonDeg = Math.max(1e-6, lonSpan(bbox.west, bbox.east))
   const spanLatDeg = Math.max(1e-6, bbox.north - bbox.south)
   const spanLon = spanLonDeg * Math.max(0.05, Math.cos(midLat * DEG))
   const perSlice = Math.max(64, Math.floor(budget / Math.max(1, nt)))
@@ -600,7 +601,7 @@ function makeRecorder(bbox: BBox, keepMax: boolean): Recorder {
   const midLat = (bbox.north + bbox.south) / 2
   const aspect = Math.max(
     0.05,
-    ((bbox.east - bbox.west) * Math.cos(midLat * DEG)) /
+    (lonSpan(bbox.west, bbox.east) * Math.cos(midLat * DEG)) /
       Math.max(1e-6, bbox.north - bbox.south),
   )
   const nx = Math.round(clamp(Math.round(96 * Math.sqrt(aspect)), 16, 192))
@@ -610,7 +611,7 @@ function makeRecorder(bbox: BBox, keepMax: boolean): Recorder {
   return {
     lon0: bbox.west,
     lat0: bbox.south,
-    dLon: (bbox.east - bbox.west) / nx,
+    dLon: lonSpan(bbox.west, bbox.east) / nx,
     dLat: (bbox.north - bbox.south) / ny,
     nx,
     ny,
