@@ -537,4 +537,52 @@ describe('ParticleLayer', () => {
     layer.render(gl as never, projection)
     expect(gl.assigned.has('u_domain_max')).toBe(true)
   })
+
+  it('ramp lookup reaches the last entry at maximum speed', () => {
+    /*
+     * The particle draw shader packs a 256-entry ramp into a 16×16 texture and
+     * unwraps v_speed_t ∈ [0,1] into 2-D coordinates. Entry i sits at texel
+     * (i%16, floor(i/16)); its centre is ((i%16+0.5)/16, (floor(i/16)+0.5)/16).
+     *
+     * At v_speed_t = 1.0 the lookup must land on entry 255 — the domain-max
+     * colour — not wrap back to entry 240. The old formula using fract(16*t)
+     * wrapped to column 0 because fract(16) == 0.
+     */
+    const N = 16
+    const layer = mounted()
+    layer.setData(cubeOf(4), 0)
+
+    // Extract the draw fragment shader from the recorded shader sources.
+    const shaders = gl.handles
+      .filter((h: { kind: string }) => h.kind === 'shader')
+      .map((h: { kind: string }) => (gl as any).shaderSources.get(h) as string | undefined)
+      .filter(Boolean) as string[]
+    const drawFrag = shaders.find((s) => s.includes('u_color_ramp') && s.includes('v_speed_t'))!
+    expect(drawFrag).toBeDefined()
+
+    // The shader must scale by 255 (last entry index) not 256 (entry count),
+    // and must use mod/floor addressing with a +0.5 texel-centre offset rather
+    // than the fract() pattern that wraps at exactly 1.0.
+    expect(drawFrag).toContain('v_speed_t * 255.0')
+    expect(drawFrag).toContain('mod(ramp_idx, 16.0)')
+    expect(drawFrag).not.toContain('fract(16.0 * v_speed_t)')
+
+    // Verify the formula reaches both endpoints. Simulate the GLSL unwrap:
+    //   float ramp_idx = v_speed_t * 255.0;
+    //   vec2 ramp_pos = vec2(
+    //     (mod(ramp_idx, 16.0) + 0.5) / 16.0,
+    //     (floor(ramp_idx / 16.0) + 0.5) / 16.0);
+    function texel(tc: number, size: number): number {
+      return Math.min(size - 1, Math.max(0, Math.floor(tc * size)))
+    }
+    function entryFor(t: number): number {
+      const idx = t * 255
+      const x = (((idx % N) + N) % N + 0.5) / N
+      const y = (Math.floor(idx / N) + 0.5) / N
+      return texel(y, N) * N + texel(x, N)
+    }
+
+    expect(entryFor(0)).toBe(0)
+    expect(entryFor(1)).toBe(255)
+  })
 })

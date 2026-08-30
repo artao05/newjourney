@@ -161,7 +161,10 @@ uniform float u_opacity;
 varying float v_speed_t;
 void main() {
   if (v_speed_t < 0.0) discard;
-  vec2 ramp_pos = vec2(fract(16.0 * v_speed_t), floor(16.0 * v_speed_t) / 16.0);
+  float ramp_idx = v_speed_t * 255.0;
+  vec2 ramp_pos = vec2(
+    (mod(ramp_idx, 16.0) + 0.5) / 16.0,
+    (floor(ramp_idx / 16.0) + 0.5) / 16.0);
   vec4 c = texture2D(u_color_ramp, ramp_pos);
   gl_FragColor = vec4(c.rgb, c.a * u_opacity);
 }`
