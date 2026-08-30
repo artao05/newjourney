@@ -498,7 +498,32 @@ Suite 903 / 41 files.
   resources. Weather fetches bypass SW (cross-origin). Default-deny `isCacheable()`
   prevents accidental forecast caching. Offline update check fails silently.
 
-Suite 906 / 41 files. Seventy-one detection strategies exhausted across 98 passes.
+- **Pass 99** (NOAA CO-OPS API error handling): no bugs. 200-with-error-body
+  detected in both `readCp` and `readPredictions`. Timezone explicitly UTC via
+  `time_zone=gmt` and `Date.UTC`. Gaps return null, not fallback. Station IDs
+  are hardcoded constants. Negative datum depths handled deliberately.
+
+- **Pass 100** (isochrone routing kernel deep audit): no bugs. DDA land walk with
+  dilation catches narrow-island hops. Goal detection includes exact bearing in
+  the heading fan, with 2-step grace after first finish. Node pool is append-only
+  so parent pointers never dangle. Label-setting pruning uses an admissible lower
+  bound (`t + remain/vmax`). Current integration is correct vector sum with
+  crab-angle solver for goal approach.
+
+- **Pass 101** (React hook dependency arrays): **BUG.** `useSimulation` captured
+  `manualWind.twd` and `manualWind.tws` at construction but never called
+  `BoatSim.setWind()` when the store values changed. The `eslint-disable` comment
+  for the intentionally-excluded `origin` also masked the missing `manualWind`
+  dependency. Changing wind direction or speed in Setup while the sim was running
+  had no effect — the simulated boat sailed in the original wind forever. All
+  downstream tactical numbers (polar %, VMG, laylines) became wrong because they
+  compared actual performance against targets computed at the displayed (new) wind
+  but the sim was still sailing in the original wind. Fix: a separate `useEffect`
+  that forwards wind changes to the running sim via `setWind()`, without recreating
+  it (which would teleport the boat back to origin). Mutation test (remove the
+  effect): caught.
+
+Suite 907 / 41 files. Seventy-four detection strategies exhausted across 101 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
