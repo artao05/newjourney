@@ -613,9 +613,25 @@ Suite 903 / 41 files.
   UV component conversion, sign conventions, and circular averaging all verified
   correct. Round-trip tests cover all functions.
 
-- **Pass 116 — colormap + ramp generation:** awaiting result.
+- **Pass 116 — colormap +Infinity mapping (BUG).** `lookup(ramp, Infinity)`
+  was caught by the `!Number.isFinite(value)` guard and mapped to the low-end
+  color (dark purple for wind) instead of the high-end (bright yellow). Changed
+  guard to `!(value > stops[0].value)` so NaN and -Infinity clamp low but
+  +Infinity falls through to the high-end clamp. Test added; mutation caught.
 
-Suite 915 / 41 files. Eighty-eight detection strategies across 116 passes.
+### Passes 117–119
+
+- **Pass 117 — departure sweep endpoint drop (BUG).** `planDepartures` silently
+  dropped the window endpoint when the natural grid count equalled `maxSolves`.
+  A 23.5h window at 1h step with cap=24 produced 24 points ending at T+23h,
+  missing the T+23.5h endpoint entirely — no warning. Fixed by replacing the
+  last grid point with the endpoint (when length > 1). Test added; mutation
+  caught.
+
+- **Pass 118 — GPX import/export:** rate-limited, will retry.
+- **Pass 119 — bathymetry + depth data:** rate-limited, will retry.
+
+Suite 917 / 41 files. Ninety detection strategies across 119 passes.
 
 ---
 
