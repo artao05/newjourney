@@ -12,7 +12,7 @@ import { useTick } from '@/hooks/useSensors'
 import { Tile, fmtClock } from '@/components/Tile'
 import { computeTactics } from '@/lib/tactics'
 import { buildLattice } from '@/lib/polar'
-import { fmtDeg, wrap360 } from '@/lib/angles'
+import { fmtDeg, fmtShift, wrap360 } from '@/lib/angles'
 import { distance, bearing } from '@/lib/geo'
 import { makeWLCourse } from '@/lib/sim'
 import type { PolarLattice, TacticalNumbers, WindEstimate } from '@/lib/types'
@@ -177,9 +177,7 @@ export function RaceScreen() {
           small
           sub={
             t?.laylines?.twdToLay != null && t.twd != null
-              ? `${t.laylines.twdToLay - t.twd > 0 ? 'right' : 'left'} ${Math.abs(
-                  Math.round(t.laylines.twdToLay - t.twd),
-                )}°`
+              ? fmtShift(t.twd, t.laylines.twdToLay)
               : undefined
           }
         />

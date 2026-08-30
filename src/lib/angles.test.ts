@@ -16,6 +16,7 @@ import {
   clampUnit,
   courseFor,
   fmtDeg,
+  fmtShift,
   lerpBearing,
   manoeuvre,
   meanBearing,
@@ -285,5 +286,32 @@ describe('fmtDeg', () => {
   it('returns an em dash for NaN and Infinity', () => {
     expect(fmtDeg(NaN)).toBe('—')
     expect(fmtDeg(Infinity)).toBe('—')
+  })
+})
+
+describe('fmtShift', () => {
+  it('labels a clockwise shift as "right"', () => {
+    expect(fmtShift(90, 110)).toBe('right 20°')
+    expect(fmtShift(0, 15)).toBe('right 15°')
+  })
+
+  it('labels an anticlockwise shift as "left"', () => {
+    expect(fmtShift(110, 90)).toBe('left 20°')
+    expect(fmtShift(15, 0)).toBe('left 15°')
+  })
+
+  it('takes the short way across the 0/360 seam', () => {
+    // This is the case the raw-subtraction bug got wrong: twdToLay = 10,
+    // twd = 350 gave "left 340°" when the real shift is only 20° right.
+    expect(fmtShift(350, 10)).toBe('right 20°')
+    expect(fmtShift(10, 350)).toBe('left 20°')
+    expect(fmtShift(355, 5)).toBe('right 10°')
+    expect(fmtShift(5, 355)).toBe('left 10°')
+  })
+
+  it('shows zero shift', () => {
+    // Zero is directionless; the label is immaterial, the magnitude matters.
+    const z = fmtShift(180, 180)
+    expect(z).toMatch(/0°$/)
   })
 })

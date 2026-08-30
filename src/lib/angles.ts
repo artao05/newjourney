@@ -42,6 +42,17 @@ export function fmtDeg(a: number): string {
   return String(r >= 0 ? r : r + 360)
 }
 
+/**
+ * Describe the direction and magnitude of a wind shift: "right 20°" or "left 5°".
+ *
+ * Uses `angdiff` so it takes the short way across the 0/360 seam.
+ * Positive (clockwise) is "right"; negative (anticlockwise) is "left".
+ */
+export function fmtShift(from: Degrees, to: Degrees): string {
+  const diff = angdiff(to, from)
+  return `${diff > 0 ? 'right' : 'left'} ${Math.abs(Math.round(diff))}°`
+}
+
 /** Normalise to (-180, 180]. */
 export function wrap180(a: number): SignedDegrees {
   const r = wrap360(a + 180) - 180
