@@ -366,8 +366,10 @@ function hydrate(
 
   const plane = nx * ny
   for (let k = 0; k < nt; k++) {
-    const tWant = t0 + k * dtMs - shiftMs
+    const tBase = t0 + k * dtMs
+    const tWant = tBase - shiftMs
     const tq = clamp(tWant, cov.t0, cov.t1)
+    const tNoShift = clamp(tBase, cov.t0, cov.t1)
     if (tq !== tWant) clampedTime = true
     for (let j = 0; j < ny; j++) {
       const lat = out.lat0 + j * out.dLat
@@ -401,14 +403,14 @@ function hydrate(
           if (g != null) out.gust[idx] = g * windScale
         }
         if (anyCurrent) {
-          const c = src.current(latq, lonq, tq)
+          const c = src.current(latq, lonq, tNoShift)
           if (c != null) {
             out.cu[idx] = c.u * curScale
             out.cv[idx] = c.v * curScale
           }
         }
         if (anyWaves) {
-          const wv = src.waves(latq, lonq, tq)
+          const wv = src.waves(latq, lonq, tNoShift)
           if (wv != null) out.wave[idx] = wv.heightM
         }
       }

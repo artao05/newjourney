@@ -12,7 +12,7 @@
  * must be testable without `src/lib/weather` or `src/lib/polar` existing.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { bearing, crossTrack, destination, distance } from '../geo'
 import { DEG, wrap360 } from '../angles'
 import type {
@@ -1163,6 +1163,62 @@ describe('kernel invariants', () => {
       expect(d.timeStepS, `${s.label}: step vs elapsed`).toBeLessThanOrEqual(
         (s.result.elapsedS as number) + 1,
       )
+    }
+  })
+})
+
+describe('wind time shift does not drag current or waves', () => {
+  it('queries current at unshifted time', () => {
+    const windCalls: Array<[number, number, number]> = []
+    const currentCalls: Array<[number, number, number]> = []
+    const t0Field = Date.UTC(2026, 5, 15, 6, 0, 0)
+    const shiftS = 3600
+    const shiftMs = shiftS * 1000
+
+    const field: WeatherField = {
+      wind(lat: number, lon: number, t: Millis) {
+        windCalls.push([lat, lon, t])
+        return { u: 0, v: -12, source: 'test' }
+      },
+      gust: () => null,
+      current(lat: number, lon: number, t: Millis) {
+        currentCalls.push([lat, lon, t])
+        return { u: 0.5, v: 0, source: 'test' }
+      },
+      waves: () => null,
+      coverage: () => ({
+        bbox: { west: -180, south: -85, east: 180, north: 85 },
+        t0: t0Field,
+        t1: t0Field + 72 * 3_600_000,
+      }),
+    }
+
+    const start: LatLon = { lat: 40, lon: -70 }
+    const mark = destination(start, 0, 10)
+    const req = request({
+      start,
+      marks: [mark],
+      scalings: { ...defaultScalings(), windTimeShiftS: shiftS },
+    })
+
+    routeIsochrone(req, { field, lattice: LATTICE })
+
+    expect(windCalls.length).toBeGreaterThan(0)
+
+    // hydrate probes current at 3 spatial points before the grid loop, so
+    // skip those; the remaining calls pair 1:1 with wind calls.
+    const gridCurrentCalls = currentCalls.slice(3)
+    expect(gridCurrentCalls.length).toBe(windCalls.length)
+
+    for (let i = 0; i < windCalls.length; i++) {
+      const [wLat, wLon, wT] = windCalls[i]
+      const [cLat, cLon, cT] = gridCurrentCalls[i]
+      expect(cLat).toBe(wLat)
+      expect(cLon).toBe(wLon)
+      expect(
+        cT - wT,
+        'current must be queried shiftMs later than wind (i.e. at the unshifted time)',
+      ).toBe(shiftMs)
     }
   })
 })

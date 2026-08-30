@@ -362,7 +362,20 @@ Suite 903 / 41 files.
   0. Depth is advisory-only (not a routing constraint — GEBCO too coarse). Metres
   throughout, no unit mixing.
 
-Suite 904 / 41 files. Forty-nine detection strategies exhausted across 76 passes.
+- **Pass 77** (wind time shift leaks into current/wave queries): **BUG.** The
+  `hydrate()` function in `isochrone.ts` computed a single shifted time `tq` and
+  used it for wind, current, and wave queries. The wind time shift is a
+  user-facing control for offsetting the forecast in time ("what if the breeze
+  fills an hour late?"), but current is tidal (phase-locked to the moon) and
+  waves are not wind-offset either. With a non-zero shift, routing would sample
+  current at the wrong phase of the tide — potentially a 6-knot error in a strong
+  tidal stream. Fix: compute `tNoShift = clamp(tBase, ...)` and use it for
+  current and wave queries. Currently dormant (`windTimeShiftS` hardcoded to 0 in
+  the UI) but would have produced silently wrong routes the day a time-shift
+  control was wired up. Test pins the fix with a spy that records query timestamps
+  and verifies the shift relationship. Mutation test (revert to `tq`): caught.
+
+Suite 905 / 41 files. Fifty detection strategies exhausted across 77 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
