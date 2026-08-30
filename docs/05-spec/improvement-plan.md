@@ -315,12 +315,22 @@ Suite 903 / 41 files.
   prevents NaN from `acos`/`asin`. Two theoretical issues at exact poles (LocalFrame
   and rhumbBearing) are unreachable in practice.
 
-Suite 904 / 41 files. Forty detection strategies exhausted across 67 passes.
-The computational core, routing kernel, UI rendering, React hooks, worker
-communication, PWA offline, service worker, error handling, map layers, CSS/layout,
-GPX roundtrip, numeric edge cases, security, type safety, physics model, build
-output, locale safety, accessibility, dead code, API edge cases, and persistence
-are all verified clean.
+- **Pass 68** (timer/animation precision): no bugs. Countdown uses wall-clock
+  `Date.now() - gunTime` with rAF display — no drift. GPS timestamps from hardware,
+  no fixed-rate assumption. Simulation uses `setInterval` with minor drift but is
+  dev-only.
+
+- **Pass 69** (state consistency / impossible states): no bugs. All mutation paths
+  maintain invariants. `activeMarkIndex` clamped on every course change. Route
+  invalidated on every mark mutation. `clearCourse` resets all course-dependent
+  state. No impossible state reachable through the UI.
+
+- **Pass 70** (map interaction correctness): no bugs. Coordinate convention `[lon,lat]`
+  consistent throughout. Source/layer cleanup correct (layers before sources). Map
+  init guarded against StrictMode double-mount. Custom WebGL layers clean up all
+  GPU resources. ResizeObserver handles container resize.
+
+Suite 904 / 41 files. Forty-three detection strategies exhausted across 70 passes.
 
 ---
 
