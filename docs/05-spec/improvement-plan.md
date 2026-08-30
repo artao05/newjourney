@@ -344,7 +344,31 @@ Suite 903 / 41 files.
   TWS extrapolates linearly. VMG optimals computed by brute-force scan. Lattice O(1)
   lookup with bounded indices.
 
-Suite 904 / 41 files. Forty-six detection strategies exhausted across 73 passes.
+- **Pass 74** (start line geometry edge cases): no bugs. All edge cases handled
+  correctly: one end pinged (returns partial data), both ends same point (early
+  return), boat over line/OCS (UI shows OCS state), zero speed (null propagation),
+  no wind (bias fields null), wind perpendicular to line (0° bias, `'even'`). The
+  GPS approach's `Math.abs(hit.t)` for boats pointing away is a documented design
+  choice.
+
+- **Pass 75** (tidal prediction): no bugs. Harmonic computation delegated to NOAA
+  CO-OPS API. Timestamps parsed as explicit UTC. Units converted at parse boundary
+  (feet→metres). Datum chain correct (MLLW→MSL offset tested with sign-inversion
+  anchors). Missing/error data returns null, not fallback. Slack detection uses NOAA
+  published events, not re-derived.
+
+- **Pass 76** (depth/bathymetry): no bugs. Bilinear interpolation with correct
+  boundary handling. Datum chain documented and tested. Land cells return null, not
+  0. Depth is advisory-only (not a routing constraint — GEBCO too coarse). Metres
+  throughout, no unit mixing.
+
+Suite 904 / 41 files. Forty-nine detection strategies exhausted across 76 passes.
+The codebase has been audited across the full stack: computational core, routing
+kernel, UI rendering, React hooks, worker communication, PWA/service worker,
+CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
+start line geometry, tidal prediction, bathymetry, GPX roundtrip, numeric edge
+cases, timer precision, state consistency, build output, locale safety,
+accessibility, security, type safety, physics model, dead code, and API edge cases.
 
 ---
 
