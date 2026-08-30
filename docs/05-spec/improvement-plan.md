@@ -600,18 +600,22 @@ Suite 903 / 41 files.
   of truth via ChartValue context), display formatting (UTC/local), and React
   lifecycle (ref-based interval, effect cleanup) all verified correct.
 
-Suite 914 / 41 files. Eighty-five detection strategies across 113 passes.
-The codebase has been audited across the full stack: computational core, routing
-kernel, UI rendering, React hooks, worker communication, PWA/service worker,
-CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
-start line geometry, tidal prediction, bathymetry, GPX roundtrip, numeric edge
-cases, timer precision, state consistency, build output, locale safety,
-accessibility, security, type safety, physics model, dead code, API edge cases,
-error boundaries, Zustand store transitions, MapLibre layer lifecycle, URL/API
-handling, geolocation sensor pipeline, departure sweep, forecast freshness,
-storage persistence, build configuration, async race conditions, timeline playback,
-sensitivity visualization, weather cube codec, wind estimation, track recording,
-and WebGL shader sign conventions.
+### Passes 114–116
+
+- **Pass 114 — error boundary falsy values (BUG).** `!error` treated thrown
+  falsy values (`0`, `''`, `false`) as "no error", rendering children again and
+  causing an infinite render loop → white screen. Changed to `error === null`
+  to match only the initial state sentinel. Test added; mutation (revert to
+  `!error`) caught.
+
+- **Pass 115 — wind estimation pipeline: CLEAN.** Apparent-to-true and inverse,
+  heel correction, leeway, current estimation, ground-to-true wind and inverse,
+  UV component conversion, sign conventions, and circular averaging all verified
+  correct. Round-trip tests cover all functions.
+
+- **Pass 116 — colormap + ramp generation:** awaiting result.
+
+Suite 915 / 41 files. Eighty-eight detection strategies across 116 passes.
 
 ---
 
