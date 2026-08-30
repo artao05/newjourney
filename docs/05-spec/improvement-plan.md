@@ -182,9 +182,23 @@ pass 41 (antimeridian bbox) finding a real bug.
   `Math.abs(wrap180(twa))`. Heel correction is anemometer tilt compensation, not a
   speed reduction. Current effect correctly subtracts ground velocity.
 
-Suite 898 / 41 files. Twenty-one detection strategies exhausted. The remaining bugs
-in this codebase are likely in the UI/UX layer (which requires manual testing) or in
-integration with real hardware/data sources (which requires real devices).
+### Passes 47–48 — clean
+
+- **Pass 47** (PWA / service worker correctness): no bugs. Weather APIs are correctly
+  excluded from caching. Venue assets (bathymetry, land mask) are cached with
+  stale-while-revalidate. Tile cache has FIFO eviction at 1200 entries. No retry
+  loops on failed fetches. Update flow uses skipWaiting + clients.claim — no reload
+  loop risk.
+
+- **Pass 48** (type safety / assertion audit): no bugs. Zero `any` or `!` in
+  production `src/lib/` code. Every `as` cast is backed by structural guards (JSON
+  parse), browser API contracts (WebGL), or logical guarantees (Map.get after set).
+
+Suite 898 / 41 files. Twenty-three detection strategies exhausted across 48 passes.
+The computational core, routing kernel, physics model, data pipeline, store, worker
+protocol, cache strategy, and type safety are all clean. The remaining surface area
+is the UI/UX layer (requires manual testing) and integration with real
+hardware/data sources (requires real devices).
 
 ---
 
