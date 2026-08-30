@@ -442,7 +442,27 @@ Suite 903 / 41 files.
   `runIdRef` counter; each `run()` increments it and checks before setting state.
   Superseded runs silently discard their results.
 
-Suite 906 / 41 files. Sixty-two detection strategies exhausted across 89 passes.
+- **Pass 90** (departure sweep race conditions): no bugs. The sweep reuses the
+  same `runIdRef` guard as the route. The `RoutingClient` cancels in-progress
+  work on a new request. Sweep and route share a single busy state, so only one
+  can run at a time.
+
+- **Pass 91** (timeline playback step): **BUG.** The `step()` function used
+  `Math.round` to snap fractional slider positions before adding the delta.
+  When `Math.round` rounds toward the direction of travel, the step overshoots
+  by one whole forecast hour (e.g., from index 2.5 forward: round→3, +1=4,
+  skipping hour 3). The play timer already used `Math.floor` correctly. Fix:
+  use `Math.floor` for forward steps and `Math.ceil` for backward steps, with
+  the same epsilon the timer uses.
+
+- **Pass 92** (sensitivity analysis antimeridian): **BUG.** `sensitivityFC()`
+  computed grid cell width as `east - west`, which produces a negative `dx` for
+  bounding boxes crossing ±180°. The routing kernel uses `lonSpan()` which
+  handles the wrap. Fix: use `lonSpan(west, east)` and `wrap180()` on computed
+  longitudes. Currently dormant (Portland venue only) but would produce an
+  invisible or misplaced sensitivity band for any cross-dateline route.
+
+Suite 906 / 41 files. Sixty-five detection strategies exhausted across 92 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
@@ -451,7 +471,8 @@ cases, timer precision, state consistency, build output, locale safety,
 accessibility, security, type safety, physics model, dead code, API edge cases,
 error boundaries, Zustand store transitions, MapLibre layer lifecycle, URL/API
 handling, geolocation sensor pipeline, departure sweep, forecast freshness,
-storage persistence, build configuration, and async race conditions.
+storage persistence, build configuration, async race conditions, timeline playback,
+and sensitivity visualization.
 
 ---
 

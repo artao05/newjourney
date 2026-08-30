@@ -16,7 +16,8 @@ import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
 import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
 import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tides/coops'
 import { PORTLAND_DATUM, datumNote } from '@/lib/tides/datum'
-import { bboxOf, distance } from '@/lib/geo'
+import { bboxOf, distance, lonSpan } from '@/lib/geo'
+import { wrap180 } from '@/lib/angles'
 import type { Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
 import { fmtDuration } from '@/components/Tile'
 import { DepartureChart } from '@/components/DepartureChart'
@@ -1176,14 +1177,15 @@ function windFC(c: WeatherCube): FC {
 function sensitivityFC(route: RouteResult): FC {
   const s = route.sensitivity
   if (!s) return emptyFC()
-  const dx = (s.bbox.east - s.bbox.west) / s.nx
+  const dx = lonSpan(s.bbox.west, s.bbox.east) / s.nx
   const dy = (s.bbox.north - s.bbox.south) / s.ny
   const features: GeoJSON.Feature[] = []
   for (let j = 0; j < s.ny; j++) {
     for (let i = 0; i < s.nx; i++) {
       const loss = s.loss[j * s.nx + i]
       if (!Number.isFinite(loss) || loss > 10) continue
-      const x0 = s.bbox.west + i * dx
+      const x0 = wrap180(s.bbox.west + i * dx)
+      const x1 = wrap180(s.bbox.west + (i + 1) * dx)
       const y0 = s.bbox.south + j * dy
       features.push({
         type: 'Feature',
@@ -1193,8 +1195,8 @@ function sensitivityFC(route: RouteResult): FC {
           coordinates: [
             [
               [x0, y0],
-              [x0 + dx, y0],
-              [x0 + dx, y0 + dy],
+              [x1, y0],
+              [x1, y0 + dy],
               [x0, y0 + dy],
               [x0, y0],
             ],

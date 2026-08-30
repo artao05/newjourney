@@ -168,7 +168,10 @@ export function Timeline({
    */
   const step = useCallback(
     (delta: number) => {
-      goToIndex(Math.round(idxRef.current) + delta)
+      const snap = delta > 0
+        ? Math.floor(idxRef.current + 1e-6)
+        : Math.ceil(idxRef.current - 1e-6)
+      goToIndex(snap + delta)
     },
     [goToIndex],
   )
