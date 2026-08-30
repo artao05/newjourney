@@ -113,6 +113,40 @@ Verified that the fixes from passes 34–38 introduced no regressions:
 
 Zero regressions.
 
+### Pass 40 — mutable aliasing / defensive copy
+
+No bugs. Every store setter creates a new reference (`.slice()`, spread). The
+isochrone kernel's scratch objects (`pa`, `pb` in `NodeStore`) are class-private and
+never escape. `computeTactics` and `computeStart` return fresh objects from factory
+functions. No component captures a mutable ref that becomes stale.
+
+### Pass 41 — boundary value analysis
+
+Detection method: **boundary value analysis** — testing at mathematical extremes
+(antimeridian, poles, zero speed, -0, single-element collections).
+
+**Bug: `bboxOf` produced globe-spanning boxes for antimeridian crossings.** Points
+at lon 170 and -170 (20° apart via ±180) produced a bbox spanning 340° the long way.
+This fed `gridDims` a 340° span, so the weather field got ~5× fewer cells per degree
+over the actual route. The `DenseField.sample()` method and `RasterLandMask.isLand()`
+already use `wrap180` for longitude indexing and would work correctly once given the
+right bbox — the bug was only in `bboxOf` and the `dLon` computation.
+
+Fix: compute the bbox in both [-180,180] and [0,360] coordinate frames and pick the
+tighter one. Added `lonSpan(west, east)` helper that returns the correct span when
+`west > east` (crossing). Updated `DenseField`, `gridDims`, `Recorder`, and
+`RasterLandMask` to use `lonSpan` for `dLon`.
+
+Five mutations, two killed (the `bboxOf` dual-frame detection and the `lonSpan`
+wrapping). Three downstream mutations survived — `lonSpan(w, e)` and `e - w` are
+identical for non-crossing boxes, and no test uses antimeridian data.
+
+Also noted (not fixed — low impact for current use):
+- `LocalFrame.toLatLon` divides by unguarded `cosLat` (wrong at lat > 89°)
+- `rhumbBearing` at lat=90 produces `atan2(x, Infinity)` = 0
+
+Suite 898 / 41 files.
+
 ---
 
 ## 0. Passes 31–33 — 2026-08-29 — plateau
