@@ -194,11 +194,39 @@ pass 41 (antimeridian bbox) finding a real bug.
   production `src/lib/` code. Every `as` cast is backed by structural guards (JSON
   parse), browser API contracts (WebGL), or logical guarantees (Map.get after set).
 
-Suite 898 / 41 files. Twenty-three detection strategies exhausted across 48 passes.
-The computational core, routing kernel, physics model, data pipeline, store, worker
-protocol, cache strategy, and type safety are all clean. The remaining surface area
-is the UI/UX layer (requires manual testing) and integration with real
-hardware/data sources (requires real devices).
+Suite 898 / 41 files.
+
+### Pass 49 — state persistence / shallow merge
+
+Detection method: **state persistence schema migration** — checking what happens when
+persisted localStorage data has a stale schema (missing new fields).
+
+**Bug: Zustand's default shallow merge destroyed nested defaults.** The `persist`
+middleware does `{ ...current, ...persisted }` — a shallow spread. When old
+localStorage had `settings: { units: 'imperial' }` (missing `keepAwake`), the entire
+default `settings` object was replaced, leaving `keepAwake` as `undefined`. Same for
+`boat`, `course`, and `course.startLine`.
+
+Fix: extracted `mergePersistedState` that deep-merges each nested object individually:
+`boat`, `course` (including `startLine`), and `settings`. Added `version: 1` to the
+persist config for future schema migrations.
+
+Four mutations, three killed (settings, boat, startLine). The fourth ("remove merge
+config") survived because the test calls the function directly; an integration test
+through Zustand hydration would kill it but is disproportionate.
+
+### Passes 50–51 — clean
+
+- **Pass 50** (test quality audit): no tests give false confidence. No tautological
+  assertions, no mock-only tests, no suspicious tolerances, no flaky time dependence.
+  Mocks are scoped to browser APIs unavailable in Node; every assertion tests real
+  production logic.
+
+- **Pass 51** (security audit): no XSS, injection, or credential exposure. No
+  `innerHTML` or `dangerouslySetInnerHTML`. GPX export escapes user strings. API
+  responses are typed as `unknown` and structurally validated. No API keys in source.
+
+Suite 903 / 41 files. Twenty-six detection strategies exhausted across 51 passes.
 
 ---
 
