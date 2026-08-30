@@ -676,6 +676,17 @@ describe('CurrentChart', () => {
     }
   })
 
+  it('labels y-axis ticks to match their position', () => {
+    // peak 1.2 kn ⟹ yMax = ceil(1.2*2)/2 = 1.5 ⟹ intermediate tick at 0.75 kn.
+    // toFixed(1) rounds 0.75 → "0.8", which is wrong — the label must say "0.75".
+    render(<CurrentChart prediction={prediction(480)} t={T + 2 * 3_600_000} windowHours={12} />)
+    const texts = ctx.calls
+      .filter((c) => c.op === 'fillText')
+      .map((c) => String(c.args[0]))
+    expect(texts).toContain('0.75')
+    expect(texts).not.toContain('0.8')
+  })
+
   it('draws nothing rather than throwing when its parent has no width', () => {
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', { value: 0, configurable: true })
     ctx = new RecordingContext()
