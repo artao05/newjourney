@@ -67,9 +67,8 @@ export function Tile({ label, value, unit, dp = 1, sub, tone, small, onClick }: 
  */
 export function fmtDuration(seconds: number | null | undefined): string | null {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return null
-  const neg = seconds < 0
   const s = Math.round(Math.abs(seconds))
-  const sign = neg ? '-' : ''
+  const sign = seconds < 0 && s > 0 ? '-' : ''
   if (s < 60) return `${sign}${s}s`
   const mins = Math.floor(s / 60)
   if (mins < 60) return `${sign}${mins}m`
@@ -81,11 +80,10 @@ export function fmtDuration(seconds: number | null | undefined): string | null {
 /** mm:ss, or -mm:ss after the gun. Handles null. */
 export function fmtClock(seconds: number | null | undefined): string | null {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return null
-  const neg = seconds < 0
   const s = Math.floor(Math.abs(seconds))
   const m = Math.floor(s / 60)
   const r = s % 60
-  return `${neg ? '-' : ''}${m}:${String(r).padStart(2, '0')}`
+  return `${seconds < 0 && s > 0 ? '-' : ''}${m}:${String(r).padStart(2, '0')}`
 }
 
 /**

@@ -45,6 +45,14 @@ describe('fmtDuration', () => {
     expect(fmtDuration(-7200)).toBe('-2h 00m')
   })
 
+  it('drops the sign when the magnitude rounds to zero', () => {
+    // At the gun the timer crosses zero; -0.4 rounds to 0, and the sailor
+    // should see "0s", not the nonsensical "-0s".
+    expect(fmtDuration(-0.4)).toBe('0s')
+    expect(fmtDuration(-0.1)).toBe('0s')
+    expect(fmtDuration(-0.499)).toBe('0s')
+  })
+
   it('is null for unknown rather than guessing zero', () => {
     expect(fmtDuration(null)).toBeNull()
     expect(fmtDuration(undefined)).toBeNull()
@@ -62,6 +70,14 @@ describe('fmtClock', () => {
   it('keeps counting past the gun with a leading minus', () => {
     expect(fmtClock(-5)).toBe('-0:05')
     expect(fmtClock(-125)).toBe('-2:05')
+  })
+
+  it('drops the sign when the magnitude floors to zero', () => {
+    // Sub-second negatives at the gun crossing: -0.9 floors to 0 total seconds,
+    // and showing "-0:00" is wrong — the gun has not meaningfully fired yet.
+    expect(fmtClock(-0.9)).toBe('0:00')
+    expect(fmtClock(-0.01)).toBe('0:00')
+    expect(fmtClock(-0.999)).toBe('0:00')
   })
 
   it('is null for unknown rather than guessing zero', () => {
