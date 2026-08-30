@@ -560,7 +560,31 @@ Suite 903 / 41 files.
   including aground case. Drying heights handled by datum correction producing
   negative depths at low water.
 
-Suite 911 / 41 files. Eighty detection strategies exhausted across 107 passes.
+### Passes 108–110 — WebGL particle layer
+
+- **Pass 108 — inverted north-south particle advection (BUG).** The advection
+  shader negated `velocity.y` (`-velocity.y`), a leftover from the
+  mapbox/webgl-wind reference code where texture row 0 was north. Our cube
+  stores rows south-to-north, so `pos.y=0` is the south edge; a positive
+  v-wind (northward) must increase `pos.y`, not decrease it. In practice,
+  particles drifted in the wrong direction on any wind with a significant
+  meridional component, masked in mid-latitude westerlies where the zonal
+  component dominates. Fixed by removing the negation; test reads the shader
+  source to verify the sign. Mutation (reintroduce `-velocity.y`): caught.
+
+- **Pass 109 — start line geometry: CLEAN.** Full audit of sign conventions,
+  null handling, current correction, parallel-heading edge case, tack naming.
+  No bugs found; the code is well-tested and consistent.
+
+- **Pass 110 — particle colormap vs legend mismatch (BUG).** The shader
+  normalised speed by `length(u_wind_max)` — the per-frame data maximum — but
+  the colour ramp LUT was built against a fixed domain (e.g. [0, 40] kn). A
+  15 kn wind in a 19.2 kn field rendered colours corresponding to ~31 kn.
+  Fixed with a new `u_domain_max` uniform fed from the layer's configured
+  domain; `setColorRamp` now accepts an optional domain max. Uniform coverage
+  test added (catches any shader gaining a uniform the draw call doesn't set).
+
+Suite 914 / 41 files. Eighty-two detection strategies across 110 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
@@ -570,7 +594,8 @@ accessibility, security, type safety, physics model, dead code, API edge cases,
 error boundaries, Zustand store transitions, MapLibre layer lifecycle, URL/API
 handling, geolocation sensor pipeline, departure sweep, forecast freshness,
 storage persistence, build configuration, async race conditions, timeline playback,
-sensitivity visualization, weather cube codec, wind estimation, and track recording.
+sensitivity visualization, weather cube codec, wind estimation, track recording,
+and WebGL shader sign conventions.
 
 ---
 
