@@ -523,7 +523,27 @@ Suite 903 / 41 files.
   it (which would teleport the boat back to origin). Mutation test (remove the
   effect): caught.
 
-Suite 907 / 41 files. Seventy-four detection strategies exhausted across 101 passes.
+- **Pass 102** (concurrent tab switching during async operations): no bugs. Weather
+  fetches guarded by `cancelled` flags and `AbortController`. Route computation
+  terminates worker on unmount. GL resources freed in `onRemove`. Re-mount starts
+  fresh via ref guards.
+
+- **Pass 103** (number formatting edge cases): **BUG.** Compass bearings display
+  "360°" when `.toFixed(0)` rounds values in [359.5, 360). `wrap360()` guarantees
+  [0, 360) but `.toFixed()` rounds independently, producing an impossible compass
+  reading. Affects 9 display sites: top-bar wind chip, race TWD/bearing/steer tiles,
+  route legs table (TWD + heading), weather probe popup (wind + current direction),
+  start canvas wind label. Hit roughly 1 in 720 real wind updates. Fix: `fmtDeg()`
+  helper that re-wraps after rounding (`Math.round(a) % 360`). Mutation test (remove
+  `% 360`): caught.
+
+- **Pass 104** (polar table parsing and interpolation edge cases): no bugs. PCHIP
+  interpolation prevents overshoot (Fritsch-Carlson tangents force zero at extrema).
+  Below-table extrapolation is linear-to-zero (non-negative). Duplicate TWA/TWS
+  entries merged keeping the faster value. Port/starboard symmetry via `Math.abs(twa)`.
+  Single-row polars produce linear interpolation.
+
+Suite 911 / 41 files. Seventy-seven detection strategies exhausted across 104 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
