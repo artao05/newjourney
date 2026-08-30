@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     const { error, info } = this.state
-    if (!error) return this.props.children
+    if (error === null) return this.props.children
 
     return (
       <div className="screen panel">

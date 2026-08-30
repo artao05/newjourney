@@ -114,6 +114,20 @@ describe('when a screen throws', () => {
     )
     expect(document.body.textContent).toContain('the polar file is not a polar')
   })
+
+  it('catches a falsy thrown value instead of white-screening', () => {
+    function ThrowZero(): React.ReactElement {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw 0
+    }
+    render(
+      <ErrorBoundary name="Race">
+        <ThrowZero />
+      </ErrorBoundary>,
+    )
+    expect(screen.getByText(/The Race screen hit a problem/)).toBeTruthy()
+    expect(document.body.textContent).not.toBe('')
+  })
 })
 
 describe('recovery', () => {
