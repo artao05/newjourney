@@ -102,7 +102,8 @@ export function fmtAgo(seconds: number | null | undefined): string | null {
   const hr = s / 3600
   // Days from 24 h, not 36: at a 36 h cutoff `Math.round(36/24)` is already 2, so
   // "1 day" was unreachable. "1 day ago" also reads better than "24 h ago".
-  if (hr < 24) return `${Math.round(hr)} h`
+  const roundedHr = Math.round(hr)
+  if (roundedHr < 24) return `${roundedHr} h`
   const days = Math.round(hr / 24)
   return `${days} day${days === 1 ? '' : 's'}`
 }

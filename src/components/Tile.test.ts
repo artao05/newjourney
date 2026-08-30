@@ -114,6 +114,14 @@ describe('fmtAgo', () => {
     expect(fmtAgo(48 * 3600)).toBe('2 days')
   })
 
+  it('never displays "24 h" — that is "1 day"', () => {
+    // At 23.5 h, Math.round(hr) is 24 but hr < 24 is still true. The raw
+    // check let the rounded value overshoot its label, producing "24 h"
+    // instead of "1 day" — exactly the pattern the days-cutoff comment warns
+    // about.
+    expect(fmtAgo(84600)).toBe('1 day') // 23 h 30 min
+  })
+
   it('pluralises days correctly', () => {
     expect(fmtAgo(24 * 3600)).toBe('1 day')
     expect(fmtAgo(2 * 24 * 3600)).toBe('2 days')
