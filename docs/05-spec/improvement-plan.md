@@ -167,6 +167,25 @@ Suite 898 / 41 files.
 Suite 898 / 41 files. **Third plateau** — passes 39–44 (six strategies) with only
 pass 41 (antimeridian bbox) finding a real bug.
 
+### Passes 45–46 — clean
+
+- **Pass 45** (numeric precision / catastrophic cancellation): no bugs. Haversine
+  uses the stable `atan2(sqrt, sqrt)` form. Interpolation uses `a + (b-a)*t` with
+  clamped fractions. Time arithmetic at epoch ~1.7e12 ms has ULP ~0.0002 ms — step
+  accumulation over 3000 steps produces at most 1.5 ms drift, negligible against
+  60-second minimum steps. Tidal interpolation stays in-range by construction.
+
+- **Pass 46** (physics model / specification conformance): no bugs. Wind triangle
+  vectors are correct (FROM convention, subtraction for true→apparent). VMG uses BSP
+  (water speed), VMC uses SOG (ground speed) — both correct. PCHIP preserves
+  monotonicity (Fritsch-Carlson). Polar returns 0 at TWA=0 and is symmetric via
+  `Math.abs(wrap180(twa))`. Heel correction is anemometer tilt compensation, not a
+  speed reduction. Current effect correctly subtracts ground velocity.
+
+Suite 898 / 41 files. Twenty-one detection strategies exhausted. The remaining bugs
+in this codebase are likely in the UI/UX layer (which requires manual testing) or in
+integration with real hardware/data sources (which requires real devices).
+
 ---
 
 ## 0. Passes 31–33 — 2026-08-29 — plateau
