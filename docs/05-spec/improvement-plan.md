@@ -393,14 +393,29 @@ Suite 903 / 41 files.
   errors caught in-band, stale replies filtered, buffers cloned (not transferred),
   only structured-clone-safe data crosses the boundary.
 
-Suite 906 / 41 files. Fifty-three detection strategies exhausted across 80 passes.
+- **Pass 81** (MapLibre GL layer lifecycle): no bugs. Layers removed before
+  sources in correct order. `load` event gates all additions. `addImage` guarded
+  by `hasImage`. All event listeners cleaned up. GL resources (textures, buffers,
+  programs) freed in `onRemove`.
+
+- **Pass 82** (URL/query string handling): no bugs. Negative lat/lon safe in
+  query strings. NOAA uses `URLSearchParams`. No credentials in URLs. Responses
+  validated before use.
+
+- **Pass 83** (geolocation/sensor edge cases): no bugs. Null GPS fields → NaN
+  with `Number.isFinite` guards at every consumer. `watchPosition` throttled.
+  Permission denied shows a useful message. GPS/simulation hooks mutually
+  exclusive with proper cleanup.
+
+Suite 906 / 41 files. Fifty-six detection strategies exhausted across 83 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
 start line geometry, tidal prediction, bathymetry, GPX roundtrip, numeric edge
 cases, timer precision, state consistency, build output, locale safety,
 accessibility, security, type safety, physics model, dead code, API edge cases,
-error boundaries, and Zustand store transitions.
+error boundaries, Zustand store transitions, MapLibre layer lifecycle, URL/API
+handling, and geolocation sensor pipeline.
 
 ---
 
