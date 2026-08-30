@@ -252,9 +252,21 @@ Suite 903 / 41 files.
   removes layers then sources. Custom WebGL layers properly delete all GPU resources
   in `onRemove`. Layer ordering uses `beforeId` for correct stacking.
 
-Suite 903 / 41 files. Thirty-one detection strategies exhausted across 56 passes.
+- **Pass 57** (dead code analysis): `wind.ts` exports (`apparentToTrue`,
+  `trueToApparent`, `apparentAngleAndSpeed`) and tidal functions (`velocityAt`,
+  `flowAt`) are dead in production. By design — library code for future instrument
+  integration (Signal K) and tidal overlay. No action needed.
+
+- **Pass 58** (API response edge cases): `fetchPointForecast` in
+  `src/lib/weather/openmeteo.ts` silently returns empty arrays when the API
+  returns an HTTP 200 error body (`error: true`). Not a bug — `App.tsx` line 104
+  already guards with `if (cancelled || forecast.t.length === 0) return`, so the
+  empty result is harmless. No action needed.
+
+Suite 903 / 41 files. Thirty-one detection strategies exhausted across 58 passes.
 The computational core, routing kernel, UI rendering, error handling, map layers,
-security, type safety, physics model, and persistence are all verified clean.
+security, type safety, physics model, dead code, API edge cases, and persistence
+are all verified clean.
 
 ---
 
