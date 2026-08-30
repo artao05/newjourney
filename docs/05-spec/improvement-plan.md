@@ -330,7 +330,21 @@ Suite 903 / 41 files.
   init guarded against StrictMode double-mount. Custom WebGL layers clean up all
   GPU resources. ResizeObserver handles container resize.
 
-Suite 904 / 41 files. Forty-three detection strategies exhausted across 70 passes.
+- **Pass 71** (canvas rendering correctness): no bugs. All 4 canvas components
+  handle Retina DPI via `devicePixelRatio`. Canvas cleared before each frame. Zero
+  size guarded. Text rendered in logical pixels after `ctx.scale(dpr, dpr)`.
+
+- **Pass 72** (weather data interpolation): no bugs. Wind direction interpolation
+  uses U/V components (correct for circular data — 350°↔10° interpolates through
+  north). Temporal/spatial boundaries clamp to edge values. NaN cells rejected by
+  routing kernel. Units knots throughout (API queried with `wind_speed_unit=kn`).
+
+- **Pass 73** (polar lookup edge cases): no bugs. TWA=0° returns 0 speed (no irons).
+  Symmetry via `Math.abs(twa)`. TWS=0 handled (router rejects <0.5 kn). Above-max
+  TWS extrapolates linearly. VMG optimals computed by brute-force scan. Lattice O(1)
+  lookup with bounded indices.
+
+Suite 904 / 41 files. Forty-six detection strategies exhausted across 73 passes.
 
 ---
 
