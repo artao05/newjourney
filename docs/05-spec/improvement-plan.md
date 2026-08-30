@@ -283,10 +283,27 @@ Suite 903 / 41 files.
   Quality-of-life for assistive technology, not code defects — phone-first sailing
   instrument's primary use is on-water with touch.
 
-Suite 903 / 41 files. Thirty-four detection strategies exhausted across 61 passes.
-The computational core, routing kernel, UI rendering, error handling, map layers,
-security, type safety, physics model, dead code, API edge cases, and persistence
-are all verified clean.
+- **Pass 62** (React rendering correctness): no bugs. Zustand subscriptions via
+  `getState()` avoid stale closures. All effects have proper cleanup (GPS watch,
+  compass listener, rAF timer). Keys use stable `mark.id`. No state-after-unmount
+  risk because results go to global store, not component-local state.
+
+- **Pass 63** (WebWorker communication): no bugs. Worker messages are correctly
+  serializable (plain objects, typed arrays). Error handling sends errors back via
+  message, main thread shows via `setRouteError()`. One minor smell: worker ref
+  lost on tab unmount orphans an idle worker. Not a functional issue.
+
+- **Pass 64** (PWA offline behavior): no bugs. Cache strategies correct: cache-first
+  for hashed assets/tiles (500-entry LRU), network-first for navigation, network-only
+  for weather API. Offline degradation graceful — GPS, tactics, start timing all work.
+  Manifest complete for installability. SW registration failure caught and swallowed
+  (offline is a bonus).
+
+Suite 903 / 41 files. Thirty-seven detection strategies exhausted across 64 passes.
+The computational core, routing kernel, UI rendering, React hooks, worker
+communication, PWA offline, error handling, map layers, security, type safety,
+physics model, build output, locale safety, accessibility, dead code, API edge
+cases, and persistence are all verified clean.
 
 ---
 
