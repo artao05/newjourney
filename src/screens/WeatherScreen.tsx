@@ -713,6 +713,7 @@ function WeatherOverlay() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 gap: 8,
+                flexWrap: 'wrap',
                 fontSize: 11,
                 color: 'var(--ink-dim)',
               }}
@@ -722,7 +723,7 @@ function WeatherOverlay() {
                 {PILOT_VENUE.currentStations[0]?.name} ·{' '}
                 <span style={{ color: 'var(--ink-faint)' }}>NOAA harmonic prediction</span>
               </span>
-              <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 {stationFlow && (
                   <span className="chip">
                     {stationFlow.kn.toFixed(2)} kn {stationFlow.label}

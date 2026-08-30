@@ -407,7 +407,26 @@ Suite 903 / 41 files.
   Permission denied shows a useful message. GPS/simulation hooks mutually
   exclusive with proper cleanup.
 
-Suite 906 / 41 files. Fifty-six detection strategies exhausted across 83 passes.
+- **Pass 84** (departure sweep correctness): no bugs. Time window iteration
+  correct with inclusive endpoints. Results in chronological order. Winner chosen
+  by minimum elapsed time (consistent with stated purpose). Weather field reused
+  safely across start times. Edge cases (zero window, all-equal, partial failures)
+  handled.
+
+- **Pass 85** (CSS layout on small screens): **BUG.** The tidal current panel
+  header in `WeatherScreen.tsx` is a non-wrapping flex row whose chips (current
+  speed, turn time, toggle button) overflow on 375px phones. The parent has
+  `overflow: hidden`, so the toggle button is silently clipped — the user cannot
+  collapse the chart and cannot read when the current turns. Fix: add
+  `flexWrap: 'wrap'` to both the header row and the chip span, matching the
+  pattern used by the layer selector chips at the top of the same screen.
+
+- **Pass 86** (forecast data freshness): no bugs. 15-minute refresh with
+  position-driven re-fetch on 0.01° movement. Stale forecast retained on network
+  error with visible warning. All timestamps UTC millis throughout. Mode switching
+  cancels in-flight fetches and clears wind history.
+
+Suite 906 / 41 files. Fifty-nine detection strategies exhausted across 86 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
@@ -415,7 +434,7 @@ start line geometry, tidal prediction, bathymetry, GPX roundtrip, numeric edge
 cases, timer precision, state consistency, build output, locale safety,
 accessibility, security, type safety, physics model, dead code, API edge cases,
 error boundaries, Zustand store transitions, MapLibre layer lifecycle, URL/API
-handling, and geolocation sensor pipeline.
+handling, geolocation sensor pipeline, departure sweep, and forecast freshness.
 
 ---
 
