@@ -3,17 +3,12 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import './styles.css'
 
-/**
- * `?harness` mounts the map-layer dev harness instead of the app. Lazy so the
- * harness never ships in the main bundle, and dev-only so a stray query string
- * in production cannot replace the app.
- */
-const LayerHarness = lazy(() =>
-  import('./dev/LayerHarness').then((m) => ({ default: m.LayerHarness })),
-)
-
 const useHarness =
   import.meta.env.DEV && new URLSearchParams(location.search).has('harness')
+
+const LayerHarness = import.meta.env.DEV
+  ? lazy(() => import('./dev/LayerHarness').then((m) => ({ default: m.LayerHarness })))
+  : undefined
 
 if (import.meta.env.DEV) {
   // Dev-only console handle. Setting up a course by hand through localStorage is
@@ -26,7 +21,7 @@ if (import.meta.env.DEV) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {useHarness ? (
+    {useHarness && LayerHarness ? (
       <Suspense fallback={null}>
         <LayerHarness />
       </Suspense>

@@ -263,9 +263,13 @@ Suite 903 / 41 files.
   already guards with `if (cancelled || forecast.t.length === 0) return`, so the
   empty result is harmless. No action needed.
 
-- **Pass 59** (Vite build correctness): no bugs. Vite config, TypeScript config,
-  PWA manifest, service worker caching strategy, and entry point are all correct.
-  15 `console.log` calls ship to production — intentional for field debugging a PWA.
+- **Pass 59** (Vite build correctness): **one bug found and fixed.** The dev-only
+  `LayerHarness` component was `lazy()`-imported at module scope, causing Rollup to
+  emit a 4.5 KB chunk (`LayerHarness-*.js` + 16 KB sourcemap) in the production
+  build. Never loaded at runtime, but shipped to the server. Fixed by wrapping the
+  `lazy()` call in `import.meta.env.DEV` so the dynamic import is tree-shaken.
+  Production build verified clean — chunk eliminated. Also: 15 `console.log` calls
+  ship to production — intentional for field debugging a PWA.
 
 - **Pass 60** (locale-dependent behavior): no bugs. Number parsing uses
   `<input type="number">` (locale-invariant `.value`). Number display uses
