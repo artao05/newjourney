@@ -128,6 +128,47 @@ describe('when a screen throws', () => {
     expect(screen.getByText(/The Race screen hit a problem/)).toBeTruthy()
     expect(document.body.textContent).not.toBe('')
   })
+
+  it('catches throw undefined without crashing its own render', () => {
+    /*
+     * `throw undefined` is uncommon but legal (`throw getErr()` where the
+     * helper returns nothing). Pass 114 fixed falsy-value bypass by switching
+     * to `error === null`, but `undefined` still reaches the error-UI branch,
+     * where `error.message` throws a TypeError that crashes the boundary
+     * itself — white-screen, the exact failure it exists to prevent.
+     */
+    function ThrowUndefined(): React.ReactElement {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw undefined
+    }
+    render(
+      <ErrorBoundary name="Race">
+        <ThrowUndefined />
+      </ErrorBoundary>,
+    )
+    expect(screen.getByText(/The Race screen hit a problem/)).toBeTruthy()
+    expect(document.body.textContent).not.toBe('')
+  })
+
+  it('catches throw null instead of looping on re-render', () => {
+    /*
+     * `null === null` is `true`, so the guard that distinguishes "no error yet"
+     * from "caught a falsy error" conflates the two. The boundary re-renders
+     * its children, which throw again — React detects the loop and unmounts
+     * the tree. Same white-screen outcome, different mechanism.
+     */
+    function ThrowNull(): React.ReactElement {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw null
+    }
+    render(
+      <ErrorBoundary name="Race">
+        <ThrowNull />
+      </ErrorBoundary>,
+    )
+    expect(screen.getByText(/The Race screen hit a problem/)).toBeTruthy()
+    expect(document.body.textContent).not.toBe('')
+  })
 })
 
 describe('recovery', () => {

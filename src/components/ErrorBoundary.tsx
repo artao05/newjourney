@@ -19,18 +19,20 @@ interface Props {
 }
 
 interface State {
-  error: Error | null
+  hasError: boolean
+  /** Whatever was thrown — not necessarily an Error instance. */
+  error: unknown
   info: string | null
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null, info: null }
+  state: State = { hasError: false, error: null, info: null }
 
-  static getDerivedStateFromError(error: Error): Partial<State> {
-    return { error }
+  static getDerivedStateFromError(error: unknown): Partial<State> {
+    return { hasError: true, error }
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
+  componentDidCatch(error: unknown, info: ErrorInfo) {
     // Keep the stack where a user can read it back to us; there is no
     // telemetry in this app and there should not be one for a tracking product.
     this.setState({ info: info.componentStack ?? null })
@@ -39,12 +41,18 @@ export class ErrorBoundary extends Component<Props, State> {
 
   reset = () => {
     this.props.onReset?.()
-    this.setState({ error: null, info: null })
+    this.setState({ hasError: false, error: null, info: null })
   }
 
   render() {
-    const { error, info } = this.state
-    if (error === null) return this.props.children
+    const { hasError, error, info } = this.state
+    if (!hasError) return this.props.children
+
+    // Safely extract message and stack from whatever was thrown — it could be
+    // an Error, a string, a number, null, or undefined.
+    const message =
+      error instanceof Error ? error.message : String(error ?? 'unknown error')
+    const stack = error instanceof Error ? error.stack : undefined
 
     return (
       <div className="screen panel">
@@ -57,7 +65,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="rows">
           <div className="row">
             <span>Error</span>
-            <span>{error.message || String(error)}</span>
+            <span>{message || String(error)}</span>
           </div>
         </div>
         {info && (
@@ -74,7 +82,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 overflowX: 'auto',
               }}
             >
-              {error.stack}
+              {stack}
               {info}
             </pre>
           </details>
