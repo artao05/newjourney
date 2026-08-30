@@ -310,7 +310,7 @@ function render(
     const ang = known ? Math.atan2(hv.x, hv.y) : 0
 
     // COG predictor: where you'll be in 30 s at current SOG.
-    if (state.sog > 0.2) {
+    if (state.sog > 0.2 && Number.isFinite(state.cog)) {
       const cv = rot(fromPolar(state.cog, (state.sog * 30) / 3600))
       const tip = S({ x: boatXY.x + cv.x, y: boatXY.y + cv.y })
       ctx.strokeStyle = 'rgba(79,195,247,0.85)'

@@ -437,6 +437,31 @@ describe('StartCanvas', () => {
     expect(ctx.calls.some((c) => c.op === 'quadraticCurveTo')).toBe(false)
   })
 
+  it('passes nothing undrawable when there is speed but no course', () => {
+    /*
+     * A GPS can report a valid speed while reporting heading as null — a slow
+     * drift at 0.3 kn has a magnitude but no direction. `useSensors` maps that
+     * to `sog: 0.58, cog: NaN`. The COG predictor guard checked only
+     * `state.sog > 0.2`, so `fromPolar(NaN, ...)` fed NaN coordinates through
+     * to `ctx.lineTo` and `ctx.arc` — exactly the silent-draw-nothing defect
+     * this test file exists to catch.
+     */
+    ctx = new RecordingContext()
+    const state = stateOf({ cog: NaN, sog: 4.6, heading: null })
+    render(
+      <StartCanvas
+        line={LINE}
+        state={state}
+        wind={WIND}
+        numbers={numbersFor(LINE, state, WIND)}
+        boat={BOAT}
+        track={[]}
+        secondsSinceGun={null}
+      />,
+    )
+    expectNothingUndrawable(ctx, 'speed but no course')
+  })
+
   it('still draws the pointed hull when the heading is known', () => {
     ctx = new RecordingContext()
     render(
