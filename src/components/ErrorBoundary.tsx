@@ -14,6 +14,8 @@ interface Props {
   children: ReactNode
   /** Shown to the user so they know which part failed. */
   name: string
+  /** Called on retry — lets the parent recreate a failed lazy component. */
+  onReset?: () => void
 }
 
 interface State {
@@ -35,7 +37,10 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error(`[${this.props.name}]`, error, info.componentStack)
   }
 
-  reset = () => this.setState({ error: null, info: null })
+  reset = () => {
+    this.props.onReset?.()
+    this.setState({ error: null, info: null })
+  }
 
   render() {
     const { error, info } = this.state

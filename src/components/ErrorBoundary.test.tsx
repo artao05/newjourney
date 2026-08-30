@@ -153,6 +153,26 @@ describe('recovery', () => {
     expect(screen.getByText(/hit a problem/)).toBeTruthy()
   })
 
+  it('calls onReset so a parent can recreate a failed lazy component', () => {
+    const onReset = vi.fn()
+    let fails = true
+    function Flaky(): React.ReactElement {
+      return <Boom when={fails} />
+    }
+    render(
+      <ErrorBoundary name="Route" onReset={onReset}>
+        <Flaky />
+      </ErrorBoundary>,
+    )
+    expect(screen.getByText(/hit a problem/)).toBeTruthy()
+    expect(onReset).not.toHaveBeenCalled()
+
+    fails = false
+    fireEvent.click(screen.getByText('TRY AGAIN'))
+    expect(onReset).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('recovered content')).toBeTruthy()
+  })
+
   it('starts clean for a different screen, so a crash does not follow you', () => {
     /*
      * What this pins is narrow, and worth saying so: a *fresh* boundary starts

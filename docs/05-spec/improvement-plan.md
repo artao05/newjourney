@@ -375,13 +375,32 @@ Suite 903 / 41 files.
   control was wired up. Test pins the fix with a spy that records query timestamps
   and verifies the shift relationship. Mutation test (revert to `tq`): caught.
 
-Suite 905 / 41 files. Fifty detection strategies exhausted across 77 passes.
+- **Pass 78** (error boundary and lazy-import recovery): **BUG.** `React.lazy()`
+  caches a rejected import forever. After a chunk-load failure (realistic on
+  dockside 3G), clicking "TRY AGAIN" in the ErrorBoundary resets the boundary's
+  error state, but React immediately re-throws the cached rejection without
+  retrying the `import()`. The Route and Weather tabs become permanently broken
+  for the session. Fix: move the `lazy()` calls inside `App` via `useMemo` keyed
+  on a `lazyGen` counter; the ErrorBoundary's `onReset` callback bumps the
+  counter, which creates a fresh lazy wrapper whose factory will actually call
+  `import()` again. Test pins that `onReset` is called on retry.
+
+- **Pass 79** (Zustand state transitions): no bugs. All actions read state via
+  `get()` synchronously, no interleaving possible. Persist middleware deep-merges
+  nested objects. All mutations create new references. No over-selecting.
+
+- **Pass 80** (worker messaging protocol): no bugs. Messages are ID-matched,
+  errors caught in-band, stale replies filtered, buffers cloned (not transferred),
+  only structured-clone-safe data crosses the boundary.
+
+Suite 906 / 41 files. Fifty-three detection strategies exhausted across 80 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
 start line geometry, tidal prediction, bathymetry, GPX roundtrip, numeric edge
 cases, timer precision, state consistency, build output, locale safety,
-accessibility, security, type safety, physics model, dead code, and API edge cases.
+accessibility, security, type safety, physics model, dead code, API edge cases,
+error boundaries, and Zustand store transitions.
 
 ---
 
