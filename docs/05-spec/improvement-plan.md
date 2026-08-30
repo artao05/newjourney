@@ -263,7 +263,23 @@ Suite 903 / 41 files.
   already guards with `if (cancelled || forecast.t.length === 0) return`, so the
   empty result is harmless. No action needed.
 
-Suite 903 / 41 files. Thirty-one detection strategies exhausted across 58 passes.
+- **Pass 59** (Vite build correctness): no bugs. Vite config, TypeScript config,
+  PWA manifest, service worker caching strategy, and entry point are all correct.
+  15 `console.log` calls ship to production — intentional for field debugging a PWA.
+
+- **Pass 60** (locale-dependent behavior): no bugs. Number parsing uses
+  `<input type="number">` (locale-invariant `.value`). Number display uses
+  `.toFixed()` (locale-invariant per ECMA-262). Date display uses
+  `toLocaleTimeString()` intentionally. `toLowerCase()` is only on ASCII protocol
+  strings (no Turkish İ risk). All sorts use explicit numeric comparators.
+
+- **Pass 61** (accessibility audit): no functional bugs. Several minor a11y gaps
+  (missing `aria-label` on wind sliders, missing labels on lat/lon inputs, `div`
+  with `onClick` without keyboard support, no `aria-selected` on active tab).
+  Quality-of-life for assistive technology, not code defects — phone-first sailing
+  instrument's primary use is on-water with touch.
+
+Suite 903 / 41 files. Thirty-four detection strategies exhausted across 61 passes.
 The computational core, routing kernel, UI rendering, error handling, map layers,
 security, type safety, physics model, dead code, API edge cases, and persistence
 are all verified clean.
