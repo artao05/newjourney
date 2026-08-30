@@ -1230,7 +1230,7 @@ class Search {
         const dGoal = distance(pa, goal)
         if (dGoal > 1e-12 && this.goalHop(tws, tb, twd, goalBrg, cu, cv, polarF, dir)) {
           const hours = dGoal / this.hopClosing
-          if (hours <= dtH) {
+          if (hours <= dtH && (land === null || !land.crosses(pa, goal))) {
             const tArr = pt + dir * hours * MS_PER_HOUR
             if (isFwd ? tArr < finishT : tArr > finishT) {
               P.ensure(P.n + 1)

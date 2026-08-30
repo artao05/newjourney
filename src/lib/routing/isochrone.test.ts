@@ -449,6 +449,53 @@ describe('isochrone routing kernel', () => {
     expect(sailed).toBeGreaterThan(direct * 1.001)
   })
 
+  // The goal hop — the final partial step onto a mark — must check the land
+  // mask, or it short-circuits through a peninsula near the mark.
+  it('goal hop: the final approach to a mark must not cross land', () => {
+    const start = { lat: 40, lon: -71 }
+    const finish = { lat: 40, lon: -69 }
+    // A thin wall of land right before the mark, spanning enough latitude
+    // that the go-around adds real distance. The time step at 'fast' on a
+    // ~92 nm leg is large enough that the goal hop can reach the mark from
+    // the near side of the wall — and must not.
+    const wall = {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [-69.03, 39.85],
+          [-69.01, 39.85],
+          [-69.01, 40.15],
+          [-69.03, 40.15],
+          [-69.03, 39.85],
+        ],
+      ],
+    }
+    const exact = new PolygonLandMask(extractPolygons(wall))
+    // Sanity: the direct line crosses the wall.
+    expect(exact.crosses(start, finish)).toBe(true)
+
+    const mask = buildLandMask(
+      wall,
+      { west: -71.5, south: 39.3, east: -68.5, north: 40.7 },
+      0.005,
+    )
+    const res = routeIsochrone(
+      request({ start, marks: [finish], resolution: 'fast' }),
+      { field: makeField({ twd: 0, tws: 14 }), lattice: LATTICE, land: mask },
+    )
+    expect(res.ok, res.error).toBe(true)
+
+    // No segment should cross land — including the last hop onto the mark.
+    let crossings = 0
+    for (let i = 1; i < res.legs.length; i++) {
+      if (exact.crosses(res.legs[i - 1].position, res.legs[i].position)) crossings++
+    }
+    note(
+      `goal hop land: ${crossings} crossing segments out of ${res.legs.length - 1}`,
+    )
+    expect(crossings).toBe(0)
+  })
+
   it('land mask: crosses() catches a segment that hops right over an island', () => {
     const island = {
       type: 'Polygon',
