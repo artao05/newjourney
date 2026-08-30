@@ -543,7 +543,24 @@ Suite 903 / 41 files.
   entries merged keeping the faster value. Port/starboard symmetry via `Math.abs(twa)`.
   Single-row polars produce linear interpolation.
 
-Suite 911 / 41 files. Seventy-seven detection strategies exhausted across 104 passes.
+- **Pass 105** (LocalFrame projection at high latitudes): no bugs. Cosine scaling
+  at 60°N gives sub-centimetre error at start-line scale. `destination()` uses
+  great-circle (correct for routing). Haversine `atan2(sqrt,sqrt)` form stable
+  down to 1m. `bearing()` is initial great-circle (correct convention). `lonSpan()`
+  antimeridian and `west===east` cases both correct.
+
+- **Pass 106** (Zustand selector stability): no bugs. All 62 `useStore` calls
+  select single fields (no inline objects). No circular effect dependencies.
+  Persist whitelist excludes all transient state. Deep-merge rehydration handles
+  schema evolution. `shallow` comparator correctly omitted (no multi-field selectors).
+
+- **Pass 107** (depth advisory and bathymetry edge cases): no bugs. Datum chain
+  MSL→MLLW signs pinned by three anchor tests. Grid boundary returns null with
+  explicit warnings (never silently assumes deep). Under-keel arithmetic correct
+  including aground case. Drying heights handled by datum correction producing
+  negative depths at low water.
+
+Suite 911 / 41 files. Eighty detection strategies exhausted across 107 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
