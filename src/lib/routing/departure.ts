@@ -145,7 +145,11 @@ export function planDepartures(
   // Floating/rounding can leave the last sample just short of `to`; include the
   // endpoint so "or leave at the end of the window" is actually evaluated.
   const last = departures[departures.length - 1]
-  if (last < to && departures.length < cap) departures.push(to)
+  if (last < to) {
+    if (departures.length < cap) departures.push(to)
+    else if (departures.length > 1) departures[departures.length - 1] = to
+    
+  }
   return { departures, stepMs: step, widened }
 }
 

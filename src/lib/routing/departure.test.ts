@@ -117,6 +117,13 @@ describe('planDepartures', () => {
     expect(departures[departures.length - 1]).toBe(T0 + 95 * MIN)
   })
 
+  it('includes the window end when natural count equals maxSolves', () => {
+    // 23.5h window, 1h step, cap=24: natural grid has 24 points ending at T+23h.
+    // The endpoint T+23.5h must still be evaluated.
+    const { departures } = planDepartures(T0, T0 + 23.5 * HOUR, HOUR, 24)
+    expect(departures[departures.length - 1]).toBe(T0 + 23.5 * HOUR)
+  })
+
   it('degenerates safely for a zero-length window', () => {
     const { departures } = planDepartures(T0, T0, 30 * MIN)
     expect(departures).toEqual([T0])
