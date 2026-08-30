@@ -78,6 +78,41 @@ of the step formula). Suite 891 → 894 / 41 files.
 
 Suite 894 / 41 files.
 
+### Pass 38 — cross-module contract violations
+
+Detection method: tracing the "null, not NaN" contract across module boundaries —
+where one module returns NaN for missing data and the caller's null-guard passes it
+through because `NaN !== null` is true.
+
+Two bugs, same pattern:
+
+1. **NaN sog leaks through VMC.** `computeTactics` computed VMC as
+   `state.sog * Math.cos(…)`. When `sog` is NaN (stationary GPS, no speed fix),
+   `0 * NaN = NaN` — but the guard only checked `Number.isFinite(state.cog)`, not
+   sog. Fixed by adding `&& Number.isFinite(state.sog)` to the VMC guard.
+
+2. **NaN position leaks through mark geometry.** `bearing()` and `distance()` return
+   NaN for NaN lat/lon, and NaN passes the `!== null` guard that protects
+   `markBearing` and `markRange`. Fixed with an early return:
+   `if (!Number.isFinite(state.position.lat) || !Number.isFinite(state.position.lon)) return`.
+
+Two mutations, both killed. Suite 894 / 41 files.
+
+### Pass 39 — semantic regression check
+
+Verified that the fixes from passes 34–38 introduced no regressions:
+
+- All `wrap360` callers feed it `Math.atan2` output or computed bearings — never
+  raw Infinity. The new NaN return path is unreachable from normal inputs.
+- `RaceScreen.tsx` uses optional chaining (`t?.twa`, etc.) and `Tile` renders an
+  em-dash for null/non-finite values — the expanded null returns are handled.
+- `computeStart`'s wind guard replaced all downstream `i.wind` references — no
+  stale references remain.
+- `RouteScreen.tsx`'s `.twa.toFixed(0)` operates on `RouteLeg.twa` (non-nullable
+  `SignedDegrees` from the routing engine), not `TacticalNumbers.twa`.
+
+Zero regressions.
+
 ---
 
 ## 0. Passes 31–33 — 2026-08-29 — plateau
