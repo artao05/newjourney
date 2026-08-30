@@ -544,6 +544,36 @@ describe('PolarPlot', () => {
     expectNothingUndrawable(ctx, 'j70 lattice')
   })
 
+  it('places every target dot within the canvas bounds', () => {
+    /*
+     * The target dots are labelled "the whole reason the diagram is worth looking
+     * at" and include the downwind VMG target. With the origin placed near the
+     * bottom of the canvas and the standard compass-style angle mapping, any TWA
+     * past 90° projects *below* the origin, which means the downwind dot (typically
+     * around 130–150° TWA) lands well off the canvas — invisible.
+     */
+    const h = 230
+    ctx = new RecordingContext()
+    const view = render(<PolarPlot lattice={lattice} height={h} />)
+
+    // Target dots: ctx.arc(x, y, 3.2, 0, 2π). The 3.2 px radius distinguishes
+    // them from speed-ring arcs, which have radii proportional to R.
+    const dots = ctx.calls.filter(
+      (c) => c.op === 'arc' && c.args[2] === 3.2,
+    )
+    // DEFAULT_SPEEDS has 4 entries; each draws an up and a down target = 8 dots.
+    expect(dots.length).toBe(8)
+
+    for (const dot of dots) {
+      const y = dot.args[1] as number
+      expect(y, `target dot at y = ${Math.round(y)} is outside the ${h} px canvas`).toBeLessThanOrEqual(h)
+      expect(y, `target dot at y = ${Math.round(y)} is above the canvas`).toBeGreaterThanOrEqual(0)
+    }
+
+    view.unmount()
+    cleanup()
+  })
+
   it('copes with every class in the library, at silly speed sets', () => {
     for (const id of ['optimist', 'ilca7', 'j105', 'nacra17', 'cruiser-40']) {
       for (const speeds of [[6, 10, 14, 20], [0], [0.5, 100], []]) {
@@ -561,7 +591,7 @@ describe('PolarPlot', () => {
   it('draws nothing rather than throwing when its parent has no width', () => {
     /*
      * The documented crash this component already carries a guard for: R is
-     * min(w/2 - 26, h - 34), so w === 0 makes every ring radius negative and
+     * min(w/2 - 26, h/2 - 18), so w === 0 makes every ring radius negative and
      * ctx.arc throws IndexSizeError - inside an effect, so React unmounts the tree
      * and the boundary replaces the whole Setup screen. The recorder throws on a
      * negative radius exactly as a browser does, so the guard cannot be removed
