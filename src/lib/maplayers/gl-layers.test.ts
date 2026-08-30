@@ -391,9 +391,11 @@ describe('ScalarLayer', () => {
     for (const before of [true, false]) {
       gl.caps.set(gl.SCISSOR_TEST, before)
       gl.caps.set(gl.BLEND, before)
+      gl.caps.set(gl.DEPTH_TEST, before)
       layer.render(gl as never, projection)
       expect(gl.caps.get(gl.SCISSOR_TEST), `scissor, was ${before}`).toBe(before)
       expect(gl.caps.get(gl.BLEND), `blend, was ${before}`).toBe(before)
+      expect(gl.caps.get(gl.DEPTH_TEST), `depth, was ${before}`).toBe(before)
     }
   })
 

@@ -233,8 +233,8 @@ export class ScalarLayer implements CustomLayerInterface {
   /**
    * Mercator-corrected strip mesh over the cube's bbox.
    *
-   * Texture v runs 1 at the south edge to 0 at the north, because the cube's
-   * rows are stored south-to-north while texture space is top-down.
+   * Texture v runs 0 at the south edge to 1 at the north: the cube stores rows
+   * south-to-north and `texImage2D` maps the first data row to v == 0.
    */
   private buildGeometry(cube: WeatherCube) {
     const gl = this.gl
@@ -314,6 +314,7 @@ export class ScalarLayer implements CustomLayerInterface {
     // silently clips a full-extent custom layer away.
     const prevBlend = gl.getParameter(gl.BLEND) as boolean
     const prevScissor = gl.getParameter(gl.SCISSOR_TEST) as boolean
+    const prevDepth = gl.getParameter(gl.DEPTH_TEST) as boolean
     gl.disable(gl.SCISSOR_TEST)
     gl.disable(gl.DEPTH_TEST)
     gl.enable(gl.BLEND)
@@ -321,5 +322,6 @@ export class ScalarLayer implements CustomLayerInterface {
     gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount)
     if (!prevBlend) gl.disable(gl.BLEND)
     if (prevScissor) gl.enable(gl.SCISSOR_TEST)
+    if (prevDepth) gl.enable(gl.DEPTH_TEST)
   }
 }
