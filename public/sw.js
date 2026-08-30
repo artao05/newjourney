@@ -118,11 +118,13 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone()
-          caches.open(TILES).then((c) => {
-            c.put(req, copy)
-            trimCache(TILES, TILE_LIMIT)
-          })
+          if (res.ok) {
+            const copy = res.clone()
+            caches.open(TILES).then((c) => {
+              c.put(req, copy)
+              trimCache(TILES, TILE_LIMIT)
+            })
+          }
           return res
         })
         .catch(() => caches.match(req)),

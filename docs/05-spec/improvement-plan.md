@@ -293,17 +293,34 @@ Suite 903 / 41 files.
   message, main thread shows via `setRouteError()`. One minor smell: worker ref
   lost on tab unmount orphans an idle worker. Not a functional issue.
 
-- **Pass 64** (PWA offline behavior): no bugs. Cache strategies correct: cache-first
-  for hashed assets/tiles (500-entry LRU), network-first for navigation, network-only
-  for weather API. Offline degradation graceful — GPS, tactics, start timing all work.
-  Manifest complete for installability. SW registration failure caught and swallowed
-  (offline is a bonus).
+- **Pass 64** (PWA offline behavior): **one bug found and fixed.** The service
+  worker cached tile error responses (404, 500) in the tile cache. A rate-limited
+  or errored tile would persist offline until evicted by the 1200-entry LRU.
+  Fixed by adding `if (res.ok)` guard before `cache.put()`. Test added and
+  mutation-tested (removing the guard fails the new test).
 
-Suite 903 / 41 files. Thirty-seven detection strategies exhausted across 64 passes.
+- **Pass 65** (CSS/layout correctness): no bugs. Uses `dvh` (no `100vh`), respects
+  safe-area insets, coordinated z-indexes, `min-height: 0` on flex items, 16px input
+  font (no iOS zoom). One smell: missing horizontal safe-area insets in landscape,
+  mitigated by portrait-lock in the PWA manifest.
+
+- **Pass 66** (GPX import/export roundtrip): **one UX bug found and fixed.** The
+  file input was not reset after GPX import, so re-importing the same file did
+  nothing (browser `onChange` doesn't fire when value unchanged). Fixed with
+  `e.target.value = ''` in `finally`.
+
+- **Pass 67** (extreme coordinates): no bugs in the sailing domain (±85° lat, any
+  longitude). All edge cases guarded: `bboxOf` clamps lat to ±89.9°, routing kernel
+  clamps to ±89°, `cosLat` floored at 0.02 in router and 0.1 in `bboxOf`. `clampUnit`
+  prevents NaN from `acos`/`asin`. Two theoretical issues at exact poles (LocalFrame
+  and rhumbBearing) are unreachable in practice.
+
+Suite 904 / 41 files. Forty detection strategies exhausted across 67 passes.
 The computational core, routing kernel, UI rendering, React hooks, worker
-communication, PWA offline, error handling, map layers, security, type safety,
-physics model, build output, locale safety, accessibility, dead code, API edge
-cases, and persistence are all verified clean.
+communication, PWA offline, service worker, error handling, map layers, CSS/layout,
+GPX roundtrip, numeric edge cases, security, type safety, physics model, build
+output, locale safety, accessibility, dead code, API edge cases, and persistence
+are all verified clean.
 
 ---
 

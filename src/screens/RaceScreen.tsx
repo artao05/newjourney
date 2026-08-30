@@ -396,6 +396,8 @@ export function RaceScreen() {
                   parsed.waypoints.forEach((w) => addMark(w.name, w.position))
                 } catch (err) {
                   alert(`Could not read that GPX: ${err instanceof Error ? err.message : err}`)
+                } finally {
+                  e.target.value = ''
                 }
               }}
             />

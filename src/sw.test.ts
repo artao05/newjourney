@@ -251,6 +251,14 @@ describe('map tiles', () => {
     expect(hit?.body).toBe('fresh-tile')
   })
 
+  it('does not cache a tile error response', async () => {
+    const url = 'https://tile.openstreetmap.org/12/1234/1567.png'
+    worker.fetchMock.mockResolvedValue(response('rate limited', { ok: false }))
+    await fetchEvent(worker, url)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(await worker.cacheStorage.match({ url })).toBeUndefined()
+  })
+
   it('falls back to the cache when the network is gone', async () => {
     const url = 'https://tiles.openseamap.org/seamark/12/1234/1567.png'
     ;(await worker.cacheStorage.open('nj-portland-v1-tiles')).store.set(url, response('old-tile'))
