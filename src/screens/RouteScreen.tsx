@@ -87,6 +87,7 @@ export function RouteScreen() {
   const mapRef = useRef<maplibregl.Map | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const clientRef = useRef<RoutingClient | null>(null)
+  const runIdRef = useRef(0)
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
@@ -377,10 +378,12 @@ export function RouteScreen() {
 
   const run = useCallback(async (leaveAt?: Millis) => {
     if (!state || !polar || course.marks.length === 0) return
+    const thisRun = ++runIdRef.current
     let workingCube = cube
     if (!workingCube) {
       workingCube = await loadWeather()
     }
+    if (thisRun !== runIdRef.current) return
     if (!workingCube) {
       setRouteError('No forecast loaded — tap Forecast first.')
       return
@@ -396,8 +399,9 @@ export function RouteScreen() {
       const result = await clientRef.current.route(
         req,
         { cube: workingCube, polar, landRaster: landPayload() },
-        (f) => setProgress(f),
+        (f) => { if (thisRun === runIdRef.current) setProgress(f) },
       )
+      if (thisRun !== runIdRef.current) return
       // Follow what the kernel actually did, not what this side hoped it would.
       // The two disagree when the pack loads here but the worker rejects it as
       // corrupt, and that disagreement used to resolve in favour of the
@@ -424,9 +428,10 @@ export function RouteScreen() {
       setDepartAt(leaveAt ?? null)
       if (!result.ok) setRouteError(result.error ?? 'Routing failed')
     } catch (e) {
+      if (thisRun !== runIdRef.current) return
       setRouteError(e instanceof Error ? e.message : 'Routing failed')
     } finally {
-      setBusy(null)
+      if (thisRun === runIdRef.current) setBusy(null)
     }
     /*
      * `landPack` and `landError` belong here, and their absence was a real bug.

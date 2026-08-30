@@ -426,7 +426,23 @@ Suite 903 / 41 files.
   error with visible warning. All timestamps UTC millis throughout. Mode switching
   cancels in-flight fetches and clears wind history.
 
-Suite 906 / 41 files. Fifty-nine detection strategies exhausted across 86 passes.
+- **Pass 87** (storage/persistence edge cases): no bugs. Persisted data under
+  1 KB, bounded arrays excluded from persistence, corrupt JSON handled by
+  Zustand's rehydration, incognito mode degrades gracefully, schema evolution
+  deep-merges new fields.
+
+- **Pass 88** (Vite/TypeScript build config): no bugs. Path aliases consistent,
+  `es2022` target appropriate, no Node.js modules in client, strict mode enabled.
+
+- **Pass 89** (route computation race condition): **BUG.** Double-tapping ROUTE
+  causes the first computation's cancelled result (`ok: false`) to set
+  `routeError('routing cancelled')` after the second computation already cleared
+  it. The stale error persists over a correct route. Additionally, the first
+  run's `finally` block clears the second run's busy/spinner state. Fix: add a
+  `runIdRef` counter; each `run()` increments it and checks before setting state.
+  Superseded runs silently discard their results.
+
+Suite 906 / 41 files. Sixty-two detection strategies exhausted across 89 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
@@ -434,7 +450,8 @@ start line geometry, tidal prediction, bathymetry, GPX roundtrip, numeric edge
 cases, timer precision, state consistency, build output, locale safety,
 accessibility, security, type safety, physics model, dead code, API edge cases,
 error boundaries, Zustand store transitions, MapLibre layer lifecycle, URL/API
-handling, geolocation sensor pipeline, departure sweep, and forecast freshness.
+handling, geolocation sensor pipeline, departure sweep, forecast freshness,
+storage persistence, build configuration, and async race conditions.
 
 ---
 
