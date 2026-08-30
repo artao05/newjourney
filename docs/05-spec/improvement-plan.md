@@ -147,6 +147,26 @@ Also noted (not fixed — low impact for current use):
 
 Suite 898 / 41 files.
 
+### Passes 42–44 — clean
+
+- **Pass 42** (temporal coupling / initialization order): no bugs. The worker
+  protocol is stateless per-message. Store derivations happen in null-safe `useMemo`
+  hooks. The one historical temporal coupling bug (stale `landPack` closure in
+  `RouteScreen`) was already fixed.
+
+- **Pass 43** (resource leak / cleanup): no bugs. Every `setInterval` has a matching
+  `clearInterval`. Every `addEventListener` has a matching `removeEventListener`.
+  Workers are terminated on cancel/dispose. AbortControllers are aborted in cleanup.
+  `watchPosition` is cleared. ResizeObservers are disconnected.
+
+- **Pass 44** (async race conditions): no bugs. Weather fetches use either busy-flag
+  button guards or cancelled flags. `RoutingClient` terminates the old worker on
+  re-entry. Zustand actions are synchronous with no async gap between get/set. Map
+  operations after awaits guard via `mapRef.current` null checks.
+
+Suite 898 / 41 files. **Third plateau** — passes 39–44 (six strategies) with only
+pass 41 (antimeridian bbox) finding a real bug.
+
 ---
 
 ## 0. Passes 31–33 — 2026-08-29 — plateau
