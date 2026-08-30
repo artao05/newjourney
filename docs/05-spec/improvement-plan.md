@@ -462,7 +462,43 @@ Suite 903 / 41 files.
   longitudes. Currently dormant (Portland venue only) but would produce an
   invisible or misplaced sensitivity band for any cross-dateline route.
 
-Suite 906 / 41 files. Sixty-five detection strategies exhausted across 92 passes.
+- **Pass 93** (weather cube construction and data integrity): no bugs. `emptyCubeData`
+  fills every `Float32Array` with NaN, not zero. `planeScalar` drops NaN corners and
+  renormalizes weights; `sampleCube` returns null if an entire time-slice is missing.
+  Single-point grids (nx=1 or ny=1) produce fx=fy=0 correctly. Time axis monotonic
+  by construction (t0 + i*dtMs). Delta-t codec predictor correctly not updated on
+  MISSING sentinels.
+
+- **Pass 94** (wind estimation from GPS): no bugs. `apparentToTrue` vector math
+  correct (boat-frame decomposition, atan2 reconstruction). `estimateCurrent`
+  navigation convention (x=sin, y=cos) consistent with `vecBearing(atan2(x,y))`.
+  All trig uses DEG/RAD constants. Division-by-zero guarded (leeway rejects
+  bsp≤0.5, heel rejects |cos|<0.09). Speeds from `Math.hypot` (non-negative),
+  directions through `wrap360` ([0,360)).
+
+- **Pass 95** (track recording edge cases): no bugs. `pushTrack` caps at 20,000
+  points with `slice(1)`. StartCanvas guards `track.length > 1` before drawing.
+  `clearTrack` sets `track: []` without touching `recording`, so recording continues
+  into the fresh array. Rapid toggle produces at most one duplicate point at the
+  boundary. Track not persisted (intentional — documented and tested).
+
+- **Pass 96** (map touch/gesture interaction conflicts): no bugs. Overlay uses
+  `pointer-events: none` on container, `auto` on children. No custom touch handlers.
+  No draggable map features. Sheets block passthrough with opaque backgrounds.
+  MapLibre pinch-zoom works unimpeded in exposed map areas.
+
+- **Pass 97** (GPX import/export data fidelity): no bugs. `esc()` covers all five
+  XML metacharacters. `getElementsByTagName` handles namespaced files. Empty tracks
+  (waypoints only) produce empty `trackPoints` array without crash. `toFixed(6)`
+  preserves 0.11m precision through roundtrip. `Date.parse` handles timezone offsets.
+  `deriveMotion` is O(n) with no recursion.
+
+- **Pass 98** (service worker and PWA update lifecycle): no bugs. Hand-written SW
+  with `skipWaiting`/`clients.claim`. Content-hashed assets prevent mixed-version
+  resources. Weather fetches bypass SW (cross-origin). Default-deny `isCacheable()`
+  prevents accidental forecast caching. Offline update check fails silently.
+
+Suite 906 / 41 files. Seventy-one detection strategies exhausted across 98 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
@@ -472,7 +508,7 @@ accessibility, security, type safety, physics model, dead code, API edge cases,
 error boundaries, Zustand store transitions, MapLibre layer lifecycle, URL/API
 handling, geolocation sensor pipeline, departure sweep, forecast freshness,
 storage persistence, build configuration, async race conditions, timeline playback,
-and sensitivity visualization.
+sensitivity visualization, weather cube codec, wind estimation, and track recording.
 
 ---
 

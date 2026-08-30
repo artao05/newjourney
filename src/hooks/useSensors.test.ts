@@ -15,8 +15,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHook } from '@testing-library/react'
-import { useGeolocation, useTick } from './useSensors'
+import { act, renderHook } from '@testing-library/react'
+import { useGeolocation, useSimulation, useTick } from './useSensors'
 import { useStore } from '@/state/store'
 
 // ------------------------------------------------------------- fake platform
@@ -185,6 +185,29 @@ describe('the watch itself', () => {
     Object.defineProperty(navigator, 'geolocation', { configurable: true, value: undefined })
     renderHook(() => useGeolocation(true))
     expect(useStore.getState().gpsError).toMatch(/no geolocation API/)
+  })
+})
+
+describe('useSimulation wind update', () => {
+  it('forwards manual wind changes to the running sim', () => {
+    vi.useFakeTimers()
+    const origin = { lat: 43.6675, lon: -70.1735 }
+    useStore.setState({ manualWind: { twd: 270, tws: 12 } })
+
+    const view = renderHook(() => useSimulation(true, origin))
+    const sim = view.result.current
+
+    expect(sim.current).not.toBeNull()
+    const before = sim.current!.wind()
+    expect(before.tws).toBeCloseTo(12, 0)
+
+    act(() => {
+      useStore.setState({ manualWind: { twd: 180, tws: 8 } })
+    })
+    view.rerender()
+
+    const after = sim.current!.wind()
+    expect(after.tws).toBeCloseTo(8, 0)
   })
 })
 

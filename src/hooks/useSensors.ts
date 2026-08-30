@@ -108,6 +108,10 @@ export function useSimulation(enabled: boolean, origin: LatLon) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, polar, setBoatState, setGpsError])
 
+  useEffect(() => {
+    simRef.current?.setWind(manualWind.twd, manualWind.tws)
+  }, [manualWind.twd, manualWind.tws])
+
   return simRef
 }
 
