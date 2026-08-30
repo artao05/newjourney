@@ -219,6 +219,50 @@ describe('robustness', () => {
     expect(worst).toBeLessThanOrEqual(21)
   })
 
+  /**
+   * The turn speed loss had an O(dtS²) step-size dependence: `turn` is the
+   * angle actually turned (already proportional to dtS at full rate), and
+   * `turnLoss * dtS * 0.5` multiplied by dtS again. At the app's 0.5 s step
+   * the loss was barely noticeable; at dtS = 2 it was catastrophic; and as
+   * dtS → 0 the loss vanished entirely — the opposite of convergent.
+   *
+   * This test runs the same 10-second manoeuvre at two step sizes and demands
+   * that the final boat speed agrees within 25 %. With the dtS² bug the coarse
+   * run lost far more speed (0.5 s retained ~92 %, 2.0 s retained ~40 %).
+   */
+  it('turn speed loss converges across step sizes', () => {
+    // Build up speed first (60 steps × 0.5 s = 30 s on a beam reach), then
+    // command a hard turn so the turn-loss path dominates.
+    const mkSim = () => {
+      const sim = new BoatSim(
+        { start: START, twd: 0, tws: 12, lattice: lattice(), oscillationDeg: 0 },
+        99,
+      )
+      sim.setAutopilot({ mode: 'heading', heading: 90 })
+      run(sim, 60, 0.5) // build speed on a beam reach
+      return sim
+    }
+
+    const a = mkSim()
+    const b = mkSim()
+
+    // Now command a heading that forces sustained full-rate turning.
+    a.setAutopilot({ mode: 'heading', heading: 270 })
+    b.setAutopilot({ mode: 'heading', heading: 270 })
+
+    const fineStates = run(a, 20, 0.5) // 10 s at fine step
+    const coarseStates = run(b, 5, 2.0) // 10 s at coarse step
+
+    const speedFine = fineStates[fineStates.length - 1].bsp as number
+    const speedCoarse = coarseStates[coarseStates.length - 1].bsp as number
+
+    // Both should still have meaningful speed and agree within 25 %.
+    expect(speedFine).toBeGreaterThan(1)
+    expect(speedCoarse).toBeGreaterThan(1)
+    const ratio = Math.min(speedFine, speedCoarse) / Math.max(speedFine, speedCoarse)
+    expect(ratio).toBeGreaterThan(0.75)
+  })
+
   it('takes a new wind and sails to it', () => {
     const sim = new BoatSim({ start: START, twd: 0, tws: 12, lattice: lattice() }, 3)
     sim.setAutopilot({ mode: 'twa', twa: 90 })

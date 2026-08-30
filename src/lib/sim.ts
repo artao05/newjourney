@@ -178,10 +178,16 @@ export class BoatSim {
     const twa = twaFrom(this.heading, twd)
     const target = this.pilot.mode === 'drift' ? 0 : this.targetSpeed(twa, tws)
     // Turning costs speed, which is what makes time-to-line non-trivial.
+    // `turn` is the angle actually turned this step — already proportional to
+    // dtS when turning at full rate — so the loss scales with the step size
+    // without an extra `* dtS`. The old `turnLoss * dtS * 0.5` multiplied by
+    // dtS twice, giving O(dtS²): the loss vanished as the step shrank and
+    // exploded as it grew, exactly the frame-rate bug the noise decay comment
+    // on line 143 describes.
     const turnLoss = Math.min(0.6, Math.abs(turn) / 18)
     const tau = target > this.speed ? 14 : 6 // slower to accelerate than to slow
     this.speed += ((target - this.speed) / tau) * dtS
-    this.speed *= 1 - turnLoss * dtS * 0.5
+    this.speed *= 1 - turnLoss * 0.5
     this.speed = Math.max(0, this.speed)
 
     // --- move: water track + current ---------------------------------------
