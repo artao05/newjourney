@@ -78,6 +78,7 @@ class FakeGL {
   readonly ACTIVE_UNIFORMS = 0x8b86
   readonly ACTIVE_ATTRIBUTES = 0x8b89
   readonly TEXTURE0 = 0x84c0
+  readonly STENCIL_TEST = 0x0b90
   readonly UNPACK_PREMULTIPLY_ALPHA_WEBGL = 0x9241
 
   private make(kind: string): Handle {
@@ -193,7 +194,7 @@ class FakeGL {
     this.caps.set(cap, false)
   }
   getParameter(p: number) {
-    if (p === this.BLEND || p === this.SCISSOR_TEST || p === this.DEPTH_TEST) {
+    if (p === this.BLEND || p === this.SCISSOR_TEST || p === this.DEPTH_TEST || p === this.STENCIL_TEST) {
       return this.caps.get(p) ?? false
     }
     return 0
@@ -509,6 +510,23 @@ describe('ParticleLayer', () => {
     const offsetLine = advectionShader.split('\n').find((l) => l.includes('vec2(velocity'))!
     expect(offsetLine).toBeDefined()
     expect(offsetLine).not.toContain('-velocity.y')
+  })
+
+  it('leaves the GL state as it found it', () => {
+    const layer = mounted()
+    layer.setData(cubeOf(4), 0)
+
+    for (const before of [true, false]) {
+      gl.caps.set(gl.SCISSOR_TEST, before)
+      gl.caps.set(gl.BLEND, before)
+      gl.caps.set(gl.DEPTH_TEST, before)
+      gl.caps.set(gl.STENCIL_TEST, before)
+      layer.render(gl as never, projection)
+      expect(gl.caps.get(gl.SCISSOR_TEST), `scissor, was ${before}`).toBe(before)
+      expect(gl.caps.get(gl.BLEND), `blend, was ${before}`).toBe(before)
+      expect(gl.caps.get(gl.DEPTH_TEST), `depth, was ${before}`).toBe(before)
+      expect(gl.caps.get(gl.STENCIL_TEST), `stencil, was ${before}`).toBe(before)
+    }
   })
 
   it('passes domainMax through setColorRamp', () => {

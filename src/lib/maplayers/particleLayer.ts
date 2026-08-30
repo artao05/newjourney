@@ -624,6 +624,8 @@ export class ParticleLayer implements CustomLayerInterface {
     const prevBlend = gl.getParameter(gl.BLEND) as boolean
     const prevViewport = gl.getParameter(gl.VIEWPORT) as Int32Array
     const prevScissor = gl.getParameter(gl.SCISSOR_TEST) as boolean
+    const prevDepth = gl.getParameter(gl.DEPTH_TEST) as boolean
+    const prevStencil = gl.getParameter(gl.STENCIL_TEST) as boolean
     gl.disable(gl.DEPTH_TEST)
     gl.disable(gl.STENCIL_TEST)
     /*
@@ -701,6 +703,8 @@ export class ParticleLayer implements CustomLayerInterface {
     if (prevBlend) gl.enable(gl.BLEND)
     else gl.disable(gl.BLEND)
     if (prevScissor) gl.enable(gl.SCISSOR_TEST)
+    if (prevDepth) gl.enable(gl.DEPTH_TEST)
+    if (prevStencil) gl.enable(gl.STENCIL_TEST)
 
     this.frames++
     // Keep the animation going. MapLibre only repaints on demand for custom
