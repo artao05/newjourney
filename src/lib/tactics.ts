@@ -433,11 +433,12 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
 
   // --- mark geometry: GPS only, no polar involved ---------------------------
   attempt(() => {
+    if (!Number.isFinite(state.position.lat) || !Number.isFinite(state.position.lon)) return
     out.markBearing = bearing(state.position, mark.position)
     out.markRange = distance(state.position, mark.position)
-    // Vmc: the component of SOG toward the mark. Needs COG — a stationary GPS
-    // with NaN heading would produce NaN via 0 * NaN, not 0.
-    if (Number.isFinite(state.cog))
+    // Vmc: the component of SOG toward the mark. Both cog and sog must be
+    // finite — NaN in either produces NaN vmc (0 * NaN is NaN, not 0).
+    if (Number.isFinite(state.cog) && Number.isFinite(state.sog))
       out.vmc = state.sog * Math.cos(angdiff(out.markBearing, state.cog) * DEG)
     out.headingToSteer = current
       ? headingToMakeGood({

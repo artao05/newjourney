@@ -506,6 +506,21 @@ describe('computeTactics', () => {
     // But mark bearing and range still work — they come from position, not heading.
     expectAngle(noHeading.markBearing, 0, 3)
     expect(noHeading.markRange).toBeCloseTo(1, 3)
+    // NaN sog with valid cog must not produce NaN vmc (NaN * cos = NaN, not 0).
+    const nanSog = computeTactics({
+      ...inputs,
+      state: stateOf({ sog: NaN, heading: 320 }),
+    })
+    expect(nanSog.vmc).toBeNull()
+    expect(nanSog.markBearing).not.toBeNull()
+    // NaN position means we don't know where we are — mark geometry is unknown.
+    const nanPos = computeTactics({
+      ...inputs,
+      state: stateOf({ position: { lat: NaN, lon: NaN } }),
+    })
+    expect(nanPos.markBearing).toBeNull()
+    expect(nanPos.markRange).toBeNull()
+    expect(nanPos.vmc).toBeNull()
     // A lattice that blows up costs its own fields and nothing else.
     const bad = {
       ...fakeLattice(),
