@@ -10,7 +10,7 @@
 
 import { useEffect, useRef } from 'react'
 import { LocalFrame, fromPolar, nmToM, mToNm } from '@/lib/geo'
-import { courseFor, wrap360 } from '@/lib/angles'
+import { courseFor, fmtDeg, wrap360 } from '@/lib/angles'
 import type {
   Boat,
   BoatState,
@@ -294,7 +294,7 @@ function render(
     ctx.font = '600 10px system-ui, sans-serif'
     ctx.fillStyle = '#4fc3f7'
     ctx.textAlign = 'center'
-    ctx.fillText(`${wind.twd.toFixed(0)}° ${wind.tws.toFixed(0)}kn`, cx, cy + 36)
+    ctx.fillText(`${fmtDeg(wind.twd)}° ${wind.tws.toFixed(0)}kn`, cx, cy + 36)
   }
 
   // ---- the boat -----------------------------------------------------------

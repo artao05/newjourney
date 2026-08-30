@@ -35,6 +35,13 @@ export function wrap360(a: number): Degrees {
   return s < 360 ? s : 0
 }
 
+/** Format a bearing as an integer string in [0, 360), re-wrapping after rounding. */
+export function fmtDeg(a: number): string {
+  if (!Number.isFinite(a)) return '—'
+  const r = Math.round(a) % 360
+  return String(r >= 0 ? r : r + 360)
+}
+
 /** Normalise to (-180, 180]. */
 export function wrap180(a: number): SignedDegrees {
   const r = wrap360(a + 180) - 180

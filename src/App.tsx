@@ -18,6 +18,7 @@ import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
 import type { WindEstimate } from '@/lib/types'
 import { fetchPointForecast } from '@/lib/weather/openmeteo'
+import { fmtDeg } from '@/lib/angles'
 import { PILOT_VENUE } from '@/data/venues'
 
 const FORECAST_REFRESH_MS = 15 * 60_000
@@ -200,7 +201,7 @@ export function App() {
         </span>
         <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="chip">
-            {wind ? `${wind.twd.toFixed(0)}° · ${wind.tws.toFixed(0)} kn` : 'wind unavailable'}
+            {wind ? `${fmtDeg(wind.twd)}° · ${wind.tws.toFixed(0)} kn` : 'wind unavailable'}
           </span>
           <button
             className={`chip ${recording ? 'chip--bad' : ''}`}

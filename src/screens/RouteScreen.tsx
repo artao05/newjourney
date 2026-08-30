@@ -17,7 +17,7 @@ import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
 import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tides/coops'
 import { PORTLAND_DATUM, datumNote } from '@/lib/tides/datum'
 import { bboxOf, distance, lonSpan } from '@/lib/geo'
-import { wrap180 } from '@/lib/angles'
+import { fmtDeg, wrap180 } from '@/lib/angles'
 import type { Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
 import { fmtDuration } from '@/components/Tile'
 import { DepartureChart } from '@/components/DepartureChart'
@@ -993,7 +993,7 @@ function ResultsSheet({
           {rows.map((l, i) => (
             <tr key={i} className={l.isBeating ? 'beating' : undefined}>
               <td>{new Date(l.t).toISOString().slice(11, 16)}</td>
-              <td>{l.twd.toFixed(0)}</td>
+              <td>{fmtDeg(l.twd)}</td>
               <td>{l.tws.toFixed(1)}</td>
               <td>
                 {l.isBeating ? '(' : ''}
@@ -1001,7 +1001,7 @@ function ResultsSheet({
                 {l.isBeating ? ')' : ''}
               </td>
               <td>{l.bsp.toFixed(2)}</td>
-              <td>{l.heading.toFixed(0)}</td>
+              <td>{fmtDeg(l.heading)}</td>
             </tr>
           ))}
         </tbody>

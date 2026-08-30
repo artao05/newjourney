@@ -62,6 +62,7 @@ import {
   type CurrentPrediction,
 } from '@/lib/tides/coops'
 import { uvToWind } from '@/lib/wind'
+import { fmtDeg } from '@/lib/angles'
 import type { LayerSpec, VectorMode } from '@/lib/maplayers/types'
 import type { WeatherCube } from '@/lib/types'
 
@@ -671,7 +672,7 @@ function WeatherOverlay() {
           <div>
             wind{' '}
             {probeValues.wind
-              ? `${probeValues.wind.dirFrom.toFixed(0)}° ${probeValues.wind.speed.toFixed(1)} kn`
+              ? `${fmtDeg(probeValues.wind.dirFrom)}° ${probeValues.wind.speed.toFixed(1)} kn`
               : '—'}
           </div>
           <div>gust {fmt(probeValues.gust, 1, ' kn')}</div>
@@ -680,7 +681,7 @@ function WeatherOverlay() {
           <div>
             current{' '}
             {probeValues.current
-              ? `${probeValues.current.dirFrom.toFixed(0)}° ${probeValues.current.speed.toFixed(2)} kn`
+              ? `${fmtDeg(probeValues.current.dirFrom)}° ${probeValues.current.speed.toFixed(2)} kn`
               : '—'}
           </div>
           <div>mslp {fmt(probeValues.prmsl, 0, ' hPa')}</div>

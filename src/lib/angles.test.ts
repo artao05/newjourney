@@ -15,6 +15,7 @@ import {
   clamp,
   clampUnit,
   courseFor,
+  fmtDeg,
   lerpBearing,
   manoeuvre,
   meanBearing,
@@ -258,5 +259,31 @@ describe('clamps', () => {
     expect(clamp(5, 0, 10)).toBe(5)
     expect(clamp(-1, 0, 10)).toBe(0)
     expect(clamp(11, 0, 10)).toBe(10)
+  })
+})
+
+describe('fmtDeg', () => {
+  it('never returns "360"', () => {
+    expect(fmtDeg(359.5)).toBe('0')
+    expect(fmtDeg(359.7)).toBe('0')
+    expect(fmtDeg(359.9999)).toBe('0')
+    expect(fmtDeg(360)).toBe('0')
+  })
+
+  it('formats normal bearings as integers', () => {
+    expect(fmtDeg(0)).toBe('0')
+    expect(fmtDeg(90.4)).toBe('90')
+    expect(fmtDeg(180)).toBe('180')
+    expect(fmtDeg(270.6)).toBe('271')
+  })
+
+  it('handles negative values', () => {
+    expect(fmtDeg(-1)).toBe('359')
+    expect(fmtDeg(-0.4)).toBe('0')
+  })
+
+  it('returns an em dash for NaN and Infinity', () => {
+    expect(fmtDeg(NaN)).toBe('—')
+    expect(fmtDeg(Infinity)).toBe('—')
   })
 })
