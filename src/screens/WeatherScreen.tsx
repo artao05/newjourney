@@ -347,7 +347,7 @@ function WeatherOverlay() {
         opacity: isVector ? 0.9 : 0.55,
         count: isVector ? 9000 : 5000,
       })
-      particles.setColorRamp(particleRampLUT(speedLayer))
+      particles.setColorRamp(particleRampLUT(speedLayer), speedLayer.domain[1])
       particles.setData(cube, t)
       particles.setVisible(true)
     } else {

@@ -465,4 +465,56 @@ describe('ParticleLayer', () => {
     layer.onRemove()
     expect(() => layer.onRemove()).not.toThrow()
   })
+
+  it('sets every uniform its shaders declare', () => {
+    const layer = mounted()
+    layer.setData(cubeOf(4), 0)
+    gl.assigned.clear()
+    layer.render(gl as never, projection)
+
+    for (const name of [
+      'u_wind0',
+      'u_wind1',
+      'u_particles',
+      'u_color_ramp',
+      'u_particles_res',
+      'u_wind_mix',
+      'u_wind_min',
+      'u_wind_max',
+      'u_domain_max',
+      'u_point_size',
+      'u_opacity',
+      'u_matrix',
+      'u_bbox',
+      'u_rand_seed',
+      'u_speed',
+      'u_drop_rate',
+      'u_aspect',
+    ]) {
+      expect(gl.assigned.has(name), `${name} was never assigned`).toBe(true)
+    }
+  })
+
+  it('advects northward wind in the positive-y direction', () => {
+    const layer = mounted()
+    layer.setData(cubeOf(4), 0)
+    const shaderSources = gl.handles
+      .filter((h) => h.kind === 'shader')
+      .map((h) => (gl as any).shaderSources.get(h) as string | undefined)
+      .filter(Boolean) as string[]
+    const advectionShader = shaderSources.find((s) => s.includes('u_drop_rate'))!
+    expect(advectionShader).toBeDefined()
+    const offsetLine = advectionShader.split('\n').find((l) => l.includes('vec2(velocity'))!
+    expect(offsetLine).toBeDefined()
+    expect(offsetLine).not.toContain('-velocity.y')
+  })
+
+  it('passes domainMax through setColorRamp', () => {
+    const layer = mounted()
+    layer.setColorRamp(new Uint8Array(16 * 16 * 4), 25)
+    layer.setData(cubeOf(4), 0)
+    gl.assigned.clear()
+    layer.render(gl as never, projection)
+    expect(gl.assigned.has('u_domain_max')).toBe(true)
+  })
 })
