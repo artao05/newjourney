@@ -584,7 +584,23 @@ Suite 903 / 41 files.
   domain; `setColorRamp` now accepts an optional domain max. Uniform coverage
   test added (catches any shader gaining a uniform the draw call doesn't set).
 
-Suite 914 / 41 files. Eighty-two detection strategies across 110 passes.
+### Passes 111–113 — clean
+
+- **Pass 111 — polar table interpolation: CLEAN.** Full audit of PCHIP slopes,
+  Hermite basis, buildLattice grid, polarSpeed boundaries, targetTwa/VMG
+  optimization, generatePolar physics, and numeric edge cases. No bugs.
+
+- **Pass 112 — tidal prediction: CLEAN.** Datum sign conventions walked by hand
+  (MSL↔MLLW agrees with anchor tests). API parsing, UTC time handling,
+  interpolation binary search, and edge cases (negative zero, null, out-of-range)
+  all verified correct.
+
+- **Pass 113 — timeline playback + state: CLEAN.** Playback timer lifecycle,
+  speed changes mid-play, time bounds clamping, state consistency (single source
+  of truth via ChartValue context), display formatting (UTC/local), and React
+  lifecycle (ref-based interval, effect cleanup) all verified correct.
+
+Suite 914 / 41 files. Eighty-five detection strategies across 113 passes.
 The codebase has been audited across the full stack: computational core, routing
 kernel, UI rendering, React hooks, worker communication, PWA/service worker,
 CSS/layout, map interaction, canvas rendering, weather interpolation, polar lookup,
