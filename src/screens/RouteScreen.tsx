@@ -240,16 +240,7 @@ export function RouteScreen() {
       ],
     })
     // Beating segments drawn dashed, exactly as Expedition marks implicit tacking.
-    const beatSegs: [number, number][][] = []
-    let run: [number, number][] = []
-    for (const l of route.legs) {
-      if (l.isBeating) run.push([l.position.lon, l.position.lat])
-      else if (run.length > 1) {
-        beatSegs.push(run)
-        run = []
-      } else run = []
-    }
-    if (run.length > 1) beatSegs.push(run)
+    const beatSegs = extractBeatSegments(route.legs)
     setSource(map, 'route-beat', {
       type: 'FeatureCollection',
       features: beatSegs.map((c) => ({
@@ -1141,6 +1132,33 @@ function addEmptyLayers(map: maplibregl.Map) {
       'circle-stroke-width': 2,
     },
   })
+}
+
+/**
+ * Collect contiguous runs of beating legs into LineString coordinate arrays.
+ *
+ * `isBeating` on leg *i* means the segment FROM leg *i* TO leg *i + 1* is a
+ * beat, so every beat run must include the *next* non-beating position as its
+ * terminal endpoint.
+ */
+export function extractBeatSegments(
+  legs: ReadonlyArray<{ position: { lon: number; lat: number }; isBeating: boolean }>,
+): [number, number][][] {
+  const segs: [number, number][][] = []
+  let run: [number, number][] = []
+  for (const l of legs) {
+    if (l.isBeating) {
+      run.push([l.position.lon, l.position.lat])
+    } else {
+      if (run.length > 0) {
+        run.push([l.position.lon, l.position.lat])
+        segs.push(run)
+      }
+      run = []
+    }
+  }
+  if (run.length > 1) segs.push(run)
+  return segs
 }
 
 /** Thin the cube down to a readable arrow field. */
