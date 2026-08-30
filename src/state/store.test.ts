@@ -13,7 +13,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useStore } from './store'
+import { DEFAULT_SETTINGS, mergePersistedState, useStore } from './store'
 import type { LatLon, RouteResult } from '@/lib/types'
 
 const at = (lat: number, lon: number): LatLon => ({ lat, lon })
@@ -246,6 +246,46 @@ describe('a computed route does not outlive the course it was computed for', () 
     useStore.getState().setGunTime(Date.now() + 60_000)
     useStore.getState().setActiveMark(1)
     expect(useStore.getState().route).not.toBeNull()
+  })
+})
+
+describe('mergePersistedState deep-merges nested objects', () => {
+  const defaults = useStore.getState()
+
+  it('preserves new settings fields when old localStorage lacks them', () => {
+    const old = { settings: { units: 'imperial' as const, northRef: 'true' as const, simulate: false } }
+    const result = mergePersistedState(old, defaults)
+    expect(result.settings.units).toBe('imperial')
+    expect(result.settings.keepAwake).toBe(DEFAULT_SETTINGS.keepAwake)
+  })
+
+  it('preserves new boat fields when old localStorage lacks them', () => {
+    const old = { boat: { id: 'me', name: 'Old name' } }
+    const result = mergePersistedState(old, defaults)
+    expect(result.boat.name).toBe('Old name')
+    expect(result.boat.loaMetres).toBe(defaults.boat.loaMetres)
+  })
+
+  it('preserves startLine defaults when course has no startLine', () => {
+    const old = { course: { id: 'x', name: 'Old', marks: [] } }
+    const result = mergePersistedState(old, defaults)
+    expect(result.course.startLine.port).toBeNull()
+    expect(result.course.name).toBe('Old')
+  })
+
+  it('deep-merges startLine so a pinged port does not erase starboard default', () => {
+    const old = { course: { id: 'x', name: 'C', marks: [],
+      startLine: { port: at(43.6, -70.21) } } }
+    const result = mergePersistedState(old, defaults)
+    expect(result.course.startLine.port).toEqual(at(43.6, -70.21))
+    expect(result.course.startLine.starboard).toBeNull()
+    expect(result.course.startLine.gunTime).toBeNull()
+  })
+
+  it('handles null persisted state without crashing', () => {
+    const result = mergePersistedState(null, defaults)
+    expect(result.settings.keepAwake).toBe(true)
+    expect(result.settings.units).toBe('metric')
   })
 })
 

@@ -90,6 +90,32 @@ interface AppState {
   updateSettings(patch: Partial<Settings>): void
 }
 
+export const DEFAULT_SETTINGS: Settings = {
+  units: 'metric',
+  northRef: 'true',
+  simulate: false,
+  keepAwake: true,
+}
+
+export function mergePersistedState(
+  persisted: unknown,
+  current: AppState,
+): AppState {
+  const p = (persisted ?? {}) as Partial<AppState>
+  const c = current
+  return {
+    ...c,
+    ...p,
+    boat: { ...c.boat, ...p.boat },
+    course: {
+      ...c.course,
+      ...p.course,
+      startLine: { ...c.course.startLine, ...p.course?.startLine },
+    },
+    settings: { ...c.settings, ...p.settings },
+  }
+}
+
 const DEFAULT_BOAT: Boat = {
   id: 'me',
   name: 'My boat',
@@ -272,17 +298,13 @@ export const useStore = create<AppState>()(
       setRouting: (b) => set({ routing: b }),
       setRouteError: (e) => set({ routeError: e }),
 
-      settings: {
-        units: 'metric',
-        northRef: 'true',
-        simulate: false,
-        keepAwake: true,
-      },
+      settings: { ...DEFAULT_SETTINGS },
       updateSettings: (patch) =>
         set({ settings: { ...get().settings, ...patch } }),
     }),
     {
       name: 'newjourney.v1',
+      version: 1,
       storage: createJSONStorage(() => localStorage),
       // Live sensor data and computed results are deliberately not persisted.
       partialize: (s) => ({
@@ -294,6 +316,7 @@ export const useStore = create<AppState>()(
         settings: s.settings,
         activeMarkIndex: s.activeMarkIndex,
       }),
+      merge: mergePersistedState,
     },
   ),
 )
