@@ -226,7 +226,35 @@ through Zustand hydration would kill it but is disproportionate.
   `innerHTML` or `dangerouslySetInnerHTML`. GPX export escapes user strings. API
   responses are typed as `unknown` and structurally validated. No API keys in source.
 
-Suite 903 / 41 files. Twenty-six detection strategies exhausted across 51 passes.
+Suite 903 / 41 files.
+
+### Passes 52–56 — clean
+
+- **Pass 52** (UI rendering edge cases): no bugs. `Tile` component handles
+  null/NaN/Infinity with `Number.isFinite` guard, rendering "---". No `{0 && ...}`
+  conditional rendering traps. `StartCanvas` bails on missing endpoints.
+  `screens.test.tsx` enforces dashes-not-zeros invariant.
+
+- **Pass 53** (error boundary coverage): no bugs. `ErrorBoundary` wraps every screen
+  tab individually. Worker crashes terminate and resolve with error result.
+  `.toFixed()` calls are null-guarded. No unguarded throw paths in render.
+
+- **Pass 54** (routing kernel deep dive): no algorithmic bugs. Pruning uses spatial
+  buckets (no 359°→0° wrap issue). Parent pointers are monotonically decreasing (no
+  infinite loop in reconstruction). Backward pass correctly reverses time and wind
+  sampling. Multi-leg time threading is correct. Sensitivity band clamps negative
+  loss to 0.
+
+- **Pass 55** (dependency vulnerability audit): one high-severity CVE in `nanoid`
+  (transitive via vite→postcss). Not used in app code — dev-only, no action needed.
+
+- **Pass 56** (map layer lifecycle): no bugs. Sources added before layers, cleanup
+  removes layers then sources. Custom WebGL layers properly delete all GPU resources
+  in `onRemove`. Layer ordering uses `beforeId` for correct stacking.
+
+Suite 903 / 41 files. Thirty-one detection strategies exhausted across 56 passes.
+The computational core, routing kernel, UI rendering, error handling, map layers,
+security, type safety, physics model, and persistence are all verified clean.
 
 ---
 
