@@ -2024,8 +2024,35 @@ Suite 903 / 41 files.
   consistent pool state. startline.ts timeToPointOverGround:
   2-iteration fixed-point, contraction ratio ≈ current/boat
   speed. Tests bisect analytic Zermelo solution.
+- **Pass 340 — WebGL state save/restore: CLEAN.** ScalarLayer
+  saves/restores: BLEND, BLEND_SRC/DST_RGB, SCISSOR_TEST,
+  DEPTH_TEST. ParticleLayer additionally saves/restores:
+  VIEWPORT, STENCIL_TEST, COLOR_CLEAR_VALUE. FBO unbound to
+  null after every pass. Blend equation never changed (default
+  FUNC_ADD). Unsaved state (program, buffer bindings, texture
+  units, vertex attrib arrays) is re-set by MapLibre before
+  its own draws — follows MapLibre custom layer convention.
+- **Pass 341 — route path reconstruction: CLEAN.** Two-pass
+  reconstruct: count then fill start-to-finish. Parent=-1
+  sentinel terminates. Pool indices monotonic (no cycles).
+  Both endpoints included. Timestamps monotonic (dir×addend
+  non-negative). VMG beat flag stored/read correctly. Multi-leg:
+  appendLegs pops stale arrival when continuing, root uses
+  path[1] for outbound conditions. Goal hop: positioned at
+  goal, parent=frontier node, land-checked, dist=0 in final
+  entry. No-path → failed() with legs:[]. Diagnostics:
+  evaluated accumulated across passes, computeMs from timer.
+- **Pass 342 — useSensors GPS data flow: CLEAN.** watchPosition
+  with enableHighAccuracy:true, maximumAge:1000, timeout:20000.
+  clearWatch on unmount. Error → setGpsError(message). SOG from
+  platform c.speed × 1.94384 (m/s→kn). COG from platform
+  coords.heading (null→NaN, not 0). Accuracy extracted.
+  Number.isFinite guards on speed/heading. Geolocation API
+  unavailable → error message. setGpsError(null) clears on
+  each fix. Tests cover NaN-not-zero, genuine zero, non-finite
+  rejection, conversion, cleanup, disabled, no-API.
 
-Suite 956 / 43 files. Three hundred and eight detection strategies across 339 passes.
+Suite 956 / 43 files. Three hundred and eleven detection strategies across 342 passes.
 
 ---
 
