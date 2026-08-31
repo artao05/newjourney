@@ -1432,7 +1432,25 @@ Suite 903 / 41 files.
   bsp)). Gates on rate-of-turn to avoid corrupt estimates during
   tacks. headingToMakeGood null when BSP=0 or foul tide.
 
-Suite 950 / 43 files. Two hundred and twenty-eight detection strategies across 258 passes.
+- **Pass 259 — wind estimation logic: CLEAN.** Apparent-to-true
+  vector subtraction in correct frame (x-forward, y-starboard).
+  FROM/TOWARD convention consistent (wind flips +180, current
+  doesn't). TWS always non-negative (Math.hypot). BSP=0 gives
+  TW=AW. uvFromWind in cube.ts and windToUV in wind.ts use
+  identical math. History cleared on source change.
+- **Pass 260 — RouteScreen useEffect: CLEAN.** Seven effects with
+  correct dependency arrays. runIdRef pattern prevents stale results.
+  Forecast loaded inline, not from stale closure. canRoute disables
+  button when no marks. Worker dispose on unmount. Cube passed via
+  structured clone (not transfer) by design. windFC reads time
+  index 0.
+- **Pass 261 — rhumb line functions: CLEAN.** Standard Mercator
+  isometric-latitude formula. Stretch ratio q falls back to
+  cos(lat1) when |dpsi|<1e-12. Antimeridian handled by wrap180.
+  wrap360 guarantees bearing in [0,360). Poles degrade to NaN
+  via non-finite guard.
+
+Suite 950 / 43 files. Two hundred and thirty-one detection strategies across 261 passes.
 
 ---
 
