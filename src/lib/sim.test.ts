@@ -263,6 +263,49 @@ describe('robustness', () => {
     expect(ratio).toBeGreaterThan(0.75)
   })
 
+  /**
+   * The noise random walk has the same class of dtS-scaling bug the turn loss
+   * had: `(rng() - 0.5) * dtS * 0.35` makes the diffusion increment
+   * proportional to dtS instead of sqrt(dtS). For an Ornstein-Uhlenbeck
+   * process the equilibrium variance is σ²_step / (1 - α²); when σ²_step
+   * scales with dtS² instead of dtS the equilibrium variance scales linearly
+   * with dtS — i.e. the breeze wanders ten times harder at dtS = 5 than at
+   * dtS = 0.5. The fix is `Math.sqrt(dtS)` instead of `dtS`.
+   */
+  it('wind noise variance does not depend on step size', () => {
+    const base = 180
+    const mkSim = () =>
+      new BoatSim({ start: START, twd: base, tws: 12, oscillationDeg: 0 }, 42)
+
+    function noiseVariance(dtS: number, steps: number): number {
+      const sim = mkSim()
+      sim.setAutopilot({ mode: 'heading', heading: base })
+      let sumSq = 0
+      let count = 0
+      // Skip the first 500 s so the OU process reaches equilibrium.
+      const warmup = Math.ceil(500 / dtS)
+      for (let i = 0; i < warmup + steps; i++) {
+        sim.step(dtS)
+        if (i >= warmup) {
+          const dev = sim.wind().twd - base
+          // Normalise into [-180, 180) for safety, though noise is bounded ±12.
+          const n = ((dev % 360) + 540) % 360 - 180
+          sumSq += n * n
+          count++
+        }
+      }
+      return sumSq / count
+    }
+
+    const varFine = noiseVariance(0.5, 10_000) // 5 000 s of data
+    const varCoarse = noiseVariance(5.0, 1_000) // 5 000 s of data
+
+    // With correct sqrt(dtS) scaling the two should be close (ratio ≈ 1).
+    // With the dtS bug the coarse variance is ~10× the fine.
+    const r = Math.max(varFine, varCoarse) / Math.min(varFine, varCoarse)
+    expect(r).toBeLessThan(3)
+  })
+
   it('takes a new wind and sails to it', () => {
     const sim = new BoatSim({ start: START, twd: 0, tws: 12, lattice: lattice() }, 3)
     sim.setAutopilot({ mode: 'twa', twa: 90 })

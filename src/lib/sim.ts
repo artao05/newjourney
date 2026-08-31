@@ -136,7 +136,7 @@ export class BoatSim {
   step(dtS: number): BoatState {
     this.t += dtS * 1000
     // Slow random walk on wind direction, bounded.
-    this.noise += (this.rng() - 0.5) * dtS * 0.35
+    this.noise += (this.rng() - 0.5) * Math.sqrt(dtS) * 0.35
     // Decay per second rather than per call: the caller picks dtS (the app steps at
     // 0.5 s, a test may use 30), and an unscaled factor made the breeze wander
     // differently at different frame rates.
