@@ -2099,8 +2099,31 @@ Suite 903 / 41 files.
   DEPTH_MISSING sentinel propagated without interpolation.
   Grid index clamping at boundaries prevents OOB access.
   Depth sign convention consistent (positive = water depth).
+- **Pass 349 — error boundary reset and lazy retry: CLEAN.**
+  hasError boolean flag set in getDerivedStateFromError,
+  fallback renders correctly. Key-based isolation per tab
+  unmounts/remounts boundary on switch. Retry bumps lazyGen
+  to defeat React.lazy cached rejection. No infinite loop —
+  fallback does not render children. componentDidCatch logs
+  screen name + error + stack. Boundaries per-tab, not global.
+- **Pass 350 — Zustand selector stability: CLEAN.**
+  All useStore calls use single-field selectors returning
+  stable references (primitives or same function ref). No
+  multi-field destructuring without shallow comparator.
+  partialize includes only serializable state. mergePersistedState
+  deep-merges nested objects correctly. Every action uses
+  single set() call. No subscribe outside React. No async
+  actions with stale closures — store uses get() synchronously.
+- **Pass 351 — route worker message protocol: CLEAN.**
+  Discriminated union on type field, all cases handled.
+  Monotonic nextId with identity check drops stale results.
+  onerror has worker identity guard against stale crash events.
+  Worker try/catch posts errors in-band. Typed arrays not
+  transferred (intentional — main thread needs them for
+  overlay). cancel() terminates old worker before new request.
+  No concurrent messages — always fresh worker per request.
 
-Suite 956 / 43 files. Three hundred and seventeen detection strategies across 348 passes.
+Suite 956 / 43 files. Three hundred and twenty detection strategies across 351 passes.
 
 ---
 
