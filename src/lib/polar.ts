@@ -594,6 +594,11 @@ function maxFinite(xs: number[]): number {
   return m
 }
 
+/** Number() but returns NaN for empty/undefined strings (JS quirk: Number('') === 0). */
+function cellNum(s: string | undefined): number {
+  return s === undefined || s === '' ? NaN : Number(s)
+}
+
 /**
  * Read a rectangular CSV polar — qtVlm `.pol`, ORC exports, anything Excel produced.
  *
@@ -614,8 +619,8 @@ export function parseCsvPolar(text: string, name?: string): PolarTable {
   const delim = detectDelimiter(lines)
   const cells = lines.map((l) => l.split(delim).map((c) => c.trim()))
   const header = cells[0]
-  const headerNums = header.slice(1).map(Number)
-  const firstCol = cells.slice(1).map((r) => Number(r[0]))
+  const headerNums = header.slice(1).map(cellNum)
+  const firstCol = cells.slice(1).map((r) => cellNum(r[0]))
   const headerMax = maxFinite(headerNums)
   const colMax = maxFinite(firstCol)
 
@@ -636,11 +641,11 @@ export function parseCsvPolar(text: string, name?: string): PolarTable {
     // Columns are TWA, rows are TWS.
     for (let r = 1; r < cells.length; r++) {
       const row = cells[r]
-      const tws = Number(row[0])
+      const tws = cellNum(row[0])
       if (!Number.isFinite(tws)) continue
       const pairs: Array<[number, number]> = []
       for (let c = 0; c < headerNums.length; c++) {
-        const bsp = Number(row[c + 1])
+        const bsp = cellNum(row[c + 1])
         if (Number.isFinite(headerNums[c]) && Number.isFinite(bsp)) {
           pairs.push([headerNums[c], bsp])
         }
@@ -654,8 +659,8 @@ export function parseCsvPolar(text: string, name?: string): PolarTable {
       if (!Number.isFinite(tws)) continue
       const pairs: Array<[number, number]> = []
       for (let r = 1; r < cells.length; r++) {
-        const twa = Number(cells[r][0])
-        const bsp = Number(cells[r][c + 1])
+        const twa = cellNum(cells[r][0])
+        const bsp = cellNum(cells[r][c + 1])
         if (Number.isFinite(twa) && Number.isFinite(bsp)) pairs.push([twa, bsp])
       }
       if (pairs.length > 0) raw.push({ tws, pairs })
