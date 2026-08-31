@@ -292,6 +292,53 @@ describe('isochrone routing kernel', () => {
     expect(penalised.elapsedS!).toBeGreaterThanOrEqual(clean.elapsedS! - 1)
   })
 
+  it('multi-leg route applies gybe penalty at mark rounding', () => {
+    const start = { lat: 40, lon: -70 }
+    // Leg 1: 5 nm due east — beam reach on port (heading 90°, TWA ≈ −90°).
+    const m1 = destination(start, 90, 5)
+    // Leg 2: 5 nm to the SW — broad reach on starboard (heading ≈ 225°, TWA ≈ +135°).
+    const m2 = destination(m1, 225, 5)
+    const ctx = { field: makeField({ twd: 0, tws: 12 }), lattice: LATTICE }
+    const gybePen = 300
+
+    // Both routes use useTack = true (penalty > 0), so the bucket keying is
+    // identical. Comparing against a baseline with gybePenaltyS = 1 isolates
+    // the mark-rounding penalty from the bucketing change.
+    const baseline = routeIsochrone(
+      request({
+        start,
+        marks: [m1, m2],
+        resolution: 'balanced',
+        constraints: { ...defaultConstraints(), gybePenaltyS: 1 },
+      }),
+      ctx,
+    )
+    expect(baseline.ok, baseline.error).toBe(true)
+
+    const penalised = routeIsochrone(
+      request({
+        start,
+        marks: [m1, m2],
+        resolution: 'balanced',
+        constraints: { ...defaultConstraints(), gybePenaltyS: gybePen },
+      }),
+      ctx,
+    )
+    expect(penalised.ok, penalised.error).toBe(true)
+
+    // The mark rounding from port (leg 1) to starboard (leg 2) is a gybe.
+    // With a 300 s penalty the optimizer adjusts the leg-1 approach angle to
+    // avoid the mark-rounding gybe, staying on port through the goal hop. The
+    // avoidance detour costs measurable time (~25 s in practice). The
+    // assertion checks that the penalty is visible — before the fix
+    // (goal-hop penalty + initialTack propagation) the diff was ≈ 0.
+    const diff = penalised.elapsedS! - baseline.elapsedS!
+    note(
+      `multi-leg gybe penalty: baseline(1s) ${baseline.elapsedS!.toFixed(1)} s, penalised(${gybePen}s) ${penalised.elapsedS!.toFixed(1)} s, diff ${diff.toFixed(1)} s`,
+    )
+    expect(diff).toBeGreaterThan(10)
+  })
+
   // §10.3
   it('constant current, constant wind: matches the analytic drift-corrected solution', () => {
     const start = { lat: 40, lon: -70 }

@@ -732,6 +732,14 @@ interface PassInput {
   onProgress: ((f: number) => void) | null
   progressBase: number
   progressSpan: number
+  /**
+   * Tack state and TWA carried from the previous leg's finish node so the
+   * mark-rounding tack/gybe penalty fires at the first step of the new leg.
+   * Left at zero for the first leg (no prior tack) and for the backward pass
+   * (memoryless by §8).
+   */
+  initialTack?: number
+  initialTwa?: number
 }
 
 interface PassOutput {
@@ -1155,8 +1163,8 @@ class Search {
     P.lon[root] = origin.lon
     P.t[root] = t0
     P.parent[root] = -1
-    P.tack[root] = 0
-    P.twa[root] = 0
+    P.tack[root] = input.initialTack ?? 0
+    P.twa[root] = input.initialTwa ?? 0
     P.hdg[root] = 0
     P.bsp[root] = 0
     P.twd[root] = 0
@@ -1224,6 +1232,8 @@ class Search {
         const goalBrg = bearing(pa, goal)
         const cosLat = Math.max(MIN_COS_LAT, Math.cos(plat * DEG))
         const sinLat = Math.sin(plat * DEG)
+        const parentTack = P.tack[ni]
+        const parentTwa = P.twa[ni]
 
         // ---- can we finish from here inside this step? (§2, "record a finish
         // candidate")
@@ -1231,7 +1241,16 @@ class Search {
         if (dGoal > 1e-12 && this.goalHop(tws, tb, twd, goalBrg, cu, cv, polarF, dir)) {
           const hours = dGoal / this.hopClosing
           if (hours <= dtH && (land === null || !land.crosses(pa, goal))) {
-            const tArr = pt + dir * hours * MS_PER_HOUR
+            // Apply tack/gybe penalty if the finish hop changes tack, mirroring
+            // the fan loop — otherwise a candidate that avoids the fan penalty
+            // can reach the mark via the goal hop penalty-free.
+            const hopNewTack =
+              this.hopTwa > 0 ? 1 : this.hopTwa < 0 ? -1 : parentTack === 0 ? 1 : parentTack
+            let hopPen = 0
+            if (useTack && parentTack !== 0 && hopNewTack !== parentTack) {
+              hopPen = manoeuvre(parentTwa, this.hopTwa) === 'tack' ? this.tackPen : this.gybePen
+            }
+            const tArr = pt + dir * (hours * MS_PER_HOUR + hopPen * 1000)
             if (isFwd ? tArr < finishT : tArr > finishT) {
               P.ensure(P.n + 1)
               const fnode = P.n++
@@ -1239,8 +1258,7 @@ class Search {
               P.lon[fnode] = goal.lon
               P.t[fnode] = tArr
               P.parent[fnode] = ni
-              P.tack[fnode] =
-                this.hopTwa > 0 ? 1 : this.hopTwa < 0 ? -1 : P.tack[ni] === 0 ? 1 : P.tack[ni]
+              P.tack[fnode] = hopNewTack
               P.twa[fnode] = this.hopTwa
               P.hdg[fnode] = this.hopHdg
               P.bsp[fnode] = this.hopBsp
@@ -1265,8 +1283,6 @@ class Search {
           this.tgUpTwa[tb],
           this.tgDnTwa[tb],
         )
-        const parentTack = P.tack[ni]
-        const parentTwa = P.twa[ni]
         const fanN = this.fanN
         C.n = cn
         C.ensure(cn + fanN)
@@ -1698,6 +1714,8 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
     let from = req.start
     const passCount = req.marks.length * (req.computeSensitivity ? 2 : 1)
     let passIndex = 0
+    let prevTack = 0
+    let prevTwa = 0
 
     for (let li = 0; li < req.marks.length; li++) {
       const to = req.marks[li]
@@ -1722,6 +1740,8 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
         onProgress: ctx.onProgress ?? null,
         progressBase: passIndex / passCount,
         progressSpan: 1 / passCount,
+        initialTack: prevTack,
+        initialTwa: prevTwa,
       })
       passIndex++
       evaluated += out.evaluated
@@ -1739,6 +1759,8 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
         )
       }
       appendLegs(legs, search, reconstruct(search, out.finishNode), dense.hasCurrent, li > 0)
+      prevTack = search.pool.tack[out.finishNode]
+      prevTwa = search.pool.twa[out.finishNode]
       clock = out.finishT
       from = to
     }
