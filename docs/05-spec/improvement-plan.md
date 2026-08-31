@@ -1625,7 +1625,28 @@ Suite 903 / 41 files.
   fill with hole support. Coordinate mapping via wrap180 for
   short-way-around. Conservative fallback on budget exhaustion.
 
-Suite 956 / 43 files. Two hundred and fifty-eight detection strategies across 288 passes.
+- **Pass 289 — solar position isNight: CLEAN.** NOAA low-precision
+  algorithm verified against known positions (London solstice,
+  equator equinox). Julian day from Unix ms correct. EoT constants
+  1.915/0.020 standard. Obliquity 23.439-0.0000004n. Polar day
+  and night verified at lat 89.9. Civil twilight threshold -6°.
+  Hour angle from GMST (UTC). Continuous across midnight boundary.
+  5-min memoization bucket introduces ~0.02° error.
+- **Pass 290 — fan heading construction: CLEAN.** Fan sweeps ±half
+  around goal bearing, widening 100→180° on stall. Fixed step
+  per resolution preset (5/8/12°). All four VMG angles injected
+  via fanPushInCone. Dead zone handled by effective() with
+  implicit-tacking VMG substitute. Direct course at k=0. 0/360
+  wrap correct. Forward/backward use same buildFan with 180°
+  centre flip.
+- **Pass 291 — tack/gybe penalty routing: CLEAN.** Penalty in
+  seconds ×1000 for ms domain. Fires once per side-change, not
+  per step. manoeuvre() classifies tack vs gybe. Goal hop applies
+  same penalty. Bucket key includes tack state for fair domination.
+  Penalty baked into arrival time. Backward pass skips penalties
+  (useTack = isFwd). Zero penalty → memoryless case.
+
+Suite 956 / 43 files. Two hundred and sixty-one detection strategies across 291 passes.
 
 ---
 
