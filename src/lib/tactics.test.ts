@@ -471,6 +471,11 @@ describe('computeTactics', () => {
     expect(r.markRange).toBeCloseTo(1, 6)
     expect(r.vmc).toBeCloseTo(5 * COS40, 4)
     expect(r.markTimeS).toBeCloseTo((1 / (5 * COS40)) * 3600, 3)
+    // VMG is BSP · cos(TWA), a pure kinematic value independent of any polar.
+    // It must be available whenever there is a wind and a boat speed.
+    expect(r.vmg).toBeCloseTo(5 * COS40, 6)
+    // vmgPct requires the polar target VMG, so it stays null.
+    expect(r.vmgPct).toBeNull()
   })
 
   it('never throws on hostile input', () => {

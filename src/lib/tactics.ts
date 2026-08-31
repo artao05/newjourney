@@ -397,6 +397,14 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
     if (Number.isFinite(course)) out.twa = twaFrom(course, wind.twd)
   })
 
+  // VMG is BSP · cos(TWA) — a pure kinematic value that needs only a wind
+  // angle and a boat speed, no polar lattice. Compute it before the polar
+  // block so it is available even when no polar file is loaded.
+  attempt(() => {
+    if (out.twa === null) return
+    out.vmg = waterSpeed(state) * Math.cos(out.twa * DEG)
+  })
+
   attempt(() => {
     if (!wind || !lattice || out.twa === null) return
     const pct = boat.polarPct / 100
@@ -409,9 +417,8 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
     if (out.polarBsp > 0) out.polarBspPct = (100 * bsp) / out.polarBsp
     // Signed: positive upwind, negative downwind, so that dividing by the
     // (equally signed) target VMG gives a sane percentage on both.
-    out.vmg = bsp * Math.cos(out.twa * DEG)
     const targetVmg = (upwind ? targets.upVmg : targets.downVmg) * pct
-    if (Math.abs(targetVmg) > 1e-9) out.vmgPct = (100 * out.vmg) / targetVmg
+    if (Math.abs(targetVmg) > 1e-9 && out.vmg !== null) out.vmgPct = (100 * out.vmg) / targetVmg
   })
 
   const marks = i.course?.marks ?? []
