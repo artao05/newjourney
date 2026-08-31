@@ -1740,8 +1740,32 @@ Suite 903 / 41 files.
   Southern hemisphere: cos(-lat)=cos(lat). Frame centered on
   line midpoint. All XY computations share same frame instance.
   Error documented with table, pinned by 4 tests.
+- **Pass 307 — rhumb line antimeridian: CLEAN.** rhumbDistance
+  and rhumbBearing use wrap180(dLon) for short-arc selection —
+  verified 179.9→-179.9 yields 0.2° not 359.8°. Mercator psi
+  pole singularity inherent, not a bug. Stretch ratio fallback
+  cos(φ1) at |dψ|<1e-12 is correct L'Hopital limit. lonSpan
+  handles all quadrants. Trig units consistent (DEG/RAD).
+  rhumbDestination not implemented (no callers). Short-distance
+  numerical stability fine via Math.hypot.
+- **Pass 308 — polar canvas rendering: CLEAN.** PolarPlot
+  polar-to-cartesian correct (sin/cos with TWA=0 at top,
+  clockwise). DPR scaling follows buffer×DPR / CSS÷DPR /
+  setTransform pattern, capped at 2.5. ResizeObserver cleanup
+  on unmount. vmax≤0 early return handles zero-speed polars.
+  Speed scale ceils max across all wind speeds. VMG targets
+  rendered as dots (design intent). 0-180 TWA range in 1°
+  steps with 30° spokes.
+- **Pass 309 — forecast cache dedup: CLEAN.** Promise itself
+  cached for dedup. Failed fetch .catch() evicts entry with
+  identity guard (cache.get(key)?.cube === pending) preventing
+  stale eviction of newer entry. Cache key includes model,
+  bbox (q6-rounded), stepDeg, hours, waves, current. Expiry
+  at next hour boundary. clearWeatherCache() exported. 429
+  treated as error, evicted. Unbounded Map acceptable — only
+  button-press/model-change callers, single-digit entries.
 
-Suite 956 / 43 files. Two hundred and seventy-six detection strategies across 306 passes.
+Suite 956 / 43 files. Two hundred and seventy-nine detection strategies across 309 passes.
 
 ---
 
