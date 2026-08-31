@@ -1836,8 +1836,35 @@ Suite 903 / 41 files.
   registered with relative path matching base:'./'. Precache
   is minimal shell (index.html, manifest); assets cached on
   demand.
+- **Pass 319 — color ramp 16-bit encoding: CLEAN.** Encode:
+  q=round(norm×65535), R=q>>8, G=q&0xff, alpha=0 for NaN.
+  Decode: (c.r×255×256 + c.g×255)/65535 — symmetric with
+  encode. Premultiplied alpha output matches ONE/1-SRC_ALPHA
+  blend. Beaufort stops [0,1,4,7,11,17,22,28,34,41,48,56,64]
+  match standard. Discrete ramps return class colors without
+  interpolation. rampToLUT maps domain endpoints to first/last
+  texels. Round-trip tested within tolerance. Negative values
+  handled via normalisation.
+- **Pass 320 — route progress reporting: CLEAN.** Progress =
+  progressBase + progressSpan×k/maxSteps. Passes tile [0,1]
+  contiguously via passIndex/passCount. Monotonic within pass
+  (k only increases) and between passes (no gap/overlap).
+  Multi-leg: passCount = marks.length × (sensitivity?2:1).
+  Reaches 1.0 on final pass. Throttle in worker.ts drops
+  intermediate values but lets 1.0 through. Sweep: done/total
+  after each solve. Stale progress blocked by msg.id!==p.id
+  guard + worker termination on cancel. Backward pass uses
+  same arithmetic, occupies second half of bar.
+- **Pass 321 — Zustand persist merge: CLEAN.** Partialize
+  whitelist: 7 user-config fields. All runtime/sensor state
+  excluded. mergePersistedState deep-merges boat, course
+  (with startLine), settings — new code fields get defaults.
+  Null persisted state defaults to {}. Single-field selectors
+  across all 6 consuming files. localStorage storage. Version=1,
+  no migrate function (safe discard on bump). Tests cover
+  old-schema transitions.
 
-Suite 956 / 43 files. Two hundred and eighty-seven detection strategies across 318 passes.
+Suite 956 / 43 files. Two hundred and ninety detection strategies across 321 passes.
 
 ---
 
