@@ -1565,7 +1565,26 @@ Suite 903 / 41 files.
   `this.worker !== worker` to early return at top of handler.
   Commit `aea6a91`.
 
-Suite 956 / 43 files. Two hundred and forty-nine detection strategies across 279 passes.
+- **Pass 280 — start line geometry edges: CLEAN.** Zero-length
+  line guarded with lineLenNm>1e-9. Infinite-line convention for
+  distance and crossing. Orient determined empirically from
+  pre-start reference. Wind-parallel gives max bias via sin(90)=1.
+  Zero speed returns null. LocalFrame applies cos(lat) correction.
+  OCS detected when belowNm<0. Time-to-burn = timeToLine - timeToGun.
+- **Pass 281 — DenseField trilinear interpolation: CLEAN.** Grid
+  index clamped to [0,n-2] so i0+1 always in range. Antimeridian
+  via normaliseLon tries ±360. NaN corners skipped with weight
+  renorm. South-to-north row order consistent. Time boundary
+  correct with ft=0 short-circuit. Delta coding with MISSING
+  sentinel. U/V interpolated separately. 1x1 grid handled.
+- **Pass 282 — PCHIP polar interpolation: CLEAN.** Fritsch-Carlson
+  weighted harmonic mean with zero slope at extrema. Zero-length
+  intervals guarded. Sorted by normaliseRow on import. Hermite
+  basis h00/h10/h01/h11 correct with h-scaled tangents. Below
+  first TWA ramps to zero. TWS linear between rows. Single column
+  handled. Negative speeds clamped. Two points reduces to linear.
+
+Suite 956 / 43 files. Two hundred and fifty-two detection strategies across 282 passes.
 
 ---
 
