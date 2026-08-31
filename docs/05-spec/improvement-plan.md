@@ -1682,7 +1682,27 @@ Suite 903 / 41 files.
   setData deletes old textures before creating new. clearPending
   invalidates stale trails on visibility restore.
 
-Suite 956 / 43 files. Two hundred and sixty-seven detection strategies across 297 passes.
+- **Pass 298 — ScalarLayer GL lifecycle: CLEAN.** Saves/restores
+  blend, blend funcs, scissor, depth. Pass 201 blend fix in place.
+  setColorRamp deletes old texture. Domain uniform with 1e-6
+  division guard. 16-bit R/G round-trip exact, LINEAR filtering
+  correct. NaN → alpha=0 → discard. Temporal blend via mix() of
+  two encoded time steps. onRemove deletes 3 textures, 2 buffers,
+  1 program.
+- **Pass 299 — route reconstruction: CLEAN.** Parent chain walks
+  i≥0, terminates at -1 sentinel. Second pass fills root-to-finish
+  order. Field attribution reads conditions from next node (segment
+  departure convention). Multi-leg pops stale arrival row.
+  distanceNm from P.dist[nxt]. Infinite loop impossible (parent<i
+  by construction).
+- **Pass 300 — Expedition polar parser: CLEAN.** Mixed delimiters
+  via /[\s,;]+/ split. Comment lines stripped via !-prefix.
+  Ragged rows self-contained with TWS + (TWA,BSP) pairs. Trailing
+  unpaired TWA silently dropped. Negative TWA via abs()%360.
+  finishTable shared with CSV path. Format sniffing via majority
+  vote on angle>1.5×speed. NaN/Inf rejected by isFinite.
+
+Suite 956 / 43 files. Two hundred and seventy detection strategies across 300 passes.
 
 ---
 
