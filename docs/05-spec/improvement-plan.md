@@ -2051,8 +2051,36 @@ Suite 903 / 41 files.
   unavailable → error message. setGpsError(null) clears on
   each fix. Tests cover NaN-not-zero, genuine zero, non-finite
   rejection, conversion, cleanup, disabled, no-API.
+- **Pass 343 — ping-pong framebuffer swap: CLEAN.** Read
+  from particleTexture0 (unit 1), write to particleTexture1
+  (FBO), swap via tmp variable. res=ceil(sqrt(count)),
+  particleCount=res². RGBA8 with 16-bit R/G+B/A position
+  encoding. Random byte init for uniform seeding. No same-
+  texture read-write hazard. Screen texture ping-pong also
+  correct. Texture units: 0=wind0, 1=particles, 2=ramp,
+  3=wind1 — no collisions per draw call. Index shader
+  fract(i/res)/floor(i/res)/res maps to unique texel.
+- **Pass 344 — venue pack data loading: CLEAN.** Coordinates
+  {lat,lon} consistent, MapLibre reorders to [lon,lat].
+  Land raster validated: 4 moored instruments read as water,
+  3 inland towns as land, waterStart has sea room in all
+  directions. Tide station 8418150 cross-validated with
+  PORTLAND_DATUM.stationId. Depth grid south-to-north,
+  "deepens offshore" test confirms orientation. Cell sizes
+  consistent: land 0.001°, depth 1/240°. Cross-asset bbox
+  match within half depth cell, water fractions agree ±2%.
+  DEPTH_MISSING = weather MISSING = -32768.
+- **Pass 345 — Vite config and build pipeline: CLEAN.**
+  worker.format:'es' matches type:'module' instantiation.
+  base:'./' consistent with manifest start_url/scope and SW
+  registration path. Hand-rolled SW with 4-rule strategy.
+  es2022 target aligned in vite and tsconfig. sourcemap:true.
+  strict:true, jsx:react-jsx, moduleResolution:bundler.
+  lib includes DOM+WebWorker. Vitest env:node with per-file
+  pragmas. React 19, Zustand 5, Vite 6, TS 5.7 — all
+  compatible, no conflicting peer deps.
 
-Suite 956 / 43 files. Three hundred and eleven detection strategies across 342 passes.
+Suite 956 / 43 files. Three hundred and fourteen detection strategies across 345 passes.
 
 ---
 
