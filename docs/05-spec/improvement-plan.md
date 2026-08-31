@@ -1361,7 +1361,26 @@ Suite 903 / 41 files.
   cleared on wind mode change. Non-finite twd filtered. Not
   persisted (excluded from partialize).
 
-Suite 950 / 43 files. Two hundred and sixteen detection strategies across 246 passes.
+- **Pass 247 — PCHIP interpolation: CLEAN.** Fritsch-Carlson
+  monotonicity via weighted harmonic mean. Endpoint slopes use
+  three-point one-sided formula with two-part limiter. No overshoot
+  (tested at 0.1° resolution). Linear fallback for 2 points.
+  Division-by-zero guarded. Extrapolation: ramp-to-zero below,
+  hold above.
+- **Pass 248 — venue asset loading: CLEAN.** Fetch errors checked
+  via res.ok. Binary length validated against expected bytes.
+  Promise-level caching with retry on failure. Worker validates
+  land raster bit array length. Depth grid Int16 decimetres with
+  DEPTH_MISSING=-32768. Tidal stations verified inside bbox.
+  Graceful degradation on all failure paths.
+- **Pass 249 — ParticleLayer lifecycle: CLEAN.** Single framebuffer
+  created in onAdd, deleted in onRemove. Ping-pong textures swapped
+  correctly. No rAF — uses map.triggerRepaint. Viewport change
+  clears trail buffers. Particle count adaptive to viewport area.
+  Zero wind guarded (magMax floor, shader 1e-6 divisor). FBO
+  unconditionally unbound after render.
+
+Suite 950 / 43 files. Two hundred and nineteen detection strategies across 249 passes.
 
 ---
 
