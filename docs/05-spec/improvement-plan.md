@@ -2144,8 +2144,30 @@ Suite 903 / 41 files.
   marine params, surfaces notes. GPU textures deleted before
   new ones created on model switch. Routing uses monotonic
   ID + generation counter across async boundaries.
+- **Pass 355 — PWA service worker caching: CLEAN.**
+  Four-rule strategy: weather API network-only, tiles
+  network-first, navigation network-first, same-origin
+  cache-first (hashed) / stale-while-revalidate (unhashed).
+  Default-deny isCacheable allowlist. Install precaches shell,
+  skipWaiting. Activate purges old VERSION caches, clients.claim.
+  POST filtered. Opaque responses excluded (res.ok && basic).
+  Tile cache capped at 1200 entries with trimCache eviction.
+- **Pass 356 — departure sweep grid generation: CLEAN.**
+  planDepartures inclusive endpoints: floor(span/step)+1.
+  Widening formula ceil(span/(cap-1)) correct. Endpoint fixup
+  pushes or replaces last point. Edge cases: span=0 → [from],
+  reversed → [from], non-finite → [from]. sweepDepartures
+  picks best by minimum elapsedS. Per-departure exceptions
+  caught. Worker passes startTime correctly via object spread.
+- **Pass 357 — GPS sensor data flow: CLEAN.**
+  lat/lon mapped to position correctly. maximumAge:1000 prevents
+  stale fixes. SOG from coords.speed * 1.94384 (m/s→kt).
+  COG from coords.heading. Phone magnetometer intentionally
+  not trusted (heading=null). Permission errors set gpsError.
+  clearWatch on unmount. fixAge computed with 1 Hz tick, warns
+  at 8s stale.
 
-Suite 956 / 43 files. Three hundred and twenty-three detection strategies across 354 passes.
+Suite 956 / 43 files. Three hundred and twenty-six detection strategies across 357 passes.
 
 ---
 
