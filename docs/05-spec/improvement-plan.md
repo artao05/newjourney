@@ -1256,7 +1256,77 @@ Suite 903 / 41 files.
   `cellNum()` helper that returns NaN for empty/undefined strings.
   Commit `8a29fbb`.
 
-Suite 950 / 43 files. One hundred and ninety-eight detection strategies across 228 passes.
+- **Pass 229 — service worker caching: CLEAN.** Four-rule strategy
+  correct: forecasts never cached, tiles network-first with
+  TILE_LIMIT=1200 trim, hashed assets cache-forever, navigation
+  network-first with shell fallback. skipWaiting/clients.claim
+  lifecycle correct. Opaque responses excluded.
+- **Pass 230 — Zustand store selectors: CLEAN.** All 14 consumer
+  files use single-field selectors. partialize whitelist matches
+  intended persistence scope. mergePersistedState deep-merges for
+  schema evolution. No in-place mutation. Derived values in useMemo,
+  not stored.
+- **Pass 231 — start line geometry: CLEAN.** Distance-to-line sign
+  convention consistent (positive = pre-start, negative = OCS).
+  Bias computation wind-relative only (by design). GPS approach
+  uses SOG, polar approaches use BSP with current correction.
+  Zero-length line guarded. NaN guards from pass 34 still protect
+  all paths.
+
+- **Pass 232 — tidal current prediction: CLEAN.** velocityAt/
+  waterLevelAt return null outside prediction window. Linear
+  interpolation on 6-min samples (worst-case chord error ~4mm).
+  Flood/ebb direction binary, not interpolated. Slack threshold
+  configurable. NOAA error payloads caught. Datum arithmetic
+  pinned by anchor-point tests.
+- **Pass 233 — error boundary lifecycle: CLEAN.** hasError boolean
+  flag correct. Recovery via reset() calls onReset before clearing
+  state. Key-based isolation per tab. Lazy component retry bumps
+  lazyGen for fresh import. Fallback UI depends only on props/state,
+  not crashed child tree. Handles falsy/non-Error thrown values.
+- **Pass 234 — weather cube delta encoding: CLEAN.** First timestep
+  absolute, subsequent deltas. Quantization scales in JSON header.
+  Byte-plane shuffle uses manual bitwise ops (endian-independent).
+  NaN mapped to sentinel MISSING=-32768, predictor skipped on holes.
+  Wave direction wrap produces large but in-range Int16 deltas.
+  Round-trip within half quantization step.
+
+- **Pass 235 — solar position and isNight: CLEAN.** NOAA low-
+  precision algorithm with equation of center. Julian Date from
+  Unix ms correct. Elevation-based threshold (-6° civil twilight),
+  no time heuristic. 5-minute memoization bucket drift documented.
+  clampUnit on asin, wrap360 on GMST. Extreme latitudes handled
+  by construction.
+- **Pass 236 — haversine geodesy: CLEAN.** Haversine uses atan2
+  (stable near antipodes). bearing(identical) returns 0 convention.
+  destination wraps longitude via wrap180. clampUnit guards every
+  asin/acos. signedDistanceToLine has len<1e-12 guard. Earth
+  radius R_NM=3440.065 consistent everywhere.
+- **Pass 237 — land mask DDA walk: CLEAN.** Slab-test clipping
+  (commit 3a97719) clips parametric [t0,t1] to raster box. Step
+  direction correct all four quadrants. Axis-aligned rays use
+  Infinity for perpendicular axis. Budget = |dx|+|dy|+2, bounded
+  by grid size after clipping. Row-major y-outer indexing consistent.
+  Antimeridian wrap via wrap180. South-to-north row order.
+
+- **Pass 238 — polar canvas rendering: CLEAN.** Coordinate
+  transform (sin/cos) maps TWA 0→top, clockwise. DPR scaling via
+  setTransform. Radial auto-scale with zero-floor guard. Target
+  dots use same pt() as curve. Canvas cleared fully before redraw.
+  ResizeObserver disconnected on unmount.
+- **Pass 239 — isochrone tack/gybe penalty: CLEAN.** Penalty as
+  added ms on dtMs. No double-counting (per-candidate vs parent).
+  Zero penalty disables tack tracking (useTack=false). Root penalty
+  blocked by parentTack!==0 guard. Multi-leg carries tack via
+  prevTack. Backward pass memoryless (no penalties). TWA=180 always
+  +180 via wrap180.
+- **Pass 240 — format helpers consistency: CLEAN.** fmtClock handles
+  negatives with sign suppression at zero crossing. fmtDeg maps
+  360→"0". Null/NaN/Infinity→'—' everywhere. Time-to-burn sign
+  flipped once consistently. toFixed locale-independent. fmtAgo
+  23.5h→"1 day" correct.
+
+Suite 950 / 43 files. Two hundred and ten detection strategies across 240 passes.
 
 ---
 
