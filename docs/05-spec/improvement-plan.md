@@ -2258,8 +2258,31 @@ Suite 903 / 41 files.
   clamped to ±16383 avoiding MISSING sentinel. Marine failure
   degrades gracefully. alignTimes handles differing time axes.
   Cache key uses q6 precision. 76 tests pass.
+- **Pass 370 — simulation Euler integration and PRNG: CLEAN.**
+  mulberry32 PRNG correct (unsigned 32-bit, /2^32). Euler
+  displacement vx*dtS/3600 in NM, LocalFrame toLatLon
+  accounts for spherical geometry. Noise sqrt(dtS) fix from
+  pass 209 intact. Decay pow(0.995,dtS) per-second. Turn loss
+  proportional to dtS (no O(dtS^2) bug). Polar lookup bilinear
+  with boundary clamping. Current added as vectors. dt=0.5s.
+- **Pass 371 — DenseField/CubeField trilinear interpolation: CLEAN.**
+  Bilinear at k0 and k0+1, then temporal lerp. Weights
+  (1-fx)*(1-fy) etc correct. locate clamps i0 to nx-2
+  preventing OOB. Missing corners renormalize via wsum.
+  Short-circuit when ft<=0. Array layout [t][y][x] matches
+  access pattern. normaliseLon handles antimeridian with ±360.
+  Circular interpolation for wave direction via sin/cos avg.
+- **Pass 372 — Expedition and CSV polar parsing: CLEAN.**
+  Expedition: stripComment, mixed delimiters, metadata round-
+  trip. CSV: delimiter detection priority tab>semi>comma>ws,
+  orientation sniffing by axis range. cellNum returns NaN for
+  empty strings (not 0). normaliseRow sorts, folds >180,
+  deduplicates keeping faster. polarSpeed abs(wrap180(twa))
+  mirrors port tack. PCHIP Fritsch-Carlson tangents correct.
+  Format sniffing heuristic distinguishes Expedition from CSV.
+  Parse errors caught and shown to user.
 
-Suite 956 / 43 files. Three hundred and thirty-eight detection strategies across 369 passes.
+Suite 956 / 43 files. Three hundred and forty-one detection strategies across 372 passes.
 
 ---
 
