@@ -1450,7 +1450,23 @@ Suite 903 / 41 files.
   wrap360 guarantees bearing in [0,360). Poles degrade to NaN
   via non-finite guard.
 
-Suite 950 / 43 files. Two hundred and thirty-one detection strategies across 261 passes.
+- **Pass 262 — Tile negative zero display: BUG FOUND.**
+  `toFixed` produces "-0.0" for small negatives that round to zero.
+  Added `fmtFixed()` helper that strips the sign when the formatted
+  string parses back to negative zero via `Object.is(+s, -0)`.
+  Commit `66b4404`.
+- **Pass 263 — GeoJSON sensitivity output: CLEAN.** Polygons
+  correctly wound counter-clockwise (SW,SE,NE,NW,SW). Loss
+  clamped non-negative. Grid cell indexing consistent between
+  recorder and renderer. Zero-loss cells included (optimal
+  corridor). Valid FeatureCollection for MapLibre fill layer.
+- **Pass 264 — multi-model cube merge: CLEAN.** No grid merge —
+  StackedField resolves per-parameter at query time. First
+  provider covering the point wins. Shorter horizons fall through
+  via null return. Per-parameter fallthrough tested. Promise-based
+  cache deduplication with failure eviction.
+
+Suite 954 / 43 files. Two hundred and thirty-four detection strategies across 264 passes.
 
 ---
 
