@@ -1814,8 +1814,30 @@ Suite 903 / 41 files.
   Wiener noise sqrt(dtS), OU decay pow(0.995,dtS). Zero wind
   → zero speed via min(1,tws/12). Dead upwind → 0.4kn
   steerageway. Turn rate clamped, no O(dt²) frame-rate bug.
+- **Pass 316 — color ramp 16-bit encoding:** agent hit rate
+  limit mid-run. Re-scheduled as pass 319.
+- **Pass 317 — error boundary lifecycle: CLEAN.**
+  getDerivedStateFromError sets hasError+error. componentDidCatch
+  logs screen name and stack. Fallback UI safely extracts message
+  from any thrown value (Error, string, number, null, undefined)
+  via String(error ?? 'unknown error'). Retry clears state and
+  invokes onReset (bumps lazyGen for genuine chunk retry). Key
+  prop causes full unmount/mount (fresh initial state). Suspense
+  inside ErrorBoundary (correct nesting). No components in
+  fallback that could throw. 11 test cases pin all paths.
+- **Pass 318 — service worker caching rules: CLEAN.** Forecasts
+  excluded by open-meteo.com hostname guard + default-deny
+  isCacheable allowlist. Tiles network-first with TILE_LIMIT
+  eviction (oldest by Cache API insertion order). Hashed assets
+  cache-forever via /assets/ regex. Navigation network-first
+  with offline fallback. Activate handler deletes old-version
+  caches. Cache names prefixed nj-portland-v1-. Stale tiles
+  served on network failure via .catch(→caches.match). SW
+  registered with relative path matching base:'./'. Precache
+  is minimal shell (index.html, manifest); assets cached on
+  demand.
 
-Suite 956 / 43 files. Two hundred and eighty-five detection strategies across 315 passes.
+Suite 956 / 43 files. Two hundred and eighty-seven detection strategies across 318 passes.
 
 ---
 
