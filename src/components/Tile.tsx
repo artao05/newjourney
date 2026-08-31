@@ -18,11 +18,17 @@ interface Props {
   onClick?: () => void
 }
 
+/** toFixed that never shows negative zero — the sign carries no information at zero. */
+export function fmtFixed(value: number, dp: number): string {
+  const s = value.toFixed(dp)
+  return Object.is(+s, -0) ? s.slice(1) : s
+}
+
 export function Tile({ label, value, unit, dp = 1, sub, tone, small, onClick }: Props) {
   const known = value !== null && value !== undefined && value !== '' &&
     !(typeof value === 'number' && !Number.isFinite(value))
   const text =
-    !known ? '—' : typeof value === 'number' ? value.toFixed(dp) : String(value)
+    !known ? '—' : typeof value === 'number' ? fmtFixed(value, dp) : String(value)
 
   const cls = [
     'tile',

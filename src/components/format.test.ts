@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { fmtAgo, fmtClock, fmtDuration, fmtSigned } from './Tile'
+import { fmtAgo, fmtClock, fmtDuration, fmtFixed, fmtSigned } from './Tile'
 
 describe('fmtDuration', () => {
   it('carries units at every scale, so no reader has to guess the convention', () => {
@@ -105,6 +105,37 @@ describe('fmtSigned', () => {
   it('is null for unknown', () => {
     expect(fmtSigned(null)).toBeNull()
     expect(fmtSigned(NaN)).toBeNull()
+  })
+})
+
+describe('fmtFixed', () => {
+  it('never shows negative zero — the sign carries no information at zero', () => {
+    // toFixed alone produces "-0", "-0.0", "-0.00" for small negatives that
+    // round to zero. A sailor should never see a minus sign on a zero reading.
+    expect(fmtFixed(-0.4, 0)).toBe('0')
+    expect(fmtFixed(-0.04, 1)).toBe('0.0')
+    expect(fmtFixed(-0.004, 2)).toBe('0.00')
+    expect(fmtFixed(-0.001, 0)).toBe('0')
+    expect(fmtFixed(-0.3, 0)).toBe('0')
+    expect(fmtFixed(-0.49, 0)).toBe('0')
+  })
+
+  it('preserves the sign on genuine negatives', () => {
+    expect(fmtFixed(-0.5, 0)).toBe('-1')
+    expect(fmtFixed(-1.2, 1)).toBe('-1.2')
+    expect(fmtFixed(-10, 0)).toBe('-10')
+  })
+
+  it('passes through zero and positive values unchanged', () => {
+    expect(fmtFixed(0, 1)).toBe('0.0')
+    expect(fmtFixed(0, 0)).toBe('0')
+    expect(fmtFixed(3.14, 1)).toBe('3.1')
+    expect(fmtFixed(99, 0)).toBe('99')
+  })
+
+  it('handles literal negative zero', () => {
+    expect(fmtFixed(-0, 1)).toBe('0.0')
+    expect(fmtFixed(-0, 0)).toBe('0')
   })
 })
 
