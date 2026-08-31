@@ -1505,7 +1505,27 @@ Suite 903 / 41 files.
   hops. Fixed: `(fromTwa >= 0) === (toTwa >= 0)`, matching
   tackOf()'s convention. Commit `7d52f16`.
 
-Suite 955 / 43 files. Two hundred and forty detection strategies across 270 passes.
+- **Pass 271 — departure sweep bounds: CLEAN.** Endpoints
+  inclusive via post-loop fixup. Non-dividing steps handled by
+  append-or-replace. Single-point and reversed ranges degenerate
+  correctly. Widening formula `ceil(span/(cap-1))` distributes
+  evenly. maxSolves cap (24) prevents runaway. All timestamps
+  raw epoch ms — no timezone concern.
+- **Pass 272 — color ramp 16-bit encoding: CLEAN.** R/G encode
+  `round(norm*65535)`, hi byte R, lo byte G. Shader decoder
+  matches. Domain maps texel 0→min, 255→max via `i/(w-1)`.
+  Straight alpha in LUT, premultiplied at render time with
+  correct blend func. Discrete mode fencepost verified by
+  exhaustive Beaufort test. NaN→discard via alpha<0.5. Single-
+  color domain uses `max(1e-6,range)` denominator guard.
+- **Pass 273 — GPX import/export round-trip: CLEAN.** All five
+  XML special chars escaped. Mark names pass through esc() —
+  no injection vector. Coordinates preserved at 6dp (~0.11m).
+  Parser handles wpt/rtept/trkpt with deduplication. Empty GPX
+  returns empty arrays. Non-numeric coords rejected by isFinite
+  guard. BOM-prefixed XML parsed correctly by DOMParser.
+
+Suite 955 / 43 files. Two hundred and forty-three detection strategies across 273 passes.
 
 ---
 
