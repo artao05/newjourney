@@ -1723,7 +1723,25 @@ Suite 903 / 41 files.
   clears history in same set(). No TOCTOU — JS single-threaded,
   get() evaluated before set() executes.
 
-Suite 956 / 43 files. Two hundred and seventy-three detection strategies across 303 passes.
+- **Pass 304 — wind shift time-to-line: CLEAN.** effectiveWind
+  flows to computeTactics → laylines and markTime. Polar speed
+  updates with shifted TWS. wrap360 on TWD+shift. Speed clamped
+  ≥0.5kn. Spread creates new object (no mutation). useMemo deps
+  complete. Negative shift displays correctly (no prefix, own sign).
+- **Pass 305 — validatePolar constraints: CLEAN.** Catches empty
+  tables, duplicate/non-increasing TWS, non-increasing TWA,
+  negative BSP, TWA outside [0,180], positive BSP at TWS=0.
+  Error messages include row index and values. finishTable merges
+  duplicate TWS. normaliseRow keeps fastest BSP per angle.
+  Validation called in SetupScreen via useMemo.
+- **Pass 306 — LocalFrame flat-earth math: CLEAN.** cos(lat)
+  applied to longitude. NM/deg = R_NM×DEG ≈ 60.04 (0.067% over
+  definitional). toLatLon exactly inverts toXY (DEG×RAD=1).
+  Southern hemisphere: cos(-lat)=cos(lat). Frame centered on
+  line midpoint. All XY computations share same frame instance.
+  Error documented with table, pinned by 4 tests.
+
+Suite 956 / 43 files. Two hundred and seventy-six detection strategies across 306 passes.
 
 ---
 
