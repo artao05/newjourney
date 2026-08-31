@@ -1380,7 +1380,24 @@ Suite 903 / 41 files.
   Zero wind guarded (magMax floor, shader 1e-6 divisor). FBO
   unconditionally unbound after render.
 
-Suite 950 / 43 files. Two hundred and nineteen detection strategies across 249 passes.
+- **Pass 250 — isochrone goal hop: CLEAN.** Time = dist/closing
+  with current decomposed into along/perpendicular. Crab angle
+  via 4 fixed-point iterations. Land intersection checked. Upwind
+  handled via implicit-tacking VMG/cos(twa). Tack/gybe penalty
+  applied. Distance threshold: hours <= dtH. Zero distance guarded.
+- **Pass 251 — sensitivity backward pass: CLEAN.** dir=-1 swaps
+  origin/goal, anchors at forward ETA. sampleT = pt - dtMs for
+  backward. Forward recorder keepMax:false, backward keepMax:true.
+  Multi-leg iterates in reverse. Backward fan mirrors heading.
+  Loss = max(0, (tf-tb)/60000) in minutes.
+- **Pass 252 — color ramp generation: CLEAN.** Stops strictly
+  ascending. Linear sRGB interpolation on perceptually-uniform
+  palettes. 256-texel LUT. Discrete ramps produce flat bands.
+  Legend CSS gradient uses same lookup as GPU LUT. Zero-width
+  domain fills solid color. Alpha straight-to-premultiplied in
+  shader. NaN returns low-end color.
+
+Suite 950 / 43 files. Two hundred and twenty-two detection strategies across 252 passes.
 
 ---
 
