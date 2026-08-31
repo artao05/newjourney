@@ -1764,8 +1764,34 @@ Suite 903 / 41 files.
   at next hour boundary. clearWeatherCache() exported. 429
   treated as error, evicted. Unbounded Map acceptable — only
   button-press/model-change callers, single-digit entries.
+- **Pass 310 — departure sweep arithmetic: CLEAN.** Both
+  endpoints included (explicit last<to guard). Widened step
+  via Math.ceil(span/(cap-1)). Endpoint fix prevents FP
+  rounding skip. Cost = elapsedS - best.elapsedS (non-negative).
+  Single-departure (from===to) returns exactly one solve.
+  Zero-length window, all-fail, attempted vs succeeded all
+  correct. spreadS = slowest-best range. stepFloorS = max
+  timeStepS among successes. 47 tests pass.
+- **Pass 311 — Mercator mesh vertices: CLEAN.** mercatorX/Y
+  implement standard Web Mercator normalisation. UV v maps
+  0=south to 1=north matching cube row order and texImage2D
+  bottom-to-top storage. 64 strips × 2 triangles × 3 vertices
+  = 384 verts, no off-by-one. CULL_FACE disabled so winding
+  irrelevant. CLAMP_TO_EDGE prevents antimeridian bleed.
+  Particle layer linear mix(mercY) is sub-pixel at coastal
+  scale — deliberate simplification vs scalar layer's 64-strip
+  approach.
+- **Pass 312 — wind barb symbol generation: CLEAN.** FROM
+  convention correct: windToUV uses -sin/-cos, uvToWind uses
+  atan2(-u,-v). Three rendering paths (barbs icon-rotate fromDeg,
+  arrows text-rotate towardDeg-90 for ➤, canvas rotate) all
+  produce correct bearing. Calm (<3kn) renders bare circle.
+  Strong wind caps at 75kn bucket. Speed already in knots from
+  ingest (toKnots in openmeteo.ts). Feathers on right side.
+  wrap360 handles 360/0 discontinuity. strideFor adapts density
+  to zoom. Missing data dropped by thinVectorField.
 
-Suite 956 / 43 files. Two hundred and seventy-nine detection strategies across 309 passes.
+Suite 956 / 43 files. Two hundred and eighty-two detection strategies across 312 passes.
 
 ---
 
