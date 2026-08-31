@@ -1888,8 +1888,33 @@ Suite 903 / 41 files.
   directions. cellIsLand bounds-checks before array access.
   Guard loop with conservative fallthrough (returns true).
   39 tests including 400-random-segment property check.
+- **Pass 325 — solar position calculation: CLEAN.** Julian
+  date: n=t/86400000+2440587.5-2451545.0. Equation of center
+  1.915sin(M)+0.02sin(2M). Declination via obliquity 23.439°.
+  Hour angle: GMST+lon-RA with consistent unit conversions.
+  Elevation: standard sin(lat)sin(dec)+cos(lat)cos(dec)cos(ha)
+  with clampUnit guard. Civil twilight <-6° threshold. Polar
+  regions handled naturally. 5-min memoisation bucket ≤0.04°
+  error. Test pins Boston midsummer day/night.
+- **Pass 326 — DenseField/CubeField trilinear: CLEAN.**
+  Bilinear weights w00/w10/w01/w11 = products of (1-f) and f.
+  Two time slices blended (1-gt)/gt. Grid index via
+  (coord-origin)/step. Boundary: clamp to [0,n-2], frac to
+  [0,1]. South-to-north row order with stride [t][y][x].
+  Wind stored as u/v components throughout. cube.ts drops NaN
+  corners and renormalises weights. DenseField pre-fills gaps
+  via fillGaps(). |0 floor trick safe for non-negative clamped
+  values. wrap180 on longitude for date-line safety.
+- **Pass 327 — isochrone fan heading construction: CLEAN.**
+  Adaptive cone ±half degrees (100→180 on stall). Step per
+  preset: 5/8/12°. k=0 places direct-to-waypoint heading.
+  Four VMG targets injected via fanPushInCone (both tacks
+  up/downwind). courseFor = wrap360(twd-twa). Fan buffer 128
+  entries, worst case 77. Current not shifted but cone wide
+  enough; goalHop solves crab angle via fixed-point iteration.
+  Each leg gets own run() with correct origin/goal.
 
-Suite 956 / 43 files. Two hundred and ninety-three detection strategies across 324 passes.
+Suite 956 / 43 files. Two hundred and ninety-six detection strategies across 327 passes.
 
 ---
 
