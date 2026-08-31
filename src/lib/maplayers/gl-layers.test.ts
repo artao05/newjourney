@@ -555,6 +555,22 @@ describe('ParticleLayer', () => {
     }
   })
 
+  it('restores the blend function after render', () => {
+    /*
+     * Pass 201 fixed this in ScalarLayer; ParticleLayer has the same leak.
+     * render() calls gl.blendFunc(ONE, ONE_MINUS_SRC_ALPHA) for compositing
+     * (line 701) and never restores whatever MapLibre or a preceding custom
+     * layer had set. The blend *enable* flag is saved/restored, but the
+     * function parameters are not.
+     */
+    const layer = mounted()
+    layer.setData(cubeOf(4), 0)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    layer.render(gl as never, projection)
+    expect(gl.getParameter(gl.BLEND_SRC_RGB), 'blend src').toBe(gl.SRC_ALPHA)
+    expect(gl.getParameter(gl.BLEND_DST_RGB), 'blend dst').toBe(gl.ONE_MINUS_SRC_ALPHA)
+  })
+
   it('passes domainMax through setColorRamp', () => {
     const layer = mounted()
     layer.setColorRamp(new Uint8Array(16 * 16 * 4), 25)

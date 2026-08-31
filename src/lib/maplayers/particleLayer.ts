@@ -625,6 +625,8 @@ export class ParticleLayer implements CustomLayerInterface {
      * map at a healthy 60 fps.
      */
     const prevBlend = gl.getParameter(gl.BLEND) as boolean
+    const prevBlendSrc = gl.getParameter(gl.BLEND_SRC_RGB) as number
+    const prevBlendDst = gl.getParameter(gl.BLEND_DST_RGB) as number
     const prevViewport = gl.getParameter(gl.VIEWPORT) as Int32Array
     const prevScissor = gl.getParameter(gl.SCISSOR_TEST) as boolean
     const prevDepth = gl.getParameter(gl.DEPTH_TEST) as boolean
@@ -703,6 +705,7 @@ export class ParticleLayer implements CustomLayerInterface {
 
     // Hand the context back exactly as we found it.
     gl.viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3])
+    gl.blendFunc(prevBlendSrc, prevBlendDst)
     if (prevBlend) gl.enable(gl.BLEND)
     else gl.disable(gl.BLEND)
     if (prevScissor) gl.enable(gl.SCISSOR_TEST)
