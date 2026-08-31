@@ -1397,7 +1397,25 @@ Suite 903 / 41 files.
   domain fills solid color. Alpha straight-to-premultiplied in
   shader. NaN returns low-end color.
 
-Suite 950 / 43 files. Two hundred and twenty-two detection strategies across 252 passes.
+- **Pass 253 — isochrone fan heading: CLEAN.** Directed cone
+  centered on goal bearing, widens to 360° when stalled. VMG
+  injection adds all four target angles (port/stbd × up/down).
+  Fan array 128 entries, finest preset uses 77. Pruning buckets
+  key on (cell, tack). Wrapping arithmetic sound for [-180, 540).
+- **Pass 254 — Open-Meteo URL params: CLEAN.** All required
+  variables requested. forecast_hours capped [1,384]. planGrid
+  adjusts step to stay under 1600-point cap. Coordinates toFixed(4).
+  timeformat=unixtime (UTC). Missing variables fill NaN. Cache
+  key includes model/bbox/step/hours/layers. Marine failure degrades
+  to wind-only with note.
+- **Pass 255 — DenseField wind rotation: CLEAN.** No grid-north
+  rotation needed (Open-Meteo provides true-north speed/direction).
+  uvFromWind negates both components (meteorological FROM-direction).
+  Trilinear: bilinear at k0 and k0+1, linear blend ft. Single-
+  timestep ft=0. Direction from interpolated u/v, not interpolated
+  angles. Wave direction uses circular sin/cos interpolation.
+
+Suite 950 / 43 files. Two hundred and twenty-five detection strategies across 255 passes.
 
 ---
 
