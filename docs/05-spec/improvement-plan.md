@@ -2079,8 +2079,28 @@ Suite 903 / 41 files.
   lib includes DOM+WebWorker. Vitest env:node with per-file
   pragmas. React 19, Zustand 5, Vite 6, TS 5.7 — all
   compatible, no conflicting peer deps.
+- **Pass 346 — backward sensitivity pass: CLEAN.**
+  Backward pass uses dir:-1, starts at etaMs, iterates legs
+  in reverse. Wind sampled at correct departure time. Forward
+  recorder keepMax:false (earliest arrival), backward
+  keepMax:true (latest departure). buildSensitivity computes
+  (T_f − T_b)/60000 — ETA cancels, zero on optimal path.
+  Both recorders share identical bbox grid. Tack penalties
+  disabled for backward pass (memoryless). goalHop correctly
+  reverses base heading and crab-angle for dir:-1.
+- **Pass 347 — time step selection heuristic: CLEAN.**
+  dtS selection logic in the isochrone kernel verified.
+  Step size adapts correctly to leg length and resolution.
+  No off-by-one in step count calculation. Time accumulation
+  stays monotonic. Final partial step handled correctly.
+- **Pass 348 — bathymetry depth query with tide: CLEAN.**
+  Bilinear interpolation on depth grid verified. Tide
+  correction arithmetic (MSL-to-MLLW datum offset) correct.
+  DEPTH_MISSING sentinel propagated without interpolation.
+  Grid index clamping at boundaries prevents OOB access.
+  Depth sign convention consistent (positive = water depth).
 
-Suite 956 / 43 files. Three hundred and fourteen detection strategies across 345 passes.
+Suite 956 / 43 files. Three hundred and seventeen detection strategies across 348 passes.
 
 ---
 
