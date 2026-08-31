@@ -1967,8 +1967,36 @@ Suite 903 / 41 files.
   south-to-north, flat index ix=flat%nx, iy=floor(flat/nx).
   Bbox from actual grid. dtMs from first two timestamps.
   alignTimes maps per-location time axis via exact match.
+- **Pass 334 — Expedition polar format parsing: CLEAN.**
+  Expedition: field[0]=TWS, subsequent pairs (TWA,BSP). Lines
+  <3 fields or any NaN skipped. detectDelimiter counts tabs/
+  semicolons/commas. CSV: numeric header extraction, orientation
+  sniff via maxFinite threshold. cellNum returns NaN for empty
+  (avoids Number('')===0). finishTable merges duplicate TWS
+  via Map. normaliseRow folds >180°, deduplicates keeping
+  faster BSP, clamps negative BSP to 0, sorts by angle.
+  Format sniffing uses odd/even magnitude vote with 1.5×
+  threshold.
+- **Pass 335 — start line geometry: CLEAN.** signedDistanceToLine
+  positive on right of P→S (pre-start side). orient factor
+  aligns sign convention. timeTo via ray intersection parameter
+  ÷ SOG × 3600. lineBias = angdiff(twd, squareWind). favouredEnd:
+  positive bias → starboard, 0.25° deadband. LocalFrame:
+  equirectangular with cos(lat) scaling. OCS: belowNm<0 AND
+  timeToGun>0. Zero-length line → null guard. Parallel heading
+  → rayIntersect null, fallback to ends/reach/tacks. 32 tests.
+- **Pass 336 — delta-coded binary encoding: CLEAN.** Delta
+  per spatial cell across time: residual=q-pred[i], pred[i]=q.
+  Decode: q=pred[i]+raw, pred[i]=q (symmetric). MISSING=-32768
+  sentinel for NaN, skips predictor update on both sides.
+  Values clamped ±16383, max delta ±32766 fits Int16 without
+  sentinel collision. Magic big-endian, rest little-endian,
+  consistent encode/decode. 2-byte alignment via bodyOffset.
+  Byte-plane shuffle with sign extension (<<16>>16). cubeSizeBytes
+  matches actual byteLength. Tests cover round-trip, NaN,
+  delta across holes, extreme clamp, corrupt rejection.
 
-Suite 956 / 43 files. Three hundred and two detection strategies across 333 passes.
+Suite 956 / 43 files. Three hundred and five detection strategies across 336 passes.
 
 ---
 
