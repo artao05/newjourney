@@ -2281,8 +2281,32 @@ Suite 903 / 41 files.
   mirrors port tack. PCHIP Fritsch-Carlson tangents correct.
   Format sniffing heuristic distinguishes Expedition from CSV.
   Parse errors caught and shown to user.
+- **Pass 373 — haversine and rhumb geodesy: CLEAN.**
+  Haversine uses atan2(sqrt,sqrt) form for stability. Bearing
+  atan2(y,x) argument order correct. Destination formula with
+  clampUnit guard on asin. Rhumb handles dψ≈0 special case
+  (q=cos(lat1)). R_NM=3440.065 (6371km/1.852). DEG/RAD
+  conversions consistent throughout. crossTrack and alongTrack
+  formulas verified.
+- **Pass 374 — bucket pruning A*-like dominance: CLEAN.**
+  Open-addressed hash table keyed by (cell, tack). Cell size
+  scales with step distance/4. Score = dir*t + remain/vmax*ms,
+  admissible heuristic (2x typicalSpeed). Forward: earliest
+  arrival wins. Backward: latest departure wins. Tack in key
+  when useTack true, zeroed for backward pass. Indices clamped
+  to ±8000. growLabels rehash preserves scores. passStamp
+  increment resets between legs. ensureLabels before candidate
+  loop prevents mid-step rehash invalidation.
+- **Pass 375 — wind barb/arrow symbols: CLEAN.**
+  Barb decomposition: pennants=floor(b/50), fulls=floor(rem/10),
+  halves=rem/5. Always-sums-back test 3-75kn. Calm<3kn draws
+  circle only. icon-rotate uses fromDeg (meteorological).
+  Arrow text-rotate subtracts 90 for rightward glyph. Thinning
+  stride accounts for cos(lat) longitude shrinkage, anchored
+  to grid-index multiples. GeoJSON [lon,lat] with rounded
+  coords. u/v conversion matches standard met convention.
 
-Suite 956 / 43 files. Three hundred and forty-one detection strategies across 372 passes.
+Suite 956 / 43 files. Three hundred and forty-four detection strategies across 375 passes.
 
 ---
 
