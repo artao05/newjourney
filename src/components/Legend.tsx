@@ -98,11 +98,16 @@ export function Legend({ ramp, domain, label, unit, source, compact }: Props) {
     const n = compact ? 3 : 5
     const candidates: Tick[] = ramp.discrete
       ? // Class boundaries, because those are the numbers the scale is made of.
+        // When the last class extends past the final stop, close the bar with a
+        // domain-end tick so the right edge is not left unlabelled.
         [
           { at: 0, text: fmt(lo, dp) },
           ...ramp.stops
             .filter((s) => s.value > lo && s.value <= hi)
             .map((s) => ({ at: pct(s.value), text: fmt(s.value, dp) })),
+          ...(ramp.stops.some((s) => s.value === hi)
+            ? []
+            : [{ at: 100, text: fmt(hi, dp) }]),
         ]
       : Array.from({ length: n }, (_, i) => {
           const f = i / (n - 1)
