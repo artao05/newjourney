@@ -1525,7 +1525,26 @@ Suite 903 / 41 files.
   returns empty arrays. Non-numeric coords rejected by isFinite
   guard. BOM-prefixed XML parsed correctly by DOMParser.
 
-Suite 955 / 43 files. Two hundred and forty-three detection strategies across 273 passes.
+- **Pass 274 — Zustand persist merge: CLEAN.** partialize
+  whitelist covers all user-configured state, excludes live
+  sensor data and actions. Deep merge handles nested boat/course/
+  settings. Missing fields fall back to defaults via `...c` base.
+  Version 1 with no migrate — discards stale on mismatch.
+  Synchronous localStorage read prevents rehydration race.
+- **Pass 275 — BoatSim PRNG seeding: CLEAN.** mulberry32 matches
+  reference implementation for seeds 0/1/12345/42/0xFFFFFFFF.
+  Odd increment 0x6D2B79F5 guarantees full 2^32 period. Noise
+  scales with sqrt(dtS) for correct Brownian motion. Wind noise
+  bounded ±12°. Speed clamped ≥0. Euler integration stable at
+  operational 0.5s step (tau≥6). Current adds via sin/cos.
+- **Pass 276 — PWA service worker caching: CLEAN.** Default-deny
+  isCacheable allowlist excludes forecasts. Tile cache FIFO eviction
+  at TILE_LIMIT=1200. Hashed assets cache-forever via regex.
+  Navigation network-first with cache fallback. skipWaiting +
+  clients.claim for immediate activation. POST excluded via
+  method check. Old caches purged on activate.
+
+Suite 955 / 43 files. Two hundred and forty-six detection strategies across 276 passes.
 
 ---
 
