@@ -24,7 +24,7 @@ import type {
   Targets,
   WeatherField,
 } from '../types'
-import { defaultConstraints, defaultScalings, routeIsochrone } from './isochrone'
+import { defaultConstraints, defaultScalings, isNight, routeIsochrone } from './isochrone'
 import { PolygonLandMask, buildLandMask, extractPolygons } from './land'
 import type { RouteWorkerResponse } from './worker'
 
@@ -438,6 +438,56 @@ describe('isochrone routing kernel', () => {
     note(
       `10.5 sensitivity ${res.sensitivity!.nx}x${res.sensitivity!.ny}, ${finite.length} reachable cells, min loss ${Math.min(...finite).toFixed(3)} min`,
     )
+  })
+
+  // §8 — backward pass must use the same sample time for the night-polar check
+  // as for the wind field, so the polar scaling matches the wind it accompanies.
+  it('forward/backward consistency holds across dawn with different day/night polars', () => {
+    const start = { lat: 40, lon: -70 }
+    const finish = destination(start, 30, 60)
+
+    // Find the dawn crossing at this location: scan from midnight UTC onward
+    // for the moment isNight flips from true to false.
+    const baseDay = Date.UTC(2026, 5, 15, 0, 0, 0) // midnight UTC June 15
+    let dawnMs = baseDay + 9 * 3_600_000 // fallback ~9 UTC
+    for (let t = baseDay; t < baseDay + 18 * 3_600_000; t += 60_000) {
+      if (isNight(start.lat, start.lon, t) && !isNight(start.lat, start.lon, t + 60_000)) {
+        dawnMs = t + 30_000
+        break
+      }
+    }
+
+    // Start 4 hours before dawn so both forward and backward passes cross it.
+    const startTime = dawnMs - 4 * 3_600_000
+    const res = routeIsochrone(
+      request({
+        start,
+        marks: [finish],
+        startTime,
+        scalings: { ...defaultScalings(), polarPct: 100, polarPctNight: 50 },
+        computeSensitivity: true,
+      }),
+      { field: makeField({ twd: 90, tws: 12, hours: 96 }), lattice: LATTICE },
+    )
+    expect(res.ok, res.error).toBe(true)
+    expect(res.reverseIsochrones.length).toBeGreaterThan(3)
+    expect(res.sensitivity).not.toBeNull()
+
+    const marker = res.reverseIsochrones[res.reverseIsochrones.length - 1]
+    const trStart = (res.etaMs! - marker.t) / 1000
+    const errS = Math.abs(trStart - res.elapsedS!)
+    note(
+      `§8 dawn crossing: forward ${res.elapsedS!.toFixed(1)} s vs backward ${trStart.toFixed(1)} s -> error ${errS.toFixed(2)} s (Δt ${res.diagnostics.timeStepS} s)`,
+    )
+    // Tighter than the general §10.5 consistency test: a one-step offset in the
+    // night-check time produces an error of exactly 1 dtS when day and night
+    // polars differ, so 0.5% catches it while still clearing discretisation noise.
+    expect(errS / res.elapsedS!).toBeLessThan(0.005)
+
+    // The sensitivity field must still show near-zero loss on the optimal route.
+    const finite = Array.from(res.sensitivity!.loss).filter((v) => isFinite(v))
+    expect(finite.length).toBeGreaterThan(10)
+    expect(Math.min(...finite)).toBeLessThan(1)
   })
 
   // §10 / §6 — the endpoint-only bug must not survive this.

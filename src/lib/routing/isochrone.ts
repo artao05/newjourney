@@ -1203,7 +1203,8 @@ class Search {
         // Forward: the wind at the departure time. Backward: the wind at the
         // *earlier* time, sampled here as a stand-in for the as-yet-unknown
         // predecessor. §8 — "getting the time indexing right is the whole trick."
-        f.sample(plat, plon, isFwd ? pt : pt - dtMs, s)
+        const sampleT = isFwd ? pt : pt - dtMs
+        f.sample(plat, plon, sampleT, s)
         const u = s[P_U]
         const v = s[P_V]
         // `Math.hypot` is correctly rounded and overflow-safe, and roughly an
@@ -1223,7 +1224,7 @@ class Search {
         const cv = s[P_CV]
         const tb = this.targetBucket(tws)
         const polarF =
-          this.polarNight !== this.polarDay && isNight(plat, plon, pt)
+          this.polarNight !== this.polarDay && isNight(plat, plon, sampleT)
             ? this.polarNight
             : this.polarDay
 
