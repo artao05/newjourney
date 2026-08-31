@@ -2210,8 +2210,32 @@ Suite 903 / 41 files.
   single-pass normalization correct for max offset 180°.
   VMG injection via fanPushInCone uses angsep with angdiff
   for wraparound. Backward fan centre = goalBrg+180 correct.
+- **Pass 364 — Mercator projection and mesh vertices: CLEAN.**
+  mercatorX/Y match standard Web Mercator. Lat clamped at
+  85.051129°. Vertex shader u_matrix * vec4(merc,0,1) correct.
+  ScalarLayer 64-strip mesh: exact Mercator Y per strip,
+  texture v linear in lat matching south-to-north row order.
+  ParticleLayer mix(south,north,pos) correct since Merc Y
+  decreases northward. 16-bit pos encoding round-trips.
+- **Pass 365 — color ramp 16-bit R/G encoding: CLEAN.**
+  Scalar encode: round(norm*65535), R=q>>8, G=q&0xff.
+  Shader decode (R*255*256+G*255)/65535 correct — 255 undoes
+  UNORM8, 256 is positional weight. Particle encode fract/floor
+  pattern correct. Beaufort stops match published scale exactly.
+  Discrete ramp: step-function baked into LUT, LINEAR filter
+  negligible at half-texel boundary. Domain clamp in shader.
+  Legend ticks: domain-end added when last stop falls short,
+  dedup when stop coincides with domain end.
+- **Pass 366 — DDA ray walking land detection: CLEAN.**
+  Amanatides-Woo stepping handles all octants. Grid lookup
+  row-major iy*nx+ix, origin south-west consistent with
+  buildLandMask. Slab clip prevents budget exhaustion on
+  long approaches. Guard = Manhattan+2 steps, fallback
+  conservative. OOB reads as water. Routing uses crosses()
+  (segment test) not isLand() (point test). 400-iteration
+  property test validates against brute-force sampling.
 
-Suite 956 / 43 files. Three hundred and thirty-two detection strategies across 363 passes.
+Suite 956 / 43 files. Three hundred and thirty-five detection strategies across 366 passes.
 
 ---
 
