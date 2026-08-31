@@ -1941,8 +1941,34 @@ Suite 903 / 41 files.
   field level, null falls through stack, all-null→null.
   Tests cover priority, per-parameter fallthrough, out-of-
   coverage null, coverage union.
+- **Pass 331 — apparent wind vector math: CLEAN.** Boat-frame
+  decomposition: awx=aws×cos(awa), awy=aws×sin(awa), subtract
+  BSP from forward component. AWA positive=starboard consistent.
+  Zero BSP→TWS=AWS, TWA=AWA. Zero AWS→TWS=BSP, TWA=180.
+  estimateCurrent: ground-water vectors, TOWARD convention.
+  groundToTrue: flip FROM→TOWARD, subtract current, flip back.
+  windToUV/uvToWind: standard meteorological u=-speed×sin(from).
+  correctForHeel: divides transverse by cos(heel). Round-trip
+  tests confirm invertibility.
+- **Pass 332 — format helpers consistency: CLEAN.** 16
+  formatters across 7 files audited. UTC/local never confused.
+  fmtClock: mm:ss unpadded minutes (race convention). fmtHm:
+  three similar local-time formatters (duplication, not bug).
+  Midnight → "00:00". Negative durations: Math.abs with sign,
+  no "-0" anomalies. Null/NaN/Infinity guarded in all Tile.tsx
+  formatters. Precision: speed 1dp, distance 2dp, angles 0dp.
+  Units: kn, nm, °, m, BL all correct.
+- **Pass 333 — Open-Meteo response parsing: CLEAN.** Field
+  names correct including model-suffixed variants via pickSeries.
+  Wind direction passed as FROM to uvFromWind. Unit conversion
+  factors accurate (km/h, m/s, mph→kn). unitFor reads declared
+  unit from response. timeformat=unixtime, ×1000 for ms. Missing
+  fields→null via pickSeries, cells initialised NaN. Grid order
+  south-to-north, flat index ix=flat%nx, iy=floor(flat/nx).
+  Bbox from actual grid. dtMs from first two timestamps.
+  alignTimes maps per-location time axis via exact match.
 
-Suite 956 / 43 files. Two hundred and ninety-nine detection strategies across 330 passes.
+Suite 956 / 43 files. Three hundred and two detection strategies across 333 passes.
 
 ---
 
