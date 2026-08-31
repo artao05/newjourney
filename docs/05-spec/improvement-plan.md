@@ -1484,7 +1484,28 @@ Suite 903 / 41 files.
   folded via abs()%360. Output consistent with CSV parser via
   shared finishTable.
 
-Suite 954 / 43 files. Two hundred and thirty-seven detection strategies across 267 passes.
+- **Pass 268 — NodeStore pool growth: CLEAN.** Growth doubles via
+  `cap *= 2`. All 14 parallel arrays grown together with correct
+  subarray copy. Float64 for lat/lon/t, Float32 for angles/speeds.
+  Alloc index incremented after ensure(). No reset — pool grows
+  monotonically because route reconstruction walks parent indices.
+  OOM cap checked per step (400K/1.2M/3M presets).
+- **Pass 269 — WeatherScreen layer management: CLEAN.** Scalar and
+  particle layers added in correct order. Parameter switch triggers
+  synchronous reconfiguration (no flash). Color ramp rebuilt from
+  `rampFor(layer)`. Particle speed texture re-encoded on time
+  change. Unmount removes all owned layers/sources. Timeline
+  play timer wraps, pauses on tab hide, tears down on dependency
+  change.
+- **Pass 270 — manoeuvre() TWA=0 boundary: BUG FOUND.**
+  `Math.sign(0)` returns 0 (not 1), so `Math.sign(fromTwa) ===
+  Math.sign(toTwa)` falsely detected a side-change whenever either
+  TWA was exactly zero. The routing kernel and start-line module
+  applied spurious tack penalties on dead-upwind starboard-side
+  hops. Fixed: `(fromTwa >= 0) === (toTwa >= 0)`, matching
+  tackOf()'s convention. Commit `7d52f16`.
+
+Suite 955 / 43 files. Two hundred and forty detection strategies across 270 passes.
 
 ---
 
