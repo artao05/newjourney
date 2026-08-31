@@ -1326,7 +1326,42 @@ Suite 903 / 41 files.
   flipped once consistently. toFixed locale-independent. fmtAgo
   23.5h→"1 day" correct.
 
-Suite 950 / 43 files. Two hundred and ten detection strategies across 240 passes.
+- **Pass 241 — ScalarLayer texture upload: CLEAN.** RGBA/UNSIGNED_BYTE
+  format consistent with shader sampler. 16-bit R/G encoding linear
+  in each channel, so GPU LINEAR interpolation is mathematically
+  correct. Texture dimensions match data grid. CLAMP_TO_EDGE +
+  LINEAR. Old textures deleted before new upload. onRemove cleans
+  all resources. All 9 uniforms assigned.
+- **Pass 242 — layline computation: CLEAN.** Uses polar target TWA,
+  not current TWA. Current correction via headingToMakeGood with
+  foul-tide guard. Oscillation band from stdBearing. Distance
+  along COG track divided by SOG (not VMG). twdToLay inverts
+  course=TWD-TWA correctly. Overstanding produces null.
+- **Pass 243 — simulation Euler integrator: CLEAN.** Position
+  update uses start-of-step latitude for cos(lat). Current vector-
+  summed in ground frame. sqrt(dtS) noise scaling (pass 209 fix)
+  intact. Time accumulation no drift. Speed clamped non-negative.
+  mulberry32 PRNG deterministic. Units consistently knots.
+
+- **Pass 244 — route worker protocol: CLEAN.** Discriminated
+  unions with type/kind tags. Monotonic id guards stale results.
+  Worker crash recovery via onerror + lazy restart. Supersession
+  terminates old worker. Progress throttled at 100ms. Errors posted
+  in-band (promises never reject). rebuildField/rebuildLattice
+  reconstruct domain objects. ArrayBuffer cloned (not transferred)
+  by design.
+- **Pass 245 — depth advisory logic: CLEAN.** Datum arithmetic
+  correct (depthBelowMsl + waterAboveMllw - mslAboveMllw). MLLW
+  consistent. Tide correction direction correct. Missing tide
+  returns null, increments legsWithoutTide. Draft subtracted for
+  underKeel. Advisory is pure annotation, no routing side effects.
+- **Pass 246 — wind history tracking: CLEAN.** Fixed 900-entry
+  FIFO buffer. stdBearing returns 0 for <2 samples. boundsFrom
+  floors at nominal uncertainty for asserted sources. History
+  cleared on wind mode change. Non-finite twd filtered. Not
+  persisted (excluded from partialize).
+
+Suite 950 / 43 files. Two hundred and sixteen detection strategies across 246 passes.
 
 ---
 
