@@ -1544,7 +1544,28 @@ Suite 903 / 41 files.
   clients.claim for immediate activation. POST excluded via
   method check. Old caches purged on activate.
 
-Suite 955 / 43 files. Two hundred and forty-six detection strategies across 276 passes.
+- **Pass 277 — ErrorBoundary reset logic: CLEAN.** hasError flag
+  correctly set/cleared. getDerivedStateFromError captures error.
+  Retry resets state and bumps lazyGen counter for fresh lazy
+  wrappers. Key-based isolation per tab. Fallback handles falsy
+  thrown values (null/0/undefined). Topbar/tabbar outside all
+  boundaries. Async errors correctly not claimed.
+- **Pass 278 — tidal current interpolation: CLEAN.** Linear
+  interpolation between 6-min samples with correct fraction.
+  Returns null outside predicted window. Datum conversion
+  (MSL-MLLW) sign-correct with anchor tests. Positive =
+  flood, negative = ebb. Binary search maintains lo≤t<hi
+  invariant. Feet→metres at boundary with 0.3048 constant.
+- **Pass 279 — route worker crash recovery: BUG FOUND.**
+  `onerror` handler unconditionally captured `this.pending`
+  before checking worker identity. A stale crash event from a
+  replaced worker stole the new request's pending promise and
+  resolved it with the old worker's error — the new worker's
+  result was silently dropped. Fixed: moved identity guard
+  `this.worker !== worker` to early return at top of handler.
+  Commit `aea6a91`.
+
+Suite 956 / 43 files. Two hundred and forty-nine detection strategies across 279 passes.
 
 ---
 
