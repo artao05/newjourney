@@ -153,7 +153,9 @@ export function manoeuvre(
   fromTwa: SignedDegrees,
   toTwa: SignedDegrees,
 ): 'none' | 'tack' | 'gybe' {
-  if (Math.sign(fromTwa) === Math.sign(toTwa)) return 'none'
+  // tackOf treats 0 as starboard; Math.sign(0) is 0 (neither 1 nor -1),
+  // so the old `Math.sign` guard falsely detected a side-change at TWA 0.
+  if ((fromTwa >= 0) === (toTwa >= 0)) return 'none'
   // Crossing sides: through the bow is a tack, through the stern is a gybe.
   const meanAbs = (Math.abs(fromTwa) + Math.abs(toTwa)) / 2
   return meanAbs < 90 ? 'tack' : 'gybe'

@@ -244,6 +244,16 @@ describe('manoeuvre', () => {
     expect(manoeuvre(89, -89)).toBe('tack')
     expect(manoeuvre(91, -91)).toBe('gybe')
   })
+
+  it('treats TWA 0 (dead upwind) as starboard, consistent with tackOf', () => {
+    // Math.sign(0) is 0, which matches neither 1 nor -1.  The guard must
+    // agree with tackOf(0) === 'starboard': staying on the same side is 'none'.
+    expect(manoeuvre(0, 40)).toBe('none')
+    expect(manoeuvre(0, 150)).toBe('none')
+    expect(manoeuvre(40, 0)).toBe('none')
+    // Crossing from dead upwind to port IS a real side-change.
+    expect(manoeuvre(0, -40)).toBe('tack')
+  })
 })
 
 describe('clamps', () => {
