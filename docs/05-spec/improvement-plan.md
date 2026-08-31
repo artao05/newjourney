@@ -1646,7 +1646,24 @@ Suite 903 / 41 files.
   Penalty baked into arrival time. Backward pass skips penalties
   (useTack = isFwd). Zero penalty → memoryless case.
 
-Suite 956 / 43 files. Two hundred and sixty-one detection strategies across 291 passes.
+- **Pass 292 — Tile component rendering: CLEAN.** Null/0 distinction
+  via Number.isFinite guard. fmtClock handles negatives with
+  Math.abs + sign prefix. String vs number values via type check.
+  Tone class only when known. fmtFixed never called with NaN/Inf
+  (Tile guards first). fmtAgo minute boundaries correct.
+- **Pass 293 — StackedField resolution: CLEAN.** First provider
+  returning non-null wins. Per-parameter resolution (wind from A,
+  current from B). Short-horizon returns null → fallthrough. gust()
+  uses `!== null` not truthiness (avoids zero-is-falsy). coverage()
+  computes union bbox. dtMs returns min positive cadence. Priority
+  stable for object lifetime.
+- **Pass 294 — useSensors GPS lifecycle: CLEAN.** clearWatch on
+  unmount. Permission denied → gpsError, no retry loop. Uses
+  pos.timestamp not Date.now(). maximumAge: 1000 rejects stale.
+  Speed m/s→kn via ×1.94384. COG from GPS course, compass heading
+  null. NaN-not-zero for absent sensors. Wake lock cleanup correct.
+
+Suite 956 / 43 files. Two hundred and sixty-four detection strategies across 294 passes.
 
 ---
 
