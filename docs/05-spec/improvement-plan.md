@@ -2166,8 +2166,30 @@ Suite 903 / 41 files.
   not trusted (heading=null). Permission errors set gpsError.
   clearWatch on unmount. fixAge computed with 1 Hz tick, warns
   at 8s stale.
+- **Pass 358 — React.lazy and Suspense boundaries: CLEAN.**
+  Three lazy calls wrap named exports correctly. All have
+  Suspense ancestors with spinner fallbacks. Tab-based
+  conditional rendering avoids waterfalls. lazyGen bump
+  creates fresh lazy() wrappers defeating cached rejection.
+  Stable component refs prevent unnecessary reimporting.
+- **Pass 359 — tidal current prediction interpolation: CLEAN.**
+  NOAA time parsing uses Date.UTC. Feet→m factor exact.
+  Binary search + linear temporal interpolation correct.
+  Datum arithmetic: surfaceAboveMsl = waterAboveMllw −
+  mslAboveMllw verified with real NOAA figures. Reversing
+  stations use binary flood/ebb bearings (no wraparound).
+  Router adds current as vectors: vx = bsp*sin + cu. Units
+  consistent (knots throughout). Slack water threshold 0.1kt.
+- **Pass 360 — format/display helper edge cases: CLEAN.**
+  fmtFixed strips negative zero from toFixed. fmtDeg guards
+  NaN/Infinity, wraps after rounding. fmtClock/fmtDuration/
+  fmtAgo/fmtSigned all guard null/NaN/Infinity. Tile filters
+  non-finite before rendering. Conversion factors verified
+  (m/s→kt 1.9438445, km/h→kt, NM→m 1852). wrap360 handles
+  float64 edge where r+360 rounds to 360. UTC for data,
+  local for display consistently.
 
-Suite 956 / 43 files. Three hundred and twenty-six detection strategies across 357 passes.
+Suite 956 / 43 files. Three hundred and twenty-nine detection strategies across 360 passes.
 
 ---
 
