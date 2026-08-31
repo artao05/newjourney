@@ -1863,8 +1863,33 @@ Suite 903 / 41 files.
   across all 6 consuming files. localStorage storage. Version=1,
   no migrate function (safe discard on bump). Tests cover
   old-schema transitions.
+- **Pass 322 — PCHIP interpolation edge cases: CLEAN.**
+  Fritsch-Carlson weighted harmonic mean correct at interior
+  points. Endpoint three-point formula verified numerically
+  against quadratic. Monotonicity limiter: zero at sign changes,
+  clamp to 3× adjacent secant. Two-point → linear fallback.
+  Single point → all-zero slopes, boundary handlers take over.
+  Hermite basis h00/h10/h01/h11 standard. Binary search
+  invariant x[lo]≤a<x[hi]. Zero-width intervals → y[lo].
+  Flat regions → zero slopes → flat cubic.
+- **Pass 323 — haversine geodesy precision: CLEAN.**
+  Coincident points → distance 0, bearing 0 (atan2(0,0)).
+  Antipodal → π×R_NM via atan2 (avoids asin instability).
+  Cardinal bearings tested. destination() wraps lon via
+  wrap180, clampUnit protects asin. angdiff returns signed
+  shortest arc. wrap180(±180)=180, wrap360(0)=wrap360(360)=0.
+  Constants: R_NM=3440.065 (6371/1.852), NM_TO_M=1852.
+- **Pass 324 — DDA land detection ray walk: CLEAN.**
+  Amanatides-Woo DDA: tdx=1/|dx|, tdy=1/|dy|, Infinity for
+  axis-aligned. Slab clip prevents walk outside raster box.
+  Cell index via Math.floor. Negative directions: step=-1,
+  tmx=(ix-sx)/dx. Scanline rasterizer uses cell-center
+  sampling with even-odd rule. Dilation expands 1 cell in 8
+  directions. cellIsLand bounds-checks before array access.
+  Guard loop with conservative fallthrough (returns true).
+  39 tests including 400-random-segment property check.
 
-Suite 956 / 43 files. Two hundred and ninety detection strategies across 321 passes.
+Suite 956 / 43 files. Two hundred and ninety-three detection strategies across 324 passes.
 
 ---
 
