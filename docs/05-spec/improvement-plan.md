@@ -1913,8 +1913,36 @@ Suite 903 / 41 files.
   entries, worst case 77. Current not shifted but cone wide
   enough; goalHop solves crab angle via fixed-point iteration.
   Each leg gets own run() with correct origin/goal.
+- **Pass 328 — bucket pruning dominance: CLEAN.** Score =
+  dir×t + remain/vmax × MS_PER_HOUR (admissible A*). Bucket
+  key = ((ix+8000)×16001+(iy+8000))×3+(tack+1) — collision-
+  free perfect hash. Bucket size scaled to stepTravelNm/4.
+  Label table persists across steps (reset per pass via
+  passStamp). Touched array reset each step, only improved
+  slots added. Backward pass mirrors forward with reversed
+  dir, time, no tack penalties. growLabels rehash preserves
+  live entries. Load factor <1/3.
+- **Pass 329 — tack/gybe penalty application: CLEAN.**
+  manoeuvre() uses (fromTwa>=0)===(toTwa>=0) for side-change.
+  Penalty added as seconds→ms to step travel time. tackPen
+  vs gybePen selected by manoeuvre() return. TWA=0: newTack=
+  parentTack, parentTack!==0 guard prevents false penalty.
+  First leg: root tack=0, guard blocks penalty. Cost-to-go
+  includes penalty in C.t[c]. Consecutive tacks independent
+  per step. Symmetric port↔starboard. Backward pass: useTack
+  =false, all tack=0, memoryless. Multi-leg carry-forward of
+  prevTack/prevTwa tested end-to-end.
+- **Pass 330 — StackedField multi-model resolution: CLEAN.**
+  Iterates providers in priority order, takes first non-null
+  per parameter. Truthiness checks safe for object types
+  (WindSample, WaveState); gust uses !==null for bare number.
+  coverage() computes union bbox with clone (no mutation).
+  dtMs returns min cadence across providers. NaN→null at
+  field level, null falls through stack, all-null→null.
+  Tests cover priority, per-parameter fallthrough, out-of-
+  coverage null, coverage union.
 
-Suite 956 / 43 files. Two hundred and ninety-six detection strategies across 327 passes.
+Suite 956 / 43 files. Two hundred and ninety-nine detection strategies across 330 passes.
 
 ---
 
