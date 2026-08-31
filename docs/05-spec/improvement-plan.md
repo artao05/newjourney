@@ -1663,7 +1663,26 @@ Suite 903 / 41 files.
   Speed m/s→kn via ×1.94384. COG from GPS course, compass heading
   null. NaN-not-zero for absent sensors. Wake lock cleanup correct.
 
-Suite 956 / 43 files. Two hundred and sixty-four detection strategies across 294 passes.
+- **Pass 295 — bucket pruning dominance: CLEAN.** Key from
+  injective (ix,iy,tack) encoding within Int32 range. A*-like
+  f=g+h score with admissible heuristic. Tack partitions buckets
+  when penalties active. Open-addressing label table with
+  stamp-checked probing. Adaptive bucket size = stepTravel/4.
+  wrap180 handles antimeridian. fn=0 reported as clean failure.
+- **Pass 296 — wind history tracking: CLEAN.** Append-and-trim
+  array capped at 900 entries (15min @ 1Hz). stdBearing uses
+  circular stats for 0/360 wrapping. <2 entries → nominal
+  fallback. Cleared on windMode change. Excluded from persist
+  partialize. Chronological by construction.
+- **Pass 297 — ParticleLayer GL state: CLEAN.** Saves/restores
+  blend, blend funcs, viewport, scissor, depth, stencil. Pass
+  210 blend fix still in place. Ping-pong correct (screen and
+  particle). Fade uses OVERWRITE + quantized decay. onRemove
+  deletes all 7 textures, 2 buffers, 1 FBO, 3 programs.
+  setData deletes old textures before creating new. clearPending
+  invalidates stale trails on visibility restore.
+
+Suite 956 / 43 files. Two hundred and sixty-seven detection strategies across 297 passes.
 
 ---
 
