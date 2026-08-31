@@ -1584,7 +1584,28 @@ Suite 903 / 41 files.
   first TWA ramps to zero. TWS linear between rows. Single column
   handled. Negative speeds clamped. Two points reduces to linear.
 
-Suite 956 / 43 files. Two hundred and fifty-two detection strategies across 282 passes.
+- **Pass 283 — Open-Meteo response parsing: CLEAN.** Hourly arrays
+  aligned via alignTimes(). Nulls left as NaN from emptyCubeData.
+  Wind direction via uvFromWind with meteorological "from"
+  convention. Unit conversion from declared response unit, not
+  assumed. Truncated responses handled via actual time axis.
+  Grid layout y-outer/x-inner matches cube indexing. Wave
+  direction uses circular interpolation.
+- **Pass 284 — apparent wind computation: CLEAN.** Vector
+  decomposition in boat frame correct (not naive angle subtraction).
+  atan2 handles all quadrants. AWA sign positive=starboard.
+  Zero TWS returns TWA=0 (atan2(0,0)=0). Boat outruns wind gives
+  TWA=180. estimateCurrent uses fromPolar with bearing convention.
+  headingToMakeGood solves crab-angle triangle. Radians/degrees
+  consistent. wrap360 for TWD, wrap180 for TWA.
+- **Pass 285 — haversine geodesy edges: CLEAN.** distance(p,p)
+  exactly 0. bearing(p,p) returns 0 (atan2(0,0)). Antimeridian
+  via wrap180 on longitude delta. clampUnit on asin/acos args.
+  Numerically stable atan2(sqrt,sqrt) form. Earth radius
+  3440.065nm correct. crossTrack positive=starboard. destination
+  round-trip tested. Pole singularity produces defined result.
+
+Suite 956 / 43 files. Two hundred and fifty-five detection strategies across 285 passes.
 
 ---
 
