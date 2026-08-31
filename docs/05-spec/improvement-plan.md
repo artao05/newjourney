@@ -2188,8 +2188,30 @@ Suite 903 / 41 files.
   (m/s→kt 1.9438445, km/h→kt, NM→m 1852). wrap360 handles
   float64 edge where r+360 rounds to 360. UTC for data,
   local for display consistently.
+- **Pass 361 — XML escaping and GPX roundtrip: CLEAN.**
+  esc() replaces all five XML entities via single regex
+  callback (no double-escaping). GPX 1.1 structure correct:
+  XML declaration, namespace, wpt+rtept with lat/lon attrs.
+  DOMParser checks parsererror. 6-decimal coordinate precision
+  preserves roundtrip fidelity. Dedup matches export precision.
+  Injection safe: user text escaped in all name elements.
+- **Pass 362 — canvas polar diagram rendering: CLEAN.**
+  Coordinate transform x=sin(TWA)*r, y=-cos(TWA)*r correct.
+  PCHIP Fritsch-Carlson slopes verified (weighted harmonic
+  mean, correct end slopes). DPR: backing store w*dpr,
+  CSS w, setTransform(dpr). Wind speed uses bilinear lattice
+  interpolation. VMG targets drawn at correct (twa, bsp).
+  Edge cases: zero wind early return, beyond range clamps,
+  zero-width parent guarded.
+- **Pass 363 — isochrone fan heading construction: CLEAN.**
+  buildFan loop k=-n..n symmetric around centre. No off-by-one
+  in count. Spread adapts: 100° default, widens +20° on
+  stall up to 180°, narrows on progress. Wraparound ±360
+  single-pass normalization correct for max offset 180°.
+  VMG injection via fanPushInCone uses angsep with angdiff
+  for wraparound. Backward fan centre = goalBrg+180 correct.
 
-Suite 956 / 43 files. Three hundred and twenty-nine detection strategies across 360 passes.
+Suite 956 / 43 files. Three hundred and thirty-two detection strategies across 363 passes.
 
 ---
 
