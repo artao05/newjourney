@@ -628,10 +628,603 @@ Suite 903 / 41 files.
   last grid point with the endpoint (when length > 1). Test added; mutation
   caught.
 
-- **Pass 118 — GPX import/export:** rate-limited, will retry.
-- **Pass 119 — bathymetry + depth data:** rate-limited, will retry.
+- **Pass 118 — GPX missing lat/lon attribute (BUG).** `readPt` parsed
+  `Number(el.getAttribute('lat'))` — when `lat` is absent, `getAttribute`
+  returns `null`, `Number(null)` is `0`, `Number.isFinite(0)` is `true`, so
+  the waypoint silently landed at 0°N (Gulf of Guinea) instead of being
+  rejected. Fixed by checking for null/empty attribute strings before
+  coercing. Test added; mutation caught.
+- **Pass 119 — bathymetry + depth data: CLEAN.** Grid layout (row-major
+  south-to-north), sign convention (GEBCO elevation flipped to depth via
+  `-v / 10`), bilinear interpolation boundaries, NaN handling, datum algebra
+  (MSL-to-MLLW correction verified at three anchor points), depth advisory
+  sampling stride, and unit discipline (metres throughout) all correct.
+- **Pass 120 — Zustand store persistence: CLEAN.** `partialize` whitelist
+  excludes all ephemeral state. `mergePersistedState` deep-merges `boat`,
+  `course`, and `settings` with correct spread order. All 62+ `useStore`
+  selectors use single-field form (`s => s.foo`), so no unnecessary
+  re-renders. `removeMark` index adjustment covers all five edge cases.
+  `pushWind`/`pushTrack` history caps are bounded and tested. `setWindMode`
+  clears history only on actual source change.
 
-Suite 917 / 41 files. Ninety detection strategies across 119 passes.
+- **Pass 121 — isochrone goal hop bypasses land mask (BUG).** The goal hop
+  — the code that detects when the boat can finish onto a mark within one
+  time step — never checked `land.crosses()`. The main expansion loop
+  checked every candidate segment, but the goal hop skipped it entirely.
+  A mark behind a narrow headland or breakwater could be "reached" by
+  sailing straight through the land. Fixed by adding `land.crosses(pa,
+  goal)` to the goal hop condition. Test added; mutation caught.
+- **Pass 122 — tide + CO-OPS data pipeline: CLEAN.** No harmonic engine
+  in-codebase (delegates to NOAA API). UTC handling via `Date.UTC`
+  correct. Datum formula verified at three anchor points. API response
+  parsing handles NOAA's 200-with-error-body, empty arrays, unparseable
+  rows. Interpolation boundary conditions correct (single-point, exact
+  match, outside range → null).
+- **Pass 123 — weather cube + forecast interpolation: CLEAN.** Grid
+  indexing south-to-north consistent across cube, field, openmeteo, and
+  vectorSymbols. Temporal boundaries reject out-of-range, handle single
+  time step. Wind interpolated as U/V components (not speed/direction).
+  Missing discipline: NaN throughout, MISSING sentinel in encode/decode.
+  Longitude wrap handles ±180/360 boundaries. Domain bounds → null.
+- **Pass 124 — React hook lifecycle: CLEAN.** All 25+ effects across
+  hooks and screens verified: every timer/listener/subscription has
+  cleanup. Async operations use cancelled flags or AbortController. No
+  stale closures (excluded deps documented). No ref-vs-state confusion.
+  Zustand selectors stable (single-field form).
+- **Pass 125 — polar table + performance model: CLEAN.** PCHIP monotone
+  cubic correct (Fritsch-Carlson). VMG = BSP×cos(TWA) with correct sign.
+  Golden-section target search constrained to correct quadrants (upwind
+  [0.5,90], downwind [90,179.5]). Symmetry via `abs(wrap180(twa))`.
+  Zero wind guarded by `!(tws > 0)`. Lattice bilinear bounds safe.
+
+- **Pass 126 — land mask + DDA ray walk: CLEAN.** Amanatides-Woo DDA is
+  textbook-correct for horizontal, vertical, zero-length, and diagonal
+  rays. Slab clipping (commit 3a97719) verified. Both endpoints checked.
+  Budget bounded by grid dimensions after clipping. Dilation + polygon
+  fallback eliminates false negatives. Property test (400 random segments
+  vs 3001-sample brute force) confirms zero missed land.
+- **Pass 127 — start line + race tactics: CLEAN.** Bias formula
+  `angdiff(twd, squareWind)` correct. Signed distance convention (positive
+  = pre-start side) verified. OCS detection correct. Layline geometry
+  ray intersection handles parallel case. Beat split decomposition
+  verified algebraically. VMC optimum sweep correct. Apparent-to-true
+  wind vector decomposition and round-trip invariant verified. NaN
+  propagation: all external input paths guarded, fuzz test confirms.
+- **Pass 128 — ScalarLayer DEPTH_TEST not restored (BUG).** `render()`
+  disabled `gl.DEPTH_TEST` without saving/restoring it, while correctly
+  handling `BLEND` and `SCISSOR_TEST`. Any subsequent layer expecting
+  depth testing found it silently disabled. Fixed by adding
+  save/restore matching the existing pattern. Test extended; mutation
+  caught.
+- **Pass 129 — fmtDuration/fmtClock negative-zero display (BUG x2).**
+  `fmtDuration(-0.4)` returned `"-0s"` and `fmtClock(-0.9)` returned
+  `"-0:00"` — sign was read from the raw input, magnitude was rounded
+  independently. At the gun crossing the timer passes through small
+  negative fractions between frames, producing a confusing flash of
+  "-0s". Fixed by suppressing the sign when the rounded magnitude is
+  zero. Tests added; mutations caught.
+
+- **Pass 130 — PWA service worker + offline: CLEAN.** Four-rule caching
+  strategy verified: forecasts never cached, tiles network-first with
+  1200-entry cap, navigation network-first for deploy freshness,
+  hashed assets cache-first forever. Error responses never cached.
+  Install/activate lifecycle correct. Zustand persistence limited to
+  config only, well within localStorage limits.
+- **Pass 131 — type safety + runtime guards: CLEAN.** All ~40 `as`
+  casts in production code justified (Map.get after own-key iteration,
+  WebGL spec matches, JSON with structural validation). All `!` in test
+  files only. Zero `any` in production. All JSON.parse sites defended.
+  Array index access bounded. External data boundaries (NOAA, Open-Meteo,
+  GPX, polar CSV) all validated with `Number.isFinite`.
+- **Pass 132 — geodesy + coordinate math: CLEAN.** Haversine uses stable
+  `atan2(sqrt, sqrt)` form. Bearing `atan2(y,x)` argument order correct.
+  Antipodal points stable (swept -89 to +89). Date line crossing handled
+  via `wrap180(dLon)` in all functions. LocalFrame cos-lat scaling
+  correct. Segment intersection Cramer's rule signs verified
+  algebraically. `clampUnit` guards all asin/acos calls.
+
+- **Pass 133 — route worker + message protocol: CLEAN.** Structured
+  clone handles all data types. Single-pending-request invariant with
+  monotonic IDs prevents stale results. Errors propagated in-band (never
+  rejected promises). Transferables deliberately not used (documented:
+  main thread needs the forecast data). Worker lifecycle clean with
+  React useEffect cleanup. Progress throttled at 100ms.
+- **Pass 134 — vector field + wind barbs: CLEAN.** Barb encoding matches
+  WMO standard (verified 0-100kn at 0.25kn resolution). Direction
+  convention correct: `atan2(-u,-v)` recovers FROM bearing, barbs point
+  into wind, arrows point downwind. Thinning anchors to grid multiples
+  for pan stability. Grid-to-map uses south-to-north convention. Calm
+  symbol (bare circle) for TWS < 3kn. Missing data drops sample, never
+  fabricates calm.
+- **Pass 135 — Open-Meteo API + data ingest: CLEAN.** URL construction
+  correct. Response parsing handles bare and model-suffixed variables.
+  Wind u/v signs correct (meteorological FROM convention). Grid
+  construction south-to-north matches cube indexing. Unit conversions
+  verified (km/h, m/s, mph → kn). Error handling degrades gracefully
+  (marine failure → wind-only with note). Cache key avoids quantization
+  collision bug.
+
+- **Pass 136 — isochrone sensitivity band: CLEAN.** Loss formula
+  `T_f(p) - T_b(p)` algebraically verified (ETA cancels). Forward
+  recorder tracks earliest arrival, backward tracks latest departure.
+  Both grids share identical dimensions. Color mapping includes loss=0
+  cells. Land/unreachable cells filtered by isFinite. Backward wind
+  sampled at correct (earlier) time. GeoJSON CCW winding per RFC 7946.
+- **Pass 137 — venue pack + config loading: CLEAN.** Single venue
+  (Portland) with all 12 required fields. Bbox, depth grid, land mask
+  bounds all consistent. Promise-level cache with retry on failure.
+  Datum constant cross-file equality tested. Grid dimensions match
+  bbox extent.
+- **Pass 138 — cube encode/decode + delta coding: CLEAN.** Delta
+  predictor along time axis, correctly skipped for MISSING values.
+  Sentinel -32768 cannot collide with valid residuals (range capped at
+  ±16383). Quantization fits all physical weather ranges. Header
+  alignment padding correct. Round-trip exact at quantized level.
+  Endianness explicit (DataView + manual byte shuffle).
+- **Pass 139 — map interaction + touch events: CLEAN.** No custom
+  touch/pointer handlers; all interaction via MapLibre's built-in event
+  system. Marks from GPS/computation, not map taps. Single click handler
+  (weather probe) delegates projection to MapLibre. All event listeners
+  cleaned up on unmount.
+
+- **Pass 140 — departure advice + sweep UI: CLEAN.** Step-floor check
+  correctly prioritized over fraction check. Chart maps costS to Y-axis
+  with minute labels. Best bar highlighted green with "BEST" label.
+  Failed departures shown as hatched bars with red "X". Cancellation
+  terminates worker and resolves in-band. Departure times in local,
+  ETA in UTC — consistent throughout.
+
+- **Pass 141 — canvas rendering + DPR: CLEAN.** All four canvas
+  components follow correct DPR pattern (buffer × dpr, setTransform,
+  CSS display size). save/restore used correctly. ResizeObservers
+  cleaned up. No input event handlers on canvases (pure display).
+  Text sizes in CSS pixels. No rAF loops.
+- **Pass 142 — error boundary throw null/undefined (BUG x2).** Pass
+  114's fix (`error === null`) left two holes: `throw null` matched
+  the sentinel and re-rendered children in an infinite loop;
+  `throw undefined` caused `.message` access on undefined inside the
+  boundary's own render. Both produce white screens. Fixed by switching
+  to a `hasError` boolean flag (React-recommended pattern) and typing
+  `error` as `unknown` with `instanceof Error` guards. Tests added;
+  mutations caught.
+- **Pass 143 — isochrone multi-leg routing: CLEAN.** Leg transition
+  resets frontier correctly via passStamp. Time chains through
+  `out.finishT`. Tack resets at mark (correct — rounding is forced).
+  Backward pass iterates in reverse with correct polarity. Total
+  elapsed time accumulated correctly. Close-mark guard at 1e-6 nm.
+
+- **Pass 144 — simulation turn speed loss frame-rate bug (BUG).** The
+  turn loss factor already encoded the step size (`turn` is clamped to
+  `rot*dtS`), but the speed reduction multiplied by `dtS` again, giving
+  O(dt²) dependence. At dtS=0.5 a hard turn shed ~20% speed; at
+  dtS=2.0 the same manoeuvre shed ~85%. Fixed by removing the extra
+  `* dtS`. Test added (convergence across step sizes); mutation caught.
+- **Pass 145 — depth advisory + under-keel: CLEAN.** Sign convention
+  correct (positive = clearance, negative = aground). Tidal correction
+  uses each leg's arrival time. Stride always samples destination.
+  Threshold 2m documented as deliberately wide (GEBCO error = 18m at
+  check point). Draft validated positive at input. Missing data produces
+  explicit warnings, not silence.
+- **Pass 146 — implicit tacking logic: CLEAN.** Trigger condition
+  correct (TWA inside no-go zone). Effective speed `VMG/cos(TWA)`
+  verified algebraically, continuous at boundary. Current added as
+  separate ground-velocity vector (correct — uniform push on zigzag).
+  Tack penalty at step boundaries only (deliberate design). Symmetric
+  thresholds with no discontinuity.
+- **Pass 147 — route GeoJSON + map overlays: CLEAN.** All coordinates
+  consistently [lon, lat]. Isochrones as open arcs (not closed polygons).
+  Beat segments correctly extracted. Layer z-order correct. Source/layer
+  cleanup via setData(emptyFC) or explicit removal. GPX uses lat/lon
+  attributes per spec.
+- **Pass 148 — tab navigation + screen transitions: CLEAN.** Tab
+  switching, error boundary isolation across screens, lazy-loaded screen
+  suspense fallback, active-tab indicator state. No bugs found.
+- **Pass 149 — compass bearing display seam bug (BUG).** The "TWD to
+  lay" tile's sub-label computed the wind-shift direction via raw
+  subtraction (`twdToLay - twd`) instead of `angdiff`. When bearings
+  straddle the 0/360 boundary the display shows the wrong direction and
+  a wildly inflated magnitude: `twd=350, twdToLay=10` → "left 340°"
+  instead of "right 20°". Added `fmtShift(from, to)` helper to
+  `angles.ts` using `angdiff`, replaced inline subtraction in
+  `RaceScreen.tsx`. Four tests cover clockwise, anticlockwise, seam, and
+  zero cases. Mutation: replacing `angdiff(to, from)` with `to - from`
+  triggers the seam test. **Committed `85123e2`.**
+- **Pass 150 — routing time step + wind shift: CLEAN.** Checked that
+  isochrone kernel handles wind field changes between time steps
+  correctly, and that step-size variation doesn't alter the route. No
+  bugs found.
+
+- **Pass 151 — polar speed lookup + interpolation: CLEAN.** Bilinear
+  interpolation at all boundary TWA/TWS values correct. Out-of-range
+  inputs clamped or wrapped properly. `targetsAt` snap-to-nearest
+  correct. PCHIP slopes, Hermite basis, golden-section maximizer all
+  verified. No bugs found.
+- **Pass 152 — PWA service worker caching: CLEAN.** All four caching
+  rules (weather exclusion, tiles network-first, navigation fallback,
+  asset stale-while-revalidate) correct. Cache versioning cleanup in
+  `activate` handler correct. `trimCache` FIFO eviction correct. No
+  `navigator.onLine` needed — SW handles offline transparently.
+- **Pass 153 — Zustand store persist + rehydration: CLEAN.** Partialize
+  correctly excludes transient state. Deep merge for nested persisted
+  objects. Single-field selectors throughout. No direct mutation. Mark
+  index correctly shifted on removal. All course-mutating actions
+  spread `COURSE_CHANGED`.
+
+- **Pass 154 — weather cube delta decoding: CLEAN.** Delta
+  encode/decode symmetric. Row order south-to-north consistent with
+  texture mapping. Time indexing clamps correctly at boundaries.
+  MISSING sentinel (-32768) cannot collide with quantised deltas.
+  Dateline-crossing bbox handled via `normaliseLon` shifts.
+- **Pass 155 — DDA land mask ray walk: CLEAN.** Horizontal/vertical
+  rays, cell-boundary starts, same-cell rays, budget clipping, and
+  antimeridian wrapping all correct. Row order matches weather cube.
+  Corner tie-breaking safe due to dilation. Property test covers 400
+  random segments.
+- **Pass 156 — GPX import/export roundtrip: CLEAN.** XML escaping
+  covers all five metacharacters. DOMParser error detection via
+  `parsererror`. Coordinate precision faithful to 6 dp. Empty/single
+  waypoints handled. Namespace correct. Pass 118 lat fix equally
+  covers lon. Null island (0,0) passes correctly.
+
+- **Pass 157 — tactics computation edge cases: CLEAN.** Layline
+  bearing wrapping correct near 0/360. VMG sign correct for all
+  quadrants. Time-to-mark guards against zero speed/distance. TWD-to-lay
+  formula verified with round-trip test. Current triangle solved
+  correctly. Null propagation isolated via `attempt()` pattern.
+- **Pass 158 — departure sweep planner: CLEAN.** Time grid uses
+  index-multiply (no float drift). Widening/endpoint fixup correct.
+  Resolution-floor warning fires correctly. Advice thresholds adapt to
+  passage length. Worker rebuilds context per sweep.
+- **Pass 159 — start line timer logic: CLEAN.** Countdown sign
+  transition correct. Time-to-line via ray intersection, reach, and
+  tack approaches all correct. Bisection convergence provable. Burn
+  sign follows Expedition convention. Line bias via `angdiff`
+  correct. OCS detection correct. `makeStartLine` orientation and
+  bias verified.
+
+- **Pass 160 — ParticleLayer GL state leak (BUG).** Same class as
+  pass 128: `render()` disabled `DEPTH_TEST` and `STENCIL_TEST`
+  without saving/restoring, leaking state to subsequent MapLibre
+  layers. Added save/restore pattern matching ScalarLayer. Test
+  extended to check all four caps for ParticleLayer. **Committed
+  `7634afd`.**
+- **Pass 161 — geodesy edge cases: CLEAN.** Haversine, bearing,
+  destination, crossTrack, LocalFrame, wrap360, signedDistanceToLine,
+  rhumb functions, rayIntersect, bboxOf/lonSpan all verified at edge
+  cases including same-point, antipodal, antimeridian, and poles. No
+  callers depend on old wrap360 behavior.
+- **Pass 162 — wind history + estimation: CLEAN.** Circular buffer
+  eviction correct (900 cap). `meanBearing` uses sin/cos circular
+  mean. `stdBearing` uses Mardia-Jupp formula with R>=1 guard. NaN
+  filtered before stats. Mode-change clears cross-source history.
+  Timestamps consistently milliseconds.
+
+- **Pass 163 — isochrone backward sensitivity: CLEAN.** Backward pass
+  timing, wind sampling, fan centering, goal hop with current
+  correction, recorder keep-max convention, multi-leg pool
+  accumulation, and numerical guards all verified. Forward/backward
+  consistency tested by §10.5.
+- **Pass 164 — COG predictor NaN coordinates (BUG).** GPS can report
+  valid speed with `heading=null` (slow drift). This produced
+  `cog=NaN`, feeding NaN into canvas `lineTo`/`arc`. Added
+  `Number.isFinite(state.cog)` guard to the COG predictor in
+  `StartCanvas.tsx`. Test exercises `{ cog: NaN, sog: 4.6 }` via
+  `expectNothingUndrawable`. **Committed `1ef84e1`.**
+- **Pass 165 — particle layer colour ramp off-by-one (BUG).** The
+  `fract()`-based 2D unwrap wrapped `v_speed_t=1.0` back to column 0,
+  mapping max-speed particles to LUT entry 240 instead of 255.
+  Replaced with explicit index-to-texel-centre arithmetic using
+  `mod()`/`floor()` with `+0.5` offset. Last 15 LUT entries were
+  previously unreachable. **Committed `c7e9144`.**
+
+- **Pass 166 — isochrone current integration: CLEAN.** Velocity
+  triangle correct. Current set/drift convention consistent with UV
+  components. Time sampling uses `tNoShift` (wind shift does not drag
+  current). Goal hop crab angle iteration correct for both forward
+  and backward passes. Strong-current guard prevents impossible
+  solutions.
+- **Pass 167 — React hooks dependency arrays: CLEAN.** All 5 screens
+  and 4 custom hooks audited. Every `useEffect`, `useMemo`,
+  `useCallback` has correct deps. One ESLint suppression justified.
+  All cleanup functions present for intervals, observers, and event
+  listeners.
+- **Pass 168 — glutil texture/buffer helpers: CLEAN.** RGBA format
+  consistent with data layout. 16-bit encode/decode matches shader.
+  Texture unit assignments collision-free across both layers. Particle
+  position packing self-consistent. Mercator bbox mapping correct for
+  south-to-north convention.
+
+- **Pass 169 — isochrone heading fan + VMG injection: CLEAN.** Fan
+  centring correct for forward/backward. VMG injection covers all four
+  tack/gybe headings. Gybing substitution continuous at boundary.
+  Duplicate angles harmless (bucket pruning). Fan widens on stall up
+  to full circle. Backward pass correctly mirrored.
+- **Pass 170 — beat segment overlay terminal endpoint (BUG).** The
+  beat extraction collected only beating legs' positions, dropping the
+  non-beating leg that terminates each run. A dead-upwind route's
+  final tacking segment appeared solid; a lone beat leg was invisible.
+  Extracted `extractBeatSegments` with correct endpoint inclusion.
+  Seven tests. **Committed `eac158d`.**
+- **Pass 171 — venue data + tile sources: CLEAN.** BBox ordering
+  correct. Tile URL templates correct. Attribution present. Land
+  mask / depth grid extents encompass venue. Datum coupling tested.
+  No hardcoded coordinates outside venue config.
+- **Pass 172 — fmtAgo "24 h" display (BUG).** At 23h 30m the raw
+  hours (23.5) passed the `< 24` check but `Math.round` produced 24,
+  displaying "24 h" instead of "1 day". Used rounded value for both
+  decision and display, matching the minutes branch pattern.
+  **Committed `a9e3588`.**
+
+- **Pass 173 — isochrone pruning bucket: CLEAN.** Label table
+  open-addressed hashing with stamp invalidation. Key uniquely encodes
+  (ix, iy, tack). Dominance criterion admissible for both forward and
+  backward. Pool append-only, no dangling parents. Bucket size scales
+  with time step. Label reset between passes correct.
+- **Pass 174 — map layer lifecycle: CLEAN.** All GL resources cleaned
+  up in `onRemove`. Double-remove safe. Texture/buffer leaks prevented
+  on repeated `setData`. GL state save/restore complete. Async data
+  gated on `ready` flag. Screen-switch unmount removes layers/sources.
+- **Pass 175 — bathymetry depth lookup: CLEAN.** Grid coordinate
+  system south-to-north correct. Bilinear interpolation boundary
+  clamping correct. Sign convention positive-down consistent. Tidal
+  correction formula verified at three anchor points. Under-keel
+  returns null for missing data. Outside-grid returns null.
+
+- **Pass 176 — tide prediction interpolation: CLEAN.** Binary search
+  + linear interp correct. UTC parsing via `Date.UTC`. Returns null
+  outside prediction window. Units conversion at parse boundary.
+  Cache keyed correctly; failed promises evicted. Datum arithmetic
+  anchored at three real-world tide levels.
+- **Pass 177 — worker message protocol: CLEAN.** Route/sweep types
+  discriminated correctly. Cube data deliberately cloned (not
+  transferred). Error handling in-band on both sides. Cancellation by
+  termination, no race. Land raster validation rejects truncated
+  arrays. Progress throttled. Message IDs prevent stale resolution.
+- **Pass 178 — CSS layout + responsive: CLEAN.** Viewport meta
+  includes `viewport-fit=cover`. Safe-area insets via env() with
+  fallbacks. Tile grid uses `fr` units. No uncontrolled horizontal
+  overflow. Only two z-index values, no conflicts. No broken
+  dimensions or conflicting positions.
+
+- **Pass 179 — isochrone multi-mark route: CLEAN.** Leg transition
+  correctly swaps arrival/departure semantics at marks. Finish nodes
+  placed at exact mark coordinates. Backward pass chains in reverse
+  via `anchor`. Route reconstruction leg-isolated via `parent = -1`
+  roots. `elapsedS` reflects total passage.
+- **Pass 180 — timeline playback controls: CLEAN.** Play interval
+  correctly cleaned up on unmount and re-render. Slider respects
+  forecast window. Playback wraps at end. Keyboard handlers cleaned
+  up. `onChangeRef` pattern avoids stale closures. Degenerate inputs
+  (dtMs=0, NaN) handled.
+- **Pass 181 — sun position + twilight: CLEAN.** Standard NOAA
+  low-precision algorithm. Julian day, declination, RA, GMST all
+  correct. `clampUnit` guards polar latitudes. 5-minute cache bucket
+  negligible error for -6° twilight threshold. Workers get own module
+  copy.
+
+- **Pass 182 — polar plot downwind VMG off-canvas (BUG).** The
+  canvas origin sat near the bottom (`cy = h - 16`), so any TWA past
+  90° projected below the visible area. Downwind VMG target dots
+  (TWA 130-150°) were completely invisible. Centred origin at `h/2`
+  and constrained radius to `h/2 - 18`. Ring arcs now full circle.
+  **Committed `58a08ee`.**
+- **Pass 183 — weather fetch + model select: CLEAN.** API URL
+  construction correct. Response parsing handles multi-point and
+  single-point. Grid dimensions derived correctly. Cache keyed on
+  model+bbox+step. Model switch cancels stale fetch. Unit conversion
+  factors correct. u/v sign conventions opposite for wind vs current.
+- **Pass 184 — store course mark mutation: CLEAN.** `removeMark`
+  index shifting correct for all cases. `addMark` does not change
+  active index (intentional). All mutations spread `COURSE_CHANGED`.
+  No off-by-one in index arithmetic.
+
+- **Pass 185 — isochrone tack penalty at goal hop + multi-leg
+  (BUG x2).** (1) The goal hop skipped tack/gybe penalties, letting
+  candidates reach the mark penalty-free. (2) Multi-leg routes lost
+  the finish tack at mark boundaries, making the first step of each
+  leg penalty-free. Added penalty computation to goal hop and
+  `initialTack`/`initialTwa` propagation between legs. Test verifies
+  the optimizer avoids a 300s gybe penalty by adjusting approach
+  angle. **Committed `b06c5da`.**
+- **Pass 186 — current chart y-axis label rounding (BUG).** When
+  `yMax` is an odd multiple of 0.5, the midpoint tick (e.g. 0.75 kn)
+  was formatted as "0.8" via `toFixed(1)`. Changed to use two decimal
+  places for quarter-knot values. **Committed `cc62876`.**
+- **Pass 187 — Vite config + build: CLEAN.** Path aliases consistent.
+  Worker format matches instantiation. PWA manifest correct. Env
+  guards prevent debug code leaking. Source maps enabled. Build
+  output uses relative paths.
+
+- **Pass 188 — route screen UI state: CLEAN.** `runIdRef` prevents
+  stale results. `busy` prevents concurrent operations. Beat segment
+  extraction includes terminal endpoint. Sensitivity overlay uses
+  same grid mapping as recorder. Sweep cleared on course change.
+  Depth advisory correctly filters land cells.
+- **Pass 189 — type narrowing safety: CLEAN.** All ~60 `as`
+  assertions justified (WebGL, MapLibre, validated JSON). No `!`
+  assertions. Discriminated unions fully covered. `find` results
+  guarded. No dangerous optional chaining. GPS and NOAA data
+  validated with `Number.isFinite`.
+- **Pass 190 — isochrone max-TWS avoidance: CLEAN.** Constraint
+  kills entire node before expansion. Dead-end candidates cannot
+  propagate or reach goal. Full-domain exceedance returns clean error.
+  Backward pass uses same constraint. One-step overshoot is inherent
+  to the method.
+
+- **Pass 191 — directTimeS night polar factor: BUG FOUND.**
+  `directTimeS` always used the daytime polar factor, ignoring
+  `polarPctNight`. Routes spanning night hours showed a systematically
+  optimistic baseline, understating the value of routing.
+  Fixed by passing both `polarDay` and `polarNight` and selecting via
+  `isNight` at each step, matching the routing engine.
+  Commit `870df0c`.
+- **Pass 192 — DepartureChart canvas rendering: CLEAN.** X-axis
+  time mapping correct (local). Y-axis cost scale correct with
+  floor clamp. Best highlight uses identity comparison on Millis.
+  Failed departures render at full height without affecting scale.
+  DPR handling correct (clamped at 2.5). No click handler (by design).
+  ResizeObserver cleanup correct.
+
+- **Pass 193 — Legend discrete ramp ticks: BUG FOUND.**
+  Discrete-ramp tick generation only placed ticks at class boundary
+  stops. When the domain high end exceeded the last stop (e.g. depth
+  domain [0, 40] with last stop at 30 m), the rightmost portion of the
+  bar was unlabelled. Fixed by appending a domain-end tick at 100%
+  when no stop equals `hi`. Commit `4543a42`.
+- **Pass 194 — tidal current interpolation: CLEAN.** Binary search
+  bracket correct. 1D signed velocity model makes circular
+  interpolation unnecessary. Slack water crossings smooth. Returns
+  null outside prediction window. Datum correction formula correct.
+- **Pass 195 — PWA service worker: CLEAN.** Four caching rules
+  correct. Weather API excluded by both hostname and origin checks.
+  Tile cache trimmed at 1200. Cache invalidation purges old versions.
+  Navigation precache covers all routes. skipWaiting safe because
+  only dev-mode lazy imports exist.
+
+- **Pass 196 — Zustand persist hydration: CLEAN.** Partialize
+  whitelist correct (ephemeral state excluded, user config included).
+  Deep-merge fills new fields from defaults. Synchronous hydration
+  prevents flash. Version 1 with no migration needed yet.
+- **Pass 197 — GPX round-trip fidelity: CLEAN.** Coordinate
+  precision via toFixed(6). XML metacharacter escaping correct.
+  Namespace handling works for default xmlns. Missing coords/names
+  handled. DOMParser error detection via parsererror check. Wpt/rtept
+  dedup by position key.
+- **Pass 198 — weather cube binary decode: CLEAN.** Delta predictor
+  reset per-param correct. Row order consistent (south-to-north).
+  Quantization range guarantees deltas fit Int16. Byte shuffle
+  sign-extension correct. Missing value handling preserves predictor.
+  Round-trip tolerance matches quantization error.
+
+- **Pass 199 — polar lattice interpolation: CLEAN.** PCHIP
+  monotone cubic slopes correct. TWA=0 ramp to zero, TWA=180 held.
+  TWS extrapolation: linear toward zero below, held above. Sign
+  convention via abs(wrap180). Target scan golden-section correct.
+  Bilinear lattice boundary clamping correct. NaN guards present.
+- **Pass 200 — departure sweep grid: CLEAN.** Evenly spaced with
+  endpoint correction. Both from/to always covered. Each departure
+  gets its own startTime. Best by shortest elapsed, ties broken by
+  earliest. Failed departures recorded with error. Widening cap
+  emits warning. No shared mutable state.
+- **Pass 201 — ScalarLayer blend function leak: BUG FOUND.**
+  `blendFunc(ONE, ONE_MINUS_SRC_ALPHA)` was set without saving
+  the previous blend function, corrupting it for later layers in
+  the same frame. Fixed by saving/restoring `BLEND_SRC_RGB` and
+  `BLEND_DST_RGB`. Same class as passes 128 and 160.
+  Commit `e2163ef`.
+
+- **Pass 202 — Haversine geodesy edge cases: CLEAN.** Antipodal
+  atan2 formulation stable. Poles produce correct conventional
+  bearings. Zero distance returns exactly 0. Destination round-trip
+  correct. LocalFrame cosLat documented as out-of-scope at poles.
+  Antimeridian wrapping correct. Rhumb line pole degeneration handled.
+- **Pass 203 — computeTactics VMG gating: BUG FOUND.** VMG
+  (BSP * cos(TWA)) was gated behind the polar lattice even though
+  it is a pure kinematic value. Boats without a polar file saw no
+  VMG. Moved VMG computation before the polar block. Commit `ac664a5`.
+- **Pass 204 — StartCanvas rendering: CLEAN.** Coordinate transform
+  with cos(lat) correct. Port/starboard colours match convention.
+  Pass 164 NaN guard intact. Laylines originate from line ends at
+  correct TWA. DPR capped at 2.5. Timer declutter at 60s. View
+  fitting preserves aspect ratio with asymmetric padding.
+
+- **Pass 205 — weather field stacking: CLEAN.** Fallback per
+  parameter correct. Temporal/spatial coverage falls through. Current
+  stacked separately from wind. Source labels propagate. Coverage
+  union bbox correct. ScaledField time-shift intentionally skips
+  current/waves.
+- **Pass 206 — backward pass isNight time: BUG FOUND.** The
+  backward pass sampled wind at `pt - dtMs` but checked `isNight`
+  at `pt`, applying the wrong polar factor at dawn/dusk transitions.
+  Fixed by extracting `sampleT` and using it for both `f.sample()`
+  and `isNight()`. Commit `efe0b59`.
+- **Pass 207 — store selectors memoization: CLEAN.** All components
+  use single-field selectors. No inline object creation. Actions are
+  referentially stable. useMemo dependencies correct. Deep-merge
+  handles missing persisted keys. Partialize excludes action
+  functions via JSON serialization.
+
+- **Pass 208 — DDA land mask walk: CLEAN.** Amanatides-Woo
+  traversal correct for all four quadrants. Raster-box slab clip
+  correct. Budget sufficient. cos(lat) not needed in cell space.
+  Diagonal corner miss covered by dilation invariant. Conservative
+  fallback prevents false negatives.
+- **Pass 209 — BoatSim noise frame-rate: BUG FOUND.** Wind noise
+  random walk increment scaled with `dtS` instead of `sqrt(dtS)`,
+  making equilibrium variance proportional to step size (11x at
+  dtS=5 vs dtS=0.5). Same class as the old turn-loss dtS² bug.
+  Commit `0e25a09`.
+- **Pass 210 — ParticleLayer blend function leak: BUG FOUND.**
+  Same class as ScalarLayer pass 201 — `blendFunc` set without
+  saving/restoring `BLEND_SRC_RGB`/`BLEND_DST_RGB`. Fourth GL
+  state leak found across passes 128, 160, 201, 210.
+  Commit `d13ef6a`.
+
+- **Pass 211 — RouteScreen UI state: CLEAN.** runIdRef correctly
+  guards against stale results. Departure sync uses strict numeric
+  equality. Time-saved sign convention correct. Error display
+  shows prominently. Sensitivity overlay tied to data presence.
+- **Pass 212 — depth advisory logic: CLEAN.** Draft subtraction
+  and tidal height correct. Stride-based sampling with final-leg
+  guard. Missing depth/tide produce correct warnings. Units
+  consistently metres. Concerns sort defensible.
+- **Pass 213 — Tile component formatting: CLEAN.** fmtAgo boundary
+  at 90s/90min intentional. fmtClock handles negative/-0/NaN.
+  dp guard excludes non-finite before toFixed. Tone suppressed
+  when value unknown. Sub renders only when truthy. fmtSigned
+  handles -0 correctly.
+
+- **Pass 214 — wind estimation logic: CLEAN.** Manual wind sets
+  correct WindEstimate with uncertaintyDeg 8. Forecast quantizes
+  lat/lon to 0.01°. History capped at 900, cleared on mode switch.
+  u/v conventions consistent. No GPS-derived wind inversion yet.
+- **Pass 215 — isochrone time step selection: CLEAN.** Distance
+  heuristic and byCount formula correct. GRIB cadence acts as
+  ceiling. Resolution presets modulate correctly. Step clamped
+  to [minStepS, 21600]. Per-route (not per-leg) step is a design
+  choice, not a bug thanks to goalHop.
+- **Pass 216 — start line geometry: CLEAN.** Perpendicular distance
+  to infinite line (intentional, documented). Sign convention
+  correct (positive = pre-start side). Time-to-line uses abs(t)
+  for reciprocal case. Line bias angdiff correct. LocalFrame at
+  100m scale sub-mm accurate. Current correction with two
+  fixed-point iterations. Turn/acceleration model verified.
+
+- **Pass 217 — isochrone goal hop: CLEAN.** Crab-angle iteration
+  correct for both forward/backward. Distance threshold gates on
+  one time step. Time computation units consistent. Current
+  decomposition verified. Tack penalty applied correctly (pass 185
+  fix intact). Multi-leg transition carries tack/TWA state.
+- **Pass 218 — weather fetch retry: CLEAN.** Single-fetch with
+  cache-eviction retry design intentional. Abort signal propagated.
+  Response validation checks ok + reason. URL construction safe.
+  Cache deduplication via pending promise. Unit conversion handles
+  all variants. Marine degradation graceful. Grid planning
+  convergent with 32-iteration guard.
+- **Pass 219 — isochrone pruning buckets: CLEAN.** Cell key
+  collision-free within Int32. Cell size adapts to route scale.
+  Tack keying gated on penalty presence. A*-style f-score pruning
+  admissible. Eviction updates score atomically. VMG injection
+  prevents fan from missing optimal headings. Frontier budget
+  controls bucket floor.
+
+- **Pass 220 — DenseField trilinear interpolation: CLEAN.** Spatial
+  bilinear clamping correct at boundaries. Temporal edge clamp
+  degenerates correctly. nx/ny/nt=1 cases valid. Antimeridian
+  wrap180 correct. Wind rotation matrix verified. Current uses
+  unshifted time. Gap fill dilation non-cascading.
+- **Pass 221 — CurrentChart rendering: CLEAN.** Time window floored
+  at 1/60 h. Y-axis symmetric, snaps to 0.5 kn multiples. Pass
+  186 label fix intact. Flood/ebb clip correct. Now marker always
+  visible. DPR capped at 2.5. Canvas state (alpha, dash, font)
+  properly managed. Edge padding for smooth curves.
+- **Pass 222 — App component lifecycle: CLEAN.** GPS clearWatch
+  in cleanup. Simulation interval cleared. Wake lock released with
+  cancelled guard. Abort controller for forecast. Track push capped
+  at 20k. GPS and simulation mutually exclusive. All dependency
+  arrays correct (one documented suppression).
+
+Suite 949 / 43 files. One hundred and ninety-two detection strategies across 222 passes.
 
 ---
 
