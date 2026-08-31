@@ -1415,7 +1415,24 @@ Suite 903 / 41 files.
   timestep ft=0. Direction from interpolated u/v, not interpolated
   angles. Wave direction uses circular sin/cos interpolation.
 
-Suite 950 / 43 files. Two hundred and twenty-five detection strategies across 255 passes.
+- **Pass 256 — implicit tacking VMG substitution: CLEAN.**
+  VMG/cos(TWA) correctly projects upwind VMG onto desired heading.
+  Downwind mirrors through 180°. Transition smooth at target TWA
+  (both formulas yield BSP_target). cos>1e-6 guard structurally
+  unreachable but correct. Current added as separate vector after
+  effective speed. Dead-upwind test within 0.092%.
+- **Pass 257 — track recording buffer: CLEAN.** Capped at 20k
+  points via sliding window. Not persisted (excluded from
+  partialize). Lat/lon stored as raw doubles. Canvas draws last
+  900 points. Timestamps stored for speed/distance. Recording
+  exits early when no GPS fix.
+- **Pass 258 — water speed from SOG: CLEAN.** waterSpeed is scalar
+  BSP fallback (BSP or SOG, clamped non-negative). Vector math
+  in estimateCurrent: vecSub(fromPolar(cog,sog), fromPolar(course,
+  bsp)). Gates on rate-of-turn to avoid corrupt estimates during
+  tacks. headingToMakeGood null when BSP=0 or foul tide.
+
+Suite 950 / 43 files. Two hundred and twenty-eight detection strategies across 258 passes.
 
 ---
 
