@@ -2122,8 +2122,30 @@ Suite 903 / 41 files.
   transferred (intentional — main thread needs them for
   overlay). cancel() terminates old worker before new request.
   No concurrent messages — always fresh worker per request.
+- **Pass 352 — GeoJSON serialization correctness: CLEAN.**
+  All coordinates [lon, lat] order, verified across RouteScreen,
+  ChartSurface, WeatherScreen, vectorSymbols, gpx. Properties
+  all JSON-serializable. LineString guards on empty legs.
+  Polygon rings closed. Sensitivity polygons use wrap180.
+  isFinite guards on wind arrows and sensitivity values.
+- **Pass 353 — map layer add/remove/re-add lifecycle: CLEAN.**
+  ParticleLayer and ScalarLayer onRemove deletes all GL
+  resources (textures, buffers, FBOs, programs). Tests verify
+  alive counts reach 0. Re-add after style change handles
+  stale handles (delete no-op per WebGL spec). render() guards
+  12+ resources before drawing. GL state save/restore covers
+  BLEND, SCISSOR, DEPTH, STENCIL, VIEWPORT. Event listeners
+  cleaned up in onRemove. Layer z-order correct with beforeId.
+- **Pass 354 — weather model switching races: CLEAN.**
+  StackedField priority-resolves per parameter correctly.
+  Fetch effect uses cancelled flag — no stale setCube.
+  Cache stores promise keyed by model+bbox, identity-checked
+  cleanup on failure. Partial failure preserves wind, removes
+  marine params, surfaces notes. GPU textures deleted before
+  new ones created on model switch. Routing uses monotonic
+  ID + generation counter across async boundaries.
 
-Suite 956 / 43 files. Three hundred and twenty detection strategies across 351 passes.
+Suite 956 / 43 files. Three hundred and twenty-three detection strategies across 354 passes.
 
 ---
 
