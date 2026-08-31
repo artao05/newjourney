@@ -1995,8 +1995,37 @@ Suite 903 / 41 files.
   Byte-plane shuffle with sign extension (<<16>>16). cubeSizeBytes
   matches actual byteLength. Tests cover round-trip, NaN,
   delta across holes, extreme clamp, corrupt rejection.
+- **Pass 337 — implicit tacking VMG substitution: CLEAN.**
+  deriveTargets: golden-section refinement on PCHIP curve for
+  max BSP×cos(TWA). Three regimes in effective(): upwind inside
+  no-go uses VMG_up/cos(twaAbs), downwind beyond target
+  compares direct vs |downVmg|/cos(180-twaAbs), normal range
+  uses polar speed. Both boundaries continuous. c>1e-6 guards.
+  effBeat flag marks substituted segments. Same effective()
+  used in fan loop, goalHop, speedForHeading. Tack penalties
+  fire on desired heading sign, not internal zigzag.
+- **Pass 338 — multi-leg route orchestration: CLEAN.** from
+  updated to previous mark after each leg. clock updated to
+  finishT. prevTack/prevTwa carried via pool entry → next
+  leg's initialTack/initialTwa. Isochrones appended per leg.
+  elapsedS = (clock-startTime)/1000. Backward sensitivity
+  iterates legs in reverse. passCount = marks.length ×
+  (sensitivity?2:1). Failed leg returns with leg number.
+  Dense field hydrated once covering full horizon. Goal hop
+  applies mark rounding penalties. appendLegs pops stale
+  arrival row when continuing.
+- **Pass 339 — goal hop fixed-point iteration: CLEAN.** Crab
+  angle iteration decomposes current into along/cross-track.
+  4 iterations (3 updates + 1 eval). Zero current → trivial.
+  Current > BSP caught by need>1 guard. Closing speed =
+  bsp×cos(phi)+cAlong (forward) or -cAlong (backward).
+  Arrival time in ms with penalty. Tack/gybe penalty mirrors
+  fan loop. Fires when hours≤dtH. Finish node inserted with
+  consistent pool state. startline.ts timeToPointOverGround:
+  2-iteration fixed-point, contraction ratio ≈ current/boat
+  speed. Tests bisect analytic Zermelo solution.
 
-Suite 956 / 43 files. Three hundred and five detection strategies across 336 passes.
+Suite 956 / 43 files. Three hundred and eight detection strategies across 339 passes.
 
 ---
 
