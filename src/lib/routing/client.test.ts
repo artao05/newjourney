@@ -380,6 +380,46 @@ describe('worker crash', () => {
     c.dispose()
   })
 
+  /*
+   * Race between a queued error event and a superseding request.
+   *
+   * 1. W1 encounters an error; the event is queued on the main thread.
+   * 2. Before the event loop runs it, route() is called again: cancel()
+   *    resolves the first promise, terminates W1, ensureWorker() creates W2,
+   *    and this.pending now belongs to the second request.
+   * 3. The stale error event from W1 fires.
+   *
+   * Without the fix, onerror captures this.pending (the W2 request), clears
+   * it, and resolves it with "crashed" — stealing the new request. W2's
+   * eventual result then finds no pending and is silently dropped, so the UI
+   * shows a crash error for a route that was never even attempted on W1.
+   */
+  it('a stale crash from an old worker does not steal the new request', async () => {
+    const c = new RoutingClient()
+    const first = c.route(req, payload)
+    const oldWorker = latest()
+
+    // Supersede: cancel the first, start a second on a fresh worker.
+    const second = c.route(req, payload)
+    const firstResult = await first
+    expect(firstResult.ok).toBe(false)
+    expect(firstResult.error).toMatch(/cancelled/)
+
+    const newWorker = latest()
+    expect(newWorker).not.toBe(oldWorker)
+
+    // Simulate the stale error event arriving from the event loop.
+    oldWorker.crash('stale module error')
+
+    // The second request must NOT be resolved by the stale crash.
+    expect(await settled(second)).toBe(false)
+
+    // The new worker's response should still resolve the second request.
+    newWorker.reply({ type: 'result', id: newWorker.posted[0].id, result: aResult(42) })
+    await expect(second).resolves.toMatchObject({ ok: true, etaMs: 42 })
+    c.dispose()
+  })
+
   it('leaves no live worker behind after a crash', async () => {
     const c = new RoutingClient()
     const p = c.route(req, payload)

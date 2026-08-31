@@ -199,26 +199,25 @@ export class RoutingClient {
       }
     }
     worker.onerror = (e: ErrorEvent) => {
+      /*
+       * Ignore errors from a worker that has already been replaced.
+       *
+       * A queued error event from a terminated worker can fire after cancel()
+       * has resolved its pending promise and ensureWorker() has installed a
+       * new worker with a new pending. Without this guard, the stale error
+       * steals the new request's pending and resolves it with a crash that
+       * belongs to the old worker — the new worker's eventual result is then
+       * silently dropped.
+       *
+       * The identity check also prevents tearing down a newer worker that
+       * already replaced this one: that would move the hang rather than fix
+       * it. Both concerns collapse into a single early return.
+       */
+      if (this.worker !== worker) return
       const p = this.pending
       this.pending = null
-      /*
-       * Drop the worker, not just the request.
-       *
-       * An uncaught error reaching here means the module never loaded or the
-       * thread is gone - `handleRouteMessage` catches everything else and reports
-       * failure in-band. Keeping the reference meant the next `route()` saw no
-       * pending request, skipped `cancel()`, reused the dead worker, and posted
-       * into the void: that promise never settled, so the UI sat on "Routing" with
-       * no route and no error until someone pressed ROUTE a second time. A hang
-       * with no feedback is the worst of the failure modes available here.
-       *
-       * Guarded on identity because a newer worker may already have replaced this
-       * one, and tearing that one down would move the hang rather than fix it.
-       */
-      if (this.worker === worker) {
-        worker.terminate()
-        this.worker = null
-      }
+      worker.terminate()
+      this.worker = null
       if (!p) return
       const why = `routing worker crashed: ${e.message}`
       if (p.kind === 'sweep') p.resolve(cancelledSweep(why))
