@@ -1702,7 +1702,28 @@ Suite 903 / 41 files.
   finishTable shared with CSV path. Format sniffing via majority
   vote on angle>1.5×speed. NaN/Inf rejected by isFinite.
 
-Suite 956 / 43 files. Two hundred and seventy detection strategies across 300 passes.
+- **Pass 301 — glutil texture helpers: CLEAN.** createTexture
+  sets CLAMP_TO_EDGE, caller-provided filter, RGBA/UNSIGNED_BYTE.
+  No resource tracker (caller-managed). Shader error handling
+  extracts info log. QUAD vertices two CCW triangles. Texture
+  unit binding via TEXTURE0+unit (consecutive by spec).
+  encodeScalarField constant-value → range=1. encodeVectorField
+  A=0 for missing.
+- **Pass 302 — colormap Beaufort stops: CLEAN.** Boundaries
+  [0,1,4,7,11,17,22,28,34,41,48,56,64] match published scale.
+  Strictly ascending, no gaps/overlaps. Discrete mode returns
+  class color without interpolation. Continuous mode linear
+  interpolation verified numerically. Below-first and above-last
+  clamped. NaN → first stop. Wind uses viridis (CVD-safe,
+  luma-monotone verified). Legend proportional discrete blocks.
+- **Pass 303 — store action atomicity: CLEAN.** Every multi-field
+  action uses single set() call. addMark/replaceMarks/clearCourse
+  bundle COURSE_CHANGED with index update. removeMark clamps
+  and shifts activeMarkIndex atomically. setWindMode conditionally
+  clears history in same set(). No TOCTOU — JS single-threaded,
+  get() evaluated before set() executes.
+
+Suite 956 / 43 files. Two hundred and seventy-three detection strategies across 303 passes.
 
 ---
 
