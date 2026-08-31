@@ -1605,7 +1605,27 @@ Suite 903 / 41 files.
   3440.065nm correct. crossTrack positive=starboard. destination
   round-trip tested. Pole singularity produces defined result.
 
-Suite 956 / 43 files. Two hundred and fifty-five detection strategies across 285 passes.
+- **Pass 286 — isochrone goal hop: CLEAN.** Goal fires when
+  remaining distance closeable in one step. Arrival time
+  interpolated via dGoal/hopClosing. Crab-angle iteration (4
+  fixed-point steps) handles cross-current. Land mask checked on
+  hop segment. Multi-leg carries arrival time/tack/TWA forward.
+  Backward pass uses dir=-1 with consistent sign changes.
+  Convergence cone widens 100→180° with stall counter.
+- **Pass 287 — tactics layline computation: CLEAN.** Layline
+  bearings = TWD∓targetTWA, symmetric in symmetric wind. Ray
+  intersection geometry correct (parallel→null, overstanding→null).
+  Times via distance/SOG. Oscillation band from stdBearing.
+  TWD-to-lay round-trips. Downwind uses gybe angles when
+  angsep(bearing,TWD)≥90. No mark → laylines=null.
+- **Pass 288 — DDA land mask walk: CLEAN.** Amanatides-Woo
+  voxel traversal with correct dx=0/dy=0 degenerate handling.
+  Slab-based clip to raster box (commit 3a97719) makes budget
+  structurally unreachable. Scanline rasterisation uses even-odd
+  fill with hole support. Coordinate mapping via wrap180 for
+  short-way-around. Conservative fallback on budget exhaustion.
+
+Suite 956 / 43 files. Two hundred and fifty-eight detection strategies across 288 passes.
 
 ---
 
