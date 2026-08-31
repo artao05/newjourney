@@ -1790,8 +1790,32 @@ Suite 903 / 41 files.
   ingest (toKnots in openmeteo.ts). Feathers on right side.
   wrap360 handles 360/0 discontinuity. strideFor adapts density
   to zoom. Missing data dropped by thinVectorField.
+- **Pass 313 — GPX import/export roundtrip: CLEAN.** esc()
+  covers all five XML special chars via callback (no double-
+  replace risk). toFixed(6) export / Number() import preserves
+  sub-mm precision. Missing name defaults to 'Mark'. Missing
+  time skips trackpoint. parsererror detected for malformed XML.
+  Namespace-prefix gap theoretical only (GPX 1.1 uses default
+  namespace). Roundtrip test exercises &, ", <, > in names.
+- **Pass 314 — tide station selection: CLEAN.** No dynamic
+  nearest-station lookup — stations hardcoded per venue in
+  venues.ts. velocityAt/waterLevelAt use binary search + linear
+  interpolation. Edge cases: empty→null, out-of-window→null,
+  single-element guarded. Datum sign correct: depthBelowMsl +
+  waterAboveMllw - mslAboveMllw, pinned by 3 anchor tests.
+  flowAt uses NOAA meanFloodDir/meanEbbDir (TOWARD convention).
+  All times UTC: requests time_zone=gmt, parsing Date.UTC(),
+  formatting getUTC*. FEET_TO_M=0.3048 at parse boundary.
+- **Pass 315 — simulation Euler integration: CLEAN.** t +=
+  dtS*1000 correct. Displacement via dtS/3600 * speed(kn) →
+  NM, then LocalFrame.toLatLon inverts correctly. Polar lookup
+  swaps args to match lattice API. Current vector same sin/cos
+  convention. mulberry32 PRNG deterministic (3 repro tests).
+  Wiener noise sqrt(dtS), OU decay pow(0.995,dtS). Zero wind
+  → zero speed via min(1,tws/12). Dead upwind → 0.4kn
+  steerageway. Turn rate clamped, no O(dt²) frame-rate bug.
 
-Suite 956 / 43 files. Two hundred and eighty-two detection strategies across 312 passes.
+Suite 956 / 43 files. Two hundred and eighty-five detection strategies across 315 passes.
 
 ---
 
