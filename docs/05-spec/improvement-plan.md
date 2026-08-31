@@ -2234,8 +2234,32 @@ Suite 903 / 41 files.
   conservative. OOB reads as water. Routing uses crosses()
   (segment test) not isLand() (point test). 400-iteration
   property test validates against brute-force sampling.
+- **Pass 367 — apparent-to-true wind vectors: CLEAN.**
+  Wind triangle correct: apparentToTrue subtracts boat velocity
+  in boat frame, atan2(transverse, forward) for TWA. Inverse
+  trueToApparent round-trips. estimateCurrent = GPS_track −
+  water_track using fromPolar(brg,mag). headingToMakeGood
+  solves current triangle with sinOffset. windToUV uses correct
+  meteorological convention. atan2 usage verified per coordinate
+  system. All angles in degrees, speeds in knots.
+- **Pass 368 — start line geometry: CLEAN.**
+  signedDistanceToLine cross-product formula correct. LocalFrame
+  scale: x=dlon_rad*cos(lat0)*R_NM, y=dlat_rad*R_NM, R=3440.065
+  round-trips. Pre-start side determined empirically via
+  lineBrg+90 reference point. Bias = angdiff(twd, squareWind),
+  positive favours starboard. rayIntersect Cramer's rule correct.
+  Zero-length line returns early. OCS detection correct.
+- **Pass 369 — Open-Meteo response parsing: CLEAN.**
+  URL construction correct (toFixed(4), wind_speed_unit=kn,
+  unixtime, cell_selection=sea). pickSeries handles model-
+  suffixed names. Unit conversion factors verified (km/h, m/s,
+  mph → kn). Grid planGrid spans bbox exactly with dx=span/(n-1).
+  Delta encoding: NaN holes preserve predictor, value range
+  clamped to ±16383 avoiding MISSING sentinel. Marine failure
+  degrades gracefully. alignTimes handles differing time axes.
+  Cache key uses q6 precision. 76 tests pass.
 
-Suite 956 / 43 files. Three hundred and thirty-five detection strategies across 366 passes.
+Suite 956 / 43 files. Three hundred and thirty-eight detection strategies across 369 passes.
 
 ---
 
