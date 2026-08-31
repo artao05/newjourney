@@ -729,6 +729,37 @@ describe('isochrone routing kernel', () => {
     expect(Math.abs(res.directTimeS! - res.elapsedS!) / res.elapsedS!).toBeLessThan(0.01)
   })
 
+  it('direct-line reference slows at night when polarPctNight < polarPct', () => {
+    const start = { lat: 40, lon: -70 }
+    const finish = north(start, 40)
+    // Start near local sunset so the route spans night hours.
+    const duskUTC = Date.UTC(2026, 5, 15, 0, 0, 0)
+    const day = routeIsochrone(
+      request({
+        start,
+        marks: [finish],
+        startTime: duskUTC,
+        scalings: { ...defaultScalings(), polarPct: 100, polarPctNight: 100 },
+      }),
+      { field: makeField({ twd: 90, tws: 12, t0: duskUTC }), lattice: LATTICE },
+    )
+    const night = routeIsochrone(
+      request({
+        start,
+        marks: [finish],
+        startTime: duskUTC,
+        scalings: { ...defaultScalings(), polarPct: 100, polarPctNight: 60 },
+      }),
+      { field: makeField({ twd: 90, tws: 12, t0: duskUTC }), lattice: LATTICE },
+    )
+    expect(day.ok, day.error).toBe(true)
+    expect(night.ok, night.error).toBe(true)
+    expect(day.directTimeS).not.toBeNull()
+    expect(night.directTimeS).not.toBeNull()
+    // With a 60% night polar the direct time must be strictly longer.
+    expect(night.directTimeS!).toBeGreaterThan(day.directTimeS! * 1.01)
+  })
+
   // §9 / technical-spec §5 performance targets
   it('performance: a 60 nm coastal problem completes well inside 1 s', () => {
     const start = { lat: 40, lon: -70 }

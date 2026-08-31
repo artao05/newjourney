@@ -1527,10 +1527,12 @@ function directTimeS(
   marks: LatLon[],
   t0: Millis,
   dtMs: number,
-  polar: number,
+  polarDay: number,
+  polarNight: number,
 ): number | null {
   const s = new Float64Array(P_COUNT)
   const dtH = dtMs / MS_PER_HOUR
+  const varyByTime = polarNight !== polarDay
   let p = start
   let t = t0
   for (const m of marks) {
@@ -1545,6 +1547,7 @@ function directTimeS(
       f.sample(p.lat, p.lon, t, s)
       const tws = Math.hypot(s[P_U], s[P_V])
       const twd = wrap360(Math.atan2(-s[P_U], -s[P_V]) * RAD)
+      const polar = varyByTime && isNight(p.lat, p.lon, t) ? polarNight : polarDay
       const bsp = search.speedForHeading(tws, twd, brg, polar)
       const total = vecAdd(fromPolar(brg, bsp), { x: s[P_CU], y: s[P_CV] })
       const closing = total.x * Math.sin(brg * DEG) + total.y * Math.cos(brg * DEG)
@@ -1848,6 +1851,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
         req.startTime,
         dtMs,
         req.scalings.polarPct / 100,
+        req.scalings.polarPctNight / 100,
       ),
       isochrones,
       reverseIsochrones,
