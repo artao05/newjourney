@@ -1466,7 +1466,25 @@ Suite 903 / 41 files.
   via null return. Per-parameter fallthrough tested. Promise-based
   cache deduplication with failure eviction.
 
-Suite 954 / 43 files. Two hundred and thirty-four detection strategies across 264 passes.
+- **Pass 265 — isochrone time step adaptation: CLEAN.** Five
+  distance tiers with per-resolution values. byCount adapts to
+  expected duration. Clamped by minStepS (60-300s) and MAX_STEP_S
+  (6h). GRIB cadence ceiling. maxSteps hard cap 3000. Forward
+  and backward use identical step magnitude. Convergence test
+  confirms halving refines monotonically.
+- **Pass 266 — CurrentChart canvas: CLEAN.** Y-axis symmetric
+  around zero with 1kn floor. X-axis centered on now. Flood green,
+  ebb red, 22% opacity fills. DPR clamped at 2.5. Empty/single-
+  point series handled. ResizeObserver cleaned up. Time labels
+  locale-aware. Y-axis label precision adapts (1 or 2 dp).
+- **Pass 267 — Expedition polar format: CLEAN.** Ragged rows
+  parsed independently. Split regex /[\s,;]+/ handles mixed
+  delimiters. Comment lines stripped via !-prefix. TWA/BSP pairing
+  correct with trailing value silently dropped. Negative TWA
+  folded via abs()%360. Output consistent with CSV parser via
+  shared finishTable.
+
+Suite 954 / 43 files. Two hundred and thirty-seven detection strategies across 267 passes.
 
 ---
 
