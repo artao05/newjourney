@@ -1223,8 +1223,40 @@ Suite 903 / 41 files.
   cancelled guard. Abort controller for forecast. Track push capped
   at 20k. GPS and simulation mutually exclusive. All dependency
   arrays correct (one documented suppression).
+- **Pass 223 — isochrone route reconstruction: CLEAN.** Parent
+  chain walk terminates (root parent = -1, indices strictly
+  increase). `appendLegs` leg field extraction correct — child
+  stores departing conditions from parent position. Multi-leg join
+  pops stale arrival entry safely. Current set/drift from velocity
+  components correct. Isochrone ring arrays freshly allocated.
+- **Pass 224 — Open-Meteo cube build: CLEAN.** Response parsing
+  handles all variable combinations. Delta coding round-trips
+  correctly. South-to-north row order preserved through encode/
+  decode. Pressure level interpolation bounded. Hourly/3-hourly
+  cadence detection robust.
+- **Pass 225 — SetupScreen validation: CLEAN.** Form validation
+  covers required fields. Polar file parsing error handling
+  graceful. State persistence through Zustand partialize correct.
+  Navigation guard prevents incomplete setup.
+- **Pass 226 — GPX import/export round-trip: CLEAN.** Missing
+  name/desc elements get safe defaults. XML metacharacters escaped
+  via `esc()`. Coordinates use 6-decimal precision. DOMParser
+  error path throws. Round-trip deduplication correct. `deriveMotion`
+  uses NaN for unknowable velocities.
+- **Pass 227 — departure sweep grid: CLEAN.** Time grid counts
+  inclusive endpoints correctly. Widening formula preserves both
+  endpoints. Zero-length and reversed windows produce single-element
+  arrays. Pure epoch-ms arithmetic, no timezone traps. Solver
+  failures recorded per-departure without aborting. Synchronous
+  execution, no race conditions.
+- **Pass 228 — polar CSV empty cells → zero speed: BUG FOUND.**
+  `Number('')` returns 0 in JavaScript, so empty cells in ORC/qtVlm
+  CSV polars silently injected zero-speed entries. The PCHIP
+  interpolation would route around those angles. Fixed with a
+  `cellNum()` helper that returns NaN for empty/undefined strings.
+  Commit `8a29fbb`.
 
-Suite 949 / 43 files. One hundred and ninety-two detection strategies across 222 passes.
+Suite 950 / 43 files. One hundred and ninety-eight detection strategies across 228 passes.
 
 ---
 
