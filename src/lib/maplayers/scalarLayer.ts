@@ -313,6 +313,8 @@ export class ScalarLayer implements CustomLayerInterface {
     // See the note in particleLayer: MapLibre leaves a scissor box set, which
     // silently clips a full-extent custom layer away.
     const prevBlend = gl.getParameter(gl.BLEND) as boolean
+    const prevBlendSrc = gl.getParameter(gl.BLEND_SRC_RGB) as number
+    const prevBlendDst = gl.getParameter(gl.BLEND_DST_RGB) as number
     const prevScissor = gl.getParameter(gl.SCISSOR_TEST) as boolean
     const prevDepth = gl.getParameter(gl.DEPTH_TEST) as boolean
     gl.disable(gl.SCISSOR_TEST)
@@ -320,6 +322,7 @@ export class ScalarLayer implements CustomLayerInterface {
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
     gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount)
+    gl.blendFunc(prevBlendSrc, prevBlendDst)
     if (!prevBlend) gl.disable(gl.BLEND)
     if (prevScissor) gl.enable(gl.SCISSOR_TEST)
     if (prevDepth) gl.enable(gl.DEPTH_TEST)

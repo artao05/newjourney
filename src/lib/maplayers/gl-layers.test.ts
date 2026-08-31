@@ -38,6 +38,9 @@ class FakeGL {
   handles: Handle[] = []
   /** Enable/disable state, so restoration can be checked. */
   caps = new Map<number, boolean>()
+  /** Blend function state, so restoration can be checked. */
+  private blendSrc = 1 // gl.ONE
+  private blendDst = 0 // gl.ZERO
   private seq = 0
   private shaderSources = new Map<Handle, string>()
   private programShaders = new Map<Handle, Handle[]>()
@@ -80,6 +83,8 @@ class FakeGL {
   readonly TEXTURE0 = 0x84c0
   readonly STENCIL_TEST = 0x0b90
   readonly UNPACK_PREMULTIPLY_ALPHA_WEBGL = 0x9241
+  readonly BLEND_SRC_RGB = 0x80c9
+  readonly BLEND_DST_RGB = 0x80c8
 
   private make(kind: string): Handle {
     const h = { kind, id: ++this.seq, alive: true }
@@ -197,6 +202,8 @@ class FakeGL {
     if (p === this.BLEND || p === this.SCISSOR_TEST || p === this.DEPTH_TEST || p === this.STENCIL_TEST) {
       return this.caps.get(p) ?? false
     }
+    if (p === this.BLEND_SRC_RGB) return this.blendSrc
+    if (p === this.BLEND_DST_RGB) return this.blendDst
     return 0
   }
 
@@ -236,7 +243,11 @@ class FakeGL {
   enableVertexAttribArray() {}
   vertexAttribPointer() {}
   useProgram() {}
-  blendFunc() {}
+  blendFunc(src: number, dst: number) {
+    this.rec('blendFunc', [src, dst])
+    this.blendSrc = src
+    this.blendDst = dst
+  }
   viewport() {}
   clearColor() {}
   clear() {}
@@ -398,6 +409,21 @@ describe('ScalarLayer', () => {
       expect(gl.caps.get(gl.BLEND), `blend, was ${before}`).toBe(before)
       expect(gl.caps.get(gl.DEPTH_TEST), `depth, was ${before}`).toBe(before)
     }
+  })
+
+  it('restores the blend function after render', () => {
+    /*
+     * Pass 128 saved/restored the blend *enable* flag, but not the blend
+     * *function*. If MapLibre or another custom layer was using a different
+     * blend function (e.g. SRC_ALPHA, ONE_MINUS_SRC_ALPHA for non-premultiplied
+     * alpha), ScalarLayer silently overwrites it.
+     */
+    const layer = mounted()
+    layer.setData(cubeOf(4), 0)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    layer.render(gl as never, projection)
+    expect(gl.getParameter(gl.BLEND_SRC_RGB), 'blend src').toBe(gl.SRC_ALPHA)
+    expect(gl.getParameter(gl.BLEND_DST_RGB), 'blend dst').toBe(gl.ONE_MINUS_SRC_ALPHA)
   })
 
   it('draws nothing before it has data, and something after', () => {
