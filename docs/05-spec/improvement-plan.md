@@ -2545,7 +2545,33 @@ Suite 903 / 41 files.
   half-barb offset from tip (tested). Speed rounded to nearest 5kn
   via Math.round(kn/5)*5, clamped to 75kn max.
 
-Suite 956 / 43 files. Three hundred and seventy-four detection strategies across 405 passes.
+- **Pass 406 — color ramp generation and 16-bit R/G encoding: CLEAN.**
+  16-bit R/G packing (q>>8, q&0xFF) correct and commutes with
+  LINEAR texture filtering. Discrete/continuous modes both correct.
+  Beaufort stops match WMO standard. Domain normalisation maps
+  [lo,hi]→[0,1] with clamp and div-by-zero guard. LUT default 256
+  (power of 2); NPOT field textures legal with CLAMP_TO_EDGE +
+  LINEAR. Alpha 255 opaque, 0 for missing data (shader discards).
+  NaN clamps to low end via !(value > stops[0].value) guard.
+- **Pass 407 — simulation engine Euler integration and PRNG: CLEAN.**
+  Position update via LocalFrame (re-anchored each step, cos(lat)
+  fresh). Fixed 0.5s step (~3.9m at 15kn, safe for Euler). Polar
+  bilinear interp correct with TWA mirroring. Current added to
+  boat velocity for ground velocity. mulberry32 matches reference.
+  Wind noise uses √dtS Wiener scaling with exponential decay,
+  bounded ±12°. Autopilot tacking via layline switching. No
+  systematic drift (frame re-created each step).
+- **Pass 408 — start line geometry calculations: CLEAN.**
+  Distance-to-line uses infinite line (deliberate for OCS past
+  line end). Time-to-line via ray-line intersection with heading-
+  relative filtering and 1800s horizon. Bias = angdiff(twd,
+  squareWind), sign consistent. Favoured end derived from bias
+  with 0.25° deadband. LocalFrame anchored at line midpoint,
+  cos(lat) on longitude axis. OCS uses bow position (not antenna),
+  timeToGunS>0 guard. Line length via frame Euclidean (sub-cm
+  error at racing scale).
+
+Suite 956 / 43 files. Three hundred and seventy-seven detection strategies across 408 passes.
 
 ---
 
