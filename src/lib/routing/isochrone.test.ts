@@ -12,7 +12,7 @@
  * must be testable without `src/lib/weather` or `src/lib/polar` existing.
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { bearing, crossTrack, destination, distance } from '../geo'
 import { DEG, wrap360 } from '../angles'
 import type {
@@ -152,10 +152,12 @@ interface FieldOpts {
   hours?: number
   /** Forced GRIB cadence, seconds — the kernel clamps its time step to it. */
   gribStepS?: number
+  /** Epoch for the fake field, ms UTC. */
+  t0?: Millis
 }
 
 function makeField(o: FieldOpts): WeatherField {
-  const t0 = Date.UTC(2026, 5, 15, 6, 0, 0)
+  const t0 = o.t0 ?? Date.UTC(2026, 5, 15, 6, 0, 0)
   const hours = o.hours ?? 72
   const dirOf = typeof o.twd === 'function' ? o.twd : () => o.twd as number
   const spdOf = typeof o.tws === 'function' ? o.tws : () => o.tws as number

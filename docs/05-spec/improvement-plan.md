@@ -2402,8 +2402,27 @@ Suite 903 / 41 files.
   (intentional, documented). All effects with timers/
   subscriptions/listeners have cleanup. No effects without
   dep arrays. No object literal deps causing infinite loops.
+- **Pass 388 — PWA manifest and service worker correctness: CLEAN.**
+  Verified manifest.json schema, icon sizes, start_url,
+  scope, display mode. SW fetch handler covers all four
+  cache strategies; pre-cache list matches actual assets.
+  No stale-cache-forever bugs on versioned resources.
+- **Pass 389 — TypeScript strictness on test helpers: BUG FOUND.**
+  `isochrone.test.ts` had an unused `vi` import and passed
+  a `t0` property to `makeField()` that `FieldOpts` did not
+  declare — silently ignored, so the night-polar test's
+  intended dusk epoch was never applied to the fake field.
+  Fix: removed unused import, added `t0?: Millis` to
+  `FieldOpts`, wired `o.t0 ?? default` in `makeField`.
+  Mutation test: removing `t0` from `FieldOpts` triggers
+  TS2353 on both call sites. Confirmed by `tsc --noEmit`.
+- **Pass 390 — isochrone stall widening heuristic: CLEAN.**
+  Reviewed fan-widening logic, stall detection counters,
+  and fallback heading injection. No off-by-one in stall
+  threshold. Widening factor correctly doubles per stall
+  round and caps at maxFanDeg. Reset on successful advance.
 
-Suite 956 / 43 files. Three hundred and fifty-six detection strategies across 387 passes.
+Suite 956 / 43 files. Three hundred and fifty-nine detection strategies across 390 passes.
 
 ---
 
