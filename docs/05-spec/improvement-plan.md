@@ -2330,7 +2330,30 @@ Suite 903 / 41 files.
   isNight threshold −6° (civil twilight). Routing uses
   simulation time not wall clock. 5-minute memoization bucket.
 
-Suite 956 / 43 files. Three hundred and forty-seven detection strategies across 378 passes.
+- **Pass 379 — VMG substitution and implicit tacking: CLEAN.**
+  Upwind: effBsp = vmg/cos(twaAbs) correct — net speed along
+  any heading from zigzag at ±upTwa. scanTarget maximizes
+  BSP*cos(TWA) via coarse sweep + golden-section. Downwind:
+  vmg/cos(180−twaAbs), only substitutes when gybing beats
+  direct. Beat flag set for both upwind/downwind substitution.
+  Tack/gybe penalties in fan loop and goal hop. manoeuvre()
+  identifies tack vs gybe by mean |TWA| vs 90°.
+- **Pass 380 — multi-leg route orchestration: CLEAN.**
+  Loop chains from=to, clock=finishT between legs. Finish
+  node at exact mark position. Tack state carried via
+  prevTack/prevTwa → initialTack/initialTwa. No time gap.
+  Zero-length legs skipped. appendLegs pops stale arrival
+  when continuing=true. Backward pass runs legs in reverse
+  order, memoryless (no initialTack).
+- **Pass 381 — goal hop fixed-point iteration: CLEAN.**
+  Closing speed = bsp*cos(phi) + cAlong. Crab angle:
+  sin(phi) = −dir*cPerp/bsp. 4-iteration loop (3 phi
+  updates + final eval). Forward base=goalBrg, backward
+  base=goalBrg+180. Finish node at exact goal coords.
+  Guards: dGoal>1e-12, bsp>1e-9, |need|≤1, closing>0.
+  Land check on hop segment. Tack penalty at hop applied.
+
+Suite 956 / 43 files. Three hundred and fifty detection strategies across 381 passes.
 
 ---
 
