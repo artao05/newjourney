@@ -2571,7 +2571,33 @@ Suite 903 / 41 files.
   timeToGunS>0 guard. Line length via frame Euclidean (sub-cm
   error at racing scale).
 
-Suite 956 / 43 files. Three hundred and seventy-seven detection strategies across 408 passes.
+- **Pass 409 — Open-Meteo API response parsing and cube construction: CLEAN.**
+  Response validated (optional fields, null guards). Units read from
+  response (not assumed), toKnots handles kn/km/h/m/s/mph. Grid
+  dx = span/(n-1), south-to-north point generation matches cube
+  iy ordering. Unix timestamps ×1000 for JS ms (inherently UTC).
+  All parameter names valid. Null values leave NaN (swell fallback
+  fills total from swell). Six models supported via MODELS array.
+  MAX_CONCURRENCY=4, MAX_POINTS=400, marine failures degrade
+  gracefully. AbortSignal threaded through.
+- **Pass 410 — land detection DDA ray walking correctness: CLEAN.**
+  Grid cell calc correct (wrap180 for antimeridian). Zero-length
+  ray tests one cell. Standard Amanatides-Woo DDA with correct
+  tdx/tmx init. Axis-aligned rays (d=0) handled via slab test +
+  Infinity step. Termination budget = Manhattan + 2, end cell
+  always tested. Slab clipping handles out-of-grid starts. Corner
+  hits caught by 1-cell dilation. Bit-packed raster with iy*nx+ix
+  row-major index. No allocations in hot path.
+- **Pass 411 — route worker protocol and message handling: CLEAN.**
+  Discriminated union with type field, exhaustive dispatch. Monotonic
+  ID guard (nextId++, stale ID early return, tested). Cancellation
+  via worker.terminate() (no yield point in kernel). Errors caught
+  in try/catch, sent as in-band failed result. Deliberate clone
+  (not transfer) to preserve overlay arrays. Lazy create, terminate
+  on cancel/dispose, crash auto-respawn. Progress throttled 100ms.
+  Stale-crash race guarded by worker identity check.
+
+Suite 956 / 43 files. Three hundred and eighty detection strategies across 411 passes.
 
 ---
 
