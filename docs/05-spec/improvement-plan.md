@@ -2421,8 +2421,33 @@ Suite 903 / 41 files.
   and fallback heading injection. No off-by-one in stall
   threshold. Widening factor correctly doubles per stall
   round and caps at maxFanDeg. Reset on successful advance.
+- **Pass 391 — MapLibre GL layer lifecycle and memory leaks: CLEAN.**
+  Audited ParticleLayer, ScalarLayer, ChartSurface, WeatherScreen,
+  RouteScreen, and LayerHarness. Every addLayer/addSource has a
+  matching remove in cleanup. All event listeners registered with
+  stable references and deregistered with the same reference.
+  Custom layers delete all GL resources (textures, buffers, programs,
+  framebuffers) in onRemove. Race guards (null checks) prevent
+  operations on removed maps. Confirmed by gl-layers.test.ts
+  zero-alive-handles assertion.
+- **Pass 392 — IEEE 754 floating-point precision traps: CLEAN.**
+  Audited all 22 non-test source files in src/lib/ across eight
+  categories: direct float equality, catastrophic cancellation,
+  near-equal subtraction, atan2(0,0)/near-zero division,
+  float-to-int truncation, modular arithmetic, comparison
+  transitivity, large integer overflow. Found consistent defenses:
+  clampUnit for acos/asin, !(x > 0) NaN guard idiom, epsilon
+  denominators, wrap360 rounding-to-360 edge case, mulberry32
+  division by exact 2^32, safe-range |0 floors.
+- **Pass 393 — Zustand store atomicity and selector correctness: CLEAN.**
+  Single store with all actions using single atomic set() calls.
+  All 60+ useStore() calls use single-property selectors (stable
+  references, no shallow needed). No subscribe()/subscribeWithSelector.
+  Persist partialize whitelist matches design intent (tested).
+  mergePersistedState deep-merges correctly, runs before first
+  render. No async gaps between get() and set().
 
-Suite 956 / 43 files. Three hundred and fifty-nine detection strategies across 390 passes.
+Suite 956 / 43 files. Three hundred and sixty-two detection strategies across 393 passes.
 
 ---
 
