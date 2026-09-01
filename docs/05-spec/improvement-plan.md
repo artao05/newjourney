@@ -2494,7 +2494,34 @@ Suite 903 / 41 files.
   devicePixelRatio + setTransform. Expedition/CSV parsing both
   correct (empty cells→NaN). Multiple curves distinguished by color.
 
-Suite 956 / 43 files. Three hundred and sixty-eight detection strategies across 399 passes.
+- **Pass 400 — service worker caching strategy correctness: CLEAN.**
+  Four-rule fetch handler: hashed assets cache-first, navigation
+  network-first with shell fallback, venue data stale-while-
+  revalidate, tiles network-first with cache fallback (capped at
+  1200 entries). POST requests skipped. Opaque responses never
+  cached (res.ok && res.type==='basic' guard). Old caches cleaned
+  on activate via VERSION prefix. Default-deny isCacheable allowlist
+  prevents accidental caching of future endpoints.
+- **Pass 401 — React hook dependency arrays (callback stability): CLEAN.**
+  All 19 hook-using files audited. Callbacks to children wrapped in
+  useCallback or are stable store selectors/setState refs. Refs
+  never in dependency arrays. No object/array literals in deps.
+  Event handlers reference only in-scope or deps-listed values.
+  Timer callbacks use ref pattern or effect-local variables to
+  avoid stale closures. Custom hooks (useSensors, useHidden, useTick)
+  all correct. One intentional eslint-disable for useSimulation
+  origin exclusion (documented).
+- **Pass 402 — weather cube trilinear interpolation correctness: CLEAN.**
+  Grid coords correct ((lat-south)/dy). Boundary clamping to
+  [0,n-2] with fraction in [0,1]. Time interpolation with clamp.
+  Bilinear-then-linear-in-time formula correct with proper flat
+  array indexing [t][y][x]. NaN corners skipped with weight
+  renormalisation; all-NaN returns null. Wind interpolated as u/v
+  components (not degrees). Wave direction uses sin/cos accumulation.
+  StackedField returns first non-null per parameter. Module-level
+  LOC/DIR scratch objects avoid hot-path allocations.
+
+Suite 956 / 43 files. Three hundred and seventy-one detection strategies across 402 passes.
 
 ---
 
