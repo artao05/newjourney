@@ -2352,8 +2352,33 @@ Suite 903 / 41 files.
   base=goalBrg+180. Finish node at exact goal coords.
   Guards: dGoal>1e-12, bsp>1e-9, |need|≤1, closing>0.
   Land check on hop segment. Tack penalty at hop applied.
+- **Pass 382 — tack/gybe penalty application: CLEAN.**
+  manoeuvre() uses TWA sign change + mean |TWA| vs 90° to
+  discriminate tack from gybe. Penalty in seconds * 1000 →
+  milliseconds added to step time. useTack = isFwd && (pen>0).
+  Backward pass memoryless. Penalty fires once per sign change,
+  parentTack≠0 guard prevents false root penalties. TWA=0
+  inherits parentTack (no spurious penalty during VMG sub).
+  Bucket key includes tack state. Store→kernel chain verified.
+- **Pass 383 — WebGL shader compilation and bindings: CLEAN.**
+  All 8 shaders (5 particle, 2 scalar, 1 quad) have correct
+  precision qualifiers, types, no undeclared vars. createProgram
+  auto-resolves uniforms/attributes via getActive*, eliminating
+  name typo risk. All uniforms set before draw calls verified.
+  Texture units non-conflicting (scalar 0-2, particle draw
+  0-3, update 0/1/3, fade 2). WebGL 1 constructs only
+  (texture2D, attribute/varying, gl_FragColor). compile/link
+  check status and throw with info log.
+- **Pass 384 — tidal current chart rendering: CLEAN.**
+  Y-axis symmetric around zero, yMax≥1 floor. Flood positive
+  above center, ebb negative below. Smart decimal precision
+  for labels. X-axis local time via fmtLocalHour. NOAA data
+  fetched UTC, parsed as UTC millis. "Now" vertical line
+  guarded to plot bounds. ResizeObserver for responsive width.
+  Flood/ebb fill split via max(0,kn)/min(0,kn). Edge cases
+  tested: empty series, one point, zero width/height.
 
-Suite 956 / 43 files. Three hundred and fifty detection strategies across 381 passes.
+Suite 956 / 43 files. Three hundred and fifty-three detection strategies across 384 passes.
 
 ---
 
