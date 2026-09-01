@@ -2521,7 +2521,31 @@ Suite 903 / 41 files.
   StackedField returns first non-null per parameter. Module-level
   LOC/DIR scratch objects avoid hot-path allocations.
 
-Suite 956 / 43 files. Three hundred and seventy-one detection strategies across 402 passes.
+- **Pass 403 — rhumb line and haversine geodesy correctness: CLEAN.**
+  All geo.ts functions audited: haversine (correct formula with
+  wrap180 Δlon), bearing (standard atan2, wrap360), destination
+  (clampUnit for asin, wrap180 output lon), cross-track (sin
+  subtraction, 2π-periodic), along-track (acos guard, abeam
+  fallback), rhumb distance (Mercator dpsi with |dpsi|<1e-12
+  fallback to cos(lat)), rhumb bearing (atan2, wrap360). Anti-
+  meridian handled by wrap180 everywhere. Polar singularity
+  degrades gracefully. R_NM=3440.065 correct.
+- **Pass 404 — Vite configuration and build correctness: CLEAN.**
+  Worker bundled with type:'module' and format:'es'. base:'./'
+  consistent with SW pre-cache paths. Target es2022 matches
+  tsconfig. No manualChunks. No custom env vars (only DEV/PROD).
+  Source maps enabled (design choice). @/ alias matches tsconfig
+  paths. No dev/prod divergence. tsconfig strict with all
+  recommended checks enabled.
+- **Pass 405 — wind barb and arrow symbol rendering: CLEAN.**
+  Meteorological FROM convention correct (atan2(-u,-v), tested).
+  50/10/5 decomposition correct (exhaustive sum-back test). Calm
+  symbol below 3kn. Feathers on right side (NH convention). Rotation
+  via icon-rotate with fromDeg. SVG→canvas ImageData sprites. Lone
+  half-barb offset from tip (tested). Speed rounded to nearest 5kn
+  via Math.round(kn/5)*5, clamped to 75kn max.
+
+Suite 956 / 43 files. Three hundred and seventy-four detection strategies across 405 passes.
 
 ---
 
