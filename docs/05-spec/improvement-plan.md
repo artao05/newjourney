@@ -2466,8 +2466,35 @@ Suite 903 / 41 files.
   prevents runaway; widening formula Math.ceil(span/(cap-1))
   correctly covers full window at coarser resolution. All
   epoch-millis, timezone-agnostic. Test suite covers all cases.
+- **Pass 397 — binary delta-coded encoding/decoding correctness: CLEAN.**
+  Audited cube.ts encode/decode across eight categories: endianness
+  (explicit on all DataView calls, body uses manual byte split),
+  delta symmetry (predictor reset per param, MISSING leaves predictor
+  unchanged), byte-plane shuffle/unshuffle (exact inverse with sign
+  extension <<16>>16), buffer sizes (count*2, verified by test),
+  signed/unsigned (Int16 with 0xffff mask round-trips MISSING),
+  row order (flat [t][y][x] south-to-north, no reversal), NaN
+  handling (MISSING sentinel, tested), overflow (±16383 range,
+  max delta ±32766 fits Int16, no sentinel collision).
+- **Pass 398 — tidal current prediction and datum arithmetic: CLEAN.**
+  MSL-to-MLLW conversion sign correct (surface = water − datum).
+  Linear interpolation with binary search, null outside range.
+  NOAA times parsed as UTC via Date.UTC (time_zone:'gmt' requested).
+  Oceanographic direction convention consistent with routing kernel.
+  Slack water interpolates through zero correctly. Units: currents
+  stay in knots, levels converted feet→metres at parse boundary
+  (FEET_TO_M = 0.3048 exact). API errors handled (200-with-error,
+  non-200, empty data). Cache keyed by station|date|range.
+- **Pass 399 — canvas polar diagram rendering correctness: CLEAN.**
+  PCHIP Fritsch-Carlson tangents correct (sign-change zero,
+  harmonic mean, end-slope three-point formula). Angle mapping
+  correct (TWA=0 at top, sin/cos). Half-diagram (starboard only)
+  is deliberate design. Speed rings match linear rOf scaling.
+  Zero/negative speeds clamped. Canvas DPI handled with
+  devicePixelRatio + setTransform. Expedition/CSV parsing both
+  correct (empty cells→NaN). Multiple curves distinguished by color.
 
-Suite 956 / 43 files. Three hundred and sixty-five detection strategies across 396 passes.
+Suite 956 / 43 files. Three hundred and sixty-eight detection strategies across 399 passes.
 
 ---
 
