@@ -2446,8 +2446,28 @@ Suite 903 / 41 files.
   Persist partialize whitelist matches design intent (tested).
   mergePersistedState deep-merges correctly, runs before first
   render. No async gaps between get() and set().
+- **Pass 394 — React error boundary coverage and recovery: CLEAN.**
+  ErrorBoundary has correct hasError/getDerivedStateFromError/
+  componentDidCatch. All five tabs individually wrapped with
+  distinct keys. Lazy screens have both Suspense and ErrorBoundary
+  with retry via lazyGen bump. Async errors in useEffect
+  consistently caught. Worker has onerror handler with stale-
+  worker guard and auto-respawn.
+- **Pass 395 — GPX 1.1 import/export round-trip fidelity: CLEAN.**
+  esc() covers all five XML specials. DOMParser checks for
+  parsererror. Coordinates use toFixed(6) (~11cm). Missing/
+  malformed coords return null (tested). Export has required
+  GPX 1.1 attributes and UTF-8 declaration. Round-trip
+  preserves names with special characters (tested).
+- **Pass 396 — departure sweep grid generation edge cases: CLEAN.**
+  Inclusive endpoints via floor+1 plus explicit endpoint
+  correction. Float rounding handled by endpoint push. Step
+  clamped to ≥1ms. start===end yields [from]. Cap (default 24)
+  prevents runaway; widening formula Math.ceil(span/(cap-1))
+  correctly covers full window at coarser resolution. All
+  epoch-millis, timezone-agnostic. Test suite covers all cases.
 
-Suite 956 / 43 files. Three hundred and sixty-two detection strategies across 393 passes.
+Suite 956 / 43 files. Three hundred and sixty-five detection strategies across 396 passes.
 
 ---
 
