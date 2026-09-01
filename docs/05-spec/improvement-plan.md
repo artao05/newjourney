@@ -2305,8 +2305,32 @@ Suite 903 / 41 files.
   stride accounts for cos(lat) longitude shrinkage, anchored
   to grid-index multiples. GeoJSON [lon,lat] with rounded
   coords. u/v conversion matches standard met convention.
+- **Pass 376 — isochrone path reconstruction: CLEAN.**
+  Traceback follows parent pointers from finishNode to root,
+  fills Int32Array in start-to-finish order. Parent set in
+  fan loop, pruning copy, and finish hop. appendLegs extracts
+  position/time from current node, conditions from next node.
+  Multi-leg: tack state carried across marks, clock advances.
+  continuing=true pops stale arrival. Beat detection via
+  effective() no-go zone. Time strictly increasing. Path
+  continuous by construction.
+- **Pass 377 — Zustand persist rehydration: CLEAN.**
+  partialize includes only serializable fields. mergePersistedState
+  deep-merges boat, course (with startLine), settings. Flat
+  fields fine with shallow spread. null/undefined persisted
+  handled via ?? {}. Version 1, no migration needed. Storage
+  via createJSONStorage(localStorage) with built-in try/catch.
+  Extra old fields harmlessly spread, new fields get defaults.
+- **Pass 378 — solar position calculation: CLEAN.**
+  NOAA low-precision algorithm: Julian date from Unix epoch
+  JD 2440587.5. Mean longitude, mean anomaly, ecliptic lon
+  coefficients verified. Obliquity 23.439−0.0000004n. GMST
+  formula correct. Hour angle (GMST+lon)*DEG−RA correct with
+  east-positive convention. Elevation formula standard.
+  isNight threshold −6° (civil twilight). Routing uses
+  simulation time not wall clock. 5-minute memoization bucket.
 
-Suite 956 / 43 files. Three hundred and forty-four detection strategies across 375 passes.
+Suite 956 / 43 files. Three hundred and forty-seven detection strategies across 378 passes.
 
 ---
 
