@@ -2377,8 +2377,33 @@ Suite 903 / 41 files.
   guarded to plot bounds. ResizeObserver for responsive width.
   Flood/ebb fill split via max(0,kn)/min(0,kn). Edge cases
   tested: empty series, one point, zero width/height.
+- **Pass 385 — binary delta-coded weather encoding: CLEAN.**
+  Delta-t predictor per cell, resets per parameter. First
+  value stores full quantized value. Values clamped ±16383
+  (half Int16) so max delta fits and avoids MISSING sentinel.
+  MISSING (-32768) skips predictor update on encode and decode.
+  Byte-plane shuffle: low/high bytes deinterleaved, <<16>>16
+  sign-extends correctly. Header: JSON after 12-byte preamble,
+  padded for 2-byte alignment. Round-trip within scale/2.
+- **Pass 386 — venue pack loading and consistency: CLEAN.**
+  Land mask and depth grid loaded in parallel with singleton
+  cache. Bbox alignment within half depth cell (0.002°).
+  Water fractions cross-checked ±2%. Payload sizes validated.
+  Depth grid Int16 decimetres, MISSING matches cube sentinel.
+  Tide station positions verified inside bbox. MSL-above-MLLW
+  consistent between bathymetry and datum. Land bits validated
+  by adoptLandRaster before routing. SW caches venue files
+  with stale-while-revalidate.
+- **Pass 387 — React effect dependency arrays: CLEAN.**
+  Audited 75+ hooks across 15 component files. No missing
+  dependencies — all scope values in deps or accessed via
+  ref. All [] effects genuinely one-time. useMemo/useCallback
+  deps match computations. Refs for stable timer callbacks
+  (intentional, documented). All effects with timers/
+  subscriptions/listeners have cleanup. No effects without
+  dep arrays. No object literal deps causing infinite loops.
 
-Suite 956 / 43 files. Three hundred and fifty-three detection strategies across 384 passes.
+Suite 956 / 43 files. Three hundred and fifty-six detection strategies across 387 passes.
 
 ---
 
