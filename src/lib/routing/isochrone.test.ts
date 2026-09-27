@@ -12,7 +12,7 @@
  * must be testable without `src/lib/weather` or `src/lib/polar` existing.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { bearing, crossTrack, destination, distance } from '../geo'
 import { DEG, wrap360 } from '../angles'
 import type {
@@ -27,6 +27,16 @@ import type {
 import { defaultConstraints, defaultScalings, isNight, routeIsochrone } from './isochrone'
 import { PolygonLandMask, buildLandMask, extractPolygons } from './land'
 import type { RouteWorkerResponse } from './worker'
+
+/*
+ * The heaviest tests in the repo: whole solves, several of them run more than
+ * once. On a quiet desktop they take 3-4 s each, and under the parallel full
+ * suite over 5 s, so the default 5 s timeout was failing them on machine load
+ * rather than on anything the kernel did - and a CI runner is slower again. A
+ * generous limit for this file keeps a real hang failing, without the suite's
+ * result depending on what else the machine happens to be doing.
+ */
+vi.setConfig({ testTimeout: 30_000 })
 
 // ------------------------------------------------------------- fake polar
 //
