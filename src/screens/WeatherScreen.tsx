@@ -62,6 +62,7 @@ import {
   type CurrentPrediction,
 } from '@/lib/tides/coops'
 import { uvToWind } from '@/lib/wind'
+import { fmtDeg } from '@/lib/angles'
 import type { LayerSpec, VectorMode } from '@/lib/maplayers/types'
 import type { WeatherCube } from '@/lib/types'
 
@@ -141,7 +142,12 @@ function WeatherOverlay() {
         layout: {
           'icon-image': barbImageExpression(PROP_MAGNITUDE) as never,
           'icon-rotate': ['get', PROP_FROM],
-          'icon-rotation-alignment': 'viewport',
+          // `icon-rotate` is a compass bearing, and only 'map' keeps it one once
+          // the chart is rotated: under 'viewport' it is measured from the top of
+          // the screen, so every barb is wrong by the map bearing and still looks
+          // plausible. Pitch stays 'viewport' so a barb stands upright when tilted
+          // (barbs.ts, render-architecture.md §4).
+          'icon-rotation-alignment': 'map',
           'icon-pitch-alignment': 'viewport',
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
@@ -162,7 +168,11 @@ function WeatherOverlay() {
           'text-size': ['interpolate', ['linear'], ['get', PROP_MAGNITUDE], 0, 11, 40, 26],
           // Arrow glyph points right at rotate 0, so aim it where the flow GOES.
           'text-rotate': ['-', ['get', PROP_TOWARD], 90],
-          'text-rotation-alignment': 'viewport',
+          // A bearing, so aligned to the map for the same reason as the barbs.
+          // Pitch is pinned to 'viewport' because it would otherwise follow the
+          // rotation alignment and lay the glyph flat on a tilted chart.
+          'text-rotation-alignment': 'map',
+          'text-pitch-alignment': 'viewport',
           'text-allow-overlap': true,
           'text-ignore-placement': true,
           visibility: 'none',
@@ -346,7 +356,7 @@ function WeatherOverlay() {
         opacity: isVector ? 0.9 : 0.55,
         count: isVector ? 9000 : 5000,
       })
-      particles.setColorRamp(particleRampLUT(speedLayer))
+      particles.setColorRamp(particleRampLUT(speedLayer), speedLayer.domain[1])
       particles.setData(cube, t)
       particles.setVisible(true)
     } else {
@@ -671,7 +681,7 @@ function WeatherOverlay() {
           <div>
             wind{' '}
             {probeValues.wind
-              ? `${probeValues.wind.dirFrom.toFixed(0)}° ${probeValues.wind.speed.toFixed(1)} kn`
+              ? `${fmtDeg(probeValues.wind.dirFrom)}° ${probeValues.wind.speed.toFixed(1)} kn`
               : '—'}
           </div>
           <div>gust {fmt(probeValues.gust, 1, ' kn')}</div>
@@ -680,7 +690,7 @@ function WeatherOverlay() {
           <div>
             current{' '}
             {probeValues.current
-              ? `${probeValues.current.dirFrom.toFixed(0)}° ${probeValues.current.speed.toFixed(2)} kn`
+              ? `${fmtDeg(probeValues.current.dirFrom)}° ${probeValues.current.speed.toFixed(2)} kn`
               : '—'}
           </div>
           <div>mslp {fmt(probeValues.prmsl, 0, ' hPa')}</div>
@@ -713,6 +723,7 @@ function WeatherOverlay() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 gap: 8,
+                flexWrap: 'wrap',
                 fontSize: 11,
                 color: 'var(--ink-dim)',
               }}
@@ -722,7 +733,7 @@ function WeatherOverlay() {
                 {PILOT_VENUE.currentStations[0]?.name} ·{' '}
                 <span style={{ color: 'var(--ink-faint)' }}>NOAA harmonic prediction</span>
               </span>
-              <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 {stationFlow && (
                   <span className="chip">
                     {stationFlow.kn.toFixed(2)} kn {stationFlow.label}

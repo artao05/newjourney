@@ -11,12 +11,14 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useStore } from '@/state/store'
 import { cubeNotes, fetchWindCube } from '@/lib/weather/openmeteo'
+import { sampleCube } from '@/lib/weather/cube'
 import { RoutingClient } from '@/lib/routing/client'
 import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
 import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
 import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tides/coops'
 import { PORTLAND_DATUM, datumNote } from '@/lib/tides/datum'
-import { bboxOf, distance } from '@/lib/geo'
+import { bboxOf, distance, lonSpan } from '@/lib/geo'
+import { fmtDeg, wrap180 } from '@/lib/angles'
 import type { Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
 import { fmtDuration } from '@/components/Tile'
 import { DepartureChart } from '@/components/DepartureChart'
@@ -87,6 +89,7 @@ export function RouteScreen() {
   const mapRef = useRef<maplibregl.Map | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const clientRef = useRef<RoutingClient | null>(null)
+  const runIdRef = useRef(0)
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
@@ -179,6 +182,20 @@ export function RouteScreen() {
     }
   }, [])
 
+  /*
+   * A departure sweep belongs to a course too.
+   *
+   * The store drops the route when the marks change, because a route computed for
+   * marks that no longer exist is describing someone else's race. The sweep is the
+   * same claim on a different axis - "leave at 14:20 and you save eleven minutes" -
+   * and it lives in local state here, so it needs clearing alongside or the panel
+   * keeps recommending a departure for a course that is gone.
+   */
+  useEffect(() => {
+    setSweep(null)
+    setDepartAt(null)
+  }, [course.marks])
+
   // Follow the boat once, on first fix.
   const centred = useRef(false)
   useEffect(() => {
@@ -224,16 +241,7 @@ export function RouteScreen() {
       ],
     })
     // Beating segments drawn dashed, exactly as Expedition marks implicit tacking.
-    const beatSegs: [number, number][][] = []
-    let run: [number, number][] = []
-    for (const l of route.legs) {
-      if (l.isBeating) run.push([l.position.lon, l.position.lat])
-      else if (run.length > 1) {
-        beatSegs.push(run)
-        run = []
-      } else run = []
-    }
-    if (run.length > 1) beatSegs.push(run)
+    const beatSegs = extractBeatSegments(route.legs)
     setSource(map, 'route-beat', {
       type: 'FeatureCollection',
       features: beatSegs.map((c) => ({
@@ -262,6 +270,20 @@ export function RouteScreen() {
     }
   }, [ready, route])
 
+  /*
+   * The arrows describe the route that is drawn: the wind it leaves into, or the
+   * wind now when there is no route. Not the cube's first hour — that is the hour
+   * of the download, and a departure picked from the sweep can be twelve hours
+   * after it. An effect rather than a call in `loadWeather`, so a forecast
+   * requested before the map finished loading is still drawn once it has.
+   */
+  const windAt = route?.ok && route.legs.length > 0 ? route.legs[0].t : null
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setSource(map, 'wind', cube ? windFC(cube, windAt ?? Date.now()) : emptyFC())
+  }, [ready, cube, windAt])
+
   // ------------------------------------------------------------------ actions
   const loadWeather = useCallback(async (): Promise<WeatherCube | null> => {
     if (!state) return null
@@ -287,8 +309,6 @@ export function RouteScreen() {
         includeCurrent: true,
       })
       setCube(c)
-      const map = mapRef.current
-      if (map && ready) setSource(map, 'wind', windFC(c))
       return c
     } catch (e) {
       setRouteError(e instanceof Error ? e.message : 'Forecast download failed')
@@ -296,7 +316,7 @@ export function RouteScreen() {
     } finally {
       setBusy(null)
     }
-  }, [state, course.marks, ready, setRouteError])
+  }, [state, course.marks, setRouteError])
 
   /*
    * Declared before the callbacks that list it as a dependency. A dependency array
@@ -363,10 +383,12 @@ export function RouteScreen() {
 
   const run = useCallback(async (leaveAt?: Millis) => {
     if (!state || !polar || course.marks.length === 0) return
+    const thisRun = ++runIdRef.current
     let workingCube = cube
     if (!workingCube) {
       workingCube = await loadWeather()
     }
+    if (thisRun !== runIdRef.current) return
     if (!workingCube) {
       setRouteError('No forecast loaded — tap Forecast first.')
       return
@@ -382,15 +404,23 @@ export function RouteScreen() {
       const result = await clientRef.current.route(
         req,
         { cube: workingCube, polar, landRaster: landPayload() },
-        (f) => setProgress(f),
+        (f) => { if (thisRun === runIdRef.current) setProgress(f) },
       )
-      if (!landPack) {
+      if (thisRun !== runIdRef.current) return
+      // Follow what the kernel actually did, not what this side hoped it would.
+      // The two disagree when the pack loads here but the worker rejects it as
+      // corrupt, and that disagreement used to resolve in favour of the
+      // reassuring message — telling a sailor land was avoided on a route that
+      // was never checked against it.
+      if (!result.diagnostics.landAvoided) {
         result.diagnostics.warnings.unshift(
           landError
             ? `Land avoidance is OFF — the coastline pack failed to load (${landError}). This route may cross land.`
-            : 'Land avoidance is OFF — the coastline pack has not loaded yet. This route may cross land.',
+            : !landPack
+              ? 'Land avoidance is OFF — the coastline pack has not loaded yet. This route may cross land.'
+              : 'Land avoidance is OFF — the router rejected the coastline pack as unusable. This route may cross land.',
         )
-      } else {
+      } else if (landPack) {
         // State the limits of the thing that is now on, rather than implying it
         // is a substitute for looking at a chart.
         result.diagnostics.warnings.push(
@@ -403,9 +433,10 @@ export function RouteScreen() {
       setDepartAt(leaveAt ?? null)
       if (!result.ok) setRouteError(result.error ?? 'Routing failed')
     } catch (e) {
+      if (thisRun !== runIdRef.current) return
       setRouteError(e instanceof Error ? e.message : 'Routing failed')
     } finally {
-      setBusy(null)
+      if (thisRun === runIdRef.current) setBusy(null)
     }
     /*
      * `landPack` and `landError` belong here, and their absence was a real bug.
@@ -966,7 +997,7 @@ function ResultsSheet({
           {rows.map((l, i) => (
             <tr key={i} className={l.isBeating ? 'beating' : undefined}>
               <td>{new Date(l.t).toISOString().slice(11, 16)}</td>
-              <td>{l.twd.toFixed(0)}</td>
+              <td>{fmtDeg(l.twd)}</td>
               <td>{l.tws.toFixed(1)}</td>
               <td>
                 {l.isBeating ? '(' : ''}
@@ -974,7 +1005,7 @@ function ResultsSheet({
                 {l.isBeating ? ')' : ''}
               </td>
               <td>{l.bsp.toFixed(2)}</td>
-              <td>{l.heading.toFixed(0)}</td>
+              <td>{fmtDeg(l.heading)}</td>
             </tr>
           ))}
         </tbody>
@@ -1044,6 +1075,11 @@ function addEmptyLayers(map: maplibregl.Map) {
       'text-field': '↑',
       'text-size': ['interpolate', ['linear'], ['get', 'kn'], 0, 11, 30, 24],
       'text-rotate': ['get', 'rot'],
+      // Unset, this defaults to 'viewport' for a point symbol, which measures the
+      // bearing from the top of the screen and is wrong on a rotated chart.
+      // Pitch pinned so the glyph stays upright, matching the Weather arrows.
+      'text-rotation-alignment': 'map',
+      'text-pitch-alignment': 'viewport',
       'text-allow-overlap': true,
       'text-ignore-placement': true,
     },
@@ -1116,30 +1152,59 @@ function addEmptyLayers(map: maplibregl.Map) {
   })
 }
 
-/** Thin the cube down to a readable arrow field. */
-function windFC(c: WeatherCube): FC {
+/**
+ * Collect contiguous runs of beating legs into LineString coordinate arrays.
+ *
+ * `isBeating` on leg *i* means the segment FROM leg *i* TO leg *i + 1* is a
+ * beat, so every beat run must include the *next* non-beating position as its
+ * terminal endpoint.
+ */
+export function extractBeatSegments(
+  legs: ReadonlyArray<{ position: { lon: number; lat: number }; isBeating: boolean }>,
+): [number, number][][] {
+  const segs: [number, number][][] = []
+  let run: [number, number][] = []
+  for (const l of legs) {
+    if (l.isBeating) {
+      run.push([l.position.lon, l.position.lat])
+    } else {
+      if (run.length > 0) {
+        run.push([l.position.lon, l.position.lat])
+        segs.push(run)
+      }
+      run = []
+    }
+  }
+  if (run.length > 1) segs.push(run)
+  return segs
+}
+
+/**
+ * Thin the cube down to a readable arrow field, as the wind stands at `t`.
+ *
+ * Sampled through `sampleCube`, the same interpolation the router's `CubeField`
+ * uses, so each arrow is the wind the route was computed against. A time the
+ * cube does not cover draws no arrows rather than the nearest hour's.
+ */
+export function windFC(c: WeatherCube, t: Millis): FC {
   const features: GeoJSON.Feature[] = []
-  const u = c.data.u10
-  const v = c.data.v10
-  if (!u || !v) return emptyFC()
+  if (!c.data.u10 || !c.data.v10) return emptyFC()
   const strideX = Math.max(1, Math.floor(c.nx / 18))
   const strideY = Math.max(1, Math.floor(c.ny / 18))
   for (let j = 0; j < c.ny; j += strideY) {
     for (let i = 0; i < c.nx; i += strideX) {
-      const idx = j * c.nx + i // time index 0
-      const uu = u[idx]
-      const vv = v[idx]
-      if (!Number.isFinite(uu) || !Number.isFinite(vv)) continue
+      const lon = c.bbox.west + i * c.dx
+      const lat = c.bbox.south + j * c.dy
+      const uu = sampleCube(c, 'u10', lat, lon, t)
+      const vv = sampleCube(c, 'v10', lat, lon, t)
+      if (uu === null || vv === null) continue
       const kn = Math.hypot(uu, vv)
       // Arrow glyph points "up"; rotate to the direction the wind blows TOWARD.
       const rot = (Math.atan2(uu, vv) * 180) / Math.PI
       features.push({
         type: 'Feature',
         properties: { kn: Math.round(kn * 10) / 10, rot },
-        geometry: {
-          type: 'Point',
-          coordinates: [c.bbox.west + i * c.dx, c.bbox.south + j * c.dy],
-        },
+        geometry: { type: 'Point', coordinates: [lon, lat] },
       })
     }
   }
@@ -1150,14 +1215,15 @@ function windFC(c: WeatherCube): FC {
 function sensitivityFC(route: RouteResult): FC {
   const s = route.sensitivity
   if (!s) return emptyFC()
-  const dx = (s.bbox.east - s.bbox.west) / s.nx
+  const dx = lonSpan(s.bbox.west, s.bbox.east) / s.nx
   const dy = (s.bbox.north - s.bbox.south) / s.ny
   const features: GeoJSON.Feature[] = []
   for (let j = 0; j < s.ny; j++) {
     for (let i = 0; i < s.nx; i++) {
       const loss = s.loss[j * s.nx + i]
       if (!Number.isFinite(loss) || loss > 10) continue
-      const x0 = s.bbox.west + i * dx
+      const x0 = wrap180(s.bbox.west + i * dx)
+      const x1 = wrap180(s.bbox.west + (i + 1) * dx)
       const y0 = s.bbox.south + j * dy
       features.push({
         type: 'Feature',
@@ -1167,8 +1233,8 @@ function sensitivityFC(route: RouteResult): FC {
           coordinates: [
             [
               [x0, y0],
-              [x0 + dx, y0],
-              [x0 + dx, y0 + dy],
+              [x1, y0],
+              [x1, y0 + dy],
               [x0, y0 + dy],
               [x0, y0],
             ],

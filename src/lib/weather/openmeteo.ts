@@ -313,11 +313,29 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>()
 
-/** Quantise to 0.25° so panning the map by a pixel does not miss the cache. */
-const q25 = (x: number): number => Math.round(x * 4) / 4
+/**
+ * Round only enough to absorb float noise, so a bbox recomputed from the same
+ * inputs still hits.
+ *
+ * This used to quantise to 0.25° "so panning the map by a pixel does not miss the
+ * cache", and that was a silent correctness bug: the key was quantised but the
+ * fetch used the caller's exact bbox, so two different boxes rounding to the same
+ * quarter-degree shared one entry and the second caller received a cube built for
+ * the first caller's box. Offset by up to 0.125°, about 7.5 nm, with a strip of the
+ * requested area holding no data at all — and nothing downstream reads as an error,
+ * because `sampleCube` correctly returns null outside coverage and the router just
+ * reports "no legal move from the frontier".
+ *
+ * The pan case it was written for does not exist: `ChartSurface` fetches on model
+ * change and `RouteScreen` on a button press, and neither refetches on map movement.
+ * If one ever does, the fix is to snap the *fetched* box outward to a grid and key
+ * on that, so the key and the data describe the same rectangle — not to widen the
+ * key alone.
+ */
+const q6 = (x: number): number => Math.round(x * 1e6) / 1e6
 
 function cacheKey(model: ModelId, bbox: BBox, stepDeg: number, hours: number, waves: boolean, current: boolean): string {
-  const b = [q25(bbox.west), q25(bbox.south), q25(bbox.east), q25(bbox.north)].join(',')
+  const b = [q6(bbox.west), q6(bbox.south), q6(bbox.east), q6(bbox.north)].join(',')
   return `${model}|${b}|${stepDeg}|${hours}|${waves ? 'w' : '-'}${current ? 'c' : '-'}`
 }
 

@@ -110,9 +110,13 @@ describe('makeSampler', () => {
     expect(wind(999)).toEqual([253, 231, 37])
   })
 
-  it('clamps a non-finite value to the low end', () => {
-    // Documented last resort: missing data must be rejected before it gets here.
+  it('clamps NaN to the low end', () => {
     expect(wind(NaN)).toEqual([68, 1, 84])
+  })
+
+  it('clamps +Infinity to the high end, not the low end', () => {
+    expect(wind(Infinity)).toEqual([253, 231, 37])
+    expect(wind(-Infinity)).toEqual([68, 1, 84])
   })
 
   it('does not blend across a discrete class', () => {

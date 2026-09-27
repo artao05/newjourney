@@ -7,7 +7,7 @@
  * because every downstream number inherits its uncertainty.
  */
 
-import { Suspense, lazy, useEffect, useMemo, type ReactElement } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
 import { useStore, type Tab } from '@/state/store'
 import { useGeolocation, useSimulation, useWakeLock, useTick } from '@/hooks/useSensors'
 import { StartScreen } from '@/screens/StartScreen'
@@ -18,6 +18,7 @@ import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
 import type { WindEstimate } from '@/lib/types'
 import { fetchPointForecast } from '@/lib/weather/openmeteo'
+import { fmtDeg } from '@/lib/angles'
 import { PILOT_VENUE } from '@/data/venues'
 
 const FORECAST_REFRESH_MS = 15 * 60_000
@@ -26,15 +27,19 @@ const FORECAST_REFRESH_MS = 15 * 60_000
  * The map is by far the heaviest thing we ship (MapLibre is ~800 kB), and the
  * start-line user never opens it. Code-splitting it keeps first load small on
  * the dockside 3G connection this app is actually used on.
+ *
+ * These are created inside the component via useMemo, not at module scope,
+ * because React.lazy caches a rejected import forever — if the chunk fails to
+ * load on a bad connection, "TRY AGAIN" in the ErrorBoundary would re-throw
+ * the cached rejection without ever retrying the import. Recreating the lazy
+ * wrapper (by bumping `lazyGen`) gives React a fresh object whose factory
+ * will actually call import() again.
  */
-const RouteScreen = lazy(() =>
-  import('@/screens/RouteScreen').then((m) => ({ default: m.RouteScreen })),
-)
+const makeRouteScreen = () =>
+  lazy(() => import('@/screens/RouteScreen').then((m) => ({ default: m.RouteScreen })))
 
-/** Shares the MapLibre chunk with RouteScreen, so it is lazy for the same reason. */
-const WeatherScreen = lazy(() =>
-  import('@/screens/WeatherScreen').then((m) => ({ default: m.WeatherScreen })),
-)
+const makeWeatherScreen = () =>
+  lazy(() => import('@/screens/WeatherScreen').then((m) => ({ default: m.WeatherScreen })))
 
 export function App() {
   const tab = useStore((s) => s.tab)
@@ -56,6 +61,11 @@ export function App() {
   const recording = useStore((s) => s.recording)
   const toggleRecording = useStore((s) => s.toggleRecording)
   const pushTrack = useStore((s) => s.pushTrack)
+
+  const [lazyGen, setLazyGen] = useState(0)
+  const retryLazy = useCallback(() => setLazyGen((g) => g + 1), [])
+  const RouteScreen = useMemo(makeRouteScreen, [lazyGen])
+  const WeatherScreen = useMemo(makeWeatherScreen, [lazyGen])
   // Avoid creating a new forecast request for every GPS fix. A 0.01° cell is
   // comfortably finer than the source model yet stable while the boat is moving.
   const forecastLat = Math.round((state?.position.lat ?? PILOT_VENUE.center.lat) * 100) / 100
@@ -133,7 +143,21 @@ export function App() {
 
   // Estimated set & drift, gated on rate of turn — see navigation-math.md §5.
   useEffect(() => {
-    if (!state || state.bsp == null || state.heading == null) return
+    if (!state || state.bsp == null || state.heading == null) {
+      /*
+       * Clear it. The early return used to just leave the previous value in place,
+       * so a set and drift measured while the instruments were reporting stayed on
+       * screen indefinitely after they stopped, still labelled "measured".
+       *
+       * Not cosmetic: `tactics.ts` corrects the laylines with this and
+       * `startline.ts` uses it for time-to-line, so a stale estimate quietly bends
+       * every tactical number toward a tide that is no longer there. The path is
+       * ordinary - run the simulator, which supplies a boat speed, then switch to
+       * phone GPS, which does not.
+       */
+      setCurrent(null)
+      return
+    }
     const c = estimateCurrent({
       cog: state.cog,
       sog: state.sog,
@@ -177,7 +201,7 @@ export function App() {
         </span>
         <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="chip">
-            {wind ? `${wind.twd.toFixed(0)}° · ${wind.tws.toFixed(0)} kn` : 'wind unavailable'}
+            {wind ? `${fmtDeg(wind.twd)}° · ${wind.tws.toFixed(0)} kn` : 'wind unavailable'}
           </span>
           <button
             className={`chip ${recording ? 'chip--bad' : ''}`}
@@ -213,7 +237,7 @@ export function App() {
         </ErrorBoundary>
       )}
       {tab === 'weather' && (
-        <ErrorBoundary name="Weather" key="weather">
+        <ErrorBoundary name="Weather" key="weather" onReset={retryLazy}>
           <Suspense
             fallback={
               <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
@@ -228,7 +252,7 @@ export function App() {
         </ErrorBoundary>
       )}
       {tab === 'route' && (
-        <ErrorBoundary name="Route" key="route">
+        <ErrorBoundary name="Route" key="route" onReset={retryLazy}>
           <Suspense
             fallback={
               <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>

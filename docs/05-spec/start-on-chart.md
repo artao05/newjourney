@@ -139,17 +139,19 @@ New `src/components/StartOverlay.tsx` plus `useStartLayers(map)`:
   that chases the boat during a start is unusable.
 - Ship the two cues from §6 that replace the lost line-up convention: the
   pre-start side shading and the persistent wind vector.
-- **Carry the rotation fix anyway.** `wx-barbs`, `wx-arrows` and
-  `wx-speed-labels` are declared `rotation-alignment: 'viewport'` with
-  `icon-rotate: ['get', PROP_FROM]` (`WeatherScreen.tsx:171`, `:190`). Viewport
-  alignment makes those rotations relative to the screen, so at any non-zero
-  bearing every barb and arrow is wrong by exactly the bearing — and still looks
-  plausible. North-up as a default does not avoid this: MapLibre enables
-  `dragRotate` and touch rotation by default, so the bug is reachable on the
-  Weather tab today, before any of this work lands. Move them to `'map'`
-  alignment. `ScalarLayer` and `ParticleLayer` are fine — both project through
-  `defaultProjectionData.mainMatrix`, and the particle trail buffer already
-  clears on camera move.
+- **Carry the rotation fix anyway — done ahead of this phase**, because it was
+  live on both chart tabs. Viewport alignment measures `icon-rotate` and
+  `text-rotate` from the top of the screen, so at any non-zero bearing every barb
+  and arrow is wrong by exactly the bearing — and still looks plausible. North-up
+  as a default does not avoid this: MapLibre enables `dragRotate` and touch
+  rotation by default. `wx-barbs`, `wx-arrows` and Route's `wind-arrows` (which
+  set no alignment, and a point symbol defaults to the screen) are now `'map'`,
+  with pitch pinned to `'viewport'` so they stay upright on a tilted chart.
+  `wx-speed-labels` rightly stays `'viewport'`: it is unrotated text and should
+  read horizontally. `screens.test.tsx` fails any rotated symbol layer on either
+  chart that is not map-aligned. `ScalarLayer` and `ParticleLayer` are fine —
+  both project through `defaultProjectionData.mainMatrix`, and the particle trail
+  buffer already clears on camera move.
 
 - Done when: a barb over the line reads the same compass direction after a two-finger rotate as before it.
 

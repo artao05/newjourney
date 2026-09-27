@@ -58,6 +58,16 @@ export class BoatSim {
   private heading: Degrees
   private speed: Knots
   private t: Millis
+  /**
+   * Wall clock at construction, so the wind pattern can run from *elapsed* time.
+   *
+   * `t` itself has to stay a real epoch timestamp - the start-line timer and the
+   * tide lookups both need one - but the oscillation phase used to be taken from
+   * it directly, which meant the same seed produced a different breeze depending on
+   * what time of day you pressed simulate. That silently broke the one promise this
+   * module makes about being debuggable: replaying a race and getting the same race.
+   */
+  private readonly t0: Millis
   private pilot: Autopilot = { mode: 'drift' }
   private rng: () => number
   private baseTwd: Degrees
@@ -77,6 +87,7 @@ export class BoatSim {
     this.heading = wrap360(opts.twd + 140)
     this.speed = 0
     this.t = Date.now()
+    this.t0 = this.t
     this.rng = mulberry32(seed)
   }
 
@@ -100,8 +111,8 @@ export class BoatSim {
 
   /** Instantaneous true wind, including the oscillation. */
   wind(): { twd: Degrees; tws: Knots } {
-    const phase =
-      (this.t / 1000 / this.opts.oscillationPeriodS) * 2 * Math.PI
+    const elapsedS = (this.t - this.t0) / 1000
+    const phase = (elapsedS / this.opts.oscillationPeriodS) * 2 * Math.PI
     const osc = Math.sin(phase) * this.opts.oscillationDeg
     return {
       twd: wrap360(this.baseTwd + osc + this.noise),
@@ -125,8 +136,12 @@ export class BoatSim {
   step(dtS: number): BoatState {
     this.t += dtS * 1000
     // Slow random walk on wind direction, bounded.
-    this.noise += (this.rng() - 0.5) * dtS * 0.35
-    this.noise = Math.max(-12, Math.min(12, this.noise * 0.995))
+    this.noise += (this.rng() - 0.5) * Math.sqrt(dtS) * 0.35
+    // Decay per second rather than per call: the caller picks dtS (the app steps at
+    // 0.5 s, a test may use 30), and an unscaled factor made the breeze wander
+    // differently at different frame rates.
+    this.noise *= Math.pow(0.995, dtS)
+    this.noise = Math.max(-12, Math.min(12, this.noise))
 
     const { twd, tws } = this.wind()
 
@@ -163,10 +178,16 @@ export class BoatSim {
     const twa = twaFrom(this.heading, twd)
     const target = this.pilot.mode === 'drift' ? 0 : this.targetSpeed(twa, tws)
     // Turning costs speed, which is what makes time-to-line non-trivial.
+    // `turn` is the angle actually turned this step — already proportional to
+    // dtS when turning at full rate — so the loss scales with the step size
+    // without an extra `* dtS`. The old `turnLoss * dtS * 0.5` multiplied by
+    // dtS twice, giving O(dtS²): the loss vanished as the step shrank and
+    // exploded as it grew, exactly the frame-rate bug the noise decay comment
+    // on line 143 describes.
     const turnLoss = Math.min(0.6, Math.abs(turn) / 18)
     const tau = target > this.speed ? 14 : 6 // slower to accelerate than to slow
     this.speed += ((target - this.speed) / tau) * dtS
-    this.speed *= 1 - turnLoss * dtS * 0.5
+    this.speed *= 1 - turnLoss * 0.5
     this.speed = Math.max(0, this.speed)
 
     // --- move: water track + current ---------------------------------------
@@ -180,13 +201,12 @@ export class BoatSim {
       vx += Math.sin(cRad) * cur.drift
       vy += Math.cos(cRad) * cur.drift
     }
-    const dNm = (dtS / 3600) * Math.hypot(vx, vy)
     const cog = wrap360((Math.atan2(vx, vy) * 180) / Math.PI)
-    this.pos = frame.toLatLon({
-      x: frame.toXY(this.pos).x + (vx * dtS) / 3600,
-      y: frame.toXY(this.pos).y + (vy * dtS) / 3600,
-    })
-    void dNm
+    // The frame is anchored at the current position, so `toXY(this.pos)` is (0, 0)
+    // by construction: the displacement is the whole sum. This used to add it to
+    // that zero, projecting the same point twice, and to compute a `dNm` that was
+    // then discarded with `void`.
+    this.pos = frame.toLatLon({ x: (vx * dtS) / 3600, y: (vy * dtS) / 3600 })
 
     return {
       t: this.t,

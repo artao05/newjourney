@@ -66,7 +66,7 @@ Expedition is, functionally, a GRIB client with an unusually good merge engine.
 |---|---|---|---|
 | GRIB 1 and GRIB 2 | Reads most common types. No practical limit on files loaded at once. | **P0** | We decode server-side; the phone never sees a GRIB. |
 | NetCDF | Some datasets supported, expandable on request. | **P2** | Only if we ingest CMEMS ocean data directly. |
-| **Intelligent multi-file merge** | "Expedition can seamlessly merge and use multiple Grib files, automatically using the best available data in the selected Grib files for its calculations." | **P0** | This is a core, under-appreciated feature. See [how-it-computes.md](how-it-computes.md#weather-field-merging). |
+| **Intelligent multi-file merge** | "Expedition can seamlessly merge and use multiple Grib files, automatically using the best available data in the selected Grib files for its calculations." | **P0** | This is a core, under-appreciated feature. See [how-it-computes.md](how-it-computes.md#3-weather-field-merging). |
 | Model catalogue via Expedition's own GRIB server | GFS 0.11°/0.25°, UM 0.1°, ECMWF 0.2°, ICON 0.1°, GDPS 0.15°, Arpège 0.1–0.25°, NBM 0.09°, Mercator 1/12°, plus regional ACCESS, AROME, HARMONIE, HRRR, RAP, ICON-EU/DE, UM-UKV, WRF, OFS, Copernicus. | **P0/P1** | We can get GFS, ECMWF, ICON, GDPS, Arpège, HRRR, NBM, and RTOFS free and legally. See [data-sources](../02-data-sources/weather-models.md). |
 | Expedition WRF server | In-house WRF runs at 1/12°, 1/36°, 1/108°; 3–6 hourly. | **P3** initially | Running our own WRF/ICON-D2-class nest is a real cost. Revisit if venue-scale forecasting becomes the differentiator. |
 | Saildocs | Email or direct-web GRIB delivery. Models: GFS, ECMWF, ICON, NAVGEM, HRRR, NAM, NDFD, RTOFS. Subscriptions by days. | **P2** | Matters only for satcom users. A "low-bandwidth mode" is the analogous feature for us. |
@@ -98,7 +98,7 @@ Expedition is, functionally, a GRIB client with an unusually good merge engine.
 | Ensemble display modes | Standard / Ensemble (all members) / Ensemble statistics (mean + standard deviation). | **P2** |
 | Scale currents % | Multiply GRIB currents by a user factor. Applies to routing only, not instrument-derived current. | **P1** |
 | Rotate 10 m wind ±° | Correct a systematic directional bias in a model. | **P1** |
-| Scale 10 m wind % | **Height correction.** See the formula in [how-it-computes.md](how-it-computes.md#wind-height-scaling). | **P0** |
+| Scale 10 m wind % | **Height correction.** See the formula in [how-it-computes.md](how-it-computes.md#2-wind-height-scaling). | **P0** |
 | Per-model, per-windspeed user scaling | Stored in `WxModels.xml`. | **P2** |
 | SkewT diagram | Optional; noted as slowing route optimisation. | **P3** |
 
@@ -322,7 +322,7 @@ The manual's warning about target derivation is a real implementation trap:
 
 Also: designer polars are typically referenced to **10 m** wind, while sailors want
 masthead-referenced numbers. Expedition solves this with the wind scaling formula in
-[how-it-computes.md](how-it-computes.md#wind-height-scaling).
+[how-it-computes.md](how-it-computes.md#2-wind-height-scaling).
 
 ---
 

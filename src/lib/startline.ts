@@ -419,9 +419,11 @@ export function computeStart(i: StartInputs): StartNumbers {
   const out = emptyStart()
   const { line, state, boat } = i
   const approaches = i.approaches ?? ALL_APPROACHES
+  const wind =
+    i.wind && Number.isFinite(i.wind.twd) && Number.isFinite(i.wind.tws) ? i.wind : null
   const ctx: Ctx = {
     state,
-    wind: i.wind,
+    wind,
     current: i.current ?? null,
     boat,
     lattice: i.lattice ?? null,
@@ -453,11 +455,11 @@ export function computeStart(i: StartInputs): StartNumbers {
   out.lineSquareWindDeg = squareWind
 
   // --- bias ----------------------------------------------------------------
-  if (i.wind) {
+  if (wind) {
     // Negative = port end favoured, positive = starboard end favoured.
     // (A leeward start has the ends labelled the other way round; the sign
     // then names the downwind-favoured end, which is still the one to go to.)
-    const bias = angdiff(i.wind.twd, squareWind)
+    const bias = angdiff(wind.twd, squareWind)
     out.biasAngleDeg = bias
     // The number that actually matters: 5° on a 100 m line is one boat length,
     // 5° on a 1 km line is the whole race.
@@ -479,9 +481,13 @@ export function computeStart(i: StartInputs): StartNumbers {
   const preStartRef = fromPolar(wrap360(lineBrg + 90), lineLenNm)
   const orient = Math.sign(signedDistanceToLine(preStartRef, pxy, sxy)) || 1
   const belowNm = orient * signedDistanceToLine(bowXY, pxy, sxy)
-  out.distanceBelowLineM = nmToM(belowNm)
+  // A distance is only a distance if the fix it came from was a position. These
+  // stay null for a non-finite one rather than rendering "NaN boat lengths" -
+  // the same discipline the rest of this file applies to a bad COG or SOG.
+  const belowKnown = Number.isFinite(belowNm)
+  out.distanceBelowLineM = belowKnown ? nmToM(belowNm) : null
   out.distanceBelowLineBoatLengths =
-    boat.loaMetres > 0 ? nmToM(belowNm) / boat.loaMetres : null
+    belowKnown && boat.loaMetres > 0 ? nmToM(belowNm) / boat.loaMetres : null
 
   // OCS only if the bow is over AND the gun has not fired yet.
   out.ocs = belowNm < 0 && out.timeToGunS !== null && out.timeToGunS > 0
@@ -523,12 +529,12 @@ export function computeStart(i: StartInputs): StartNumbers {
 
   // Close-hauled (or running) approaches on each tack, including the turn onto
   // that tack. `timeToPointCore` charges the tack in both time and speed.
-  if (i.wind && ctx.lattice) {
-    const targets = ctx.lattice.targetsAt(i.wind.tws)
+  if (wind && ctx.lattice) {
+    const targets = ctx.lattice.targetsAt(wind.tws)
     // A start line is normally set for a beat, but not always: if the wind is
     // more than 90° from the square wind the course side is downwind and the
     // approach runs at the downwind target angle instead.
-    const upwind = angsep(i.wind.twd, squareWind) < 90
+    const upwind = angsep(wind.twd, squareWind) < 90
     const targetTwa = Math.abs(upwind ? targets.upTwa : targets.downTwa)
     const tacks: Array<['port' | 'starboard', number]> = [
       ['starboard', targetTwa],
@@ -536,7 +542,7 @@ export function computeStart(i: StartInputs): StartNumbers {
     ]
     for (const [tack, twa] of tacks) {
       if (!approaches[tack]) continue
-      const cross = crossingPoint(bowXY, courseFor(i.wind.twd, twa), pxy, lineDir, frame)
+      const cross = crossingPoint(bowXY, courseFor(wind.twd, twa), pxy, lineDir, frame)
       if (!cross) continue
       const t = timeToPointOverGround(bow, cross, ctx)
       if (t !== null) candidates.push(t)

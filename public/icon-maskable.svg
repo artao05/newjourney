@@ -1,0 +1,20 @@
+<!--
+  The maskable variant.
+
+  Android applies its own mask to any icon declaring `purpose: maskable` - circle,
+  squircle or rounded square depending on the launcher - and crops everything outside
+  a circle of 80% of the canvas. So this differs from icon.svg in exactly two ways
+  that the platform requires: the background bleeds to the edge with no corner radius
+  of its own, because the shape is the launcher's to choose, and the artwork is
+  scaled into the central 80% so nothing can be cropped.
+
+  icon.svg keeps the rounded rect and the full-bleed artwork, and is declared `any`.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#08131f"/>
+  <g transform="translate(51.2, 51.2) scale(0.8)">
+    <path d="M256 76 148 372h108z" fill="#ffd54a"/>
+    <path d="M282 168l108 204H282z" fill="#4fc3f7"/>
+    <path d="M96 408h320" stroke="#35d07f" stroke-width="26" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>

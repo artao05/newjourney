@@ -169,6 +169,13 @@ describe('parseGpx track points', () => {
     // Not a skipped *time* — it never got as far as having one.
     expect(parsed.skippedTrackPoints).toBe(0)
   })
+
+  it('rejects a waypoint with a missing lat attribute instead of placing it at 0', () => {
+    const bad = `<?xml version="1.0"?><gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+      <wpt lon="-70.2"><name>Buoy</name></wpt></gpx>`
+    const parsed = parseGpx(bad)
+    expect(parsed.waypoints).toHaveLength(0)
+  })
 })
 
 describe('trackToGpx', () => {
@@ -211,7 +218,7 @@ describe('route export', () => {
     isochrones: [],
     reverseIsochrones: [],
     sensitivity: null,
-    diagnostics: { nodesExplored: 1, timeStepS: 600, computeMs: 5, warnings: [] },
+    diagnostics: { nodesExplored: 1, timeStepS: 600, computeMs: 5, landAvoided: false, warnings: [] },
   } satisfies RouteResult
 
   it('timestamps each leg so a plotter loads it as a schedule', () => {

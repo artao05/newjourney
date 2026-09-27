@@ -18,11 +18,17 @@ interface Props {
   onClick?: () => void
 }
 
+/** toFixed that never shows negative zero — the sign carries no information at zero. */
+export function fmtFixed(value: number, dp: number): string {
+  const s = value.toFixed(dp)
+  return Object.is(+s, -0) ? s.slice(1) : s
+}
+
 export function Tile({ label, value, unit, dp = 1, sub, tone, small, onClick }: Props) {
   const known = value !== null && value !== undefined && value !== '' &&
     !(typeof value === 'number' && !Number.isFinite(value))
   const text =
-    !known ? '—' : typeof value === 'number' ? value.toFixed(dp) : String(value)
+    !known ? '—' : typeof value === 'number' ? fmtFixed(value, dp) : String(value)
 
   const cls = [
     'tile',
@@ -67,9 +73,8 @@ export function Tile({ label, value, unit, dp = 1, sub, tone, small, onClick }: 
  */
 export function fmtDuration(seconds: number | null | undefined): string | null {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return null
-  const neg = seconds < 0
   const s = Math.round(Math.abs(seconds))
-  const sign = neg ? '-' : ''
+  const sign = seconds < 0 && s > 0 ? '-' : ''
   if (s < 60) return `${sign}${s}s`
   const mins = Math.floor(s / 60)
   if (mins < 60) return `${sign}${mins}m`
@@ -81,11 +86,10 @@ export function fmtDuration(seconds: number | null | undefined): string | null {
 /** mm:ss, or -mm:ss after the gun. Handles null. */
 export function fmtClock(seconds: number | null | undefined): string | null {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return null
-  const neg = seconds < 0
   const s = Math.floor(Math.abs(seconds))
   const m = Math.floor(s / 60)
   const r = s % 60
-  return `${neg ? '-' : ''}${m}:${String(r).padStart(2, '0')}`
+  return `${seconds < 0 && s > 0 ? '-' : ''}${m}:${String(r).padStart(2, '0')}`
 }
 
 /**
@@ -104,7 +108,8 @@ export function fmtAgo(seconds: number | null | undefined): string | null {
   const hr = s / 3600
   // Days from 24 h, not 36: at a 36 h cutoff `Math.round(36/24)` is already 2, so
   // "1 day" was unreachable. "1 day ago" also reads better than "24 h ago".
-  if (hr < 24) return `${Math.round(hr)} h`
+  const roundedHr = Math.round(hr)
+  if (roundedHr < 24) return `${roundedHr} h`
   const days = Math.round(hr / 24)
   return `${days} day${days === 1 ? '' : 's'}`
 }

@@ -24,7 +24,7 @@ import type {
   Targets,
   WeatherField,
 } from '../types'
-import { defaultConstraints, defaultScalings, routeIsochrone } from './isochrone'
+import { defaultConstraints, defaultScalings, isNight, routeIsochrone } from './isochrone'
 import { PolygonLandMask, buildLandMask, extractPolygons } from './land'
 import type { RouteWorkerResponse } from './worker'
 
@@ -152,10 +152,12 @@ interface FieldOpts {
   hours?: number
   /** Forced GRIB cadence, seconds — the kernel clamps its time step to it. */
   gribStepS?: number
+  /** Epoch for the fake field, ms UTC. */
+  t0?: Millis
 }
 
 function makeField(o: FieldOpts): WeatherField {
-  const t0 = Date.UTC(2026, 5, 15, 6, 0, 0)
+  const t0 = o.t0 ?? Date.UTC(2026, 5, 15, 6, 0, 0)
   const hours = o.hours ?? 72
   const dirOf = typeof o.twd === 'function' ? o.twd : () => o.twd as number
   const spdOf = typeof o.tws === 'function' ? o.tws : () => o.tws as number
@@ -292,6 +294,53 @@ describe('isochrone routing kernel', () => {
     expect(penalised.elapsedS!).toBeGreaterThanOrEqual(clean.elapsedS! - 1)
   })
 
+  it('multi-leg route applies gybe penalty at mark rounding', () => {
+    const start = { lat: 40, lon: -70 }
+    // Leg 1: 5 nm due east — beam reach on port (heading 90°, TWA ≈ −90°).
+    const m1 = destination(start, 90, 5)
+    // Leg 2: 5 nm to the SW — broad reach on starboard (heading ≈ 225°, TWA ≈ +135°).
+    const m2 = destination(m1, 225, 5)
+    const ctx = { field: makeField({ twd: 0, tws: 12 }), lattice: LATTICE }
+    const gybePen = 300
+
+    // Both routes use useTack = true (penalty > 0), so the bucket keying is
+    // identical. Comparing against a baseline with gybePenaltyS = 1 isolates
+    // the mark-rounding penalty from the bucketing change.
+    const baseline = routeIsochrone(
+      request({
+        start,
+        marks: [m1, m2],
+        resolution: 'balanced',
+        constraints: { ...defaultConstraints(), gybePenaltyS: 1 },
+      }),
+      ctx,
+    )
+    expect(baseline.ok, baseline.error).toBe(true)
+
+    const penalised = routeIsochrone(
+      request({
+        start,
+        marks: [m1, m2],
+        resolution: 'balanced',
+        constraints: { ...defaultConstraints(), gybePenaltyS: gybePen },
+      }),
+      ctx,
+    )
+    expect(penalised.ok, penalised.error).toBe(true)
+
+    // The mark rounding from port (leg 1) to starboard (leg 2) is a gybe.
+    // With a 300 s penalty the optimizer adjusts the leg-1 approach angle to
+    // avoid the mark-rounding gybe, staying on port through the goal hop. The
+    // avoidance detour costs measurable time (~25 s in practice). The
+    // assertion checks that the penalty is visible — before the fix
+    // (goal-hop penalty + initialTack propagation) the diff was ≈ 0.
+    const diff = penalised.elapsedS! - baseline.elapsedS!
+    note(
+      `multi-leg gybe penalty: baseline(1s) ${baseline.elapsedS!.toFixed(1)} s, penalised(${gybePen}s) ${penalised.elapsedS!.toFixed(1)} s, diff ${diff.toFixed(1)} s`,
+    )
+    expect(diff).toBeGreaterThan(10)
+  })
+
   // §10.3
   it('constant current, constant wind: matches the analytic drift-corrected solution', () => {
     const start = { lat: 40, lon: -70 }
@@ -393,6 +442,56 @@ describe('isochrone routing kernel', () => {
     )
   })
 
+  // §8 — backward pass must use the same sample time for the night-polar check
+  // as for the wind field, so the polar scaling matches the wind it accompanies.
+  it('forward/backward consistency holds across dawn with different day/night polars', () => {
+    const start = { lat: 40, lon: -70 }
+    const finish = destination(start, 30, 60)
+
+    // Find the dawn crossing at this location: scan from midnight UTC onward
+    // for the moment isNight flips from true to false.
+    const baseDay = Date.UTC(2026, 5, 15, 0, 0, 0) // midnight UTC June 15
+    let dawnMs = baseDay + 9 * 3_600_000 // fallback ~9 UTC
+    for (let t = baseDay; t < baseDay + 18 * 3_600_000; t += 60_000) {
+      if (isNight(start.lat, start.lon, t) && !isNight(start.lat, start.lon, t + 60_000)) {
+        dawnMs = t + 30_000
+        break
+      }
+    }
+
+    // Start 4 hours before dawn so both forward and backward passes cross it.
+    const startTime = dawnMs - 4 * 3_600_000
+    const res = routeIsochrone(
+      request({
+        start,
+        marks: [finish],
+        startTime,
+        scalings: { ...defaultScalings(), polarPct: 100, polarPctNight: 50 },
+        computeSensitivity: true,
+      }),
+      { field: makeField({ twd: 90, tws: 12, hours: 96 }), lattice: LATTICE },
+    )
+    expect(res.ok, res.error).toBe(true)
+    expect(res.reverseIsochrones.length).toBeGreaterThan(3)
+    expect(res.sensitivity).not.toBeNull()
+
+    const marker = res.reverseIsochrones[res.reverseIsochrones.length - 1]
+    const trStart = (res.etaMs! - marker.t) / 1000
+    const errS = Math.abs(trStart - res.elapsedS!)
+    note(
+      `§8 dawn crossing: forward ${res.elapsedS!.toFixed(1)} s vs backward ${trStart.toFixed(1)} s -> error ${errS.toFixed(2)} s (Δt ${res.diagnostics.timeStepS} s)`,
+    )
+    // Tighter than the general §10.5 consistency test: a one-step offset in the
+    // night-check time produces an error of exactly 1 dtS when day and night
+    // polars differ, so 0.5% catches it while still clearing discretisation noise.
+    expect(errS / res.elapsedS!).toBeLessThan(0.005)
+
+    // The sensitivity field must still show near-zero loss on the optimal route.
+    const finite = Array.from(res.sensitivity!.loss).filter((v) => isFinite(v))
+    expect(finite.length).toBeGreaterThan(10)
+    expect(Math.min(...finite)).toBeLessThan(1)
+  })
+
   // §10 / §6 — the endpoint-only bug must not survive this.
   it('land avoidance: the route goes round an island and no segment crosses it', () => {
     const start = { lat: 40, lon: -70 }
@@ -447,6 +546,53 @@ describe('isochrone routing kernel', () => {
     )
     expect(crossings).toBe(0)
     expect(sailed).toBeGreaterThan(direct * 1.001)
+  })
+
+  // The goal hop — the final partial step onto a mark — must check the land
+  // mask, or it short-circuits through a peninsula near the mark.
+  it('goal hop: the final approach to a mark must not cross land', () => {
+    const start = { lat: 40, lon: -71 }
+    const finish = { lat: 40, lon: -69 }
+    // A thin wall of land right before the mark, spanning enough latitude
+    // that the go-around adds real distance. The time step at 'fast' on a
+    // ~92 nm leg is large enough that the goal hop can reach the mark from
+    // the near side of the wall — and must not.
+    const wall = {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [-69.03, 39.85],
+          [-69.01, 39.85],
+          [-69.01, 40.15],
+          [-69.03, 40.15],
+          [-69.03, 39.85],
+        ],
+      ],
+    }
+    const exact = new PolygonLandMask(extractPolygons(wall))
+    // Sanity: the direct line crosses the wall.
+    expect(exact.crosses(start, finish)).toBe(true)
+
+    const mask = buildLandMask(
+      wall,
+      { west: -71.5, south: 39.3, east: -68.5, north: 40.7 },
+      0.005,
+    )
+    const res = routeIsochrone(
+      request({ start, marks: [finish], resolution: 'fast' }),
+      { field: makeField({ twd: 0, tws: 14 }), lattice: LATTICE, land: mask },
+    )
+    expect(res.ok, res.error).toBe(true)
+
+    // No segment should cross land — including the last hop onto the mark.
+    let crossings = 0
+    for (let i = 1; i < res.legs.length; i++) {
+      if (exact.crosses(res.legs[i - 1].position, res.legs[i].position)) crossings++
+    }
+    note(
+      `goal hop land: ${crossings} crossing segments out of ${res.legs.length - 1}`,
+    )
+    expect(crossings).toBe(0)
   })
 
   it('land mask: crosses() catches a segment that hops right over an island', () => {
@@ -633,6 +779,37 @@ describe('isochrone routing kernel', () => {
     // In a uniform beam-reach field the optimum *is* the direct line.
     expect(res.directTimeS).not.toBeNull()
     expect(Math.abs(res.directTimeS! - res.elapsedS!) / res.elapsedS!).toBeLessThan(0.01)
+  })
+
+  it('direct-line reference slows at night when polarPctNight < polarPct', () => {
+    const start = { lat: 40, lon: -70 }
+    const finish = north(start, 40)
+    // Start near local sunset so the route spans night hours.
+    const duskUTC = Date.UTC(2026, 5, 15, 0, 0, 0)
+    const day = routeIsochrone(
+      request({
+        start,
+        marks: [finish],
+        startTime: duskUTC,
+        scalings: { ...defaultScalings(), polarPct: 100, polarPctNight: 100 },
+      }),
+      { field: makeField({ twd: 90, tws: 12, t0: duskUTC }), lattice: LATTICE },
+    )
+    const night = routeIsochrone(
+      request({
+        start,
+        marks: [finish],
+        startTime: duskUTC,
+        scalings: { ...defaultScalings(), polarPct: 100, polarPctNight: 60 },
+      }),
+      { field: makeField({ twd: 90, tws: 12, t0: duskUTC }), lattice: LATTICE },
+    )
+    expect(day.ok, day.error).toBe(true)
+    expect(night.ok, night.error).toBe(true)
+    expect(day.directTimeS).not.toBeNull()
+    expect(night.directTimeS).not.toBeNull()
+    // With a 60% night polar the direct time must be strictly longer.
+    expect(night.directTimeS!).toBeGreaterThan(day.directTimeS! * 1.01)
   })
 
   // §9 / technical-spec §5 performance targets
@@ -876,5 +1053,349 @@ describe('solar helper', () => {
     expect(el).toBeLessThan(30)
     // The bearing helper is exercised elsewhere; keep the import honest.
     expect(bearing({ lat: 0, lon: 0 }, { lat: 1, lon: 0 })).toBeCloseTo(0, 6)
+  })
+})
+
+// --------------------------------------------------------------------------
+// Kernel invariants, swept rather than exemplified.
+//
+// The suite above establishes correctness on the cases where the answer can be
+// written down. This section asserts the properties that must hold on EVERY
+// solve, across a spread of winds, currents, courses and resolutions. 1915 lines
+// of kernel had 25 example tests; these are the checks that do not need to know
+// the right answer in order to catch a wrong one.
+// --------------------------------------------------------------------------
+
+describe('kernel invariants', () => {
+  interface Scenario {
+    label: string
+    req: RouteRequest
+    field: WeatherField
+  }
+
+  function scenarios(): Scenario[] {
+    const start = { lat: 40, lon: -70 }
+    const out: Scenario[] = []
+    const resolutions = ['fast', 'balanced', 'best'] as const
+
+    // A spread of beats, reaches and runs.
+    const winds = [0, 45, 90, 180, 270]
+    for (let i = 0; i < winds.length; i++) {
+      const twd = winds[i]
+      out.push({
+        label: `twd ${twd}, 12 kn, no current`,
+        field: makeField({ twd, tws: 12 }),
+        req: request({ marks: [north(start, 12)], resolution: resolutions[i % 3] }),
+      })
+    }
+
+    out.push({
+      label: 'cross current',
+      field: makeField({ twd: 180, tws: 12, current: { u: 1.5, v: 0 } }),
+      req: request({ marks: [north(start, 10)] }),
+    })
+    out.push({
+      label: 'wind gradient with latitude',
+      field: makeField({ twd: 200, tws: (lat) => 6 + (lat - 40) * 20 }),
+      req: request({ marks: [north(start, 8)] }),
+    })
+    out.push({
+      label: 'veering wind with time',
+      field: makeField({ twd: (_lat, _lon, t) => 180 + ((t - T0) / 3_600_000) * 10, tws: 11 }),
+      req: request({ marks: [north(start, 10)] }),
+    })
+    out.push({
+      label: 'two legs',
+      field: makeField({ twd: 225, tws: 13 }),
+      req: request({ marks: [north(start, 6), destination(north(start, 6), 90, 5)] }),
+    })
+    out.push({
+      label: 'light air',
+      field: makeField({ twd: 90, tws: 3.5 }),
+      req: request({ marks: [north(start, 4)] }),
+    })
+    out.push({
+      label: 'scaled polar and rotated wind',
+      field: makeField({ twd: 200, tws: 14 }),
+      req: request({
+        marks: [north(start, 9)],
+        scalings: { ...defaultScalings(), polarPct: 85, windRotateDeg: 12, windScalePct: 110 },
+      }),
+    })
+    return out
+  }
+
+  const solved = scenarios().map((s) => ({
+    ...s,
+    result: routeIsochrone(s.req, { field: s.field, lattice: LATTICE, land: null }),
+  }))
+
+  it('solves every scenario', () => {
+    for (const s of solved) {
+      expect(s.result.ok, `${s.label}: ${s.result.error ?? ''}`).toBe(true)
+      expect(s.result.legs.length, s.label).toBeGreaterThan(1)
+    }
+  })
+
+  it('never emits a NaN or an infinity in a leg', () => {
+    for (const s of solved) {
+      for (let i = 0; i < s.result.legs.length; i++) {
+        const l = s.result.legs[i]
+        for (const [k, v] of Object.entries(l)) {
+          if (typeof v === 'number') {
+            expect(Number.isFinite(v), `${s.label} leg ${i}: ${k} is ${v}`).toBe(true)
+          }
+        }
+        expect(Number.isFinite(l.position.lat), `${s.label} leg ${i}: lat`).toBe(true)
+        expect(Number.isFinite(l.position.lon), `${s.label} leg ${i}: lon`).toBe(true)
+      }
+    }
+  })
+
+  it('keeps every angle in its documented range', () => {
+    for (const s of solved) {
+      for (let i = 0; i < s.result.legs.length; i++) {
+        const l = s.result.legs[i]
+        const at = `${s.label} leg ${i}`
+        expect(l.twd, `${at} twd`).toBeGreaterThanOrEqual(0)
+        expect(l.twd, `${at} twd`).toBeLessThan(360)
+        expect(l.heading, `${at} heading`).toBeGreaterThanOrEqual(0)
+        expect(l.heading, `${at} heading`).toBeLessThan(360)
+        expect(Math.abs(l.twa), `${at} twa`).toBeLessThanOrEqual(180)
+        expect(l.tws, `${at} tws`).toBeGreaterThanOrEqual(0)
+        expect(l.bsp, `${at} bsp`).toBeGreaterThanOrEqual(0)
+        expect(l.distanceNm, `${at} distanceNm`).toBeGreaterThanOrEqual(0)
+      }
+    }
+  })
+
+  it('reports an elapsed time that matches its own ETA and leg clock', () => {
+    for (const s of solved) {
+      const legs = s.result.legs
+      expect(s.result.etaMs, s.label).not.toBeNull()
+      expect(s.result.elapsedS, s.label).not.toBeNull()
+      const eta = s.result.etaMs as number
+      const elapsed = s.result.elapsedS as number
+
+      expect(eta - s.req.startTime, `${s.label}: eta vs elapsed`).toBeCloseTo(elapsed * 1000, 3)
+      expect(legs[legs.length - 1].t, `${s.label}: last leg is the ETA`).toBeCloseTo(eta, 3)
+      /*
+       * Non-decreasing, not strictly increasing. A zero-duration leg does occur -
+       * arriving at a mark exactly on a step boundary produces one - and it is
+       * harmless as long as the clock never runs backwards, which is the property
+       * that would actually break an ETA.
+       */
+      for (let i = 1; i < legs.length; i++) {
+        expect(legs[i].t, `${s.label} leg ${i} clock`).toBeGreaterThanOrEqual(legs[i - 1].t)
+      }
+    }
+  })
+
+  it('moves each leg at the speed it claims to be sailing', () => {
+    /*
+     * The invariant that needs no ground truth: whatever the kernel decided, the
+     * distance between two consecutive legs must equal the reported speed times
+     * the time between them. If those disagree, every derived number - the ETA,
+     * distance to finish, the results table - describes a boat that did not sail
+     * the drawn line.
+     *
+     * Checked only where there is no current, because with a set running, speed
+     * through the water is deliberately not speed over ground. Beating legs are
+     * included: their bsp is the VMG-equivalent speed along the drawn path, which
+     * is exactly what this measures.
+     */
+    for (const s of solved) {
+      if (s.label.includes('current')) continue
+      const legs = s.result.legs
+      for (let i = 1; i < legs.length; i++) {
+        const dtH = (legs[i].t - legs[i - 1].t) / 3_600_000
+        if (dtH <= 0) continue
+        const moved = distance(legs[i - 1].position, legs[i].position)
+        const claimed = legs[i].bsp * dtH
+        // 2% or a tenth of a mile, whichever is larger: leg positions are
+        // great-circle steps and the speed is a mean over the step.
+        const tol = Math.max(0.1, claimed * 0.02)
+        expect(
+          Math.abs(moved - claimed),
+          `${s.label} leg ${i}: moved ${moved.toFixed(3)} nm, claimed ${claimed.toFixed(3)} nm`,
+        ).toBeLessThan(tol)
+      }
+    }
+  })
+
+  it('measures distanceNm forward, to the next leg', () => {
+    /*
+     * The field is the distance OUT of a leg, not into it - `P.dist[nxt]` at the
+     * emit site, while twa, bsp and heading all come from `src`. The natural
+     * reading is the other one, which is why this is pinned and why the type now
+     * says so: the value leaves the app as the `dist_nm` CSV column.
+     */
+    for (const s of solved) {
+      const legs = s.result.legs
+      for (let i = 0; i < legs.length - 1; i++) {
+        const ahead = distance(legs[i].position, legs[i + 1].position)
+        const tol = Math.max(0.1, ahead * 0.02)
+        expect(
+          Math.abs(legs[i].distanceNm - ahead),
+          `${s.label} leg ${i}: distanceNm ${legs[i].distanceNm.toFixed(3)} vs ${ahead.toFixed(3)} ahead`,
+        ).toBeLessThan(tol)
+      }
+      // Nowhere left to go from the last one.
+      expect(legs[legs.length - 1].distanceNm, `${s.label}: last leg`).toBe(0)
+    }
+  })
+
+  it('never sails faster than the polar allows for the angle it reports', () => {
+    // Excludes beating legs, whose reported bsp is a VMG-equivalent along a
+    // zigzag rather than the polar speed at the drawn heading.
+    for (const s of solved) {
+      const pct = s.req.scalings.polarPct / 100
+      for (let i = 0; i < s.result.legs.length; i++) {
+        const l = s.result.legs[i]
+        if (l.isBeating) continue
+        const ceiling = LATTICE.speed(l.tws, l.twa) * pct
+        expect(
+          l.bsp,
+          `${s.label} leg ${i}: bsp ${l.bsp.toFixed(3)} over polar ${ceiling.toFixed(3)} at twa ${l.twa.toFixed(1)}`,
+        ).toBeLessThan(ceiling + 0.35)
+      }
+    }
+  })
+
+  it('finishes at the last mark', () => {
+    for (const s of solved) {
+      const marks = s.req.marks
+      const last = s.result.legs[s.result.legs.length - 1]
+      expect(
+        distance(last.position, marks[marks.length - 1]),
+        `${s.label}: finished short of the mark`,
+      ).toBeLessThan(0.75)
+    }
+  })
+
+  it('gives the same answer twice for the same question', { timeout: 60_000 }, () => {
+    /*
+     * Determinism is not a nicety. Every claim this project makes about the
+     * confidence band, and every bug anyone chases in a route, assumes the same
+     * inputs produce the same route. Map iteration order, float accumulation or a
+     * stray Date.now() in the kernel would each break it silently, and the symptom
+     * would be a route that changes when you press the button again.
+     */
+    for (const s of solved) {
+      const again = routeIsochrone(s.req, { field: s.field, lattice: LATTICE, land: null })
+      expect(again.ok, s.label).toBe(s.result.ok)
+      expect(again.legs.length, `${s.label}: leg count`).toBe(s.result.legs.length)
+      expect(again.elapsedS, `${s.label}: elapsed`).toBe(s.result.elapsedS)
+      for (let i = 0; i < again.legs.length; i++) {
+        expect(again.legs[i].position.lat, `${s.label} leg ${i} lat`).toBe(
+          s.result.legs[i].position.lat,
+        )
+        expect(again.legs[i].position.lon, `${s.label} leg ${i} lon`).toBe(
+          s.result.legs[i].position.lon,
+        )
+        expect(again.legs[i].bsp, `${s.label} leg ${i} bsp`).toBe(s.result.legs[i].bsp)
+      }
+    }
+  })
+
+  it('emits isochrones in increasing time order, inside the route window', () => {
+    for (const s of solved) {
+      const iso = s.result.isochrones
+      expect(iso.length, s.label).toBeGreaterThan(0)
+      /*
+       * NOT globally monotonic, and that is structural rather than a defect: a
+       * multi-leg route concatenates one series per leg, and leg two starts from
+       * the arrival time at mark one while leg one's grid may have reached past it.
+       * So the assertion is that the series only ever steps backwards where a new
+       * leg begins, never within a leg.
+       */
+      let backwards = 0
+      for (let k = 1; k < iso.length; k++) {
+        if (iso[k].t < iso[k - 1].t) backwards++
+      }
+      expect(backwards, `${s.label}: isochrone series restarts`).toBeLessThan(
+        Math.max(1, s.req.marks.length),
+      )
+      for (const ring of iso) {
+        expect(ring.t, `${s.label}: isochrone before the start`).toBeGreaterThanOrEqual(
+          s.req.startTime,
+        )
+        for (const p of ring.points) {
+          expect(Number.isFinite(p.lat), `${s.label}: isochrone lat`).toBe(true)
+          expect(Number.isFinite(p.lon), `${s.label}: isochrone lon`).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('reports diagnostics that describe the solve it actually did', () => {
+    for (const s of solved) {
+      const d = s.result.diagnostics
+      expect(d.nodesExplored, s.label).toBeGreaterThan(0)
+      expect(d.timeStepS, s.label).toBeGreaterThan(0)
+      expect(Number.isFinite(d.computeMs), s.label).toBe(true)
+      expect(Array.isArray(d.warnings), s.label).toBe(true)
+      // The step must not exceed the whole elapsed time, which would mean the
+      // route was decided in fewer than two steps.
+      expect(d.timeStepS, `${s.label}: step vs elapsed`).toBeLessThanOrEqual(
+        (s.result.elapsedS as number) + 1,
+      )
+    }
+  })
+})
+
+describe('wind time shift does not drag current or waves', () => {
+  it('queries current at unshifted time', () => {
+    const windCalls: Array<[number, number, number]> = []
+    const currentCalls: Array<[number, number, number]> = []
+    const t0Field = Date.UTC(2026, 5, 15, 6, 0, 0)
+    const shiftS = 3600
+    const shiftMs = shiftS * 1000
+
+    const field: WeatherField = {
+      wind(lat: number, lon: number, t: Millis) {
+        windCalls.push([lat, lon, t])
+        return { u: 0, v: -12, source: 'test' }
+      },
+      gust: () => null,
+      current(lat: number, lon: number, t: Millis) {
+        currentCalls.push([lat, lon, t])
+        return { u: 0.5, v: 0, source: 'test' }
+      },
+      waves: () => null,
+      coverage: () => ({
+        bbox: { west: -180, south: -85, east: 180, north: 85 },
+        t0: t0Field,
+        t1: t0Field + 72 * 3_600_000,
+      }),
+    }
+
+    const start: LatLon = { lat: 40, lon: -70 }
+    const mark = destination(start, 0, 10)
+    const req = request({
+      start,
+      marks: [mark],
+      scalings: { ...defaultScalings(), windTimeShiftS: shiftS },
+    })
+
+    routeIsochrone(req, { field, lattice: LATTICE })
+
+    expect(windCalls.length).toBeGreaterThan(0)
+
+    // hydrate probes current at 3 spatial points before the grid loop, so
+    // skip those; the remaining calls pair 1:1 with wind calls.
+    const gridCurrentCalls = currentCalls.slice(3)
+    expect(gridCurrentCalls.length).toBe(windCalls.length)
+
+    for (let i = 0; i < windCalls.length; i++) {
+      const [wLat, wLon, wT] = windCalls[i]
+      const [cLat, cLon, cT] = gridCurrentCalls[i]
+      expect(cLat).toBe(wLat)
+      expect(cLon).toBe(wLon)
+      expect(
+        cT - wT,
+        'current must be queried shiftMs later than wind (i.e. at the unshifted time)',
+      ).toBe(shiftMs)
+    }
   })
 })

@@ -416,7 +416,7 @@ describe('computeTactics', () => {
     // Mark dead upwind: beat time = range/cos0 along the wind at target VMG,
     // 1 / (6 cos40) h = 783.24 s, plus one tack penalty.
     expect(r.markTimeS).toBeCloseTo(3600 / (6 * COS40) + 10, 1)
-    expect(r.nextMarkBearing).not.toBeNull()
+    expectAngle(r.nextMarkBearing, 180, 3)
     expect(r.distanceToFinishNm).toBeCloseTo(2.5, 4)
     expect(r.laylines).not.toBeNull()
     expect(r.laylines!.distanceToPortLayline).toBeCloseTo(1 / (2 * COS40), 4)
@@ -471,6 +471,11 @@ describe('computeTactics', () => {
     expect(r.markRange).toBeCloseTo(1, 6)
     expect(r.vmc).toBeCloseTo(5 * COS40, 4)
     expect(r.markTimeS).toBeCloseTo((1 / (5 * COS40)) * 3600, 3)
+    // VMG is BSP · cos(TWA), a pure kinematic value independent of any polar.
+    // It must be available whenever there is a wind and a boat speed.
+    expect(r.vmg).toBeCloseTo(5 * COS40, 6)
+    // vmgPct requires the polar target VMG, so it stays null.
+    expect(r.vmgPct).toBeNull()
   })
 
   it('never throws on hostile input', () => {
@@ -490,6 +495,37 @@ describe('computeTactics', () => {
     expect(badFix.vmg).toBeCloseTo(0, 9)
     expect(badFix.twd).toBe(0)
     expect(Number.isNaN(badFix.vmg!)).toBe(false)
+    // A NaN heading (stationary GPS, no compass) must yield null TWA, not 180°.
+    // VMC and laylines also stay null — 0 * NaN is NaN, not 0.
+    const noHeading = computeTactics({
+      ...inputs,
+      state: stateOf({ cog: NaN, sog: 0, heading: null }),
+    })
+    expect(noHeading.twd).toBe(0)
+    expect(noHeading.twa).toBeNull()
+    expect(noHeading.vmg).toBeNull()
+    expect(noHeading.vmc).toBeNull()
+    expect(noHeading.polarBsp).toBeNull()
+    expect(noHeading.targetTwa).toBeNull()
+    expect(noHeading.laylines).toBeNull()
+    // But mark bearing and range still work — they come from position, not heading.
+    expectAngle(noHeading.markBearing, 0, 3)
+    expect(noHeading.markRange).toBeCloseTo(1, 3)
+    // NaN sog with valid cog must not produce NaN vmc (NaN * cos = NaN, not 0).
+    const nanSog = computeTactics({
+      ...inputs,
+      state: stateOf({ sog: NaN, heading: 320 }),
+    })
+    expect(nanSog.vmc).toBeNull()
+    expect(nanSog.markBearing).not.toBeNull()
+    // NaN position means we don't know where we are — mark geometry is unknown.
+    const nanPos = computeTactics({
+      ...inputs,
+      state: stateOf({ position: { lat: NaN, lon: NaN } }),
+    })
+    expect(nanPos.markBearing).toBeNull()
+    expect(nanPos.markRange).toBeNull()
+    expect(nanPos.vmc).toBeNull()
     // A lattice that blows up costs its own fields and nothing else.
     const bad = {
       ...fakeLattice(),
@@ -499,7 +535,7 @@ describe('computeTactics', () => {
     }
     const r = computeTactics({ ...inputs, lattice: bad })
     expect(r.twd).toBe(0)
-    expect(r.markBearing).not.toBeNull()
+    expectAngle(r.markBearing, 0, 3)
   })
 
   it('corrects the heading to steer for current', () => {

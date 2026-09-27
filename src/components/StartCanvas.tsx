@@ -10,7 +10,7 @@
 
 import { useEffect, useRef } from 'react'
 import { LocalFrame, fromPolar, nmToM, mToNm } from '@/lib/geo'
-import { courseFor, wrap360 } from '@/lib/angles'
+import { courseFor, fmtDeg, wrap360 } from '@/lib/angles'
 import type {
   Boat,
   BoatState,
@@ -46,6 +46,24 @@ export function StartCanvas(props: Props) {
       const dpr = Math.min(window.devicePixelRatio || 1, 2.5)
       const w = parent.clientWidth
       const h = parent.clientHeight
+      /*
+       * Nothing to draw in a box with no area, and the same guard PolarPlot,
+       * CurrentChart and DepartureChart all carry. This was the last of the four
+       * without it.
+       *
+       * Harmless here today, and only by accident: every `arc` radius below is a
+       * constant, and `scale` at w === 0 collapses to 0 rather than dividing by
+       * zero, so the picture degenerates to a point instead of throwing. PolarPlot
+       * was not so lucky - its ring radii are derived from the width, went negative,
+       * and `ctx.arc` threw IndexSizeError from inside an effect, which unmounted
+       * the tree and let the error boundary replace the entire Setup screen. The
+       * one radius someone later derives from `w` in here would do the same to the
+       * Start screen, which is the one screen this app exists for.
+       *
+       * Reachable whenever the pane has not been laid out at first paint: a
+       * collapsed container, a display:none ancestor, a zero-size viewport.
+       */
+      if (w <= 0 || h <= 0) return
       if (cv.width !== w * dpr || cv.height !== h * dpr) {
         cv.width = w * dpr
         cv.height = h * dpr
@@ -276,7 +294,7 @@ function render(
     ctx.font = '600 10px system-ui, sans-serif'
     ctx.fillStyle = '#4fc3f7'
     ctx.textAlign = 'center'
-    ctx.fillText(`${wind.twd.toFixed(0)}° ${wind.tws.toFixed(0)}kn`, cx, cy + 36)
+    ctx.fillText(`${fmtDeg(wind.twd)}° ${wind.tws.toFixed(0)}kn`, cx, cy + 36)
   }
 
   // ---- the boat -----------------------------------------------------------
@@ -284,10 +302,15 @@ function render(
     const s = S(boatXY)
     const hdg = state.heading ?? state.cog
     const hv = rot(fromPolar(hdg, 1))
-    const ang = Math.atan2(hv.x, hv.y)
+    // A stationary GPS reports no course, so `hdg` can legitimately be NaN. A NaN
+    // rotation makes the hull disappear, which reads as a broken app rather than
+    // as an unknown heading, so the marker falls back to bow-up and the shape
+    // below switches to a circle: position known, heading not.
+    const known = Number.isFinite(hdg)
+    const ang = known ? Math.atan2(hv.x, hv.y) : 0
 
     // COG predictor: where you'll be in 30 s at current SOG.
-    if (state.sog > 0.2) {
+    if (state.sog > 0.2 && Number.isFinite(state.cog)) {
       const cv = rot(fromPolar(state.cog, (state.sog * 30) / 3600))
       const tip = S({ x: boatXY.x + cv.x, y: boatXY.y + cv.y })
       ctx.strokeStyle = 'rgba(79,195,247,0.85)'
@@ -309,10 +332,15 @@ function render(
     ctx.rotate(ang)
     ctx.fillStyle = numbers.ocs ? '#ff4d4d' : '#ffd54a'
     ctx.beginPath()
-    ctx.moveTo(0, -lenPx * 0.5)
-    ctx.quadraticCurveTo(lenPx * 0.19, -lenPx * 0.1, lenPx * 0.15, lenPx * 0.42)
-    ctx.lineTo(-lenPx * 0.15, lenPx * 0.42)
-    ctx.quadraticCurveTo(-lenPx * 0.19, -lenPx * 0.1, 0, -lenPx * 0.5)
+    if (known) {
+      ctx.moveTo(0, -lenPx * 0.5)
+      ctx.quadraticCurveTo(lenPx * 0.19, -lenPx * 0.1, lenPx * 0.15, lenPx * 0.42)
+      ctx.lineTo(-lenPx * 0.15, lenPx * 0.42)
+      ctx.quadraticCurveTo(-lenPx * 0.19, -lenPx * 0.1, 0, -lenPx * 0.5)
+    } else {
+      // No bow, because there is no bow direction to point.
+      ctx.arc(0, 0, lenPx * 0.3, 0, Math.PI * 2)
+    }
     ctx.closePath()
     ctx.fill()
     ctx.restore()

@@ -1,6 +1,8 @@
 # Product Specification
 
-**Status:** draft v0.1 · research phase · nothing built yet
+**Status:** draft v0.1, written before any code existed. A working prototype has since
+been built. [RUNNING.md](../../RUNNING.md#whats-real-and-what-isnt) says what in it is
+real, and the rest of this document is still the intent.
 
 ---
 

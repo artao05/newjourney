@@ -170,8 +170,11 @@ export function parseGpx(xml: string): ParsedGpx {
 
   const waypoints: ParsedGpx['waypoints'] = []
   const readPt = (el: Element) => {
-    const lat = Number(el.getAttribute('lat'))
-    const lon = Number(el.getAttribute('lon'))
+    const latStr = el.getAttribute('lat')
+    const lonStr = el.getAttribute('lon')
+    if (!latStr || !lonStr) return null
+    const lat = Number(latStr)
+    const lon = Number(lonStr)
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
     return { lat, lon }
   }

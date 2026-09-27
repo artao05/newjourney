@@ -15,6 +15,8 @@ import {
   clamp,
   clampUnit,
   courseFor,
+  fmtDeg,
+  fmtShift,
   lerpBearing,
   manoeuvre,
   meanBearing,
@@ -54,6 +56,12 @@ describe('wrap360', () => {
     expect(wrap360(-1)).toBeCloseTo(359, 9)
     expect(wrap360(-90)).toBeCloseTo(270, 9)
     expect(wrap360(-370)).toBeCloseTo(350, 9)
+  })
+
+  it('propagates NaN and Infinity rather than fabricating north', () => {
+    expect(Number.isNaN(wrap360(NaN))).toBe(true)
+    expect(Number.isNaN(wrap360(Infinity))).toBe(true)
+    expect(Number.isNaN(wrap360(-Infinity))).toBe(true)
   })
 })
 
@@ -236,6 +244,16 @@ describe('manoeuvre', () => {
     expect(manoeuvre(89, -89)).toBe('tack')
     expect(manoeuvre(91, -91)).toBe('gybe')
   })
+
+  it('treats TWA 0 (dead upwind) as starboard, consistent with tackOf', () => {
+    // Math.sign(0) is 0, which matches neither 1 nor -1.  The guard must
+    // agree with tackOf(0) === 'starboard': staying on the same side is 'none'.
+    expect(manoeuvre(0, 40)).toBe('none')
+    expect(manoeuvre(0, 150)).toBe('none')
+    expect(manoeuvre(40, 0)).toBe('none')
+    // Crossing from dead upwind to port IS a real side-change.
+    expect(manoeuvre(0, -40)).toBe('tack')
+  })
 })
 
 describe('clamps', () => {
@@ -252,5 +270,58 @@ describe('clamps', () => {
     expect(clamp(5, 0, 10)).toBe(5)
     expect(clamp(-1, 0, 10)).toBe(0)
     expect(clamp(11, 0, 10)).toBe(10)
+  })
+})
+
+describe('fmtDeg', () => {
+  it('never returns "360"', () => {
+    expect(fmtDeg(359.5)).toBe('0')
+    expect(fmtDeg(359.7)).toBe('0')
+    expect(fmtDeg(359.9999)).toBe('0')
+    expect(fmtDeg(360)).toBe('0')
+  })
+
+  it('formats normal bearings as integers', () => {
+    expect(fmtDeg(0)).toBe('0')
+    expect(fmtDeg(90.4)).toBe('90')
+    expect(fmtDeg(180)).toBe('180')
+    expect(fmtDeg(270.6)).toBe('271')
+  })
+
+  it('handles negative values', () => {
+    expect(fmtDeg(-1)).toBe('359')
+    expect(fmtDeg(-0.4)).toBe('0')
+  })
+
+  it('returns an em dash for NaN and Infinity', () => {
+    expect(fmtDeg(NaN)).toBe('—')
+    expect(fmtDeg(Infinity)).toBe('—')
+  })
+})
+
+describe('fmtShift', () => {
+  it('labels a clockwise shift as "right"', () => {
+    expect(fmtShift(90, 110)).toBe('right 20°')
+    expect(fmtShift(0, 15)).toBe('right 15°')
+  })
+
+  it('labels an anticlockwise shift as "left"', () => {
+    expect(fmtShift(110, 90)).toBe('left 20°')
+    expect(fmtShift(15, 0)).toBe('left 15°')
+  })
+
+  it('takes the short way across the 0/360 seam', () => {
+    // This is the case the raw-subtraction bug got wrong: twdToLay = 10,
+    // twd = 350 gave "left 340°" when the real shift is only 20° right.
+    expect(fmtShift(350, 10)).toBe('right 20°')
+    expect(fmtShift(10, 350)).toBe('left 20°')
+    expect(fmtShift(355, 5)).toBe('right 10°')
+    expect(fmtShift(5, 355)).toBe('left 10°')
+  })
+
+  it('shows zero shift', () => {
+    // Zero is directionless; the label is immaterial, the magnitude matters.
+    const z = fmtShift(180, 180)
+    expect(z).toMatch(/0°$/)
   })
 })

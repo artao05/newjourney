@@ -51,7 +51,7 @@ function cancelledResult(reason: string): RouteResult {
     isochrones: [],
     reverseIsochrones: [],
     sensitivity: null,
-    diagnostics: { nodesExplored: 0, timeStepS: 0, computeMs: 0, warnings: [] },
+    diagnostics: { nodesExplored: 0, timeStepS: 0, computeMs: 0, landAvoided: false, warnings: [] },
   }
 }
 
@@ -199,8 +199,25 @@ export class RoutingClient {
       }
     }
     worker.onerror = (e: ErrorEvent) => {
+      /*
+       * Ignore errors from a worker that has already been replaced.
+       *
+       * A queued error event from a terminated worker can fire after cancel()
+       * has resolved its pending promise and ensureWorker() has installed a
+       * new worker with a new pending. Without this guard, the stale error
+       * steals the new request's pending and resolves it with a crash that
+       * belongs to the old worker — the new worker's eventual result is then
+       * silently dropped.
+       *
+       * The identity check also prevents tearing down a newer worker that
+       * already replaced this one: that would move the hang rather than fix
+       * it. Both concerns collapse into a single early return.
+       */
+      if (this.worker !== worker) return
       const p = this.pending
       this.pending = null
+      worker.terminate()
+      this.worker = null
       if (!p) return
       const why = `routing worker crashed: ${e.message}`
       if (p.kind === 'sweep') p.resolve(cancelledSweep(why))

@@ -106,6 +106,35 @@ describe('parsing and serialising', () => {
     expect(p.rows[1].bsp).toEqual([0, 5, 6.6, 6.1, 4.8])
   })
 
+  it('skips empty cells in CSV rather than treating them as zero', () => {
+    // qtVlm layout: TWA down the side, empty cell at (TWA 90, TWS 10)
+    const csv1 = [
+      'twa\\tws;6;10;14',
+      '45;3.2;4.6;5.4',
+      '90;4.8;;7.1',
+      '135;4.4;5.8;6.9',
+      '180;3.1;4.4;5.6',
+    ].join('\n')
+    const p1 = parseCsvPolar(csv1, 'sparse')
+    // The empty cell must not inject a spurious zero-speed entry.
+    expect(p1.rows[1].twa).not.toContain(90)
+    expect(p1.rows[1].bsp.every((v) => v > 0)).toBe(true)
+    // The other rows are still complete.
+    expect(p1.rows[0].twa).toContain(90)
+    expect(p1.rows[2].twa).toContain(90)
+
+    // Transposed layout: TWS down the side, empty cell at (TWS 10, TWA 90)
+    const csv2 = [
+      'tws\\twa,45,90,135,180',
+      '6,3.2,4.8,4.4,3.1',
+      '10,4.6,,5.8,4.4',
+      '14,5.4,7.1,6.9,5.6',
+    ].join('\n')
+    const p2 = parseCsvPolar(csv2)
+    expect(p2.rows[1].twa).not.toContain(90)
+    expect(p2.rows[1].bsp.every((v) => v > 0)).toBe(true)
+  })
+
   it('sniffs Expedition vs CSV', () => {
     const expedition = parsePolar(RAGGED)
     expect(expedition.tws).toEqual([6, 10, 14])

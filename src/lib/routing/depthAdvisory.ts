@@ -150,9 +150,17 @@ export function depthAdvisory(o: DepthAdvisoryOptions): DepthAdvisory {
    * The last leg is the destination, and it is the one most likely to be in
    * shallow water — a mark is usually closer to shore than the water either side
    * of it. `stride` will normally skip it, so it is sampled explicitly.
+   *
+   * The test is whether the loop *visited* it, which is arithmetic on the stride,
+   * and not whether it produced a sample. Asking the latter got both cases wrong:
+   * a destination the loop had already rejected for want of data was sampled again
+   * and counted twice, and — far worse — a destination the loop never reached was
+   * skipped whenever every strided sample missed the grid, because the guard
+   * required a non-empty `samples`. That is precisely the route whose destination
+   * most needs checking: one the rest of the track has no evidence about.
    */
   const lastIndex = legs.length - 1
-  if (samples.length > 0 && samples[samples.length - 1].legIndex !== lastIndex) {
+  if (lastIndex % stride !== 0) {
     const leg = legs[lastIndex]
     const depthMslM = o.depthAt(leg.position.lat, leg.position.lon)
     if (depthMslM != null && Number.isFinite(depthMslM)) {
@@ -202,17 +210,27 @@ export function depthAdvisory(o: DepthAdvisoryOptions): DepthAdvisory {
     .sort((a, b) => (a.underKeelM ?? rankDepth(a)) - (b.underKeelM ?? rankDepth(b)))
 
   // ---------------------------------------------------------------- warnings
-  const shallowDepth = rankDepth(shallowest)
-  const tideWord = shallowest.depthNowM != null ? 'allowing for tide' : 'at mean sea level'
   if (concerns.length > 0) {
     const worst = concerns[0]
     const where = `leg ${worst.legIndex + 1} of ${legs.length}`
+    const when = new Date(worst.t).toISOString().slice(11, 16)
+    // Every figure in this sentence describes `worst`. It used to quote the depth
+    // and the tide state of `shallowest`, which is a different leg as soon as some
+    // samples have clearance and some do not — a real depth against the wrong leg
+    // number reads as precision and is worse than saying less.
+    const tideWord = worst.depthNowM != null ? 'allowing for tide' : 'at mean sea level'
     warnings.push(
       worst.underKeelM != null
         ? `Shallow water on this route: ${worst.underKeelM.toFixed(1)} m under the keel at ${where}, ` +
-          `${new Date(worst.t).toISOString().slice(11, 16)}Z. Modelled, ${tideWord} — check a chart before sailing it.`
-        : `Shallow water on this route: ${shallowDepth.toFixed(1)} m at ${where}, ` +
-          `${new Date(worst.t).toISOString().slice(11, 16)}Z, ${tideWord}. No draft set, so this is depth, not clearance.`,
+          `${when}Z. Modelled, ${tideWord} — check a chart before sailing it.`
+        : `Shallow water on this route: ${rankDepth(worst).toFixed(1)} m at ${where}, ` +
+          `${when}Z, ${tideWord}. ` +
+          // `underKeel` returns null for two different reasons, and the fix for one
+          // is not the fix for the other. Blaming the draft when a draft is set
+          // sends the sailor to Setup to re-enter a number that is already there.
+          (o.draftM == null
+            ? 'No draft set, so this is depth, not clearance.'
+            : 'No tide cover at this leg, so this is depth, not clearance.'),
     )
     if (concerns.length > 1) {
       warnings.push(`${concerns.length} legs on this route are in modelled water that shallow.`)

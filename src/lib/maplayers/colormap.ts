@@ -91,7 +91,7 @@ function lookup(ramp: ColorRamp, value: number): Sample {
   if (stops.length === 0) return { rgb: [0, 0, 0], a: 0 }
 
   const last = stops.length - 1
-  if (!Number.isFinite(value) || value <= stops[0].value) {
+  if (!(value > stops[0].value)) {
     return { rgb: [...stops[0].rgb], a: aAt(0) }
   }
   if (value >= stops[last].value) return { rgb: [...stops[last].rgb], a: aAt(last) }

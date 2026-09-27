@@ -90,6 +90,32 @@ interface AppState {
   updateSettings(patch: Partial<Settings>): void
 }
 
+export const DEFAULT_SETTINGS: Settings = {
+  units: 'metric',
+  northRef: 'true',
+  simulate: false,
+  keepAwake: true,
+}
+
+export function mergePersistedState(
+  persisted: unknown,
+  current: AppState,
+): AppState {
+  const p = (persisted ?? {}) as Partial<AppState>
+  const c = current
+  return {
+    ...c,
+    ...p,
+    boat: { ...c.boat, ...p.boat },
+    course: {
+      ...c.course,
+      ...p.course,
+      startLine: { ...c.course.startLine, ...p.course?.startLine },
+    },
+    settings: { ...c.settings, ...p.settings },
+  }
+}
+
 const DEFAULT_BOAT: Boat = {
   id: 'me',
   name: 'My boat',
@@ -111,6 +137,22 @@ const EMPTY_COURSE: Course = {
 }
 
 let markSeq = 0
+
+/**
+ * What a course change invalidates.
+ *
+ * A route is computed *for* a set of marks. Change them and the drawn magenta line,
+ * its isochrones, its confidence band and the RESULTS sheet are all describing a
+ * course that no longer exists — and the Route screen draws the marks from a
+ * different effect, so it will happily show the new marks and the old route to a
+ * deleted one at the same time.
+ *
+ * Spread into every mutator that changes which marks exist. Deliberately NOT applied
+ * to the start line or the active-mark pointer: the router starts from the boat, so
+ * pinging an end or switching the active leg changes the tactical numbers and
+ * nothing the router computed.
+ */
+const COURSE_CHANGED = { route: null, routeError: null } as const
 
 export const useStore = create<AppState>()(
   persist(
@@ -142,6 +184,7 @@ export const useStore = create<AppState>()(
         }),
       addMark: (name, at) =>
         set({
+          ...COURSE_CHANGED,
           course: {
             ...get().course,
             marks: [
@@ -152,6 +195,7 @@ export const useStore = create<AppState>()(
         }),
       replaceMarks: (marks) =>
         set({
+          ...COURSE_CHANGED,
           course: {
             ...get().course,
             marks: marks.map((m) => ({
@@ -183,11 +227,12 @@ export const useStore = create<AppState>()(
         const marks = course.marks.filter((m) => m.id !== id)
         const shifted = at < activeMarkIndex ? activeMarkIndex - 1 : activeMarkIndex
         set({
+          ...COURSE_CHANGED,
           course: { ...course, marks },
           activeMarkIndex: marks.length === 0 ? 0 : Math.min(Math.max(0, shifted), marks.length - 1),
         })
       },
-      clearCourse: () => set({ course: EMPTY_COURSE, activeMarkIndex: 0 }),
+      clearCourse: () => set({ ...COURSE_CHANGED, course: EMPTY_COURSE, activeMarkIndex: 0 }),
       activeMarkIndex: 0,
       setActiveMark: (i) => set({ activeMarkIndex: i }),
 
@@ -203,7 +248,26 @@ export const useStore = create<AppState>()(
       manualWind: { twd: 270, tws: 12 },
       setManualWind: (twd, tws) => set({ manualWind: { twd, tws } }),
       windMode: 'manual',
-      setWindMode: (m) => set({ windMode: m }),
+      /*
+       * Changing the wind source empties the history, because the history is
+       * evidence about one measurement process and the new source is a different
+       * one.
+       *
+       * `tactics.boundsFrom` decides how far to trust the observed oscillation from
+       * `wind.source` — the source of the *latest* estimate — while reading the
+       * spread from a history that may have been filled by something else entirely.
+       * Sit in manual for fifteen minutes, which fills 900 samples of one typed
+       * number with a standard deviation of exactly zero, then switch to a source
+       * in MEASURED_SOURCES, and the layline band would be trusted at 0 degrees:
+       * perfect knowledge of the wind, inferred from a number somebody guessed.
+       *
+       * Latent today — nothing in the app yet produces an 'instrument' or
+       * 'estimated' wind, so the max-with-nominal branch always applies. Guarded
+       * now because it is invisible when it does bite, and because Signal K ingest
+       * is on the roadmap that would make it bite.
+       */
+      setWindMode: (m) =>
+        set(m === get().windMode ? { windMode: m } : { windMode: m, windHistory: [] }),
       windHistory: [],
       pushWind: (s) => {
         const h = get().windHistory
@@ -234,17 +298,13 @@ export const useStore = create<AppState>()(
       setRouting: (b) => set({ routing: b }),
       setRouteError: (e) => set({ routeError: e }),
 
-      settings: {
-        units: 'metric',
-        northRef: 'true',
-        simulate: false,
-        keepAwake: true,
-      },
+      settings: { ...DEFAULT_SETTINGS },
       updateSettings: (patch) =>
         set({ settings: { ...get().settings, ...patch } }),
     }),
     {
       name: 'newjourney.v1',
+      version: 1,
       storage: createJSONStorage(() => localStorage),
       // Live sensor data and computed results are deliberately not persisted.
       partialize: (s) => ({
@@ -256,6 +316,7 @@ export const useStore = create<AppState>()(
         settings: s.settings,
         activeMarkIndex: s.activeMarkIndex,
       }),
+      merge: mergePersistedState,
     },
   ),
 )

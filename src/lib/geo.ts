@@ -248,17 +248,39 @@ export function segmentsIntersect(
   return t >= 0 && t <= 1 && u >= 0 && u <= 1
 }
 
+/**
+ * Longitude span from west to east, handling the antimeridian.
+ * When `west > east` the bbox crosses ±180 and the span is the short way round.
+ */
+export function lonSpan(west: number, east: number): number {
+  const d = east - west
+  return d >= 0 ? d : d + 360
+}
+
 /** Bounding box of a set of points, padded by `padNm`. */
 export function bboxOf(points: LatLon[], padNm = 0) {
-  let west = 180
-  let east = -180
   let south = 90
   let north = -90
+  let westA = 180
+  let eastA = -180
+  let westB = 360
+  let eastB = 0
   for (const p of points) {
-    if (p.lon < west) west = p.lon
-    if (p.lon > east) east = p.lon
     if (p.lat < south) south = p.lat
     if (p.lat > north) north = p.lat
+    if (p.lon < westA) westA = p.lon
+    if (p.lon > eastA) eastA = p.lon
+    const lon360 = ((p.lon % 360) + 360) % 360
+    if (lon360 < westB) westB = lon360
+    if (lon360 > eastB) eastB = lon360
+  }
+  let west: number, east: number
+  if (eastA - westA <= eastB - westB) {
+    west = westA
+    east = eastA
+  } else {
+    west = westB > 180 ? westB - 360 : westB
+    east = eastB > 180 ? eastB - 360 : eastB
   }
   const padLat = padNm / 60
   const midLat = (north + south) / 2

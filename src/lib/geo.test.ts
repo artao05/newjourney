@@ -19,6 +19,7 @@ import {
   R_NM,
   alongTrack,
   bboxOf,
+  lonSpan,
   bearing,
   crossTrack,
   destination,
@@ -386,5 +387,31 @@ describe('units and bbox', () => {
     const box = bboxOf([P(89.5, 0)], 120)
     expect(box.north).toBeLessThanOrEqual(89.9)
     expect(box.south).toBeGreaterThanOrEqual(-89.9)
+  })
+
+  it('chooses the shortest longitude span across the antimeridian', () => {
+    const box = bboxOf([P(35, 170), P(35, -170)])
+    expect(lonSpan(box.west, box.east)).toBeCloseTo(20, 9)
+    expect(box.west).toBeCloseTo(170, 9)
+    expect(box.east).toBeCloseTo(-170, 9)
+  })
+
+  it('does not cross the antimeridian when the long way is shorter', () => {
+    const box = bboxOf([P(40, -70), P(40, 10)])
+    expect(box.west).toBeCloseTo(-70, 9)
+    expect(box.east).toBeCloseTo(10, 9)
+    expect(lonSpan(box.west, box.east)).toBeCloseTo(80, 9)
+  })
+})
+
+describe('lonSpan', () => {
+  it('returns east - west for non-crossing boxes', () => {
+    expect(lonSpan(-70, 10)).toBeCloseTo(80, 12)
+    expect(lonSpan(0, 90)).toBeCloseTo(90, 12)
+  })
+
+  it('returns the short span for antimeridian-crossing boxes', () => {
+    expect(lonSpan(170, -170)).toBeCloseTo(20, 12)
+    expect(lonSpan(150, -150)).toBeCloseTo(60, 12)
   })
 })

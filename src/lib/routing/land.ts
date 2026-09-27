@@ -21,7 +21,7 @@
  */
 
 import { wrap180 } from '../angles'
-import { segmentsIntersect } from '../geo'
+import { lonSpan, segmentsIntersect } from '../geo'
 import type { BBox, LatLon, XY } from '../types'
 
 export interface LandMask {
@@ -264,7 +264,7 @@ export class RasterLandMask implements LandMask {
     this.ny = ny
     this.bits = bits
     this.exact = exact
-    this.dLon = (bbox.east - bbox.west) / nx
+    this.dLon = lonSpan(bbox.west, bbox.east) / nx
     this.dLat = (bbox.north - bbox.south) / ny
   }
 

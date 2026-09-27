@@ -49,6 +49,7 @@ import {
   destination,
   distance,
   fromPolar,
+  lonSpan,
   vecAdd,
   vecBearing,
 } from '../geo'
@@ -196,7 +197,7 @@ class DenseField {
     this.dtMs = dtMs
     this.lon0 = bbox.west
     this.lat0 = bbox.south
-    this.dLon = nx > 1 ? (bbox.east - bbox.west) / (nx - 1) : 1
+    this.dLon = nx > 1 ? lonSpan(bbox.west, bbox.east) / (nx - 1) : 1
     this.dLat = ny > 1 ? (bbox.north - bbox.south) / (ny - 1) : 1
     const n = nx * ny * nt
     this.u = new Float32Array(n)
@@ -275,7 +276,7 @@ const MIN_CELL_DEG = 0.01
 
 function gridDims(bbox: BBox, budget: number, nt: number): { nx: number; ny: number } {
   const midLat = (bbox.north + bbox.south) / 2
-  const spanLonDeg = Math.max(1e-6, bbox.east - bbox.west)
+  const spanLonDeg = Math.max(1e-6, lonSpan(bbox.west, bbox.east))
   const spanLatDeg = Math.max(1e-6, bbox.north - bbox.south)
   const spanLon = spanLonDeg * Math.max(0.05, Math.cos(midLat * DEG))
   const perSlice = Math.max(64, Math.floor(budget / Math.max(1, nt)))
@@ -365,8 +366,10 @@ function hydrate(
 
   const plane = nx * ny
   for (let k = 0; k < nt; k++) {
-    const tWant = t0 + k * dtMs - shiftMs
+    const tBase = t0 + k * dtMs
+    const tWant = tBase - shiftMs
     const tq = clamp(tWant, cov.t0, cov.t1)
+    const tNoShift = clamp(tBase, cov.t0, cov.t1)
     if (tq !== tWant) clampedTime = true
     for (let j = 0; j < ny; j++) {
       const lat = out.lat0 + j * out.dLat
@@ -400,14 +403,14 @@ function hydrate(
           if (g != null) out.gust[idx] = g * windScale
         }
         if (anyCurrent) {
-          const c = src.current(latq, lonq, tq)
+          const c = src.current(latq, lonq, tNoShift)
           if (c != null) {
             out.cu[idx] = c.u * curScale
             out.cv[idx] = c.v * curScale
           }
         }
         if (anyWaves) {
-          const wv = src.waves(latq, lonq, tq)
+          const wv = src.waves(latq, lonq, tNoShift)
           if (wv != null) out.wave[idx] = wv.heightM
         }
       }
@@ -600,7 +603,7 @@ function makeRecorder(bbox: BBox, keepMax: boolean): Recorder {
   const midLat = (bbox.north + bbox.south) / 2
   const aspect = Math.max(
     0.05,
-    ((bbox.east - bbox.west) * Math.cos(midLat * DEG)) /
+    (lonSpan(bbox.west, bbox.east) * Math.cos(midLat * DEG)) /
       Math.max(1e-6, bbox.north - bbox.south),
   )
   const nx = Math.round(clamp(Math.round(96 * Math.sqrt(aspect)), 16, 192))
@@ -610,7 +613,7 @@ function makeRecorder(bbox: BBox, keepMax: boolean): Recorder {
   return {
     lon0: bbox.west,
     lat0: bbox.south,
-    dLon: (bbox.east - bbox.west) / nx,
+    dLon: lonSpan(bbox.west, bbox.east) / nx,
     dLat: (bbox.north - bbox.south) / ny,
     nx,
     ny,
@@ -729,6 +732,14 @@ interface PassInput {
   onProgress: ((f: number) => void) | null
   progressBase: number
   progressSpan: number
+  /**
+   * Tack state and TWA carried from the previous leg's finish node so the
+   * mark-rounding tack/gybe penalty fires at the first step of the new leg.
+   * Left at zero for the first leg (no prior tack) and for the backward pass
+   * (memoryless by §8).
+   */
+  initialTack?: number
+  initialTwa?: number
 }
 
 interface PassOutput {
@@ -1152,8 +1163,8 @@ class Search {
     P.lon[root] = origin.lon
     P.t[root] = t0
     P.parent[root] = -1
-    P.tack[root] = 0
-    P.twa[root] = 0
+    P.tack[root] = input.initialTack ?? 0
+    P.twa[root] = input.initialTwa ?? 0
     P.hdg[root] = 0
     P.bsp[root] = 0
     P.twd[root] = 0
@@ -1192,7 +1203,8 @@ class Search {
         // Forward: the wind at the departure time. Backward: the wind at the
         // *earlier* time, sampled here as a stand-in for the as-yet-unknown
         // predecessor. §8 — "getting the time indexing right is the whole trick."
-        f.sample(plat, plon, isFwd ? pt : pt - dtMs, s)
+        const sampleT = isFwd ? pt : pt - dtMs
+        f.sample(plat, plon, sampleT, s)
         const u = s[P_U]
         const v = s[P_V]
         // `Math.hypot` is correctly rounded and overflow-safe, and roughly an
@@ -1212,7 +1224,7 @@ class Search {
         const cv = s[P_CV]
         const tb = this.targetBucket(tws)
         const polarF =
-          this.polarNight !== this.polarDay && isNight(plat, plon, pt)
+          this.polarNight !== this.polarDay && isNight(plat, plon, sampleT)
             ? this.polarNight
             : this.polarDay
 
@@ -1221,14 +1233,25 @@ class Search {
         const goalBrg = bearing(pa, goal)
         const cosLat = Math.max(MIN_COS_LAT, Math.cos(plat * DEG))
         const sinLat = Math.sin(plat * DEG)
+        const parentTack = P.tack[ni]
+        const parentTwa = P.twa[ni]
 
         // ---- can we finish from here inside this step? (§2, "record a finish
         // candidate")
         const dGoal = distance(pa, goal)
         if (dGoal > 1e-12 && this.goalHop(tws, tb, twd, goalBrg, cu, cv, polarF, dir)) {
           const hours = dGoal / this.hopClosing
-          if (hours <= dtH) {
-            const tArr = pt + dir * hours * MS_PER_HOUR
+          if (hours <= dtH && (land === null || !land.crosses(pa, goal))) {
+            // Apply tack/gybe penalty if the finish hop changes tack, mirroring
+            // the fan loop — otherwise a candidate that avoids the fan penalty
+            // can reach the mark via the goal hop penalty-free.
+            const hopNewTack =
+              this.hopTwa > 0 ? 1 : this.hopTwa < 0 ? -1 : parentTack === 0 ? 1 : parentTack
+            let hopPen = 0
+            if (useTack && parentTack !== 0 && hopNewTack !== parentTack) {
+              hopPen = manoeuvre(parentTwa, this.hopTwa) === 'tack' ? this.tackPen : this.gybePen
+            }
+            const tArr = pt + dir * (hours * MS_PER_HOUR + hopPen * 1000)
             if (isFwd ? tArr < finishT : tArr > finishT) {
               P.ensure(P.n + 1)
               const fnode = P.n++
@@ -1236,8 +1259,7 @@ class Search {
               P.lon[fnode] = goal.lon
               P.t[fnode] = tArr
               P.parent[fnode] = ni
-              P.tack[fnode] =
-                this.hopTwa > 0 ? 1 : this.hopTwa < 0 ? -1 : P.tack[ni] === 0 ? 1 : P.tack[ni]
+              P.tack[fnode] = hopNewTack
               P.twa[fnode] = this.hopTwa
               P.hdg[fnode] = this.hopHdg
               P.bsp[fnode] = this.hopBsp
@@ -1262,8 +1284,6 @@ class Search {
           this.tgUpTwa[tb],
           this.tgDnTwa[tb],
         )
-        const parentTack = P.tack[ni]
-        const parentTwa = P.twa[ni]
         const fanN = this.fanN
         C.n = cn
         C.ensure(cn + fanN)
@@ -1508,10 +1528,12 @@ function directTimeS(
   marks: LatLon[],
   t0: Millis,
   dtMs: number,
-  polar: number,
+  polarDay: number,
+  polarNight: number,
 ): number | null {
   const s = new Float64Array(P_COUNT)
   const dtH = dtMs / MS_PER_HOUR
+  const varyByTime = polarNight !== polarDay
   let p = start
   let t = t0
   for (const m of marks) {
@@ -1526,6 +1548,7 @@ function directTimeS(
       f.sample(p.lat, p.lon, t, s)
       const tws = Math.hypot(s[P_U], s[P_V])
       const twd = wrap360(Math.atan2(-s[P_U], -s[P_V]) * RAD)
+      const polar = varyByTime && isNight(p.lat, p.lon, t) ? polarNight : polarDay
       const bsp = search.speedForHeading(tws, twd, brg, polar)
       const total = vecAdd(fromPolar(brg, bsp), { x: s[P_CU], y: s[P_CV] })
       const closing = total.x * Math.sin(brg * DEG) + total.y * Math.cos(brg * DEG)
@@ -1564,6 +1587,7 @@ function failed(
   timeStepS: number,
   nodes: number,
   started: number,
+  landAvoided: boolean,
 ): RouteResult {
   return {
     ok: false,
@@ -1579,6 +1603,7 @@ function failed(
       nodesExplored: nodes,
       timeStepS,
       computeMs: nowMs() - started,
+      landAvoided,
       warnings,
     },
   }
@@ -1596,9 +1621,12 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
   const warnings: string[] = []
   let timeStepS = 0
   let evaluated = 0
+  // False until the mask is resolved below, so an early failure reports the
+  // truth rather than a default: this route consulted no land data.
+  let landAvoided = false
   try {
     if (!req.marks || req.marks.length === 0) {
-      return failed('route needs at least one mark to sail to', warnings, 0, 0, started)
+      return failed('route needs at least one mark to sail to', warnings, 0, 0, started, landAvoided)
     }
     const preset = PRESETS[req.resolution] ?? PRESETS.balanced
     const waypoints = [req.start, ...req.marks]
@@ -1608,7 +1636,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       totalNm += distance(waypoints[i - 1], waypoints[i])
     }
     if (totalNm < 1e-6) {
-      return failed('start and destination are the same point', warnings, 0, 0, started)
+      return failed('start and destination are the same point', warnings, 0, 0, started, landAvoided)
     }
 
     const padNm = Math.min(0.3 * totalNm, 200) + 10
@@ -1632,7 +1660,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       warnings,
     )
     if (hyd.field === null) {
-      return failed(hyd.error ?? 'weather field unusable', warnings, 0, 0, started)
+      return failed(hyd.error ?? 'weather field unusable', warnings, 0, 0, started, landAvoided)
     }
     const dense = hyd.field
 
@@ -1651,6 +1679,16 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       req.constraints.avoidLand && ctx.land != null && ctx.land !== NULL_LAND_MASK
         ? ctx.land
         : null
+    landAvoided = land !== null
+    if (req.constraints.avoidLand && !landAvoided) {
+      // The caller asked for land avoidance and is not getting it. Silence here
+      // is the worst outcome available: the route looks exactly like one that
+      // was checked, and the UI upstream has no other way to tell the
+      // difference between a mask that was used and one that was rejected.
+      warnings.push(
+        'Land avoidance was requested but no usable coastline data reached the router. This route has NOT been checked against land.',
+      )
+    }
 
     const dtS = chooseTimeStepS(totalNm, typicalSpeed, req.resolution, gribStepOf(ctx.field))
     timeStepS = dtS
@@ -1680,6 +1718,8 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
     let from = req.start
     const passCount = req.marks.length * (req.computeSensitivity ? 2 : 1)
     let passIndex = 0
+    let prevTack = 0
+    let prevTwa = 0
 
     for (let li = 0; li < req.marks.length; li++) {
       const to = req.marks[li]
@@ -1704,6 +1744,8 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
         onProgress: ctx.onProgress ?? null,
         progressBase: passIndex / passCount,
         progressSpan: 1 / passCount,
+        initialTack: prevTack,
+        initialTwa: prevTwa,
       })
       passIndex++
       evaluated += out.evaluated
@@ -1717,15 +1759,18 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
           timeStepS,
           evaluated,
           started,
+          landAvoided,
         )
       }
       appendLegs(legs, search, reconstruct(search, out.finishNode), dense.hasCurrent, li > 0)
+      prevTack = search.pool.tack[out.finishNode]
+      prevTwa = search.pool.twa[out.finishNode]
       clock = out.finishT
       from = to
     }
 
     if (legs.length === 0) {
-      return failed('route collapsed to zero length', warnings, timeStepS, evaluated, started)
+      return failed('route collapsed to zero length', warnings, timeStepS, evaluated, started, landAvoided)
     }
 
     const etaMs = clock
@@ -1807,6 +1852,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
         req.startTime,
         dtMs,
         req.scalings.polarPct / 100,
+        req.scalings.polarPctNight / 100,
       ),
       isochrones,
       reverseIsochrones,
@@ -1815,6 +1861,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
         nodesExplored: evaluated,
         timeStepS,
         computeMs: nowMs() - started,
+        landAvoided,
         warnings,
       },
     }
@@ -1826,6 +1873,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       timeStepS,
       evaluated,
       started,
+      landAvoided,
     )
   }
 }

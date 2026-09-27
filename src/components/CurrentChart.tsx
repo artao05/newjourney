@@ -119,7 +119,16 @@ function render(
   const plotW = Math.max(1, w - padL - padR)
   const plotH = Math.max(1, h - padT - padB)
 
-  const half = (windowHours * HOUR) / 2
+  /*
+   * Floor the span, the way `plotW` and `plotH` are floored just above.
+   *
+   * A zero or negative window makes `t0 === t1`, so every x projection divides by
+   * zero and NaN reaches `moveTo`. That does not throw and does not warn — a
+   * non-finite coordinate simply draws nothing — so the chart would come out blank
+   * with no error anywhere to explain it. One minute rather than something larger
+   * so a caller asking for a genuinely short window still gets what it asked for.
+   */
+  const half = (Math.max(1 / 60, windowHours) * HOUR) / 2
   const t0 = t - half
   const t1 = t + half
 
@@ -157,8 +166,12 @@ function render(
   ctx.textAlign = 'right'
   for (const kn of [yMax, yMax / 2, 0, -yMax / 2, -yMax]) {
     const y = Y(kn)
+    const a = Math.abs(kn)
     ctx.fillStyle = c.inkFaint
-    ctx.fillText(Math.abs(kn).toFixed(1), padL - 5, y + 3)
+    // yMax is always a multiple of 0.5, so the half-ticks are multiples of 0.25.
+    // toFixed(1) would round 0.75 → "0.8"; use two decimals when the tenths
+    // digit does not capture the value exactly.
+    ctx.fillText(a.toFixed(Number.isInteger(a * 10) ? 1 : 2), padL - 5, y + 3)
   }
 
   // ---- the curve, split at the zero line ---------------------------------

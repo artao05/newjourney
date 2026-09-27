@@ -373,7 +373,18 @@ function attempt(fn: () => void): void {
 /** Every running tactical number, degrading field by field. Never throws. */
 export function computeTactics(i: TacticalInputs): TacticalNumbers {
   const out = emptyTactics()
-  const { state, boat, wind } = i
+  const { state, boat } = i
+  /*
+   * A non-finite wind is no wind.
+   *
+   * Every field on the way out is nullable so it can say "unknown", and `twd` was
+   * the one place a NaN walked straight through to the display and from there into
+   * every angle derived from it. `waterSpeed` below already applies exactly this
+   * rule to the boat's own speed - "non-finite in, zero out: one NaN fix must not
+   * poison every channel" - so this closes the same gap on the other input.
+   */
+  const wind =
+    i.wind && Number.isFinite(i.wind.twd) && Number.isFinite(i.wind.tws) ? i.wind : null
   const lattice = i.lattice ?? null
   const current = i.current ?? null
 
@@ -382,7 +393,16 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
     out.twd = wind.twd
     out.tws = wind.tws
     out.windSource = wind.source
-    out.twa = twaFrom(state.heading ?? state.cog, wind.twd)
+    const course = state.heading ?? state.cog
+    if (Number.isFinite(course)) out.twa = twaFrom(course, wind.twd)
+  })
+
+  // VMG is BSP · cos(TWA) — a pure kinematic value that needs only a wind
+  // angle and a boat speed, no polar lattice. Compute it before the polar
+  // block so it is available even when no polar file is loaded.
+  attempt(() => {
+    if (out.twa === null) return
+    out.vmg = waterSpeed(state) * Math.cos(out.twa * DEG)
   })
 
   attempt(() => {
@@ -397,21 +417,36 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
     if (out.polarBsp > 0) out.polarBspPct = (100 * bsp) / out.polarBsp
     // Signed: positive upwind, negative downwind, so that dividing by the
     // (equally signed) target VMG gives a sane percentage on both.
-    out.vmg = bsp * Math.cos(out.twa * DEG)
     const targetVmg = (upwind ? targets.upVmg : targets.downVmg) * pct
-    if (Math.abs(targetVmg) > 1e-9) out.vmgPct = (100 * out.vmg) / targetVmg
+    if (Math.abs(targetVmg) > 1e-9 && out.vmg !== null) out.vmgPct = (100 * out.vmg) / targetVmg
   })
 
   const marks = i.course?.marks ?? []
-  const mark = marks[i.activeMarkIndex] ?? null
+  /*
+   * The active mark, if there is one at that index *and* it is somewhere.
+   *
+   * The index guard is what keeps an out-of-range pointer from throwing - it has
+   * been out of range in the wild, see the `removeMark` fix in `store.ts`. The
+   * finite check is the same rule as the wind above: a mark with a non-finite
+   * position is not a mark, and letting it through put NaN into every range,
+   * bearing and time-to-mark derived from it.
+   */
+  const marked = marks[i.activeMarkIndex] ?? null
+  const mark =
+    marked && Number.isFinite(marked.position.lat) && Number.isFinite(marked.position.lon)
+      ? marked
+      : null
   if (!mark) return out
 
   // --- mark geometry: GPS only, no polar involved ---------------------------
   attempt(() => {
+    if (!Number.isFinite(state.position.lat) || !Number.isFinite(state.position.lon)) return
     out.markBearing = bearing(state.position, mark.position)
     out.markRange = distance(state.position, mark.position)
-    // Vmc: the component of SOG toward the mark.
-    out.vmc = state.sog * Math.cos(angdiff(out.markBearing, state.cog) * DEG)
+    // Vmc: the component of SOG toward the mark. Both cog and sog must be
+    // finite — NaN in either produces NaN vmc (0 * NaN is NaN, not 0).
+    if (Number.isFinite(state.cog) && Number.isFinite(state.sog))
+      out.vmc = state.sog * Math.cos(angdiff(out.markBearing, state.cog) * DEG)
     out.headingToSteer = current
       ? headingToMakeGood({
           track: out.markBearing,
@@ -434,15 +469,17 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
     out.vmcOptimum = opt.vmc * (boat.polarPct / 100)
     out.vmcOptimumHeading = opt.heading
 
-    out.laylines = computeLaylines({
-      from: state.position,
-      mark: mark.position,
-      wind,
-      lattice,
-      state,
-      current,
-      windHistory: i.windHistory,
-    })
+    if (Number.isFinite(state.cog)) {
+      out.laylines = computeLaylines({
+        from: state.position,
+        mark: mark.position,
+        wind,
+        lattice,
+        state,
+        current,
+        windHistory: i.windHistory,
+      })
+    }
 
     const targets = lattice.targetsAt(wind.tws)
     const offWind = angsep(out.markBearing, wind.twd)

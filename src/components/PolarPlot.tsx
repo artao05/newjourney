@@ -34,7 +34,7 @@ export function PolarPlot({ lattice, speeds = DEFAULT_SPEEDS, height = 230 }: Pr
       /*
        * A zero-width parent crashed the whole Setup screen.
        *
-       * `R` below is `min(w/2 - 26, h - 34)`, so `w === 0` makes it -26, every ring
+       * `R` below is `min(w/2 - 26, h/2 - 18)`, so `w === 0` makes it -26, every ring
        * radius goes negative, and `ctx.arc` throws `IndexSizeError` — inside an
        * effect, so React unmounts the tree and the error boundary replaces the
        * entire screen with "Setup hit a problem". Setup is where you pick a boat
@@ -89,12 +89,12 @@ function render(
   vmax = Math.ceil(vmax)
 
   const cx = w / 2
-  const cy = h - 16
+  const cy = h / 2
   // Floored at zero as well as guarded by the caller: a container narrower than the
   // 26 px label gutter is still positive-width, and it should collapse to a dot
   // rather than throw. Belt and braces on purpose — the failure mode is a crash,
   // not a cosmetic glitch.
-  const R = Math.max(0, Math.min(w / 2 - 26, h - 34))
+  const R = Math.max(0, Math.min(w / 2 - 26, h / 2 - 18))
   const rOf = (v: number) => (v / vmax) * R
   // 0° TWA points up; the diagram is mirrored so both tacks show.
   const pt = (twa: number, v: number) => {
@@ -110,7 +110,7 @@ function render(
   const ringStep = vmax <= 8 ? 2 : vmax <= 16 ? 4 : 5
   for (let v = ringStep; v <= vmax; v += ringStep) {
     ctx.beginPath()
-    ctx.arc(cx, cy, rOf(v), Math.PI, 2 * Math.PI)
+    ctx.arc(cx, cy, rOf(v), 0, 2 * Math.PI)
     ctx.stroke()
     ctx.textAlign = 'center'
     ctx.fillText(`${v}`, cx, cy - rOf(v) + 10)

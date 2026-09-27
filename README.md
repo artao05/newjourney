@@ -14,7 +14,8 @@ in five minutes — built entirely on public data.
 > [RUNNING.md](RUNNING.md) to try it — including a boat simulator so you can use the
 > whole app from a desk, with no GPS fix needed.
 >
-> 590 tests passing · typecheck clean · build clean · 94 KB gzipped first load.
+> 963 tests passing · typecheck clean · build clean · 96 KB gzipped first-load JS
+> (as of 2026-09-26 — `npm test` is the authority, not this line).
 > **Not for navigation** — see the caveats in [RUNNING.md](RUNNING.md#whats-real-and-what-isnt).
 > Land avoidance now works, but only inside the Portland venue box and only as a
 > land check, never a depth check. The depth layer is a 450 m bathymetric model
@@ -24,15 +25,19 @@ in five minutes — built entirely on public data.
 
 ## Branches
 
-| Branch | Contents |
-|---|---|
-| **`main`** | The prototype and the research behind it. Start here. |
-| `MVP1` | An earlier snapshot of the prototype, now strictly behind `main`. Kept for history. |
-| `UIunderstanding` | Research into how PredictWind and SeaLegs handle charting and map layers, and the resulting render architecture |
+Everything is on **`main`**: the prototype and the research behind it. Start there.
 
 `main` held research and specification only until the prototype was promoted onto
-it; the application code arrived from `feature/tide-depth`, which is where the
-chart-surface and depth work was done.
+it. The application code arrived from `feature/tide-depth`, which is where the
+chart-surface, depth and hardening work was done before it merged in
+[pull request #1](https://github.com/artao05/newjourney/pull/1).
+
+The older branches were deleted on 2026-09-27, once everything in them had reached
+`main`. They were `MVP1` (an earlier snapshot of the prototype),
+`feature/departure-window` and `feature/departure-ui`, `UIunderstanding`, and
+`feature/tide-depth`. The research from `UIunderstanding`, on how PredictWind and
+SeaLegs handle charting, lives on in newer form in
+[docs/07-map-layers](docs/07-map-layers/). The git history keeps the rest.
 
 ---
 

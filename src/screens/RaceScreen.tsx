@@ -12,7 +12,7 @@ import { useTick } from '@/hooks/useSensors'
 import { Tile, fmtClock } from '@/components/Tile'
 import { computeTactics } from '@/lib/tactics'
 import { buildLattice } from '@/lib/polar'
-import { wrap360 } from '@/lib/angles'
+import { fmtDeg, fmtShift, wrap360 } from '@/lib/angles'
 import { distance, bearing } from '@/lib/geo'
 import { makeWLCourse } from '@/lib/sim'
 import type { PolarLattice, TacticalNumbers, WindEstimate } from '@/lib/types'
@@ -110,7 +110,7 @@ export function RaceScreen() {
       )}
 
       <div className="tiles">
-        <Tile label="TWD" value={t?.twd ?? null} unit="°" dp={0}
+        <Tile label="TWD" value={t?.twd != null ? fmtDeg(t.twd) : null} unit="°"
           sub={t?.windSource ? `from ${t.windSource}` : undefined} />
         <Tile label="TWS" value={t?.tws ?? null} unit="kn" dp={1} />
         <Tile
@@ -177,9 +177,7 @@ export function RaceScreen() {
           small
           sub={
             t?.laylines?.twdToLay != null && t.twd != null
-              ? `${t.laylines.twdToLay - t.twd > 0 ? 'right' : 'left'} ${Math.abs(
-                  Math.round(t.laylines.twdToLay - t.twd),
-                )}°`
+              ? fmtShift(t.twd, t.laylines.twdToLay)
               : undefined
           }
         />
@@ -197,14 +195,14 @@ export function RaceScreen() {
         To the mark
       </h2>
       <div className="tiles">
-        <Tile label="bearing" value={t?.markBearing ?? null} unit="°" dp={0} small />
+        <Tile label="bearing" value={t?.markBearing != null ? fmtDeg(t.markBearing) : null} unit="°" small />
         <Tile label="range" value={t?.markRange ?? null} unit="nm" dp={2} small />
         <Tile
           label="time to mark"
           value={t?.markTimeS == null ? null : fmtClock(t.markTimeS)}
           small
         />
-        <Tile label="steer" value={t?.headingToSteer ?? null} unit="°" dp={0} small
+        <Tile label="steer" value={t?.headingToSteer != null ? fmtDeg(t.headingToSteer) : null} unit="°" small
           sub="allowing for current" />
         <Tile
           label="on port"
@@ -360,10 +358,10 @@ export function RaceScreen() {
             </label>
             <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>
               {state
-                ? `${distance(state.position, m.position).toFixed(2)} nm · ${bearing(
+                ? `${distance(state.position, m.position).toFixed(2)} nm · ${fmtDeg(bearing(
                     state.position,
                     m.position,
-                  ).toFixed(0)}°`
+                  ))}°`
                 : ''}
             </span>
           </button>
@@ -396,6 +394,8 @@ export function RaceScreen() {
                   parsed.waypoints.forEach((w) => addMark(w.name, w.position))
                 } catch (err) {
                   alert(`Could not read that GPX: ${err instanceof Error ? err.message : err}`)
+                } finally {
+                  e.target.value = ''
                 }
               }}
             />

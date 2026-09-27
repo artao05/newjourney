@@ -28,10 +28,29 @@ export const toDeg = (r: Radians): Degrees => r * RAD
  * `Math.floor` of 360 is one past the end of a 360-element table.
  */
 export function wrap360(a: number): Degrees {
+  if (!Number.isFinite(a)) return NaN
   const r = a % 360
   if (r >= 0) return r
   const s = r + 360
   return s < 360 ? s : 0
+}
+
+/** Format a bearing as an integer string in [0, 360), re-wrapping after rounding. */
+export function fmtDeg(a: number): string {
+  if (!Number.isFinite(a)) return '—'
+  const r = Math.round(a) % 360
+  return String(r >= 0 ? r : r + 360)
+}
+
+/**
+ * Describe the direction and magnitude of a wind shift: "right 20°" or "left 5°".
+ *
+ * Uses `angdiff` so it takes the short way across the 0/360 seam.
+ * Positive (clockwise) is "right"; negative (anticlockwise) is "left".
+ */
+export function fmtShift(from: Degrees, to: Degrees): string {
+  const diff = angdiff(to, from)
+  return `${diff > 0 ? 'right' : 'left'} ${Math.abs(Math.round(diff))}°`
 }
 
 /** Normalise to (-180, 180]. */
@@ -134,7 +153,9 @@ export function manoeuvre(
   fromTwa: SignedDegrees,
   toTwa: SignedDegrees,
 ): 'none' | 'tack' | 'gybe' {
-  if (Math.sign(fromTwa) === Math.sign(toTwa)) return 'none'
+  // tackOf treats 0 as starboard; Math.sign(0) is 0 (neither 1 nor -1),
+  // so the old `Math.sign` guard falsely detected a side-change at TWA 0.
+  if ((fromTwa >= 0) === (toTwa >= 0)) return 'none'
   // Crossing sides: through the bow is a tack, through the stern is a gybe.
   const meanAbs = (Math.abs(fromTwa) + Math.abs(toTwa)) / 2
   return meanAbs < 90 ? 'tack' : 'gybe'

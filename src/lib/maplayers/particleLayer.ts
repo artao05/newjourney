@@ -58,6 +58,7 @@ uniform sampler2D u_wind1;
 uniform float u_wind_mix;
 uniform vec2 u_wind_min;
 uniform vec2 u_wind_max;
+uniform float u_domain_max;
 uniform float u_rand_seed;
 uniform float u_speed;
 uniform float u_drop_rate;
@@ -88,11 +89,11 @@ void main() {
   float covered = step(0.5, w.a);
 
   vec2 velocity = mix(u_wind_min, u_wind_max, w.rg);
-  float speed_t = length(velocity) / length(u_wind_max);
+  float speed_t = clamp(length(velocity) / max(u_domain_max, 1e-6), 0.0, 1.0);
 
   // Scale by the inverse aspect so particles cross a wide box at the same
   // apparent rate as a tall one, and so zooming does not change the feel.
-  vec2 offset = vec2(velocity.x, -velocity.y) * 0.0001 * u_speed * u_aspect;
+  vec2 offset = vec2(velocity.x, velocity.y) * 0.0001 * u_speed * u_aspect;
   pos = pos + offset * covered;
 
   // Respawn: randomly, when leaving the domain, or in a dead cell. Without the
@@ -126,6 +127,7 @@ uniform sampler2D u_wind1;
 uniform float u_wind_mix;
 uniform vec2 u_wind_min;
 uniform vec2 u_wind_max;
+uniform float u_domain_max;
 uniform float u_point_size;
 varying float v_speed_t;
 
@@ -137,7 +139,7 @@ void main() {
 
   vec4 w = mix(texture2D(u_wind0, pos), texture2D(u_wind1, pos), u_wind_mix);
   vec2 velocity = mix(u_wind_min, u_wind_max, w.rg);
-  v_speed_t = length(velocity) / length(u_wind_max);
+  v_speed_t = clamp(length(velocity) / max(u_domain_max, 1e-6), 0.0, 1.0);
   // Hide uncovered particles rather than parking them at the origin.
   if (w.a < 0.5) v_speed_t = -1.0;
 
@@ -159,7 +161,10 @@ uniform float u_opacity;
 varying float v_speed_t;
 void main() {
   if (v_speed_t < 0.0) discard;
-  vec2 ramp_pos = vec2(fract(16.0 * v_speed_t), floor(16.0 * v_speed_t) / 16.0);
+  float ramp_idx = v_speed_t * 255.0;
+  vec2 ramp_pos = vec2(
+    (mod(ramp_idx, 16.0) + 0.5) / 16.0,
+    (floor(ramp_idx / 16.0) + 0.5) / 16.0);
   vec4 c = texture2D(u_color_ramp, ramp_pos);
   gl_FragColor = vec4(c.rgb, c.a * u_opacity);
 }`
@@ -303,6 +308,7 @@ export class ParticleLayer implements CustomLayerInterface {
   private cube: WeatherCube | null = null
   private encoded: EncodedField | null = null
   private encodedNext: EncodedField | null = null
+  private domainMax = 40
   private windMix = 0
   private lastUpdate = 0
   private visible = true
@@ -459,8 +465,9 @@ export class ParticleLayer implements CustomLayerInterface {
     this.map?.triggerRepaint()
   }
 
-  setColorRamp(ramp: Uint8Array) {
+  setColorRamp(ramp: Uint8Array, domainMax?: number) {
     this.opts.colorRamp = ramp
+    if (domainMax !== undefined) this.domainMax = domainMax
     const gl = this.gl
     if (!gl) return
     if (this.rampTexture) gl.deleteTexture(this.rampTexture)
@@ -618,8 +625,12 @@ export class ParticleLayer implements CustomLayerInterface {
      * map at a healthy 60 fps.
      */
     const prevBlend = gl.getParameter(gl.BLEND) as boolean
+    const prevBlendSrc = gl.getParameter(gl.BLEND_SRC_RGB) as number
+    const prevBlendDst = gl.getParameter(gl.BLEND_DST_RGB) as number
     const prevViewport = gl.getParameter(gl.VIEWPORT) as Int32Array
     const prevScissor = gl.getParameter(gl.SCISSOR_TEST) as boolean
+    const prevDepth = gl.getParameter(gl.DEPTH_TEST) as boolean
+    const prevStencil = gl.getParameter(gl.STENCIL_TEST) as boolean
     gl.disable(gl.DEPTH_TEST)
     gl.disable(gl.STENCIL_TEST)
     /*
@@ -694,9 +705,12 @@ export class ParticleLayer implements CustomLayerInterface {
 
     // Hand the context back exactly as we found it.
     gl.viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3])
+    gl.blendFunc(prevBlendSrc, prevBlendDst)
     if (prevBlend) gl.enable(gl.BLEND)
     else gl.disable(gl.BLEND)
     if (prevScissor) gl.enable(gl.SCISSOR_TEST)
+    if (prevDepth) gl.enable(gl.DEPTH_TEST)
+    if (prevStencil) gl.enable(gl.STENCIL_TEST)
 
     this.frames++
     // Keep the animation going. MapLibre only repaints on demand for custom
@@ -762,6 +776,7 @@ export class ParticleLayer implements CustomLayerInterface {
     gl.uniform1f(p.uniforms.u_wind_mix ?? null, this.windMix)
     gl.uniform2f(p.uniforms.u_wind_min ?? null, enc.uMin, enc.vMin)
     gl.uniform2f(p.uniforms.u_wind_max ?? null, enc.uMax, enc.vMax)
+    gl.uniform1f(p.uniforms.u_domain_max ?? null, this.domainMax)
     gl.uniform1f(p.uniforms.u_point_size ?? null, this.opts.pointSize)
     gl.uniform1f(p.uniforms.u_opacity ?? null, this.opts.opacity)
     gl.uniformMatrix4fv(p.uniforms.u_matrix ?? null, false, matrix as Float32Array)
@@ -797,6 +812,7 @@ export class ParticleLayer implements CustomLayerInterface {
     gl.uniform1f(p.uniforms.u_wind_mix ?? null, this.windMix)
     gl.uniform2f(p.uniforms.u_wind_min ?? null, enc.uMin, enc.vMin)
     gl.uniform2f(p.uniforms.u_wind_max ?? null, enc.uMax, enc.vMax)
+    gl.uniform1f(p.uniforms.u_domain_max ?? null, this.domainMax)
     gl.uniform1f(p.uniforms.u_rand_seed ?? null, Math.random())
     gl.uniform1f(p.uniforms.u_speed ?? null, this.opts.speedFactor)
     gl.uniform1f(p.uniforms.u_drop_rate ?? null, this.opts.dropRate)
