@@ -11,6 +11,8 @@
 import { useState } from 'react'
 import { useStore } from '@/state/store'
 import { fmtDeg, wrap360 } from '@/lib/angles'
+import { declinationAt, magneticToTrue, trueToMagnetic } from '@/lib/magnetic'
+import { PILOT_VENUE } from '@/data/venues'
 
 const DIR_STEPS = [-10, -5, -1, 1, 5, 10]
 
@@ -21,6 +23,9 @@ export function WindSheet({ onClose }: { onClose: () => void }) {
   const windMode = useStore((s) => s.windMode)
   const setWindMode = useStore((s) => s.setWindMode)
   const wind = useStore((s) => s.wind)
+  const magnetic = useStore((s) => s.settings.northRef === 'magnetic')
+  const updateSettings = useStore((s) => s.updateSettings)
+  const decl = declinationAt(PILOT_VENUE.declination, Date.now())
 
   // A first guess to step from: a set manual wind, else the forecast in use, else
   // the placeholder - which the sailor still has to confirm before it counts.
@@ -30,11 +35,19 @@ export function WindSheet({ onClose }: { onClose: () => void }) {
       : wind
         ? { twd: Math.round(wind.twd), tws: Math.round(wind.tws) }
         : manualWind
-  const [twd, setTwd] = useState(start.twd)
+  // Held in the north on show, because that is the number the sailor read off the
+  // compass; converted to true only when it is set.
+  const [dir, setDir] = useState(magnetic ? Math.round(trueToMagnetic(start.twd, decl)) : start.twd)
   const [tws, setTws] = useState(start.tws)
 
+  const showNorth = (toMagnetic: boolean) => {
+    if (toMagnetic === magnetic) return
+    setDir((d) => Math.round(toMagnetic ? trueToMagnetic(d, decl) : magneticToTrue(d, decl)))
+    updateSettings({ northRef: toMagnetic ? 'magnetic' : 'true' })
+  }
+
   const commit = () => {
-    setManualWind(wrap360(twd), Math.max(0, tws))
+    setManualWind(magnetic ? magneticToTrue(dir, decl) : wrap360(dir), Math.max(0, tws))
     if (windMode !== 'manual') setWindMode('manual')
     onClose()
   }
@@ -61,16 +74,29 @@ export function WindSheet({ onClose }: { onClose: () => void }) {
           <input
             type="number"
             inputMode="numeric"
-            aria-label="True wind direction, degrees"
-            value={twd}
-            onChange={(e) => setTwd(Number(e.target.value))}
+            aria-label={`Wind direction, degrees ${magnetic ? 'magnetic' : 'true'}`}
+            value={dir}
+            onChange={(e) => setDir(Number(e.target.value))}
           />
-          <span>°T</span>
         </label>
+        <div className="seg wind-sheet__north" role="group" aria-label="North reference">
+          <button aria-pressed={!magnetic} onClick={() => showNorth(false)}>
+            °T
+          </button>
+          <button aria-pressed={magnetic} onClick={() => showNorth(true)}>
+            °M
+          </button>
+        </div>
       </div>
+      {magnetic && (
+        <p className="note">
+          = {fmtDeg(magneticToTrue(dir, decl))}°T. Variation {Math.abs(decl).toFixed(1)}°{' '}
+          {decl < 0 ? 'W' : 'E'} here (NOAA {PILOT_VENUE.declination.model}).
+        </p>
+      )}
       <div className="wind-sheet__steps">
         {DIR_STEPS.map((d) => (
-          <button key={d} className="btn btn--sm" onClick={() => setTwd((v) => wrap360(v + d))}>
+          <button key={d} className="btn btn--sm" onClick={() => setDir((v) => wrap360(v + d))}>
             {d > 0 ? `+${d}` : d}
           </button>
         ))}
@@ -99,7 +125,7 @@ export function WindSheet({ onClose }: { onClose: () => void }) {
       </div>
 
       <button className="btn btn--primary" onClick={commit}>
-        SET WIND {fmtDeg(twd)}° · {Math.max(0, tws)} kn
+        SET WIND {fmtDeg(dir)}°{magnetic ? 'M' : ''} · {Math.max(0, tws)} kn
       </button>
       <div className="wind-sheet__steps wind-sheet__steps--2">
         <button className="btn btn--sm btn--ghost" onClick={useForecast} disabled={windMode === 'forecast'}>
@@ -122,9 +148,14 @@ export function windChip(
   wind: { twd: number; tws: number; source: string } | null,
   manualSetAt: number | null,
   now: number,
+  /** East-positive declination to show the direction in magnetic, or null for true. */
+  magneticDecl: number | null = null,
 ): { text: string; warn: boolean } {
   if (!wind) return { text: manualSetAt == null ? 'set wind' : 'wind unavailable', warn: true }
-  const base = `${fmtDeg(wind.twd)}° · ${wind.tws.toFixed(0)} kn · ${wind.source}`
+  // Unmarked degrees are true, as everywhere else in the app; magnetic is marked M.
+  const dir =
+    magneticDecl == null ? `${fmtDeg(wind.twd)}°` : `${fmtDeg(trueToMagnetic(wind.twd, magneticDecl))}°M`
+  const base = `${dir} · ${wind.tws.toFixed(0)} kn · ${wind.source}`
   if (wind.source !== 'manual' || manualSetAt == null) return { text: base, warn: false }
   const ageMin = (now - manualSetAt) / 60_000
   if (ageMin < STALE_MANUAL_MIN) return { text: base, warn: false }

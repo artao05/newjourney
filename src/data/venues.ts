@@ -9,6 +9,7 @@
  */
 
 import type { BBox, LatLon } from '@/lib/types'
+import type { Declination } from '@/lib/magnetic'
 
 export interface DataSourceLink {
   label: string
@@ -47,6 +48,12 @@ export interface Venue {
   observationStations: TideStation[]
   marineZones: string[]
   sources: DataSourceLink[]
+  /**
+   * Magnetic declination at the venue centre, east positive, from NOAA's World
+   * Magnetic Model, with its annual change so it can be carried forward. A
+   * compass reads magnetic and every bearing in the app is true.
+   */
+  declination: Declination
 }
 
 /**
@@ -84,7 +91,15 @@ export const PORTLAND_MAINE: Venue = {
     { id: '44031', name: 'Casco Bay', position: { lat: 43.57, lon: -70.06 } },
   ],
   marineZones: ['ANZ153', 'ANZ152', 'ANZ154'],
+  // NOAA NCEI calculator for 43.66 N 70.25 W on 2026-09-27 (2026.7369):
+  // -14.45669 degrees, i.e. 14.46 W, changing +0.08658 degrees a year.
+  declination: { deg: -14.45669, perYearDeg: 0.08658, epochYear: 2026.7369, model: 'WMM-2025 v1.2.1' },
   sources: [
+    {
+      label: 'NOAA NCEI Magnetic Field Calculator',
+      href: 'https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml',
+      purpose: 'magnetic declination at the venue: 14.46 degrees W on 2026-09-27 (WMM-2025), +0.087 degrees a year',
+    },
     {
       label: 'NOAA ENC presentation service',
       href: 'https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/ENCOnline/MapServer/exts/MaritimeChartService',

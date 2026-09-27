@@ -287,6 +287,24 @@ export function SetupScreen() {
             </button>
           ))}
         </div>
+        <div className="seg" style={{ marginBottom: 6 }} role="group" aria-label="North reference">
+          {(['true', 'magnetic'] as const).map((n) => (
+            <button
+              key={n}
+              aria-pressed={settings.northRef === n}
+              onClick={() => updateSettings({ northRef: n })}
+            >
+              {n === 'true' ? 'True north' : 'Magnetic north'}
+            </button>
+          ))}
+        </div>
+        <p className="note">
+          Magnetic is what a compass reads. With it on, the wind sheet takes a compass bearing
+          and the wind chip shows one, marked M. Variation at {PILOT_VENUE.name} is{' '}
+          {Math.abs(PILOT_VENUE.declination.deg).toFixed(1)}°{' '}
+          {PILOT_VENUE.declination.deg < 0 ? 'W' : 'E'} (NOAA {PILOT_VENUE.declination.model}).
+          Every other bearing in the app stays true.
+        </p>
         <div className="field">
           <label>TWD</label>
           <input

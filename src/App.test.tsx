@@ -393,3 +393,30 @@ describe('the wake lock reports what it actually got', () => {
     }
   })
 })
+
+describe('the wind sheet takes a compass bearing in magnetic', () => {
+  const chip = () => screen.getByRole('button', { name: /^Wind:/ })
+
+  it('stores what was read off the compass as true', () => {
+    useStore.getState().updateSettings({ northRef: 'magnetic' })
+    try {
+      render(<App />)
+      act(() => chip().click())
+      // Steps from the placeholder, 270 T, shown as 284 M at 14.46 W.
+      act(() => screen.getByRole('button', { name: '+1' }).click())
+      expect(screen.getByRole('button', { name: /^SET WIND/ }).textContent).toContain('285°M')
+      act(() => screen.getByRole('button', { name: /^SET WIND/ }).click())
+      expect(useStore.getState().manualWind.twd).toBeCloseTo(285 - 14.457, 1)
+    } finally {
+      useStore.getState().updateSettings({ northRef: 'true' })
+    }
+  })
+
+  it('converts the number on show when the north is switched, rather than relabelling it', () => {
+    render(<App />)
+    act(() => chip().click())
+    act(() => screen.getByRole('button', { name: '°M' }).click())
+    expect(screen.getByRole('button', { name: /^SET WIND/ }).textContent).toContain('284°M')
+    useStore.getState().updateSettings({ northRef: 'true' })
+  })
+})

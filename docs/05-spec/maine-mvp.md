@@ -79,7 +79,7 @@ commit as the fix, so this file's history says which commit did each item.
 
 ## P2 — Maine specifically, and the rest of mvp-scope
 
-- [ ] **11. Magnetic north for Maine.** Variation at Portland is about 15° W. A wind
+- [x] **11. Magnetic north for Maine.** Variation at Portland is 14.5° W (NOAA, WMM-2025, 2026-09-27). A wind
       bearing read off a compass and typed in as true is 15° wrong, which on a start
       line is the whole bias. *Accept:* the venue's variation comes from NOAA with a
       link and date, wind can be entered and shown in °M, and the T↔M sign is pinned

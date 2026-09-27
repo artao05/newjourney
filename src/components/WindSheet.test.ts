@@ -44,3 +44,10 @@ describe('windChip', () => {
     })
   })
 })
+
+describe('windChip in magnetic', () => {
+  it('shows the compass bearing, marked M, for a wind held in true', () => {
+    // 235 T at Portland's 14.46 W is 249.5 M: "variation west, magnetic best".
+    expect(windChip(manual, NOW - 5 * MIN, NOW, -14.45669).text).toBe('249°M · 14 kn · manual')
+  })
+})

@@ -20,6 +20,7 @@ import { WindSheet, windChip } from '@/components/WindSheet'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
 import { fixQuality } from '@/lib/startline'
+import { declinationAt } from '@/lib/magnetic'
 import type { WindEstimate } from '@/lib/types'
 import { fetchPointForecast } from '@/lib/weather/openmeteo'
 import { PILOT_VENUE } from '@/data/venues'
@@ -212,7 +213,12 @@ export function App() {
   // Until the notice is accepted the app sits behind it, `inert` so no tap or
   // tab-key can reach a number the sailor has not yet been told how far to trust.
   const mustAccept = !settings.acceptedNotForNavigation
-  const windChipState = windChip(wind, manualWindSetAt, now)
+  const windChipState = windChip(
+    wind,
+    manualWindSetAt,
+    now,
+    settings.northRef === 'magnetic' ? declinationAt(PILOT_VENUE.declination, now) : null,
+  )
 
   return (
     <>

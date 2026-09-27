@@ -79,8 +79,9 @@ phone on the water, which is the test that counts.
 - [x] Ping-a-mark and store marks
 - [x] Laylines from the line ends (needs a polar or a class default tacking angle)
 - [ ] Dark / high-contrast sunlight mode — *dark only.*
-- [ ] Metric/imperial, °T/°M toggles — *the settings exist in the store, but nothing
-      reads them: everything is metres, knots and °T.*
+- [ ] Metric/imperial, °T/°M toggles — *°M done where a compass reading comes in: the
+      wind sheet and the wind chip follow the north setting, using Portland's NOAA
+      variation, and every other bearing stays true. Metric/imperial is still absent.*
 
 ### Explicitly out of MVP
 
