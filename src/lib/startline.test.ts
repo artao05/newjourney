@@ -12,6 +12,7 @@ import { wrap180 } from './angles'
 import { bearing, destination, distance, mToNm } from './geo'
 import {
   COG_TRUSTED_KN,
+  fixQuality,
   DEFAULT_TURN_MODEL,
   bowPosition,
   computeStart,
@@ -688,5 +689,22 @@ describe('spareTimeS — the display sign convention', () => {
     // Reaching the line in ~32 s with 60 s to run means time in hand, not lateness.
     expect(spareTimeS(r)).toBeGreaterThan(0)
     expect(spareTimeS(r)).toBeCloseTo(r.timeToGunS! - r.timeToLineS!, 6)
+  })
+})
+
+describe('fixQuality: a fix judged against the boat', () => {
+  it('is good to half a boat length, poor to one, bad beyond', () => {
+    expect(fixQuality(3, 7)).toBe('good')
+    expect(fixQuality(3.5, 7)).toBe('good')
+    expect(fixQuality(5, 7)).toBe('poor')
+    expect(fixQuality(9, 7)).toBe('bad')
+    // The same ±5 m that is poor on a J/70 is fine on a 40-footer.
+    expect(fixQuality(5, 12)).toBe('good')
+  })
+
+  it('says nothing when it cannot know', () => {
+    expect(fixQuality(null, 7)).toBeNull()
+    expect(fixQuality(Number.NaN, 7)).toBeNull()
+    expect(fixQuality(3, 0)).toBeNull()
   })
 })

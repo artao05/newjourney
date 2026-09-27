@@ -62,10 +62,10 @@ commit as the fix, so this file's history says which commit did each item.
       `trackToGpx` exists but nothing calls it. *Accept:* an Export button produces
       GPX that round-trips through `parseGpx`, and the track survives a reload under a
       stated size cap.
-- [ ] **7. GPS honesty at start scale.** Warn when the fix's accuracy exceeds half a
+- [x] **7. GPS honesty at start scale.** Warn when the fix's accuracy exceeds half a
       boat length, as mvp-scope asks, instead of fixed 6 m / 15 m colours. *Accept:* a
       screen test on either side of the threshold.
-- [ ] **8. Say when the screen may sleep.** Wake lock fails silently where it is not
+- [x] **8. Say when the screen may sleep.** Wake lock fails silently where it is not
       supported. *Accept:* a visible warning when it is unavailable or refused, with a
       test.
 - [x] **9. Installable on iPhone and Android.** iOS ignores SVG home-screen icons, and

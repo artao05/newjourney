@@ -73,9 +73,9 @@ phone on the water, which is the test that counts.
 ### Should have
 
 - [ ] Post-start replay of the last 5 minutes ("where was I at the gun?") — *absent.*
-- [ ] GPS accuracy indicator with an honest warning when accuracy > half a boat length
-      — *the ±m chip exists, with fixed 6 m / 15 m colours rather than a boat-length
-      threshold, and there is no warning.*
+- [x] GPS accuracy indicator with an honest warning when accuracy > half a boat length
+      — *the chip is coloured against the boat's length, and past half a length the
+      below-line tile says how many boat lengths the fix is good to.*
 - [x] Ping-a-mark and store marks
 - [x] Laylines from the line ends (needs a polar or a class default tacking angle)
 - [ ] Dark / high-contrast sunlight mode — *dark only.*

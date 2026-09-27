@@ -369,3 +369,27 @@ describe('the recorded track survives a reload', () => {
     expect(useStore.getState().track.map((p) => p.t)).toEqual([t0, t0 + 1000])
   })
 })
+
+describe('the wake lock reports what it actually got', () => {
+  it('reports unavailable in a browser with no Wake Lock API', async () => {
+    // jsdom has none, like an older phone browser.
+    useStore.getState().updateSettings({ keepAwake: true })
+    render(<App />)
+    await waitFor(() => expect(useStore.getState().wakeLock).toBe('unavailable'))
+  })
+
+  it('reports held when the browser grants it', async () => {
+    const release = vi.fn(() => Promise.resolve())
+    Object.defineProperty(navigator, 'wakeLock', {
+      value: { request: vi.fn(() => Promise.resolve({ release })) },
+      configurable: true,
+    })
+    try {
+      useStore.getState().updateSettings({ keepAwake: true })
+      render(<App />)
+      await waitFor(() => expect(useStore.getState().wakeLock).toBe('held'))
+    } finally {
+      delete (navigator as unknown as { wakeLock?: unknown }).wakeLock
+    }
+  })
+})

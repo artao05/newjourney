@@ -485,6 +485,49 @@ describe('the Route chart draws the wind the route sails in', () => {
   })
 })
 
+describe('the below-line tile says how far the GPS lets it be trusted', () => {
+  const tile = () => screen.getByText('below line').closest('.tile')!
+  const withAccuracy = (accuracyM: number) => {
+    populatedStore()
+    useStore.getState().setBoatState({ ...useStore.getState().state!, accuracyM })
+  }
+
+  it('flags a fix vaguer than half a boat length, in boat lengths', () => {
+    withAccuracy(6) // on a 6.93 m J/70, nearly a boat length
+    render(<StartScreen />)
+    // The fixture's boat is over early, so the tile keeps OCS red, which outranks
+    // the GPS amber; the caveat still rides in the sub-line.
+    expect(tile().textContent).toMatch(/GPS ±0\.9 BL/)
+  })
+
+  it('stays quiet when the fix is good enough for the number', () => {
+    withAccuracy(2)
+    render(<StartScreen />)
+    expect(tile().textContent).not.toContain('GPS ±')
+  })
+})
+
+describe('Start says when the screen may sleep', () => {
+  it('warns when the screen is meant to stay awake and cannot', () => {
+    useStore.getState().updateSettings({ keepAwake: true })
+    useStore.getState().setWakeLock('unavailable')
+    render(<StartScreen />)
+    expect(document.body.textContent).toContain('The screen may sleep')
+  })
+
+  it('says nothing while the lock is held, or when staying awake was switched off', () => {
+    useStore.getState().updateSettings({ keepAwake: true })
+    useStore.getState().setWakeLock('held')
+    const view = render(<StartScreen />)
+    expect(document.body.textContent).not.toContain('The screen may sleep')
+    view.unmount()
+    useStore.getState().updateSettings({ keepAwake: false })
+    useStore.getState().setWakeLock('unavailable')
+    render(<StartScreen />)
+    expect(document.body.textContent).not.toContain('The screen may sleep')
+  })
+})
+
 describe('a recorded track can be exported, and reads back', () => {
   it('offers nothing to export before anything is recorded', () => {
     render(<SetupScreen />)

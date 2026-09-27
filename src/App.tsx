@@ -19,6 +19,7 @@ import { useTrackPersistence } from '@/state/trackPersistence'
 import { WindSheet, windChip } from '@/components/WindSheet'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
+import { fixQuality } from '@/lib/startline'
 import type { WindEstimate } from '@/lib/types'
 import { fetchPointForecast } from '@/lib/weather/openmeteo'
 import { PILOT_VENUE } from '@/data/venues'
@@ -47,6 +48,7 @@ export function App() {
   const tab = useStore((s) => s.tab)
   const setTab = useStore((s) => s.setTab)
   const settings = useStore((s) => s.settings)
+  const boat = useStore((s) => s.boat)
   const updateSettings = useStore((s) => s.updateSettings)
   const state = useStore((s) => s.state)
   const gpsError = useStore((s) => s.gpsError)
@@ -199,11 +201,13 @@ export function App() {
     if (fixAge != null && fixAge > 8) return { cls: 'chip--warn', text: `stale ${Math.round(fixAge)}s` }
     const acc = state.accuracyM
     if (acc == null) return { cls: 'chip--good', text: 'fix' }
+    // Against this boat, not a fixed number of metres: see `fixQuality`.
+    const q = fixQuality(acc, boat.loaMetres)
     return {
-      cls: acc <= 6 ? 'chip--good' : acc <= 15 ? 'chip--warn' : 'chip--bad',
+      cls: q === 'good' ? 'chip--good' : q === 'poor' ? 'chip--warn' : 'chip--bad',
       text: `±${acc.toFixed(0)} m`,
     }
-  }, [gpsError, state, fixAge])
+  }, [gpsError, state, fixAge, boat.loaMetres])
 
   // Until the notice is accepted the app sits behind it, `inert` so no tap or
   // tab-key can reach a number the sailor has not yet been told how far to trust.

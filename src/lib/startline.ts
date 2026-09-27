@@ -191,6 +191,21 @@ export function bowPosition(state: BoatState, boat: Boat): LatLon {
   return destination(state.position, brg, d)
 }
 
+/**
+ * How far to trust a fix at start scale, judged against the boat rather than in
+ * metres. Distance below the line is quoted in boat lengths, so a ±6 m fix on a
+ * 7 m boat makes it a guess, while the same fix on a 40-footer is fine;
+ * mvp-scope asks for an honest warning past half a boat length.
+ */
+export function fixQuality(
+  accuracyM: number | null,
+  loaMetres: number,
+): 'good' | 'poor' | 'bad' | null {
+  if (accuracyM == null || !Number.isFinite(accuracyM) || !(loaMetres > 0)) return null
+  if (accuracyM <= loaMetres / 2) return 'good'
+  return accuracyM <= loaMetres ? 'poor' : 'bad'
+}
+
 /** Below this, GPS COG is noise rather than a direction (technical-spec.md §2). */
 export const COG_TRUSTED_KN = 1
 

@@ -83,6 +83,13 @@ interface AppState {
   /** The wind sheet: opened from the top-bar chip on any tab, and from Start. */
   windSheetOpen: boolean
   setWindSheetOpen(open: boolean): void
+  /**
+   * Whether the screen is actually being kept awake. `unavailable` covers both a
+   * browser with no Wake Lock API and a request it refused; either way a screen
+   * that sleeps mid-sequence takes the countdown with it.
+   */
+  wakeLock: 'held' | 'unavailable' | 'off'
+  setWakeLock(s: 'held' | 'unavailable' | 'off'): void
   windMode: WindSource
   setWindMode(m: WindSource): void
   windHistory: Array<{ t: Millis; twd: Degrees; tws: Knots }>
@@ -283,6 +290,8 @@ export const useStore = create<AppState>()(
       setManualWind: (twd, tws) => set({ manualWind: { twd, tws }, manualWindSetAt: Date.now() }),
       windSheetOpen: false,
       setWindSheetOpen: (open) => set({ windSheetOpen: open }),
+      wakeLock: 'off',
+      setWakeLock: (s) => set({ wakeLock: s }),
       windMode: 'manual',
       /*
        * Changing the wind source empties the history, because the history is
