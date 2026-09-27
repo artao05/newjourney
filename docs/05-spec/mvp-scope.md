@@ -64,7 +64,8 @@ phone on the water, which is the test that counts.
       unreachable, though not yet in airplane mode on a phone.*
 - [x] Wake lock so the screen stays on
 - [x] Boat setup: name, class, length, bow-to-GPS
-- [x] Not-for-navigation notice — *at the foot of Setup, and in the depth layer's caveat.*
+- [x] Not-for-navigation notice — *shown on first launch until accepted, then at the foot
+      of Setup in the same words, and in the depth layer's caveat.*
 
 ### Should have
 

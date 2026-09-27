@@ -11,6 +11,7 @@ import { useStore } from '@/state/store'
 import { POLAR_LIBRARY, findPolar } from '@/data/polars'
 import { buildLattice, parsePolar, validatePolar } from '@/lib/polar'
 import { PolarPlot } from '@/components/PolarPlot'
+import { NotForNavigationText } from '@/components/NotForNavigation'
 import { PILOT_VENUE } from '@/data/venues'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
 
@@ -333,10 +334,7 @@ export function SetupScreen() {
 
         <h2>Safety</h2>
         <div className="warnbox">
-          <b>Not for navigation.</b> This is a prototype. Nothing here replaces
-          official charts, official tide tables, or your own judgment. Routing
-          output is derived from weather forecasts, which are uncertain by nature.
-          The skipper is responsible for the safety of the vessel and crew.
+          <b>Not for navigation.</b> <NotForNavigationText />
         </div>
         <p className="note">
           Weather: Open-Meteo (GFS / ECMWF / ICON). Charts: OpenStreetMap ©

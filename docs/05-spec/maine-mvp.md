@@ -41,7 +41,7 @@ commit as the fix, so this file's history says which commit did each item.
       *Accept:* the install step precaches the shell, the entry and lazy chunks, and
       the venue packs. A test pins that list. In the production preview, the entry
       chunk is in the cache after one visit.
-- [ ] **3. Not for navigation, on first launch.** Today the notice only appears at the
+- [x] **3. Not for navigation, on first launch.** Today the notice only appears at the
       foot of Setup. *Accept:* a one-time acknowledgement before first use,
       remembered once given, and the Setup notice stays. Screen tests cover both
       states.

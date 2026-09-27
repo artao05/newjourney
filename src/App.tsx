@@ -14,6 +14,7 @@ import { StartScreen } from '@/screens/StartScreen'
 import { RaceScreen } from '@/screens/RaceScreen'
 import { SetupScreen } from '@/screens/SetupScreen'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { NotForNavigationDialog } from '@/components/NotForNavigation'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
 import type { WindEstimate } from '@/lib/types'
@@ -45,6 +46,7 @@ export function App() {
   const tab = useStore((s) => s.tab)
   const setTab = useStore((s) => s.setTab)
   const settings = useStore((s) => s.settings)
+  const updateSettings = useStore((s) => s.updateSettings)
   const state = useStore((s) => s.state)
   const gpsError = useStore((s) => s.gpsError)
   const polar = useStore((s) => s.polar)
@@ -192,99 +194,108 @@ export function App() {
     }
   }, [gpsError, state, fixAge])
 
+  // Until the notice is accepted the app sits behind it, `inert` so no tap or
+  // tab-key can reach a number the sailor has not yet been told how far to trust.
+  const mustAccept = !settings.acceptedNotForNavigation
+
   return (
-    <div className="app">
-      <div className="topbar">
-        <span className={`chip ${gpsChip.cls}`}>
-          <span className="dot dot--pulse" />
-          {settings.simulate ? 'SIM' : 'GPS'} {gpsChip.text}
-        </span>
-        <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span className="chip">
-            {wind ? `${fmtDeg(wind.twd)}° · ${wind.tws.toFixed(0)} kn` : 'wind unavailable'}
+    <>
+      <div className="app" inert={mustAccept || undefined}>
+        <div className="topbar">
+          <span className={`chip ${gpsChip.cls}`}>
+            <span className="dot dot--pulse" />
+            {settings.simulate ? 'SIM' : 'GPS'} {gpsChip.text}
           </span>
-          <button
-            className={`chip ${recording ? 'chip--bad' : ''}`}
-            onClick={toggleRecording}
-            title="Record track"
-          >
-            <span className="dot" />
-            {recording ? 'REC' : 'rec'}
-          </button>
-        </span>
+          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span className="chip">
+              {wind ? `${fmtDeg(wind.twd)}° · ${wind.tws.toFixed(0)} kn` : 'wind unavailable'}
+            </span>
+            <button
+              className={`chip ${recording ? 'chip--bad' : ''}`}
+              onClick={toggleRecording}
+              title="Record track"
+            >
+              <span className="dot" />
+              {recording ? 'REC' : 'rec'}
+            </button>
+          </span>
+        </div>
+
+        {gpsError && !settings.simulate && (
+          <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+            {gpsError} — turn on <b>Simulate a boat</b> in Setup to try the app
+            without a GPS fix.
+          </div>
+        )}
+        {windError && (
+          <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+            {windError}
+          </div>
+        )}
+
+        {tab === 'start' && (
+          <ErrorBoundary name="Start" key="start">
+            <StartScreen />
+          </ErrorBoundary>
+        )}
+        {tab === 'race' && (
+          <ErrorBoundary name="Race" key="race">
+            <RaceScreen />
+          </ErrorBoundary>
+        )}
+        {tab === 'weather' && (
+          <ErrorBoundary name="Weather" key="weather" onReset={retryLazy}>
+            <Suspense
+              fallback={
+                <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
+                  <span className="chip">
+                    <span className="spinner" /> loading map…
+                  </span>
+                </div>
+              }
+            >
+              <WeatherScreen />
+            </Suspense>
+          </ErrorBoundary>
+        )}
+        {tab === 'route' && (
+          <ErrorBoundary name="Route" key="route" onReset={retryLazy}>
+            <Suspense
+              fallback={
+                <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
+                  <span className="chip">
+                    <span className="spinner" /> loading chart…
+                  </span>
+                </div>
+              }
+            >
+              <RouteScreen />
+            </Suspense>
+          </ErrorBoundary>
+        )}
+        {tab === 'setup' && (
+          <ErrorBoundary name="Setup" key="setup">
+            <SetupScreen />
+          </ErrorBoundary>
+        )}
+
+        <nav className="tabbar">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              aria-current={tab === t.id}
+              onClick={() => setTab(t.id)}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
+        </nav>
       </div>
-
-      {gpsError && !settings.simulate && (
-        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
-          {gpsError} — turn on <b>Simulate a boat</b> in Setup to try the app
-          without a GPS fix.
-        </div>
+      {mustAccept && (
+        <NotForNavigationDialog onAccept={() => updateSettings({ acceptedNotForNavigation: true })} />
       )}
-      {windError && (
-        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
-          {windError}
-        </div>
-      )}
-
-      {tab === 'start' && (
-        <ErrorBoundary name="Start" key="start">
-          <StartScreen />
-        </ErrorBoundary>
-      )}
-      {tab === 'race' && (
-        <ErrorBoundary name="Race" key="race">
-          <RaceScreen />
-        </ErrorBoundary>
-      )}
-      {tab === 'weather' && (
-        <ErrorBoundary name="Weather" key="weather" onReset={retryLazy}>
-          <Suspense
-            fallback={
-              <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
-                <span className="chip">
-                  <span className="spinner" /> loading map…
-                </span>
-              </div>
-            }
-          >
-            <WeatherScreen />
-          </Suspense>
-        </ErrorBoundary>
-      )}
-      {tab === 'route' && (
-        <ErrorBoundary name="Route" key="route" onReset={retryLazy}>
-          <Suspense
-            fallback={
-              <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
-                <span className="chip">
-                  <span className="spinner" /> loading chart…
-                </span>
-              </div>
-            }
-          >
-            <RouteScreen />
-          </Suspense>
-        </ErrorBoundary>
-      )}
-      {tab === 'setup' && (
-        <ErrorBoundary name="Setup" key="setup">
-          <SetupScreen />
-        </ErrorBoundary>
-      )}
-
-      <nav className="tabbar">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            aria-current={tab === t.id}
-            onClick={() => setTab(t.id)}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
-      </nav>
-    </div>
+    </>
   )
 }
 

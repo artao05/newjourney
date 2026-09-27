@@ -119,6 +119,45 @@ button {
   height: 21px;
 }
 
+/* ------------------------------------------------------------------ modal */
+
+/* A sibling of .app, not a child, so it stays reachable while .app is inert. */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--pad) + var(--safe-top)) var(--pad) calc(var(--pad) + var(--safe-bottom));
+  background: rgba(5, 13, 22, 0.9);
+}
+
+.modal__card {
+  width: 100%;
+  max-width: 460px;
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border-radius: var(--r);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-bright);
+}
+
+.modal__card h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.modal__card .warnbox {
+  margin: 0;
+  font-size: 15px;
+}
+
+.modal__card .btn {
+  padding: 18px 12px;
+  font-size: 16px;
+}
+
 /* ------------------------------------------------------------------- bits */
 
 .topbar {

@@ -13,7 +13,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 
 const { FakeMap, FakeLngLatBounds } = vi.hoisted(() => {
   class FakeLngLatBounds {
@@ -106,7 +106,9 @@ beforeEach(() => {
   s.setWind(null)
   s.setCurrent(null)
   s.setPolar('j70', null)
-  s.updateSettings({ simulate: false, keepAwake: false })
+  // Accepted, so the notice does not sit over what these tests look at; the
+  // notice's own tests below set it back.
+  s.updateSettings({ simulate: false, keepAwake: false, acceptedNotForNavigation: true })
   s.setWindMode('manual')
   if (s.recording) s.toggleRecording()
 })
@@ -246,5 +248,43 @@ describe('track recording', () => {
     act(() => useStore.getState().setBoatState(instrumented({ t: NOW + 3000 })))
     await new Promise((r) => setTimeout(r, 20))
     expect(useStore.getState().track.length).toBe(frozen)
+  })
+})
+
+describe('not for navigation, before first use', () => {
+  /*
+   * The notice used to live only at the foot of Setup, so a sailor who never opened
+   * Setup was never told, and the Start tab's numbers read as an instrument's do.
+   */
+  const dialog = () => screen.queryByRole('dialog', { name: /not for navigation/i })
+
+  it('asks on first launch, over an app it keeps out of reach until answered', () => {
+    useStore.getState().updateSettings({ acceptedNotForNavigation: false })
+    const { container } = render(<App />)
+    expect(dialog()).not.toBeNull()
+    expect(container.querySelector('.app')?.hasAttribute('inert')).toBe(true)
+  })
+
+  it('remembers the answer in what survives a reload', () => {
+    useStore.getState().updateSettings({ acceptedNotForNavigation: false })
+    const { container } = render(<App />)
+    act(() => screen.getByRole('button', { name: /i understand/i }).click())
+    expect(dialog()).toBeNull()
+    expect(container.querySelector('.app')?.hasAttribute('inert')).toBe(false)
+    const saved = JSON.parse(localStorage.getItem('newjourney.v1') ?? '{}').state
+    expect(saved.settings.acceptedNotForNavigation).toBe(true)
+  })
+
+  it('does not ask again once accepted', () => {
+    render(<App />)
+    expect(dialog()).toBeNull()
+  })
+
+  it('leaves the Setup copy in place, in the same words', () => {
+    useStore.getState().setTab('setup')
+    render(<App />)
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('Not for navigation.')
+    expect(text).toContain('Nothing here replaces official charts, official tide tables')
   })
 })

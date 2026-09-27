@@ -30,6 +30,11 @@ export interface Settings {
   /** Simulation replaces the GPS feed. */
   simulate: boolean
   keepAwake: boolean
+  /**
+   * The first-launch not-for-navigation notice has been accepted. False by
+   * default, so an install saved before the notice existed is asked once too.
+   */
+  acceptedNotForNavigation: boolean
 }
 
 interface AppState {
@@ -98,6 +103,7 @@ export const DEFAULT_SETTINGS: Settings = {
   northRef: 'true',
   simulate: false,
   keepAwake: true,
+  acceptedNotForNavigation: false,
 }
 
 export function mergePersistedState(

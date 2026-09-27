@@ -345,3 +345,14 @@ describe('wind history belongs to one wind source', () => {
     expect(useStore.getState().windHistory.length).toBe(20)
   })
 })
+
+describe('the not-for-navigation notice', () => {
+  it('is asked of an install saved before the notice existed', () => {
+    // An old save has no such field; the deep merge must fill in false, not
+    // leave it undefined, and certainly not carry the old save past the notice.
+    const old = { settings: { units: 'metric' as const, northRef: 'true' as const, simulate: false } }
+    const merged = mergePersistedState(old, useStore.getState())
+    expect(merged.settings.acceptedNotForNavigation).toBe(false)
+    expect(DEFAULT_SETTINGS.acceptedNotForNavigation).toBe(false)
+  })
+})
