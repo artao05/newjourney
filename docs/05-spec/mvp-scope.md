@@ -35,33 +35,48 @@ testing something that cannot hurt them while we build the thing that can.
 
 ## In scope for MVP
 
+Ticked against the code on 2026-09-26. A tick means a sailor can do it in the app
+today, and the italic notes say what is missing. None of it has yet been checked on a
+phone on the water, which is the test that counts.
+
 ### Must have
 
-- [ ] Set start line by pinging two ends (GPS, with bow offset)
-- [ ] Manual line entry / adjustment by dragging on a simple plan view
-- [ ] **Distance below line** in metres and boat lengths, bow-corrected, signed
-- [ ] **Time to gun** — start a countdown, sync to a signal, 5/4/1/go presets
-- [ ] **Time to line** from GPS COG/SOG
-- [ ] **Time to burn** — number plus a graphic bar
-- [ ] **Line bias** — favoured end, bias angle, advantage in boat lengths
-- [ ] Wind input: manual dial, or auto from a forecast lookup if online
-- [ ] Simple chartless start display: line, boat, COG vector, heading, distance grid in
-      boat lengths
-- [ ] Auto-declutter one minute after the gun
-- [ ] Track recording during the session
-- [ ] Works fully offline after first load (PWA + service worker)
-- [ ] Wake lock so the screen stays on
-- [ ] Boat setup: name, class, length, bow-to-GPS
-- [ ] Not-for-navigation notice
+- [ ] Set start line by pinging two ends (GPS, with bow offset) — *pinging works, but
+      stores the antenna position: the bow offset reaches distance-below-line and not
+      the ping, although `bowPosition()` already falls back safely when stopped.*
+- [ ] Manual line entry / adjustment by dragging on a simple plan view — *absent; drag
+      is planned for the chart in [start-on-chart.md](start-on-chart.md) Phase 5.*
+- [x] **Distance below line** in metres and boat lengths, bow-corrected, signed
+- [x] **Time to gun** — start a countdown, sync to a signal, 5/4/1/go presets — *the
+      presets are 5/4/3/1 min, and SYNC rounds to the nearest minute.*
+- [x] **Time to line** from GPS COG/SOG
+- [x] **Time to burn** — number plus a graphic bar
+- [x] **Line bias** — favoured end, bias angle, advantage in boat lengths
+- [x] Wind input: manual dial, or auto from a forecast lookup if online — *manual is
+      number entry in Setup, not a dial.*
+- [x] Simple chartless start display: line, boat, COG vector, heading, distance grid in
+      boat lengths — *heading is COG on a phone.*
+- [x] Auto-declutter one minute after the gun
+- [x] Track recording during the session — *off by default, not kept across a reload,
+      and not yet exportable: `trackToGpx` exists but no screen calls it.*
+- [ ] Works fully offline after first load (PWA + service worker) — *the worker registers
+      after the first page has loaded, so the entry script is not cached until a second
+      online visit.*
+- [x] Wake lock so the screen stays on
+- [x] Boat setup: name, class, length, bow-to-GPS
+- [x] Not-for-navigation notice — *at the foot of Setup, and in the depth layer's caveat.*
 
 ### Should have
 
-- [ ] Post-start replay of the last 5 minutes ("where was I at the gun?")
+- [ ] Post-start replay of the last 5 minutes ("where was I at the gun?") — *absent.*
 - [ ] GPS accuracy indicator with an honest warning when accuracy > half a boat length
-- [ ] Ping-a-mark and store marks
-- [ ] Laylines from the line ends (needs a polar or a class default tacking angle)
-- [ ] Dark / high-contrast sunlight mode
-- [ ] Metric/imperial, °T/°M toggles
+      — *the ±m chip exists, with fixed 6 m / 15 m colours rather than a boat-length
+      threshold, and there is no warning.*
+- [x] Ping-a-mark and store marks
+- [x] Laylines from the line ends (needs a polar or a class default tacking angle)
+- [ ] Dark / high-contrast sunlight mode — *dark only.*
+- [ ] Metric/imperial, °T/°M toggles — *the settings exist in the store, but nothing
+      reads them: everything is metres, knots and °T.*
 
 ### Explicitly out of MVP
 

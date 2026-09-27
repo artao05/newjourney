@@ -123,10 +123,15 @@ See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next, and
 
 ## Verified state
 
-At the last commit: **748 tests passing**, `tsc --noEmit` clean, `npm run build`
-clean, all five tabs rendering — there is now a test that mounts each of them, so
-that last claim is checked rather than asserted. First load is 94 KB gzipped; the map
-chunk (~285 KB gzipped, mostly MapLibre) loads only when you open a chart tab.
+As of 2026-09-26: **963 tests passing** across 43 files, `tsc --noEmit` clean,
+`npm run build` clean, all five tabs rendering — there is a test that mounts each of
+them, so that last claim is checked rather than asserted. First load is 96 KB of
+gzipped JS plus 3 KB of CSS; the map chunk (~286 KB gzipped, mostly MapLibre) loads
+only when you open a chart tab.
+
+These figures are written by hand, and hand-written figures in this repo have drifted
+before (this line said 748 when the suite had 956). Until CI reports them, trust
+`npm test` over this paragraph.
 
 **Not for navigation.** Prototype. Advisory only. Nothing here replaces official
 charts, official tide tables, or your own judgment.
