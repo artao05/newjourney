@@ -21,14 +21,16 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import type { RouteResult, WeatherCube } from '@/lib/types'
 
 // ------------------------------------------------------------- maplibre stub
 //
-// Deliberately never fires 'load'. The overlays gate every effect on `ready`,
+// Never fires 'load' on its own. The overlays gate every effect on `ready`,
 // which the surface only sets from the load handler, so a stub that stays
 // unloaded exercises exactly the pre-map state a real phone shows for the first
-// few hundred milliseconds — and it needs no GL context to do it.
+// few hundred milliseconds — and it needs no GL context to do it. The one block
+// that needs the layers themselves fires it by hand.
 
 // `vi.mock` is hoisted above every declaration in the file, so the fakes it
 // closes over have to be hoisted with it.
@@ -43,6 +45,8 @@ const { FakeMap, FakeLngLatBounds, mapInstances } = vi.hoisted(() => {
 
   class FakeMap {
     handlers = new Map<string, Array<(e: unknown) => void>>()
+    /** Every spec handed to `addLayer`, in order. */
+    layers: Array<{ id?: string; type?: string; layout?: Record<string, unknown> }> = []
     removed = false
     constructor(public opts: unknown) {
       mapInstances.push(this)
@@ -56,12 +60,20 @@ const { FakeMap, FakeLngLatBounds, mapInstances } = vi.hoisted(() => {
     off() {
       return this
     }
+    /** Play the part of the real map: run everything listening for `ev`. */
+    fire(ev: string) {
+      for (const fn of this.handlers.get(ev) ?? []) fn({})
+    }
     addSource() {}
-    addLayer() {}
+    addLayer(spec: { id?: string; type?: string; layout?: Record<string, unknown> }) {
+      this.layers.push(spec)
+    }
     removeLayer() {}
     removeSource() {}
-    getSource() {
-      return { setData: () => {} }
+    /** The last data set on each GeoJSON source, by source id. */
+    data = new Map<string, unknown>()
+    getSource(id: string) {
+      return { setData: (d: unknown) => this.data.set(id, d) }
     }
     getLayer() {
       return undefined
@@ -104,6 +116,20 @@ vi.mock('maplibre-gl', () => ({
 }))
 vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}))
 
+// The forecast client, passed through untouched — straight into the disabled
+// network — unless a test hands it a cube to return instead.
+const { stubForecast } = vi.hoisted(() => ({
+  stubForecast: { cube: null as WeatherCube | null },
+}))
+vi.mock('@/lib/weather/openmeteo', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/weather/openmeteo')>()
+  return {
+    ...real,
+    fetchWindCube: (...args: Parameters<typeof real.fetchWindCube>) =>
+      stubForecast.cube ? Promise.resolve(stubForecast.cube) : real.fetchWindCube(...args),
+  }
+})
+
 import { StartScreen } from './StartScreen'
 import { RaceScreen } from './RaceScreen'
 import { SetupScreen, tideStationLabel } from './SetupScreen'
@@ -113,6 +139,8 @@ import { useStore } from '@/state/store'
 import { findPolar } from '@/data/polars'
 import { PILOT_VENUE } from '@/data/venues'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
+import { angdiff, wrap360 } from '@/lib/angles'
+import { uvFromWind } from '@/lib/weather/cube'
 
 // ------------------------------------------------------------------ fixtures
 
@@ -178,6 +206,7 @@ class NoopResizeObserver {
 beforeEach(() => {
   ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = NoopResizeObserver
   mapInstances.length = 0
+  stubForecast.cube = null
   // No forecast fetches from a screen test.
   globalThis.fetch = (() =>
     Promise.reject(new Error('network disabled in screen tests'))) as unknown as typeof fetch
@@ -311,6 +340,146 @@ describe('the Weather screen states its provenance', () => {
      */
     render(<WeatherScreen />)
     expect(screen.queryByText(/source unknown/i)).toBeNull()
+  })
+})
+
+describe('wind and current symbols keep their bearing on a rotated chart', () => {
+  /*
+   * Every `icon-rotate` and `text-rotate` on these charts is a compass bearing.
+   * MapLibre measures it from the top of the screen unless the layer's rotation
+   * alignment is 'map', point symbols default to the screen, and a two-finger
+   * twist rotates the chart unless rotation is switched off. A layer that misses
+   * the alignment therefore draws every barb and arrow wrong by the map bearing,
+   * and a wrong arrow looks exactly as plausible as a right one. The layer spec
+   * is the only place it can be seen.
+   */
+  const rotatedSymbols = (Screen: () => React.JSX.Element) => {
+    render(<Screen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    return mapInstances
+      .flatMap((m) => m.layers)
+      .filter(
+        (l) =>
+          l.type === 'symbol' &&
+          (l.layout?.['icon-rotate'] !== undefined || l.layout?.['text-rotate'] !== undefined),
+      )
+  }
+
+  for (const [name, Screen] of SCREENS.filter(([n]) => n === 'Weather' || n === 'Route')) {
+    it(`${name}: every rotated symbol is aligned to the map, and upright`, () => {
+      const layers = rotatedSymbols(Screen)
+      // Otherwise the loop below passes by checking nothing.
+      expect(layers.length, `${name} added no rotated symbol layers`).toBeGreaterThan(0)
+      for (const l of layers) {
+        for (const kind of ['icon', 'text'] as const) {
+          if (l.layout?.[`${kind}-rotate`] === undefined) continue
+          expect(l.layout[`${kind}-rotation-alignment`], `${l.id} ${kind}`).toBe('map')
+          // Standing up on a tilted chart: barbs.ts, render-architecture.md §4.
+          expect(l.layout[`${kind}-pitch-alignment`], `${l.id} ${kind}`).toBe('viewport')
+        }
+      }
+    })
+  }
+})
+
+describe('the Route chart draws the wind the route sails in', () => {
+  /*
+   * The arrows are the Route tab's only picture of the wind, drawn under a route
+   * the departure sweep can start twelve hours after the forecast was fetched.
+   * They must follow the drawn route's departure, and the clock when there is no
+   * route — not whichever hour the cube happens to begin with.
+   */
+  const HOUR = 3_600_000
+
+  /** Uniform over the venue, blowing FROM `fromDeg[k]` in hour k. */
+  function windCube(t0: number, fromDeg: number[]): WeatherCube {
+    const nx = 3
+    const ny = 3
+    const nt = fromDeg.length
+    const u = new Float32Array(nt * ny * nx)
+    const v = new Float32Array(nt * ny * nx)
+    fromDeg.forEach((d, k) => {
+      const w = uvFromWind(12, d)
+      u.fill(w.u, k * ny * nx, (k + 1) * ny * nx)
+      v.fill(w.v, k * ny * nx, (k + 1) * ny * nx)
+    })
+    const b = PILOT_VENUE.bbox
+    return {
+      model: 'test',
+      run: 'test-run',
+      bbox: b,
+      nx,
+      ny,
+      dx: (b.east - b.west) / (nx - 1),
+      dy: (b.north - b.south) / (ny - 1),
+      t0,
+      dtMs: HOUR,
+      nt,
+      params: ['u10', 'v10'],
+      data: { u10: u, v10: v },
+    }
+  }
+
+  function routeLeavingAt(t: number): RouteResult {
+    const at = (dt: number, dLat: number) => ({
+      t: t + dt,
+      position: { lat: PILOT_VENUE.waterStart.lat + dLat, lon: PILOT_VENUE.waterStart.lon },
+      twd: 90,
+      tws: 12,
+      twa: 90,
+      bsp: 6,
+      heading: 0,
+      isBeating: false,
+      tack: 'starboard' as const,
+      currentSet: null,
+      currentDrift: null,
+      distanceNm: 0.6,
+    })
+    return {
+      ok: true,
+      legs: [at(0, 0), at(HOUR / 10, 0.01)],
+      etaMs: t + HOUR / 10,
+      elapsedS: 360,
+      directTimeS: 360,
+      isochrones: [],
+      reverseIsochrones: [],
+      sensitivity: null,
+      diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: true, warnings: [] },
+    }
+  }
+
+  it('follows the departure of the drawn route, and the clock without one', async () => {
+    // Northerly for two hours, then easterly. Now sits in the northerly part, a
+    // departure two hours on in the easterly.
+    const t0 = Date.now() - HOUR / 2
+    stubForecast.cube = windCube(t0, [0, 0, 90])
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+
+    const map = mapInstances[0]
+    /** Where each drawn arrow points: the direction the wind blows TOWARD. */
+    const arrows = () =>
+      ((map.data.get('wind') as GeoJSON.FeatureCollection | undefined)?.features ?? []).map((f) =>
+        wrap360((f.properties as { rot: number }).rot),
+      )
+    const allToward = (want: number) => {
+      const a = arrows()
+      return a.length > 0 && a.every((b) => Math.abs(angdiff(b, want)) < 1e-3)
+    }
+
+    screen.getByText('FORECAST').click()
+    await waitFor(() => expect(allToward(180), 'no route: the wind now').toBe(true))
+
+    act(() => useStore.getState().setRoute(routeLeavingAt(t0 + 2 * HOUR)))
+    expect(allToward(270), 'the wind the route leaves into').toBe(true)
+
+    act(() => useStore.getState().setRoute(null))
+    expect(allToward(180), 'route cleared: the wind now again').toBe(true)
   })
 })
 

@@ -11,6 +11,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useStore } from '@/state/store'
 import { cubeNotes, fetchWindCube } from '@/lib/weather/openmeteo'
+import { sampleCube } from '@/lib/weather/cube'
 import { RoutingClient } from '@/lib/routing/client'
 import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
 import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
@@ -269,6 +270,20 @@ export function RouteScreen() {
     }
   }, [ready, route])
 
+  /*
+   * The arrows describe the route that is drawn: the wind it leaves into, or the
+   * wind now when there is no route. Not the cube's first hour — that is the hour
+   * of the download, and a departure picked from the sweep can be twelve hours
+   * after it. An effect rather than a call in `loadWeather`, so a forecast
+   * requested before the map finished loading is still drawn once it has.
+   */
+  const windAt = route?.ok && route.legs.length > 0 ? route.legs[0].t : null
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setSource(map, 'wind', cube ? windFC(cube, windAt ?? Date.now()) : emptyFC())
+  }, [ready, cube, windAt])
+
   // ------------------------------------------------------------------ actions
   const loadWeather = useCallback(async (): Promise<WeatherCube | null> => {
     if (!state) return null
@@ -294,8 +309,6 @@ export function RouteScreen() {
         includeCurrent: true,
       })
       setCube(c)
-      const map = mapRef.current
-      if (map && ready) setSource(map, 'wind', windFC(c))
       return c
     } catch (e) {
       setRouteError(e instanceof Error ? e.message : 'Forecast download failed')
@@ -303,7 +316,7 @@ export function RouteScreen() {
     } finally {
       setBusy(null)
     }
-  }, [state, course.marks, ready, setRouteError])
+  }, [state, course.marks, setRouteError])
 
   /*
    * Declared before the callbacks that list it as a dependency. A dependency array
@@ -1062,6 +1075,11 @@ function addEmptyLayers(map: maplibregl.Map) {
       'text-field': '↑',
       'text-size': ['interpolate', ['linear'], ['get', 'kn'], 0, 11, 30, 24],
       'text-rotate': ['get', 'rot'],
+      // Unset, this defaults to 'viewport' for a point symbol, which measures the
+      // bearing from the top of the screen and is wrong on a rotated chart.
+      // Pitch pinned so the glyph stays upright, matching the Weather arrows.
+      'text-rotation-alignment': 'map',
+      'text-pitch-alignment': 'viewport',
       'text-allow-overlap': true,
       'text-ignore-placement': true,
     },
@@ -1161,30 +1179,32 @@ export function extractBeatSegments(
   return segs
 }
 
-/** Thin the cube down to a readable arrow field. */
-function windFC(c: WeatherCube): FC {
+/**
+ * Thin the cube down to a readable arrow field, as the wind stands at `t`.
+ *
+ * Sampled through `sampleCube`, the same interpolation the router's `CubeField`
+ * uses, so each arrow is the wind the route was computed against. A time the
+ * cube does not cover draws no arrows rather than the nearest hour's.
+ */
+export function windFC(c: WeatherCube, t: Millis): FC {
   const features: GeoJSON.Feature[] = []
-  const u = c.data.u10
-  const v = c.data.v10
-  if (!u || !v) return emptyFC()
+  if (!c.data.u10 || !c.data.v10) return emptyFC()
   const strideX = Math.max(1, Math.floor(c.nx / 18))
   const strideY = Math.max(1, Math.floor(c.ny / 18))
   for (let j = 0; j < c.ny; j += strideY) {
     for (let i = 0; i < c.nx; i += strideX) {
-      const idx = j * c.nx + i // time index 0
-      const uu = u[idx]
-      const vv = v[idx]
-      if (!Number.isFinite(uu) || !Number.isFinite(vv)) continue
+      const lon = c.bbox.west + i * c.dx
+      const lat = c.bbox.south + j * c.dy
+      const uu = sampleCube(c, 'u10', lat, lon, t)
+      const vv = sampleCube(c, 'v10', lat, lon, t)
+      if (uu === null || vv === null) continue
       const kn = Math.hypot(uu, vv)
       // Arrow glyph points "up"; rotate to the direction the wind blows TOWARD.
       const rot = (Math.atan2(uu, vv) * 180) / Math.PI
       features.push({
         type: 'Feature',
         properties: { kn: Math.round(kn * 10) / 10, rot },
-        geometry: {
-          type: 'Point',
-          coordinates: [c.bbox.west + i * c.dx, c.bbox.south + j * c.dy],
-        },
+        geometry: { type: 'Point', coordinates: [lon, lat] },
       })
     }
   }

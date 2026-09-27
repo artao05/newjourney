@@ -142,7 +142,12 @@ function WeatherOverlay() {
         layout: {
           'icon-image': barbImageExpression(PROP_MAGNITUDE) as never,
           'icon-rotate': ['get', PROP_FROM],
-          'icon-rotation-alignment': 'viewport',
+          // `icon-rotate` is a compass bearing, and only 'map' keeps it one once
+          // the chart is rotated: under 'viewport' it is measured from the top of
+          // the screen, so every barb is wrong by the map bearing and still looks
+          // plausible. Pitch stays 'viewport' so a barb stands upright when tilted
+          // (barbs.ts, render-architecture.md §4).
+          'icon-rotation-alignment': 'map',
           'icon-pitch-alignment': 'viewport',
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
@@ -163,7 +168,11 @@ function WeatherOverlay() {
           'text-size': ['interpolate', ['linear'], ['get', PROP_MAGNITUDE], 0, 11, 40, 26],
           // Arrow glyph points right at rotate 0, so aim it where the flow GOES.
           'text-rotate': ['-', ['get', PROP_TOWARD], 90],
-          'text-rotation-alignment': 'viewport',
+          // A bearing, so aligned to the map for the same reason as the barbs.
+          // Pitch is pinned to 'viewport' because it would otherwise follow the
+          // rotation alignment and lay the glyph flat on a tilted chart.
+          'text-rotation-alignment': 'map',
+          'text-pitch-alignment': 'viewport',
           'text-allow-overlap': true,
           'text-ignore-placement': true,
           visibility: 'none',

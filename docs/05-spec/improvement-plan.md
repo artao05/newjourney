@@ -4198,10 +4198,12 @@ Small, real, none urgent. Listed so they stop being rediscovered:
   "now lives beside `LAYERS`", attached to no code. Changelog comments belong in
   the log; three of these have now been deleted across two passes, which suggests
   writing them is a habit worth breaking rather than a one-off.
-- `RouteScreen.windFC` re-implements thinning that `thinVectorField` does, tested,
-  and it always reads **time index 0** — the arrows show hour zero regardless of
-  the route's own clock. Owned by the `RouteOverlay` fold-in; if that slips, fix
-  the hour-0 read on its own, it is two lines.
+- `RouteScreen.windFC` re-implements thinning that `thinVectorField` does, tested.
+  Owned by the `RouteOverlay` fold-in. ~~It always reads **time index 0**~~ — the
+  fold-in slipped, so the hour-0 read was fixed on its own: the arrows now sample
+  through `sampleCube` at the drawn route's departure, or now when there is no
+  route, and draw nothing outside the forecast. Tested in `routeGeo.test.ts` and,
+  wired through the screen, in `screens.test.tsx`.
 - `sensitivityFC` emits one GeoJSON polygon per grid cell. Fine at venue scale,
   will not stay fine.
 - Formatting helpers (`fmt`, `fmtClock`, `fmtHm`, `fmtUtc`, `fmtLocal`) are
