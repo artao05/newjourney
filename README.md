@@ -71,6 +71,7 @@ and a wet pocket.
 | [docs/06-decisions](docs/06-decisions/) | Architecture decision records |
 | [docs/SOURCES.md](docs/SOURCES.md) | Master bibliography — every URL cited across the research |
 | [RUNNING.md](RUNNING.md) | How to run the prototype |
+| [PILOT.md](PILOT.md) | For sailors trying it on the water: install, the dock check, the two-minute test, and what to send back |
 
 ## Code layout
 

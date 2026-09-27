@@ -22,7 +22,8 @@ Pushes to `main` publish the app to GitHub Pages through
 once, by the repository's owner: **Settings → Pages → Source: GitHub Actions**. The
 site is then at <https://artao05.github.io/newjourney/>. It is served over HTTPS,
 which is what a phone needs before it will hand over its GPS, so this is also the
-easiest way to try it on the water. Every push and pull request also runs
+easiest way to try it on the water, for which [PILOT.md](PILOT.md) is the sailor's
+guide. Every push and pull request also runs
 `.github/workflows/ci.yml`: the tests, then the build and its typecheck.
 
 ---

@@ -87,7 +87,7 @@ commit as the fix, so this file's history says which commit did each item.
 - [ ] **12. Fix a mis-ping without re-pinging.** mvp-scope's "adjust by dragging on a
       simple plan view" is absent. *Accept:* a line end can be dragged on the start
       display, the pixel↔lat/lon mapping is unit-tested, and it is checked in the app.
-- [ ] **13. A pilot guide.** *Accept:* one page covering install on iPhone and
+- [x] **13. A pilot guide.** *Accept:* one page covering install on iPhone and
       Android, a dock-side checklist (airplane mode, wake lock, GPS permission,
       sunlight), the two-minute test from mvp-scope, and what to send back (the GPX
       from item 6).
