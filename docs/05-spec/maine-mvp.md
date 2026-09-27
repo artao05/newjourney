@@ -30,7 +30,7 @@ commit as the fix, so this file's history says which commit did each item.
 
 ## P0 — would mislead or strand a sailor on the water
 
-- [ ] **1. CLEAR keeps the start line.** CLEAR sits among the Race tab's mark controls
+- [x] **1. CLEAR keeps the start line.** CLEAR sits among the Race tab's mark controls
       but calls `clearCourse`, which also nulls both pinged ends and the gun time. A
       sailor tidying up marks during a sequence loses the line and the countdown.
       *Accept:* clearing marks leaves the start line and gun time intact. There is a

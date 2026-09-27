@@ -120,6 +120,25 @@ describe('course edits do not disturb a pinged start line', () => {
     useStore.getState().removeMark(marks[0].id)
     expect(useStore.getState().course.startLine.starboard).toEqual(at(43.6, -70.19))
   })
+
+  it('clearMarks keeps the line and the gun time', () => {
+    // What CLEAR on the Race tab calls, possibly mid-sequence, where losing the
+    // line or the countdown running on it costs the start.
+    courseOf(3)
+    useStore.getState().setStartEnd('port', at(43.6, -70.21))
+    useStore.getState().setStartEnd('starboard', at(43.6, -70.19))
+    useStore.getState().setGunTime(1_900_000_000_000)
+    useStore.getState().setActiveMark(2)
+    useStore.getState().clearMarks()
+    const { course } = useStore.getState()
+    expect(course.marks).toEqual([])
+    expect(course.startLine).toEqual({
+      port: at(43.6, -70.21),
+      starboard: at(43.6, -70.19),
+      gunTime: 1_900_000_000_000,
+    })
+    expect(active()).toBe(0)
+  })
 })
 
 describe('bounded histories', () => {
@@ -231,6 +250,11 @@ describe('a computed route does not outlive the course it was computed for', () 
 
   it('clears when the course is cleared', () => {
     useStore.getState().clearCourse()
+    expect(useStore.getState().route).toBeNull()
+  })
+
+  it('clears when the marks alone are cleared', () => {
+    useStore.getState().clearMarks()
     expect(useStore.getState().route).toBeNull()
   })
 

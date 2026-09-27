@@ -30,7 +30,7 @@ export function RaceScreen() {
   const setActiveMark = useStore((s) => s.setActiveMark)
   const addMark = useStore((s) => s.addMark)
   const replaceMarks = useStore((s) => s.replaceMarks)
-  const clearCourse = useStore((s) => s.clearCourse)
+  const clearMarks = useStore((s) => s.clearMarks)
 
   const [whatIfShift, setWhatIfShift] = useState(0)
   const [whatIfSpeed, setWhatIfSpeed] = useState(0)
@@ -374,7 +374,7 @@ export function RaceScreen() {
           >
             DROP MARK
           </button>
-          <button className="btn btn--sm btn--ghost" onClick={clearCourse} disabled={!marks.length}>
+          <button className="btn btn--sm btn--ghost" onClick={clearMarks} disabled={!marks.length}>
             CLEAR
           </button>
         </div>

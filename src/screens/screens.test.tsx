@@ -483,6 +483,19 @@ describe('the Route chart draws the wind the route sails in', () => {
   })
 })
 
+describe("the Race tab's CLEAR removes marks, not the start", () => {
+  it('keeps the pinged line and the running countdown', () => {
+    populatedStore()
+    const { startLine } = useStore.getState().course
+    expect(startLine.port && startLine.starboard && startLine.gunTime).toBeTruthy()
+    render(<RaceScreen />)
+    act(() => screen.getByText('CLEAR').click())
+    const { course } = useStore.getState()
+    expect(course.marks).toEqual([])
+    expect(course.startLine).toEqual(startLine)
+  })
+})
+
 describe('the Setup screen does not claim a polar it has not loaded', () => {
   it('warns when no polar is selected', () => {
     render(<SetupScreen />)

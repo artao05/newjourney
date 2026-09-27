@@ -50,6 +50,9 @@ interface AppState {
   /** Replace marks without resetting a previously pinged start line. */
   replaceMarks(marks: Array<{ name: string; position: LatLon }>): void
   removeMark(id: string): void
+  /** Remove every mark, keeping the pinged start line and the gun time. */
+  clearMarks(): void
+  /** Reset the whole course, start line and gun time included. */
   clearCourse(): void
   activeMarkIndex: number
   setActiveMark(i: number): void
@@ -232,6 +235,13 @@ export const useStore = create<AppState>()(
           activeMarkIndex: marks.length === 0 ? 0 : Math.min(Math.max(0, shifted), marks.length - 1),
         })
       },
+      /*
+       * What CLEAR on the Race tab does. The start line and the gun time belong to
+       * the start, not to the marks: a sailor clearing old marks mid-sequence must
+       * keep the line they pinged and the countdown running on it.
+       */
+      clearMarks: () =>
+        set({ ...COURSE_CHANGED, course: { ...get().course, marks: [] }, activeMarkIndex: 0 }),
       clearCourse: () => set({ ...COURSE_CHANGED, course: EMPTY_COURSE, activeMarkIndex: 0 }),
       activeMarkIndex: 0,
       setActiveMark: (i) => set({ activeMarkIndex: i }),
