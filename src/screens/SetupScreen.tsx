@@ -41,6 +41,9 @@ export function SetupScreen() {
   const settings = useStore((s) => s.settings)
   const updateSettings = useStore((s) => s.updateSettings)
   const manualWind = useStore((s) => s.manualWind)
+  // Unset shows as empty, not as the placeholder values - a field reading 270
+  // looks exactly like a wind somebody chose.
+  const manualWindSetAt = useStore((s) => s.manualWindSetAt)
   const setManualWind = useStore((s) => s.setManualWind)
   const windMode = useStore((s) => s.windMode)
   const setWindMode = useStore((s) => s.setWindMode)
@@ -276,7 +279,8 @@ export function SetupScreen() {
           <input
             type="number"
             step="1"
-            value={manualWind.twd}
+            value={manualWindSetAt == null ? '' : manualWind.twd}
+            placeholder="not set"
             onChange={(e) => setManualWind(Number(e.target.value), manualWind.tws)}
             inputMode="numeric"
           />
@@ -286,7 +290,8 @@ export function SetupScreen() {
           <input
             type="number"
             step="0.5"
-            value={manualWind.tws}
+            value={manualWindSetAt == null ? '' : manualWind.tws}
+            placeholder="not set"
             onChange={(e) => setManualWind(manualWind.twd, Number(e.target.value))}
             inputMode="decimal"
           />

@@ -15,11 +15,11 @@ import { RaceScreen } from '@/screens/RaceScreen'
 import { SetupScreen } from '@/screens/SetupScreen'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { NotForNavigationDialog } from '@/components/NotForNavigation'
+import { WindSheet, windChip } from '@/components/WindSheet'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
 import type { WindEstimate } from '@/lib/types'
 import { fetchPointForecast } from '@/lib/weather/openmeteo'
-import { fmtDeg } from '@/lib/angles'
 import { PILOT_VENUE } from '@/data/venues'
 
 const FORECAST_REFRESH_MS = 15 * 60_000
@@ -53,6 +53,9 @@ export function App() {
   const polarId = useStore((s) => s.polarId)
   const setPolar = useStore((s) => s.setPolar)
   const manualWind = useStore((s) => s.manualWind)
+  const manualWindSetAt = useStore((s) => s.manualWindSetAt)
+  const windSheetOpen = useStore((s) => s.windSheetOpen)
+  const setWindSheetOpen = useStore((s) => s.setWindSheetOpen)
   const windMode = useStore((s) => s.windMode)
   const wind = useStore((s) => s.wind)
   const windError = useStore((s) => s.windError)
@@ -90,6 +93,12 @@ export function App() {
   // forecast every second — that was making the Forecast switch a cosmetic control.
   useEffect(() => {
     if (windMode !== 'manual') return
+    // Nobody has set it: then there is no wind, and the Start tab says so, rather
+    // than a placeholder quietly deciding which end of the line is favoured.
+    if (manualWindSetAt == null) {
+      setWind(null)
+      return
+    }
     const w: WindEstimate = {
       twd: manualWind.twd,
       tws: manualWind.tws,
@@ -100,7 +109,7 @@ export function App() {
     setWind(w)
     setWindError(null)
     pushWind({ t: now, twd: w.twd, tws: w.tws })
-  }, [manualWind.twd, manualWind.tws, now, windMode, setWind, setWindError, pushWind])
+  }, [manualWind.twd, manualWind.tws, manualWindSetAt, now, windMode, setWind, setWindError, pushWind])
 
   // A point forecast is useful for tactics but never substitutes for the route's
   // gridded field. Refresh deliberately and retain the previous estimate if the
@@ -197,6 +206,7 @@ export function App() {
   // Until the notice is accepted the app sits behind it, `inert` so no tap or
   // tab-key can reach a number the sailor has not yet been told how far to trust.
   const mustAccept = !settings.acceptedNotForNavigation
+  const windChipState = windChip(wind, manualWindSetAt, now)
 
   return (
     <>
@@ -207,9 +217,13 @@ export function App() {
             {settings.simulate ? 'SIM' : 'GPS'} {gpsChip.text}
           </span>
           <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span className="chip">
-              {wind ? `${fmtDeg(wind.twd)}° · ${wind.tws.toFixed(0)} kn` : 'wind unavailable'}
-            </span>
+            <button
+              className={`chip ${windChipState.warn ? 'chip--warn' : ''}`}
+              onClick={() => setWindSheetOpen(true)}
+              aria-label={`Wind: ${windChipState.text}. Tap to set.`}
+            >
+              {windChipState.text}
+            </button>
             <button
               className={`chip ${recording ? 'chip--bad' : ''}`}
               onClick={toggleRecording}
@@ -291,6 +305,8 @@ export function App() {
             </button>
           ))}
         </nav>
+
+        {windSheetOpen && <WindSheet onClose={() => setWindSheetOpen(false)} />}
       </div>
       {mustAccept && (
         <NotForNavigationDialog onAccept={() => updateSettings({ acceptedNotForNavigation: true })} />

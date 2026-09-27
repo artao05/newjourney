@@ -110,6 +110,14 @@ beforeEach(() => {
   // notice's own tests below set it back.
   s.updateSettings({ simulate: false, keepAwake: false, acceptedNotForNavigation: true })
   s.setWindMode('manual')
+  // Nobody has set a wind yet, as on a fresh install. Reset here rather than left
+  // to test order: a set timestamp leaking from one test hides the unset case.
+  useStore.setState({
+    manualWind: { twd: 270, tws: 12 },
+    manualWindSetAt: null,
+    windSheetOpen: false,
+    windHistory: [],
+  })
   if (s.recording) s.toggleRecording()
 })
 
@@ -155,11 +163,73 @@ describe('wind assembly', () => {
   })
 
   it('follows a change to the manual wind', async () => {
+    useStore.getState().setManualWind(235, 14)
     render(<App />)
     await waitFor(() => expect(useStore.getState().wind).not.toBeNull())
     act(() => useStore.getState().setManualWind(10, 20))
     await waitFor(() => expect(useStore.getState().wind?.twd).toBe(10))
     expect(useStore.getState().wind?.tws).toBe(20)
+  })
+
+  it('publishes no wind at all from a manual wind nobody has set', async () => {
+    // The placeholder in `manualWind` is not a reading. Published, it decided the
+    // favoured end on a fresh install, with a chip showing it like any other wind.
+    useStore.getState().setWind({ twd: 1, tws: 1, source: 'manual', uncertaintyDeg: 8, t: 0 })
+    render(<App />)
+    await waitFor(() => expect(useStore.getState().wind).toBeNull())
+    expect(useStore.getState().windHistory).toEqual([])
+    const chip = screen.getByRole('button', { name: /^Wind:/ })
+    expect(chip.textContent).toBe('set wind')
+    expect(chip.className).toContain('chip--warn')
+  })
+})
+
+describe('the wind chip says what the wind rests on', () => {
+  const chip = () => screen.getByRole('button', { name: /^Wind:/ })
+
+  it('names a hand-set wind as manual', async () => {
+    useStore.getState().setManualWind(235, 14)
+    render(<App />)
+    await waitFor(() => expect(chip().textContent).toBe('235° · 14 kn · manual'))
+    expect(chip().className).not.toContain('chip--warn')
+  })
+
+  it('names a forecast as a forecast', async () => {
+    useStore.getState().setWindMode('forecast')
+    useStore.getState().setWind({ twd: 200, tws: 9, source: 'forecast', uncertaintyDeg: 18, t: Date.now() })
+    render(<App />)
+    expect(chip().textContent).toBe('200° · 9 kn · forecast')
+  })
+
+  it('shows the age of a hand-set wind once it is old enough to have shifted', async () => {
+    useStore.getState().setManualWind(235, 14)
+    useStore.setState({ manualWindSetAt: Date.now() - 45 * 60_000 })
+    render(<App />)
+    await waitFor(() => expect(chip().textContent).toBe('235° · 14 kn · manual · 45 min old'))
+    expect(chip().className).toContain('chip--warn')
+  })
+
+  it('switches a forecast to manual when a wind is set by hand', () => {
+    useStore.getState().setWindMode('forecast')
+    render(<App />)
+    act(() => chip().click())
+    act(() => screen.getByRole('button', { name: /^SET WIND/ }).click())
+    expect(useStore.getState().windMode).toBe('manual')
+  })
+
+  it('opens the wind sheet, where a wind set takes effect at once', async () => {
+    render(<App />)
+    act(() => chip().click())
+    const sheet = screen.getByRole('dialog', { name: 'Set the wind' })
+    expect(sheet).toBeTruthy()
+    // Stepping from the placeholder: the sailor still has to confirm it.
+    act(() => screen.getAllByRole('button', { name: '+5' })[0].click())
+    act(() => screen.getAllByRole('button', { name: '+5' })[0].click())
+    act(() => screen.getByRole('button', { name: /^SET WIND/ }).click())
+    expect(screen.queryByRole('dialog', { name: 'Set the wind' })).toBeNull()
+    expect(useStore.getState().manualWind).toEqual({ twd: 280, tws: 12 })
+    expect(useStore.getState().manualWindSetAt).not.toBeNull()
+    await waitFor(() => expect(useStore.getState().wind?.twd).toBe(280))
   })
 })
 

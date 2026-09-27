@@ -163,6 +163,7 @@ function emptyStore() {
   s.setRoute(null)
   s.setRouteError(null)
   s.setGpsError(null)
+  useStore.setState({ manualWind: { twd: 270, tws: 12 }, manualWindSetAt: null, windSheetOpen: false })
 }
 
 /** A boat, a wind, a polar and a two-mark course. */
@@ -480,6 +481,36 @@ describe('the Route chart draws the wind the route sails in', () => {
 
     act(() => useStore.getState().setRoute(null))
     expect(allToward(180), 'route cleared: the wind now again').toBe(true)
+  })
+})
+
+describe('the Start tab asks for the wind it needs', () => {
+  it('asks while no wind is set, and opens the wind sheet', () => {
+    render(<StartScreen />)
+    act(() => screen.getByRole('button', { name: 'SET THE WIND' }).click())
+    expect(useStore.getState().windSheetOpen).toBe(true)
+  })
+
+  it('does not ask once there is a wind', () => {
+    populatedStore()
+    render(<StartScreen />)
+    expect(screen.queryByRole('button', { name: 'SET THE WIND' })).toBeNull()
+  })
+})
+
+describe('the Setup wind fields do not dress a placeholder up as a wind', () => {
+  it('reads empty until somebody sets it, then shows what they set', () => {
+    const field = (label: string) =>
+      screen.getByText(label, { selector: 'label' }).parentElement!.querySelector('input')!
+    const view = render(<SetupScreen />)
+    expect(field('TWD').value).toBe('')
+    expect(field('TWS').value).toBe('')
+    expect(field('TWD').placeholder).toBe('not set')
+    view.unmount()
+    act(() => useStore.getState().setManualWind(235, 14))
+    render(<SetupScreen />)
+    expect(field('TWD').value).toBe('235')
+    expect(field('TWS').value).toBe('14')
   })
 })
 

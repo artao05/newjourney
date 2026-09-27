@@ -158,6 +158,63 @@ button {
   font-size: 16px;
 }
 
+/* ------------------------------------------------------------- wind sheet */
+
+.wind-sheet {
+  display: grid;
+  gap: 10px;
+}
+
+.wind-sheet__title {
+  margin: 0;
+  font-size: 20px;
+}
+
+.wind-sheet .note {
+  margin: 0;
+}
+
+.wind-sheet__value label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+
+.wind-sheet__value input {
+  width: 5.5ch;
+  padding: 4px 8px;
+  font-size: 44px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--ink);
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r);
+}
+
+.wind-sheet__steps {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.wind-sheet__steps--2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* The Start tab's ask when no wind is set: the reason, and the one button. */
+.wind-needed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 /* ------------------------------------------------------------------- bits */
 
 .topbar {

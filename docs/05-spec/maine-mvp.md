@@ -45,7 +45,7 @@ commit as the fix, so this file's history says which commit did each item.
       foot of Setup. *Accept:* a one-time acknowledgement before first use,
       remembered once given, and the Setup notice stays. Screen tests cover both
       states.
-- [ ] **4. Wind you can see the source of, and set from the Start screen.** Line bias
+- [x] **4. Wind you can see the source of, and set from the Start screen.** Line bias
       and laylines rest on the wind. The top-bar chip shows the manual default
       (270° · 12 kn) without saying it is manual, and setting it means leaving Start
       for Setup. *Accept:* the chip names its source and flags a default nobody has

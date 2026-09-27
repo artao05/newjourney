@@ -356,3 +356,21 @@ describe('the not-for-navigation notice', () => {
     expect(DEFAULT_SETTINGS.acceptedNotForNavigation).toBe(false)
   })
 })
+
+describe('a manual wind knows whether anybody set it', () => {
+  it('stamps the time it was set', () => {
+    const before = Date.now()
+    useStore.getState().setManualWind(235, 14)
+    expect(useStore.getState().manualWindSetAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('treats a save from before the stamp as never set', () => {
+    // Its 270/12 may be the placeholder or a real choice; asking once is honest,
+    // silently trusting it is not.
+    const merged = mergePersistedState({ manualWind: { twd: 270, tws: 12 } }, {
+      ...useStore.getState(),
+      manualWindSetAt: null,
+    })
+    expect(merged.manualWindSetAt).toBeNull()
+  })
+})

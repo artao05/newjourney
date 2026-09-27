@@ -52,8 +52,10 @@ phone on the water, which is the test that counts.
 - [x] **Time to line** from GPS COG/SOG
 - [x] **Time to burn** — number plus a graphic bar
 - [x] **Line bias** — favoured end, bias angle, advantage in boat lengths
-- [x] Wind input: manual dial, or auto from a forecast lookup if online — *manual is
-      number entry in Setup, not a dial.*
+- [x] Wind input: manual dial, or auto from a forecast lookup if online — *not a dial:
+      big steps and number entry in a sheet opened from the wind chip on any tab, or
+      from Start while no wind is set. The chip names the source and the age of a
+      hand-set wind.*
 - [x] Simple chartless start display: line, boat, COG vector, heading, distance grid in
       boat lengths — *heading is COG on a phone.*
 - [x] Auto-declutter one minute after the gun

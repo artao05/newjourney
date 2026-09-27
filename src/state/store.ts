@@ -72,7 +72,17 @@ interface AppState {
   windError: string | null
   setWindError(error: string | null): void
   manualWind: { twd: Degrees; tws: Knots }
+  /**
+   * When a person last set the manual wind. Null means nobody has, and then there
+   * is no manual wind at all: `manualWind` holds a placeholder, and a placeholder
+   * presented as the wind puts a confident favoured end on the Start tab that
+   * nothing measured.
+   */
+  manualWindSetAt: Millis | null
   setManualWind(twd: Degrees, tws: Knots): void
+  /** The wind sheet: opened from the top-bar chip on any tab, and from Start. */
+  windSheetOpen: boolean
+  setWindSheetOpen(open: boolean): void
   windMode: WindSource
   setWindMode(m: WindSource): void
   windHistory: Array<{ t: Millis; twd: Degrees; tws: Knots }>
@@ -262,7 +272,10 @@ export const useStore = create<AppState>()(
       windError: null,
       setWindError: (windError) => set({ windError }),
       manualWind: { twd: 270, tws: 12 },
-      setManualWind: (twd, tws) => set({ manualWind: { twd, tws } }),
+      manualWindSetAt: null,
+      setManualWind: (twd, tws) => set({ manualWind: { twd, tws }, manualWindSetAt: Date.now() }),
+      windSheetOpen: false,
+      setWindSheetOpen: (open) => set({ windSheetOpen: open }),
       windMode: 'manual',
       /*
        * Changing the wind source empties the history, because the history is
@@ -328,6 +341,7 @@ export const useStore = create<AppState>()(
         polarId: s.polarId,
         course: s.course,
         manualWind: s.manualWind,
+        manualWindSetAt: s.manualWindSetAt,
         windMode: s.windMode,
         settings: s.settings,
         activeMarkIndex: s.activeMarkIndex,

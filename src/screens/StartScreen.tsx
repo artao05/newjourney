@@ -53,6 +53,7 @@ export function StartScreen() {
   const track = useStore((s) => s.track)
   const setStartEnd = useStore((s) => s.setStartEnd)
   const setGunTime = useStore((s) => s.setGunTime)
+  const setWindSheetOpen = useStore((s) => s.setWindSheetOpen)
   const [showDetail, setShowDetail] = useState(false)
 
   const lattice = useMemo<PolarLattice | null>(() => {
@@ -213,6 +214,15 @@ export function StartScreen() {
           )}
         </div>
       </div>
+
+      {!wind && (
+        <div className="warnbox wind-needed" style={{ margin: '10px var(--pad) 0' }}>
+          <span>Bias, the favoured end and the laylines need the wind.</span>
+          <button className="btn btn--primary btn--sm" onClick={() => setWindSheetOpen(true)}>
+            SET THE WIND
+          </button>
+        </div>
+      )}
 
       {lineSuspect && (
         <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
