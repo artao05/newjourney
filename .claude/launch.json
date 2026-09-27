@@ -4,8 +4,14 @@
     {
       "name": "newjourney",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--host"],
-      "autoPort": true
+      "runtimeArgs": ["run", "dev", "--", "--host", "--port", "5173", "--strictPort"],
+      "port": 5173
+    },
+    {
+      "name": "newjourney-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview", "--", "--port", "4173", "--strictPort"],
+      "port": 4173
     }
   ]
 }
