@@ -62,6 +62,8 @@ Tips worth passing on:
 - **Ping each end.** Press **PING RC** at the committee boat and **PING PIN** at the
   pin. Start the timer with 5, 4, 3 or 1 **MIN**, and press **SYNC** on the signal to
   round it to the minute.
+- **Mis-pinged an end?** Drag it on the start diagram rather than sailing back to
+  ping it again.
 - **Trust the number as far as the app says.** When the GPS fix is looser than half
   a boat length, the **BELOW LINE** tile turns amber and shows how many boat lengths
   it is good to.

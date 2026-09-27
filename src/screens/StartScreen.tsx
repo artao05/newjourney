@@ -276,6 +276,7 @@ export function StartScreen() {
             wind && lattice ? lattice.targetsAt(wind.tws).upTwa : undefined
           }
           secondsSinceGun={sinceGun}
+          onMoveEnd={setStartEnd}
         />
       </div>
 

@@ -84,7 +84,7 @@ commit as the fix, so this file's history says which commit did each item.
       line is the whole bias. *Accept:* the venue's variation comes from NOAA with a
       link and date, wind can be entered and shown in °M, and the T↔M sign is pinned
       by a test.
-- [ ] **12. Fix a mis-ping without re-pinging.** mvp-scope's "adjust by dragging on a
+- [x] **12. Fix a mis-ping without re-pinging.** mvp-scope's "adjust by dragging on a
       simple plan view" is absent. *Accept:* a line end can be dragged on the start
       display, the pixel↔lat/lon mapping is unit-tested, and it is checked in the app.
 - [x] **13. A pilot guide.** *Accept:* one page covering install on iPhone and

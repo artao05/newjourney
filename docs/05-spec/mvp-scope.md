@@ -45,8 +45,9 @@ phone on the water, which is the test that counts.
       bow when the heading is known: an instrument heading at any speed, or GPS COG from
       1 kn. Below that it records the phone and says so, since a bow projected along
       noisy COG can land further off than the antenna.*
-- [ ] Manual line entry / adjustment by dragging on a simple plan view — *absent; drag
-      is planned for the chart in [start-on-chart.md](start-on-chart.md) Phase 5.*
+- [x] Manual line entry / adjustment by dragging on a simple plan view — *either end
+      drags on the start display, with the view held still under the finger. On the
+      chart it comes with [start-on-chart.md](start-on-chart.md) Phase 5.*
 - [x] **Distance below line** in metres and boat lengths, bow-corrected, signed
 - [x] **Time to gun** — start a countdown, sync to a signal, 5/4/1/go presets — *the
       presets are 5/4/3/1 min, and SYNC rounds to the nearest minute.*
