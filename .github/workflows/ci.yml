@@ -21,4 +21,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # The routing kernel's wall-clock budgets, on their own: in the parallel
+      # suite above they would measure the other test files, not the kernel.
+      - run: npx vitest run src/lib/routing/isochrone.test.ts
+        env:
+          PERF: '1'
       - run: npm run build
