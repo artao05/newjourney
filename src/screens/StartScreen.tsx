@@ -10,11 +10,14 @@ import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
 import { StartCanvas } from '@/components/StartCanvas'
 import { Tile, fmtAgo, fmtClock, fmtSigned } from '@/components/Tile'
-import { computeStart, spareTimeS } from '@/lib/startline'
+import { COG_TRUSTED_KN, computeStart, pingPosition, spareTimeS } from '@/lib/startline'
 import { buildLattice } from '@/lib/polar'
 import type { PolarLattice, StartNumbers } from '@/lib/types'
 
 const ROLL_OPTIONS = [5, 4, 3, 1]
+
+/** How long the note after a ping recorded at the phone stays up. */
+const PING_NOTE_MS = 12_000
 
 /**
  * How long after the gun a timer is still worth showing, seconds.
@@ -55,6 +58,7 @@ export function StartScreen() {
   const setGunTime = useStore((s) => s.setGunTime)
   const setWindSheetOpen = useStore((s) => s.setWindSheetOpen)
   const [showDetail, setShowDetail] = useState(false)
+  const [pingNote, setPingNote] = useState<{ which: 'port' | 'starboard'; t: number } | null>(null)
 
   const lattice = useMemo<PolarLattice | null>(() => {
     if (!polar) return null
@@ -91,8 +95,13 @@ export function StartScreen() {
 
   const ping = (which: 'port' | 'starboard') => {
     if (!state) return
-    setStartEnd(which, state.position)
+    const { at, bow } = pingPosition(state, boat)
+    setStartEnd(which, at)
+    setPingNote(bow ? null : { which, t: Date.now() })
   }
+  // Said for a while after a ping that could not find the bow, so the sailor
+  // learns to ping with way on, rather than finding out from a crooked line.
+  const showPingNote = pingNote != null && now - pingNote.t < PING_NOTE_MS
 
   const startTimer = (minutes: number) => setGunTime(Date.now() + minutes * 60_000)
   const syncTimer = () => {
@@ -214,6 +223,14 @@ export function StartScreen() {
           )}
         </div>
       </div>
+
+      {showPingNote && (
+        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+          {pingNote.which === 'port' ? 'PIN' : 'RC'} recorded at the phone, not the bow: under{' '}
+          {COG_TRUSTED_KN} kn the GPS cannot tell which way the bow points. Ping with way on to
+          record the bow, {boat.bowToGpsMetres} m ahead of the phone.
+        </div>
+      )}
 
       {!wind && (
         <div className="warnbox wind-needed" style={{ margin: '10px var(--pad) 0' }}>

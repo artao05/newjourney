@@ -50,7 +50,7 @@ commit as the fix, so this file's history says which commit did each item.
       (270° · 12 kn) without saying it is manual, and setting it means leaving Start
       for Setup. *Accept:* the chip names its source and flags a default nobody has
       set. Start has a quick wind control. Screen tests cover both.
-- [ ] **5. The ping records the bow.** It stores the antenna position, while
+- [x] **5. The ping records the bow.** It stores the antenna position, while
       [start-line-math.md](../03-algorithms/start-line-math.md) specifies the bow.
       `bowPosition()` already falls back to the antenna when heading is unknown.
       *Accept:* a ping while moving lands bow-to-GPS metres ahead along the heading,

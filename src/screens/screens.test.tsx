@@ -138,6 +138,7 @@ import { RouteScreen } from './RouteScreen'
 import { useStore } from '@/state/store'
 import { findPolar } from '@/data/polars'
 import { PILOT_VENUE } from '@/data/venues'
+import { distance } from '@/lib/geo'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
 import { angdiff, wrap360 } from '@/lib/angles'
 import { uvFromWind } from '@/lib/weather/cube'
@@ -481,6 +482,28 @@ describe('the Route chart draws the wind the route sails in', () => {
 
     act(() => useStore.getState().setRoute(null))
     expect(allToward(180), 'route cleared: the wind now again').toBe(true)
+  })
+})
+
+describe('a ping records the bow when it can, and says when it cannot', () => {
+  const antenna = PILOT_VENUE.waterStart
+  const pinged = () => useStore.getState().course.startLine.port!
+
+  it('records the bow, bow-to-GPS metres ahead of the phone, when under way', () => {
+    populatedStore() // heading 42, 5.5 kn, the default 3 m bow-to-GPS
+    render(<StartScreen />)
+    act(() => screen.getByRole('button', { name: 'PING PIN' }).click())
+    expect(distance(antenna, pinged()) * 1852).toBeCloseTo(useStore.getState().boat.bowToGpsMetres, 2)
+    expect(document.body.textContent).not.toContain('recorded at the phone')
+  })
+
+  it('records the phone, and says why, when creeping with no heading', () => {
+    populatedStore()
+    useStore.getState().setBoatState({ ...useStore.getState().state!, heading: null, cog: 40, sog: 0.4 })
+    render(<StartScreen />)
+    act(() => screen.getByRole('button', { name: 'PING PIN' }).click())
+    expect(pinged()).toEqual(antenna)
+    expect(document.body.textContent).toContain('PIN recorded at the phone, not the bow')
   })
 })
 

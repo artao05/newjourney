@@ -41,9 +41,10 @@ phone on the water, which is the test that counts.
 
 ### Must have
 
-- [ ] Set start line by pinging two ends (GPS, with bow offset) — *pinging works, but
-      stores the antenna position: the bow offset reaches distance-below-line and not
-      the ping, although `bowPosition()` already falls back safely when stopped.*
+- [x] Set start line by pinging two ends (GPS, with bow offset) — *the ping records the
+      bow when the heading is known: an instrument heading at any speed, or GPS COG from
+      1 kn. Below that it records the phone and says so, since a bow projected along
+      noisy COG can land further off than the antenna.*
 - [ ] Manual line entry / adjustment by dragging on a simple plan view — *absent; drag
       is planned for the chart in [start-on-chart.md](start-on-chart.md) Phase 5.*
 - [x] **Distance below line** in metres and boat lengths, bow-corrected, signed

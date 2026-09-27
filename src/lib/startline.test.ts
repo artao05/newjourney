@@ -9,11 +9,13 @@
 
 import { describe, expect, it } from 'vitest'
 import { wrap180 } from './angles'
-import { destination, mToNm } from './geo'
+import { bearing, destination, distance, mToNm } from './geo'
 import {
+  COG_TRUSTED_KN,
   DEFAULT_TURN_MODEL,
   bowPosition,
   computeStart,
+  pingPosition,
   positionAtGun,
   spareTimeS,
   timeToPoint,
@@ -598,6 +600,43 @@ describe('boat reference points', () => {
 
     const noOffset = bowPosition(stateOf({ position: MID, heading: 90 }), boatOf())
     expect(noOffset).toEqual(MID)
+  })
+
+  describe('where a ping records a line end', () => {
+    const boat = boatOf({ bowToGpsMetres: 3 })
+    const metresFrom = (a: LatLon, b: LatLon) => distance(a, b) * 1852
+
+    it('records the bow when under way: bow-to-GPS metres ahead along COG', () => {
+      const p = pingPosition(stateOf({ position: MID, heading: null, cog: 90, sog: 5 }), boat)
+      expect(p.bow).toBe(true)
+      expect(metresFrom(MID, p.at)).toBeCloseTo(3, 3)
+      expectAngle(bearing(MID, p.at), 90)
+    })
+
+    it('trusts an instrument heading at any speed, over COG', () => {
+      const p = pingPosition(stateOf({ position: MID, heading: 45, cog: 90, sog: 0 }), boat)
+      expect(p.bow).toBe(true)
+      expectAngle(bearing(MID, p.at), 45)
+    })
+
+    it('stays at the antenna, and says so, when creeping up to the mark', () => {
+      // Below a knot a phone's COG is noise; projected along it, the "bow" can
+      // land further from the mark than the antenna does.
+      const p = pingPosition(stateOf({ position: MID, heading: null, cog: 90, sog: 0.5 }), boat)
+      expect(p).toEqual({ at: MID, bow: false })
+    })
+
+    it('stays at the antenna when stopped, or when speed is unknown', () => {
+      const stopped = stateOf({ position: MID, heading: null, cog: Number.NaN, sog: 0 })
+      expect(pingPosition(stopped, boat)).toEqual({ at: MID, bow: false })
+      const noSpeed = stateOf({ position: MID, heading: null, cog: 90, sog: Number.NaN })
+      expect(pingPosition(noSpeed, boat)).toEqual({ at: MID, bow: false })
+    })
+
+    it('starts trusting COG at the threshold itself', () => {
+      const at = stateOf({ position: MID, heading: null, cog: 0, sog: COG_TRUSTED_KN })
+      expect(pingPosition(at, boat).bow).toBe(true)
+    })
   })
 
   it('dead-reckons the position at the gun', () => {
