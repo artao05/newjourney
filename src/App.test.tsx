@@ -67,6 +67,7 @@ vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}))
 
 import { App } from './App'
 import { useStore } from '@/state/store'
+import { TRACK_KEY, encodeTrack } from '@/state/trackPersistence'
 import { findPolar } from '@/data/polars'
 import type { BoatState } from '@/lib/types'
 
@@ -356,5 +357,15 @@ describe('not for navigation, before first use', () => {
     const text = document.body.textContent ?? ''
     expect(text).toContain('Not for navigation.')
     expect(text).toContain('Nothing here replaces official charts, official tide tables')
+  })
+})
+
+describe('the recorded track survives a reload', () => {
+  it('comes back when the app starts again', () => {
+    const t0 = Date.UTC(2026, 8, 27, 14, 0)
+    const saved = [0, 1].map((i) => ({ t: t0 + i * 1000, lat: 43.64, lon: -70.21, sog: 5, cog: 40 }))
+    localStorage.setItem(TRACK_KEY, encodeTrack(saved))
+    render(<App />)
+    expect(useStore.getState().track.map((p) => p.t)).toEqual([t0, t0 + 1000])
   })
 })

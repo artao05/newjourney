@@ -108,6 +108,13 @@ interface AppState {
   updateSettings(patch: Partial<Settings>): void
 }
 
+/**
+ * The most track points kept, oldest dropped first: about five and a half hours
+ * at one fix a second. The saved copy for reloads is capped the same
+ * (trackPersistence.ts).
+ */
+export const MAX_TRACK_POINTS = 20_000
+
 export const DEFAULT_SETTINGS: Settings = {
   units: 'metric',
   northRef: 'true',
@@ -314,7 +321,7 @@ export const useStore = create<AppState>()(
       toggleRecording: () => set({ recording: !get().recording }),
       pushTrack: (p) => {
         const t = get().track
-        const next = t.length >= 20000 ? t.slice(1) : t.slice()
+        const next = t.length >= MAX_TRACK_POINTS ? t.slice(1) : t.slice()
         next.push(p)
         set({ track: next })
       },
@@ -345,6 +352,9 @@ export const useStore = create<AppState>()(
         windMode: s.windMode,
         settings: s.settings,
         activeMarkIndex: s.activeMarkIndex,
+        // A recording that was on survives a reload too: a phone that drops the app
+        // mid-race must not come back with the track stopped and nothing said.
+        recording: s.recording,
       }),
       merge: mergePersistedState,
     },

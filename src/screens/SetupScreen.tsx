@@ -7,7 +7,7 @@
  */
 
 import { useMemo } from 'react'
-import { useStore } from '@/state/store'
+import { MAX_TRACK_POINTS, useStore } from '@/state/store'
 import { POLAR_LIBRARY, findPolar } from '@/data/polars'
 import { buildLattice, parsePolar, validatePolar } from '@/lib/polar'
 import { PolarPlot } from '@/components/PolarPlot'
@@ -32,6 +32,13 @@ export function tideStationLabel(
   return listed ? `${id} · ${listed.name}` : `${id} · not listed in the venue manifest`
 }
 
+/** A local `YYYY-MM-DD-HHMM` for a file name: sortable, and the sailor's own clock. */
+export function fileStamp(ms: number): string {
+  const d = new Date(ms)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`
+}
+
 export function SetupScreen() {
   const boat = useStore((s) => s.boat)
   const updateBoat = useStore((s) => s.updateBoat)
@@ -49,6 +56,12 @@ export function SetupScreen() {
   const setWindMode = useStore((s) => s.setWindMode)
   const track = useStore((s) => s.track)
   const clearTrack = useStore((s) => s.clearTrack)
+  const exportTrack = async () => {
+    if (track.length === 0) return
+    const { trackToGpx, downloadText } = await import('@/lib/gpx')
+    const stamp = fileStamp(track[0].t)
+    downloadText(`newjourney-track-${stamp}.gpx`, trackToGpx(track, `newjourney track ${stamp}`))
+  }
 
   const issues = useMemo(() => (polar ? validatePolar(polar) : []), [polar])
   const lattice = useMemo(() => {
@@ -333,9 +346,19 @@ export function SetupScreen() {
           <label>Track points</label>
           <span style={{ fontSize: 14 }}>{track.length.toLocaleString()}</span>
         </div>
-        <button className="btn btn--sm btn--ghost" onClick={clearTrack}>
-          CLEAR TRACK
-        </button>
+        <p className="note">
+          Kept across a reload, up to {MAX_TRACK_POINTS.toLocaleString()} points (about five and
+          a half hours at one fix a second), oldest dropped first. Export it as GPX to keep it or
+          send it on.
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn--sm" onClick={exportTrack} disabled={track.length === 0}>
+            EXPORT TRACK (GPX)
+          </button>
+          <button className="btn btn--sm btn--ghost" onClick={clearTrack}>
+            CLEAR TRACK
+          </button>
+        </div>
 
         <h2>Safety</h2>
         <div className="warnbox">

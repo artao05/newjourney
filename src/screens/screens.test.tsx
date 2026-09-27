@@ -485,6 +485,46 @@ describe('the Route chart draws the wind the route sails in', () => {
   })
 })
 
+describe('a recorded track can be exported, and reads back', () => {
+  it('offers nothing to export before anything is recorded', () => {
+    render(<SetupScreen />)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'EXPORT TRACK (GPX)' }).disabled).toBe(true)
+  })
+
+  it('downloads GPX that parses back to the recorded fixes', async () => {
+    const t0 = Date.UTC(2026, 8, 27, 14, 5)
+    const fixes = [0, 1, 2].map((i) => ({
+      t: t0 + i * 1000,
+      lat: 43.6412345 + i * 1e-4,
+      lon: -70.2123456 + i * 1e-4,
+      sog: 5,
+      cog: 40,
+    }))
+    for (const f of fixes) useStore.getState().pushTrack(f)
+
+    let saved: { blob?: Blob; name?: string } = {}
+    const original = { create: URL.createObjectURL, revoke: URL.revokeObjectURL }
+    URL.createObjectURL = (b: Blob) => ((saved.blob = b), 'blob:test')
+    URL.revokeObjectURL = () => {}
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved = { ...saved, name: this.download }
+    })
+    try {
+      render(<SetupScreen />)
+      act(() => screen.getByRole('button', { name: 'EXPORT TRACK (GPX)' }).click())
+      await waitFor(() => expect(saved.name).toBeDefined())
+      expect(saved.name).toMatch(/^newjourney-track-\d{4}-\d{2}-\d{2}-\d{4}\.gpx$/)
+      const { parseGpx } = await import('@/lib/gpx')
+      const back = parseGpx(await saved.blob!.text()).trackPoints
+      const six = (x: number) => Math.round(x * 1e6) / 1e6
+      expect(back.map((p) => [p.t, p.lat, p.lon])).toEqual(fixes.map((f) => [f.t, six(f.lat), six(f.lon)]))
+    } finally {
+      URL.createObjectURL = original.create
+      URL.revokeObjectURL = original.revoke
+    }
+  })
+})
+
 describe('a ping records the bow when it can, and says when it cannot', () => {
   const antenna = PILOT_VENUE.waterStart
   const pinged = () => useStore.getState().course.startLine.port!

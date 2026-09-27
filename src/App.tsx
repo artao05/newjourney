@@ -15,6 +15,7 @@ import { RaceScreen } from '@/screens/RaceScreen'
 import { SetupScreen } from '@/screens/SetupScreen'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { NotForNavigationDialog } from '@/components/NotForNavigation'
+import { useTrackPersistence } from '@/state/trackPersistence'
 import { WindSheet, windChip } from '@/components/WindSheet'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
@@ -80,6 +81,7 @@ export function App() {
   // Start the simulated boat afloat, not on the island the map centre sits on.
   useSimulation(settings.simulate, PILOT_VENUE.waterStart)
   useWakeLock(settings.keepAwake)
+  useTrackPersistence()
   const now = useTick(1)
 
   // Load the class polar on first run / after a rehydrate.

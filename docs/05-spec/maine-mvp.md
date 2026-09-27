@@ -58,7 +58,7 @@ commit as the fix, so this file's history says which commit did each item.
 
 ## P1 — needed to run a real pilot
 
-- [ ] **6. Tracks survive and can be sent.** A recorded track is lost on reload, and
+- [x] **6. Tracks survive and can be sent.** A recorded track is lost on reload, and
       `trackToGpx` exists but nothing calls it. *Accept:* an Export button produces
       GPX that round-trips through `parseGpx`, and the track survives a reload under a
       stated size cap.

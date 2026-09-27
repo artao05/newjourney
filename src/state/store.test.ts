@@ -183,6 +183,18 @@ describe('persistence', () => {
     expect(persisted.route).toBeUndefined()
     expect(persisted.track).toBeUndefined()
   })
+
+  it('keeps a recording switched on across a reload', () => {
+    // The track itself is saved on its own (trackPersistence.ts); the switch
+    // rides here, so a phone that drops the app mid-race comes back recording.
+    if (!useStore.getState().recording) useStore.getState().toggleRecording()
+    try {
+      const persisted = JSON.parse(localStorage.getItem('newjourney.v1') as string).state
+      expect(persisted.recording).toBe(true)
+    } finally {
+      useStore.getState().toggleRecording()
+    }
+  })
 })
 
 describe('a computed route does not outlive the course it was computed for', () => {

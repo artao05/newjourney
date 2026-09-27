@@ -60,8 +60,8 @@ phone on the water, which is the test that counts.
 - [x] Simple chartless start display: line, boat, COG vector, heading, distance grid in
       boat lengths — *heading is COG on a phone.*
 - [x] Auto-declutter one minute after the gun
-- [x] Track recording during the session — *off by default, not kept across a reload,
-      and not yet exportable: `trackToGpx` exists but no screen calls it.*
+- [x] Track recording during the session — *off by default. The track and the recording
+      switch survive a reload, up to 20,000 points, and Setup exports the track as GPX.*
 - [x] Works fully offline after first load (PWA + service worker) — *install precaches
       every file the build wrote. Checked in the production build with the app's server
       unreachable, though not yet in airplane mode on a phone.*
