@@ -1,9 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
+import { precacheManifest } from './src/lib/pwa/precachePlugin'
 
 export default defineConfig({
-  plugins: [react()],
+  // precacheManifest writes the build's file list into dist/sw.js, so one online
+  // visit leaves everything needed to start offline (src/lib/pwa/precache.ts).
+  plugins: [react(), precacheManifest()],
   base: './',
   resolve: {
     alias: {

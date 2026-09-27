@@ -35,7 +35,7 @@ commit as the fix, so this file's history says which commit did each item.
       sailor tidying up marks during a sequence loses the line and the countdown.
       *Accept:* clearing marks leaves the start line and gun time intact. There is a
       store test and a screen test, and putting the bug back makes them fail.
-- [ ] **2. Offline from the first visit.** The service worker registers after the
+- [x] **2. Offline from the first visit.** The service worker registers after the
       first page has loaded, so the entry script is not cached until a second online
       visit. A sailor who opens the link once at home gets a blank app on the water.
       *Accept:* the install step precaches the shell, the entry and lazy chunks, and

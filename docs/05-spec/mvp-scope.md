@@ -59,9 +59,9 @@ phone on the water, which is the test that counts.
 - [x] Auto-declutter one minute after the gun
 - [x] Track recording during the session — *off by default, not kept across a reload,
       and not yet exportable: `trackToGpx` exists but no screen calls it.*
-- [ ] Works fully offline after first load (PWA + service worker) — *the worker registers
-      after the first page has loaded, so the entry script is not cached until a second
-      online visit.*
+- [x] Works fully offline after first load (PWA + service worker) — *install precaches
+      every file the build wrote. Checked in the production build with the app's server
+      unreachable, though not yet in airplane mode on a phone.*
 - [x] Wake lock so the screen stays on
 - [x] Boat setup: name, class, length, bow-to-GPS
 - [x] Not-for-navigation notice — *at the foot of Setup, and in the depth layer's caveat.*

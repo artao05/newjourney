@@ -28,9 +28,28 @@ const SHELL = `${VERSION}-shell`
 const TILES = `${VERSION}-tiles`
 const TILE_LIMIT = 1200
 
+/*
+ * What install caches. The build rewrites this line with its own file list
+ * (src/lib/pwa/precache.ts): this worker registers after the first page has
+ * loaded, so without a list the entry script that page ran was never cached, and
+ * a single online visit left nothing that could start offline.
+ *
+ * `critical` is what the Start tab cannot run without, so install fails without
+ * it and the browser retries on the next visit. `rest` - the chart chunks, the
+ * routing worker, the venue packs, the icons - is fetched best-effort, so one
+ * flaky download cannot keep the start-line tool from working offline.
+ *
+ * As written here it is the bare shell, which is what a dev server and the tests
+ * see.
+ */
+const PRECACHE = { critical: ['./', './index.html', './manifest.webmanifest'], rest: [] } // @precache
+
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(SHELL).then((c) => c.addAll(['./', './index.html', './manifest.webmanifest'])),
+    caches.open(SHELL).then(async (c) => {
+      await c.addAll(PRECACHE.critical)
+      await Promise.all(PRECACHE.rest.map((url) => c.add(url).catch(() => undefined)))
+    }),
   )
   self.skipWaiting()
 })
@@ -87,6 +106,19 @@ function isCacheable(pathname) {
   )
 }
 
+/*
+ * How our own files are looked up: ignoring `Vary`. A CORS-aware server - vite
+ * preview is one - answers with `Vary: Origin`, and the page requests its module
+ * script and stylesheet with `crossorigin`, so those requests carry an Origin
+ * header that a precached request, built from a bare URL, does not. A strict
+ * match then misses, falls through to a network that is not there, and the app
+ * is blank offline despite every file being in the cache - which is what the
+ * first offline test of the precache found. Safe because a file we built does
+ * not change with the origin asking for it, and the cache stores decoded bodies,
+ * so `Vary: Accept-Encoding` is moot too.
+ */
+const OWN = { ignoreVary: true }
+
 /** Fetch and store, returning the network response. */
 function fromNetwork(req, cacheName) {
   return fetch(req).then((res) => {
@@ -137,7 +169,7 @@ self.addEventListener('fetch', (e) => {
   // Rule 3. A navigation is the deploy boundary: check the network, fall back to
   // the shell so that offline still opens the app.
   if (req.mode === 'navigate' || req.destination === 'document') {
-    e.respondWith(fromNetwork(req, SHELL).catch(() => caches.match(req)))
+    e.respondWith(fromNetwork(req, SHELL).catch(() => caches.match(req, OWN)))
     return
   }
 
@@ -149,7 +181,7 @@ self.addEventListener('fetch', (e) => {
   const hashed = /\/assets\/.+-[A-Za-z0-9_-]{6,}\.[a-z0-9]+$/.test(url.pathname)
 
   e.respondWith(
-    caches.match(req).then((hit) => {
+    caches.match(req, OWN).then((hit) => {
       if (!hit) return fromNetwork(req, SHELL)
       if (!hashed) {
         // Refresh behind the response. Failure is expected offline and must not
