@@ -68,7 +68,7 @@ commit as the fix, so this file's history says which commit did each item.
 - [ ] **8. Say when the screen may sleep.** Wake lock fails silently where it is not
       supported. *Accept:* a visible warning when it is unavailable or refused, with a
       test.
-- [ ] **9. Installable on iPhone and Android.** iOS ignores SVG home-screen icons, and
+- [x] **9. Installable on iPhone and Android.** iOS ignores SVG home-screen icons, and
       the manifest has only SVG. *Accept:* a 180×180 `apple-touch-icon.png` plus
       192/512 PNG manifest icons, linked and tested. PNG size is checked from the file
       header.

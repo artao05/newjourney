@@ -176,3 +176,64 @@ describe('the built output stays relative', () => {
     }
   })
 })
+
+describe('the iPhone home-screen icon', () => {
+  /*
+   * iOS ignores the manifest's icons for Add to Home Screen, and ignores SVG for
+   * apple-touch-icon, so without a real PNG the tile on the platform this app is
+   * most likely installed on is whatever Safari decides. It also paints any
+   * transparent pixel black, so the icon has to be full-bleed and opaque.
+   */
+  const href = html.match(/<link[^>]+rel="apple-touch-icon"[^>]+href="([^"]+)"/)?.[1]
+
+  it('is linked from the page', () => {
+    expect(href).toBe('./apple-touch-icon.png')
+  })
+
+  it('is a 180x180 PNG with no transparent pixel', async () => {
+    const { inflateSync } = await import('node:zlib')
+    const png = readFileSync(join(root, 'public', href!.replace(/^\.\//, '')))
+    expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a')
+    const [w, h, colourType] = [png.readUInt32BE(16), png.readUInt32BE(20), png[25]]
+    expect([w, h]).toEqual([180, 180])
+    // Walk the chunks for the image data; colour type 6 is RGBA, 8 bits a channel.
+    const idat: Buffer[] = []
+    for (let off = 8; off < png.length; ) {
+      const len = png.readUInt32BE(off)
+      if (png.toString('latin1', off + 4, off + 8) === 'IDAT') idat.push(png.subarray(off + 8, off + 8 + len))
+      off += 12 + len
+    }
+    const raw = inflateSync(Buffer.concat(idat))
+    if (colourType === 6) {
+      // Filtering leaves alpha bytes unchanged only for filter type 0 rows, so
+      // decode properly: undo each row's filter, then read every fourth byte.
+      const stride = w * 4
+      let prev = Buffer.alloc(stride)
+      let transparent = 0
+      for (let y = 0; y < h; y++) {
+        const f = raw[y * (stride + 1)]
+        const row = Buffer.from(raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1)))
+        for (let x = 0; x < stride; x++) {
+          const a = x >= 4 ? row[x - 4] : 0
+          const b = prev[x]
+          const c = x >= 4 ? prev[x - 4] : 0
+          const pred =
+            f === 1 ? a : f === 2 ? b : f === 3 ? (a + b) >> 1 : f === 4 ? paeth(a, b, c) : 0
+          row[x] = (row[x] + pred) & 0xff
+        }
+        for (let x = 3; x < stride; x += 4) if (row[x] !== 255) transparent++
+        prev = row
+      }
+      expect(transparent).toBe(0)
+    } else {
+      // Colour type 2 (RGB) has no alpha channel at all, which is also opaque.
+      expect(colourType).toBe(2)
+    }
+  })
+})
+
+function paeth(a: number, b: number, c: number): number {
+  const p = a + b - c
+  const [pa, pb, pc] = [Math.abs(p - a), Math.abs(p - b), Math.abs(p - c)]
+  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c
+}
