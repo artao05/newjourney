@@ -14,8 +14,8 @@ in five minutes — built entirely on public data.
 > [RUNNING.md](RUNNING.md) to try it — including a boat simulator so you can use the
 > whole app from a desk, with no GPS fix needed.
 >
-> 963 tests passing · typecheck clean · build clean · 96 KB gzipped first-load JS
-> (as of 2026-09-26 — `npm test` is the authority, not this line).
+> [![CI](https://github.com/artao05/newjourney/actions/workflows/ci.yml/badge.svg)](https://github.com/artao05/newjourney/actions/workflows/ci.yml)
+> tests, typecheck and build on every push · 96 KB gzipped first-load JS.
 > **Not for navigation** — see the caveats in [RUNNING.md](RUNNING.md#whats-real-and-what-isnt).
 > Land avoidance now works, but only inside the Portland venue box and only as a
 > land check, never a depth check. The depth layer is a 450 m bathymetric model

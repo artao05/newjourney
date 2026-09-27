@@ -72,7 +72,7 @@ commit as the fix, so this file's history says which commit did each item.
       the manifest has only SVG. *Accept:* a 180×180 `apple-touch-icon.png` plus
       192/512 PNG manifest icons, linked and tested. PNG size is checked from the file
       header.
-- [ ] **10. CI, and a Pages deploy that is ready to switch on.** *Accept:* a workflow
+- [x] **10. CI, and a Pages deploy that is ready to switch on.** *Accept:* a workflow
       runs tests, typecheck and build on every push and PR. A second one deploys
       `dist/` to GitHub Pages on pushes to `main`. Neither does anything until merged
       and Pages is set to "GitHub Actions", which is the owner's call.
