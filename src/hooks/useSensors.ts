@@ -117,22 +117,33 @@ export function useSimulation(enabled: boolean, origin: LatLon) {
 
 /** Keep the screen on. A screen that sleeps during a start sequence is a dead product. */
 export function useWakeLock(enabled: boolean) {
+  const setWakeLock = useStore((s) => s.setWakeLock)
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled) {
+      setWakeLock('off')
+      return
+    }
     let lock: WakeLockSentinel | null = null
     let cancelled = false
 
+    // Reported, not swallowed: a screen that sleeps mid-sequence takes the
+    // countdown with it, and the sailor needs to know to set auto-lock to Never.
     const request = async () => {
       try {
         const wl = (navigator as Navigator & { wakeLock?: WakeLock }).wakeLock
-        if (!wl) return
+        if (!wl) {
+          setWakeLock('unavailable')
+          return
+        }
         lock = await wl.request('screen')
         if (cancelled) {
           void lock.release()
           lock = null
+          return
         }
+        setWakeLock('held')
       } catch {
-        /* denied or unsupported — not fatal */
+        if (!cancelled) setWakeLock('unavailable')
       }
     }
     void request()
@@ -145,8 +156,9 @@ export function useWakeLock(enabled: boolean) {
       cancelled = true
       document.removeEventListener('visibilitychange', onVisible)
       void lock?.release()
+      setWakeLock('off')
     }
-  }, [enabled])
+  }, [enabled, setWakeLock])
 }
 
 /** A steady tick so countdowns and derived numbers stay live. Returns epoch ms. */

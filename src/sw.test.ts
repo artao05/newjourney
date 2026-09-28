@@ -16,6 +16,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { injectPrecache } from './lib/pwa/precache'
 
 // --------------------------------------------------------------- fake worker
 
@@ -23,7 +24,15 @@ interface FakeResponse {
   ok: boolean
   type: string
   body: string
+  /** The one `Vary` the harness models: `'Origin'`, as a CORS-aware server sends. */
+  vary?: string
   clone(): FakeResponse
+}
+
+/** A fetch event's request as the worker reads it. `origin` stands for the Origin header. */
+interface FakeRequest {
+  url: string
+  origin?: string
 }
 
 function response(body: string, over: Partial<FakeResponse> = {}): FakeResponse {
@@ -37,16 +46,45 @@ function response(body: string, over: Partial<FakeResponse> = {}): FakeResponse 
   return r
 }
 
+/** Absolute urls whose download fails, as on a connection that drops mid-install. */
+const unreachable = new Set<string>()
+
+/** The `Vary` a precache download comes back with. */
+let precacheVary: string | undefined
+
 class FakeCache {
   store = new Map<string, FakeResponse>()
-  async match(req: { url: string }) {
-    return this.store.get(req.url)
+  /** The Origin header of the request each entry was stored under. */
+  storedOrigin = new Map<string, string | undefined>()
+  /**
+   * Honours `Vary: Origin` as the Cache API does: a stored response that varies
+   * on Origin only matches a request carrying the same Origin as the one it was
+   * stored under, unless the lookup says `ignoreVary`.
+   */
+  async match(req: FakeRequest, opts: { ignoreVary?: boolean } = {}) {
+    const hit = this.store.get(req.url)
+    if (!hit) return undefined
+    if (hit.vary === 'Origin' && !opts.ignoreVary && this.storedOrigin.get(req.url) !== req.origin) {
+      return undefined
+    }
+    return hit
   }
-  async put(req: { url: string }, res: FakeResponse) {
+  async put(req: FakeRequest, res: FakeResponse) {
     this.store.set(req.url, res)
+    this.storedOrigin.set(req.url, req.origin)
   }
+  /** All or nothing, as the real `addAll` is. A bare URL carries no Origin. */
   async addAll(urls: string[]) {
-    for (const u of urls) this.store.set(new URL(u, ORIGIN + '/').href, response(`shell:${u}`))
+    const abs = urls.map((u) => new URL(u, ORIGIN + '/').href)
+    const lost = abs.find((u) => unreachable.has(u))
+    if (lost) throw new TypeError(`failed to fetch ${lost}`)
+    abs.forEach((u, i) => {
+      this.store.set(u, response(`shell:${urls[i]}`, precacheVary ? { vary: precacheVary } : {}))
+      this.storedOrigin.set(u, undefined)
+    })
+  }
+  async add(url: string) {
+    await this.addAll([url])
   }
   async keys() {
     return [...this.store.keys()].map((url) => ({ url }))
@@ -73,9 +111,9 @@ class FakeCacheStorage {
     return this.caches.delete(name)
   }
   /** Any cache holding this url, mirroring the global `caches.match`. */
-  async match(req: { url: string }) {
+  async match(req: FakeRequest, opts: { ignoreVary?: boolean } = {}) {
     for (const c of this.caches.values()) {
-      const hit = await c.match(req)
+      const hit = await c.match(req, opts)
       if (hit) return hit
     }
     return undefined
@@ -92,9 +130,14 @@ interface Loaded {
   claimCalled: () => boolean
 }
 
-/** Evaluate public/sw.js against a fake worker global and return the handles. */
-function loadWorker(): Loaded {
-  const source = readFileSync(join(process.cwd(), 'public', 'sw.js'), 'utf8')
+const workerSource = () => readFileSync(join(process.cwd(), 'public', 'sw.js'), 'utf8')
+
+/**
+ * Evaluate the worker against a fake worker global and return the handles.
+ * `source` defaults to public/sw.js as written; a test can hand in the copy a
+ * build would ship, with its precache list injected.
+ */
+function loadWorker(source = workerSource()): Loaded {
   const listeners = new Map<string, (e: unknown) => void>()
   const cacheStorage = new FakeCacheStorage()
   const fetchMock = vi.fn()
@@ -132,7 +175,7 @@ function loadWorker(): Loaded {
 async function fetchEvent(
   w: Loaded,
   url: string,
-  init: { method?: string; mode?: string; destination?: string } = {},
+  init: { method?: string; mode?: string; destination?: string; origin?: string } = {},
 ): Promise<{ responded: boolean; body: string | undefined }> {
   const handler = w.listeners.get('fetch')
   if (!handler) throw new Error('no fetch listener registered')
@@ -144,6 +187,7 @@ async function fetchEvent(
       method: init.method ?? 'GET',
       mode: init.mode ?? 'cors',
       destination: init.destination ?? '',
+      origin: init.origin,
     },
     respondWith: (p: Promise<FakeResponse | undefined>) => {
       responded = true
@@ -159,8 +203,17 @@ async function fetchEvent(
 let worker: Loaded
 
 beforeEach(() => {
+  unreachable.clear()
+  precacheVary = undefined
   worker = loadWorker()
 })
+
+/** Run install to completion, surfacing a failure the way the browser would see it. */
+async function install(w: Loaded): Promise<void> {
+  let waited: Promise<unknown> | undefined
+  w.listeners.get('install')!({ waitUntil: (p: Promise<unknown>) => (waited = p) })
+  await waited
+}
 
 // -------------------------------------------------------------------- tests
 
@@ -187,6 +240,76 @@ describe('install and activate', () => {
     await waited
     expect(await worker.cacheStorage.keys()).not.toContain('nj-portland-v0-shell')
     expect(worker.claimCalled()).toBe(true)
+  })
+})
+
+describe('install precaches what the build listed, so one online visit is enough', () => {
+  /*
+   * The worker registers after the first page has loaded, so the entry script that
+   * page ran never passed through it. Before the build listed its own output, a
+   * phone that had opened the app once had nothing that could start offline.
+   */
+  const LIST = {
+    critical: [
+      './',
+      './index.html',
+      './manifest.webmanifest',
+      './assets/index-A1b2C3d4.js',
+      './assets/index-E5f6G7h8.css',
+    ],
+    rest: ['./assets/WeatherScreen-I9j0K1l2.js', './venue/portland-land.bin'],
+  }
+  const abs = (u: string) => new URL(u, ORIGIN + '/').href
+  const built = () => loadWorker(injectPrecache(workerSource(), LIST))
+
+  it('caches every listed file, critical and optional', async () => {
+    const w = built()
+    await install(w)
+    const shell = await w.cacheStorage.open('nj-portland-v1-shell')
+    for (const u of [...LIST.critical, ...LIST.rest]) expect(shell.store.has(abs(u)), u).toBe(true)
+  })
+
+  it('then starts with no network at all', async () => {
+    const w = built()
+    await install(w)
+    w.fetchMock.mockRejectedValue(new Error('offline'))
+    const page = await fetchEvent(w, abs('./'), { mode: 'navigate', destination: 'document' })
+    expect(page.body).toBe('shell:./')
+    const entry = await fetchEvent(w, abs('./assets/index-A1b2C3d4.js'))
+    expect(entry.body).toBe('shell:./assets/index-A1b2C3d4.js')
+  })
+
+  it('serves the cached entry to a crossorigin request when the server varied on Origin', async () => {
+    /*
+     * Found in the browser, not here: vite preview, like any CORS-aware host,
+     * answers `Vary: Origin`, and the page's module script and stylesheet are
+     * requested with `crossorigin`, carrying an Origin the precache's bare-URL
+     * request did not. A strict lookup missed, fell through to a network that was
+     * not there, and the app came up blank offline with every file cached.
+     */
+    precacheVary = 'Origin'
+    const w = built()
+    await install(w)
+    w.fetchMock.mockRejectedValue(new Error('offline'))
+    const entry = await fetchEvent(w, abs('./assets/index-A1b2C3d4.js'), { origin: ORIGIN })
+    expect(entry.body).toBe('shell:./assets/index-A1b2C3d4.js')
+  })
+
+  it('survives a failed optional download, keeping everything else', async () => {
+    unreachable.add(abs('./assets/WeatherScreen-I9j0K1l2.js'))
+    const w = built()
+    await install(w)
+    const shell = await w.cacheStorage.open('nj-portland-v1-shell')
+    expect(shell.store.has(abs('./assets/index-A1b2C3d4.js'))).toBe(true)
+    expect(shell.store.has(abs('./venue/portland-land.bin'))).toBe(true)
+    expect(shell.store.has(abs('./assets/WeatherScreen-I9j0K1l2.js'))).toBe(false)
+  })
+
+  it('fails when a critical file cannot be fetched, so the browser tries again', async () => {
+    // A half-installed worker that took over would promise an offline app it
+    // cannot start. Failing install leaves the network version in charge.
+    unreachable.add(abs('./assets/index-A1b2C3d4.js'))
+    await expect(install(built())).rejects.toThrow(/index-A1b2C3d4/)
   })
 })
 

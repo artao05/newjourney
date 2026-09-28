@@ -41,42 +41,48 @@ phone on the water, which is the test that counts.
 
 ### Must have
 
-- [ ] Set start line by pinging two ends (GPS, with bow offset) — *pinging works, but
-      stores the antenna position: the bow offset reaches distance-below-line and not
-      the ping, although `bowPosition()` already falls back safely when stopped.*
-- [ ] Manual line entry / adjustment by dragging on a simple plan view — *absent; drag
-      is planned for the chart in [start-on-chart.md](start-on-chart.md) Phase 5.*
+- [x] Set start line by pinging two ends (GPS, with bow offset) — *the ping records the
+      bow when the heading is known: an instrument heading at any speed, or GPS COG from
+      1 kn. Below that it records the phone and says so, since a bow projected along
+      noisy COG can land further off than the antenna.*
+- [x] Manual line entry / adjustment by dragging on a simple plan view — *either end
+      drags on the start display, with the view held still under the finger. On the
+      chart it comes with [start-on-chart.md](start-on-chart.md) Phase 5.*
 - [x] **Distance below line** in metres and boat lengths, bow-corrected, signed
 - [x] **Time to gun** — start a countdown, sync to a signal, 5/4/1/go presets — *the
       presets are 5/4/3/1 min, and SYNC rounds to the nearest minute.*
 - [x] **Time to line** from GPS COG/SOG
 - [x] **Time to burn** — number plus a graphic bar
 - [x] **Line bias** — favoured end, bias angle, advantage in boat lengths
-- [x] Wind input: manual dial, or auto from a forecast lookup if online — *manual is
-      number entry in Setup, not a dial.*
+- [x] Wind input: manual dial, or auto from a forecast lookup if online — *not a dial:
+      big steps and number entry in a sheet opened from the wind chip on any tab, or
+      from Start while no wind is set. The chip names the source and the age of a
+      hand-set wind.*
 - [x] Simple chartless start display: line, boat, COG vector, heading, distance grid in
       boat lengths — *heading is COG on a phone.*
 - [x] Auto-declutter one minute after the gun
-- [x] Track recording during the session — *off by default, not kept across a reload,
-      and not yet exportable: `trackToGpx` exists but no screen calls it.*
-- [ ] Works fully offline after first load (PWA + service worker) — *the worker registers
-      after the first page has loaded, so the entry script is not cached until a second
-      online visit.*
+- [x] Track recording during the session — *off by default. The track and the recording
+      switch survive a reload, up to 20,000 points, and Setup exports the track as GPX.*
+- [x] Works fully offline after first load (PWA + service worker) — *install precaches
+      every file the build wrote. Checked in the production build with the app's server
+      unreachable, though not yet in airplane mode on a phone.*
 - [x] Wake lock so the screen stays on
 - [x] Boat setup: name, class, length, bow-to-GPS
-- [x] Not-for-navigation notice — *at the foot of Setup, and in the depth layer's caveat.*
+- [x] Not-for-navigation notice — *shown on first launch until accepted, then at the foot
+      of Setup in the same words, and in the depth layer's caveat.*
 
 ### Should have
 
 - [ ] Post-start replay of the last 5 minutes ("where was I at the gun?") — *absent.*
-- [ ] GPS accuracy indicator with an honest warning when accuracy > half a boat length
-      — *the ±m chip exists, with fixed 6 m / 15 m colours rather than a boat-length
-      threshold, and there is no warning.*
+- [x] GPS accuracy indicator with an honest warning when accuracy > half a boat length
+      — *the chip is coloured against the boat's length, and past half a length the
+      below-line tile says how many boat lengths the fix is good to.*
 - [x] Ping-a-mark and store marks
 - [x] Laylines from the line ends (needs a polar or a class default tacking angle)
 - [ ] Dark / high-contrast sunlight mode — *dark only.*
-- [ ] Metric/imperial, °T/°M toggles — *the settings exist in the store, but nothing
-      reads them: everything is metres, knots and °T.*
+- [ ] Metric/imperial, °T/°M toggles — *°M done where a compass reading comes in: the
+      wind sheet and the wind chip follow the north setting, using Portland's NOAA
+      variation, and every other bearing stays true. Metric/imperial is still absent.*
 
 ### Explicitly out of MVP
 

@@ -15,6 +15,17 @@ npm run build   # typecheck + production build
 npm run preview # serve the production build, with the service worker active
 ```
 
+## Deploying
+
+Pushes to `main` publish the app to GitHub Pages through
+`.github/workflows/deploy.yml`, once the tests have passed. It has to be switched on
+once, by the repository's owner: **Settings → Pages → Source: GitHub Actions**. The
+site is then at <https://artao05.github.io/newjourney/>. It is served over HTTPS,
+which is what a phone needs before it will hand over its GPS, so this is also the
+easiest way to try it on the water, for which [PILOT.md](PILOT.md) is the sailor's
+guide. Every push and pull request also runs
+`.github/workflows/ci.yml`: the tests, then the build and its typecheck.
+
 ---
 
 ## Trying it without a boat
@@ -105,14 +116,6 @@ prediction with its slack times.
 - **Every polar in the class library is generated from published dimensions, not
   measured.** They are labelled that way in `src/data/polars.ts`. Treat target
   speeds as indicative, not as your boat.
-- **The iOS home-screen icon is not the app icon.** iOS ignores the web manifest's
-  icons for "Add to Home Screen" and ignores SVG for `apple-touch-icon`, and the only
-  icons here are SVG. So on the platform this app is most likely to be installed on,
-  the home-screen tile is whatever Safari decides rather than the boat-and-sail mark.
-  Fixing it needs a rasterised PNG at 180x180 — a real asset, not a link tag, since
-  pointing `apple-touch-icon` at the SVG would look like a fix and change nothing.
-  Android is fine: it takes the SVG, and there is now a properly masked variant for
-  adaptive launchers.
 - Pinch zoom is disabled (`user-scalable=no`) for an app-like feel. That is a
   deliberate trade against WCAG 1.4.4, and worth revisiting for anyone who needs
   larger text than the layout offers.
@@ -130,8 +133,8 @@ gzipped JS plus 3 KB of CSS; the map chunk (~286 KB gzipped, mostly MapLibre) lo
 only when you open a chart tab.
 
 These figures are written by hand, and hand-written figures in this repo have drifted
-before (this line said 748 when the suite had 956). Until CI reports them, trust
-`npm test` over this paragraph.
+before (this line said 748 when the suite had 956). CI now runs the suite on every
+push, so its result is the live figure, and this paragraph is only a snapshot.
 
 **Not for navigation.** Prototype. Advisory only. Nothing here replaces official
 charts, official tide tables, or your own judgment.

@@ -14,6 +14,7 @@ import { courseFor, fmtDeg, wrap360 } from '@/lib/angles'
 import type {
   Boat,
   BoatState,
+  LatLon,
   StartLine,
   StartNumbers,
   TrackPoint,
@@ -31,10 +32,18 @@ interface Props {
   /** Upwind target angle for the laylines; falls back to a generic 42°. */
   targetTwa?: number
   secondsSinceGun: number | null
+  /** Move a line end dragged on the display: fixing a mis-ping without re-pinging. */
+  onMoveEnd?: (which: 'port' | 'starboard', at: LatLon) => void
 }
 
 export function StartCanvas(props: Props) {
   const ref = useRef<HTMLCanvasElement>(null)
+  // The end being dragged, and the view it was picked up in. The view is held for
+  // the whole drag: re-fitting around a moving end would slide it out from under
+  // the finger that is moving it.
+  const drag = useRef<{ which: 'port' | 'starboard'; view: StartView; pointerId: number } | null>(
+    null,
+  )
 
   useEffect(() => {
     const cv = ref.current
@@ -71,7 +80,7 @@ export function StartCanvas(props: Props) {
       const ctx = cv.getContext('2d')
       if (!ctx) return
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      render(ctx, w, h, props)
+      render(ctx, w, h, props, drag.current?.view ?? null)
     }
 
     draw()
@@ -80,47 +89,92 @@ export function StartCanvas(props: Props) {
     return () => ro.disconnect()
   }, [props])
 
-  return <canvas ref={ref} />
+  const pointAt = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    return { px: e.clientX - r.left, py: e.clientY - r.top, w: r.width, h: r.height }
+  }
+
+  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const { line, state, onMoveEnd } = props
+    if (!onMoveEnd || !line.port || !line.starboard) return
+    const { px, py, w, h } = pointAt(e)
+    if (w <= 0 || h <= 0) return
+    const view = startView(line.port, line.starboard, state?.position ?? null, w, h)
+    const which = hitEnd(view, { port: line.port, starboard: line.starboard }, px, py)
+    if (!which) return
+    drag.current = { which, view, pointerId: e.pointerId }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const d = drag.current
+    if (!d || d.pointerId !== e.pointerId) return
+    const { px, py } = pointAt(e)
+    props.onMoveEnd?.(d.which, fromPx(d.view, px, py))
+  }
+
+  const onPointerEnd = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (drag.current?.pointerId === e.pointerId) drag.current = null
+  }
+
+  return (
+    <canvas
+      ref={ref}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerEnd}
+      onPointerCancel={onPointerEnd}
+    />
+  )
 }
 
-function render(
-  ctx: CanvasRenderingContext2D,
+// ------------------------------------------------------------------ the view
+
+/**
+ * World to screen for the start display, and back.
+ *
+ * A local frame at the line's midpoint, rotated so the port end is left and the
+ * starboard end right (start-line-math.md §6), fitted around the line and the
+ * boat. Pulled out of `render` so a drag can invert exactly the transform the
+ * picture was drawn with, and hold it still while the finger moves.
+ */
+export interface StartView {
+  frame: LocalFrame
+  rot: (v: XY) => XY
+  unrot: (v: XY) => XY
+  scale: number
+  ox: number
+  oy: number
+  minX: number
+  maxX: number
+  minY: number
+  maxY: number
+}
+
+export function startView(
+  port: LatLon,
+  starboard: LatLon,
+  boatAt: LatLon | null,
   w: number,
   h: number,
-  p: Props,
-) {
-  ctx.fillStyle = '#050d16'
-  ctx.fillRect(0, 0, w, h)
+): StartView {
+  const frame = new LocalFrame({
+    lat: (port.lat + starboard.lat) / 2,
+    lon: (port.lon + starboard.lon) / 2,
+  })
+  const pPort = frame.toXY(port)
+  const pStbd = frame.toXY(starboard)
 
-  const { line, state, wind, numbers, boat, track } = p
-  const declutter = p.secondsSinceGun != null && p.secondsSinceGun > 60
-
-  if (!line.port || !line.starboard) {
-    drawHint(ctx, w, h, 'Ping both ends of the line to begin')
-    return
-  }
-
-  // ---- build the local frame, oriented so the line runs across the screen --
-  const mid = {
-    lat: (line.port.lat + line.starboard.lat) / 2,
-    lon: (line.port.lon + line.starboard.lon) / 2,
-  }
-  const frame = new LocalFrame(mid)
-  const pPort = frame.toXY(line.port)
-  const pStbd = frame.toXY(line.starboard)
-
-  // Rotate so port end is left, starboard end right (manual §6).
+  // Rotate the world so the line vector points to screen +x.
   const lineAng = Math.atan2(pStbd.x - pPort.x, pStbd.y - pPort.y)
-  const rot = (v: XY): XY => {
-    // Rotate the world so the line vector points to screen +x.
-    const c = Math.cos(lineAng)
-    const s = Math.sin(lineAng)
-    return { x: v.x * s + v.y * c, y: -v.x * c + v.y * s }
-  }
+  const c = Math.cos(lineAng)
+  const s = Math.sin(lineAng)
+  const rot = (v: XY): XY => ({ x: v.x * s + v.y * c, y: -v.x * c + v.y * s })
+  // Its transpose, which for a rotation is its inverse.
+  const unrot = (v: XY): XY => ({ x: v.x * s - v.y * c, y: v.x * c + v.y * s })
 
   const pts: XY[] = [rot(pPort), rot(pStbd)]
-  const boatXY = state ? rot(frame.toXY(state.position)) : null
-  if (boatXY) pts.push(boatXY)
+  if (boatAt) pts.push(rot(frame.toXY(boatAt)))
 
   // ---- fit a view around everything of interest ---------------------------
   const lineLenNm = Math.hypot(pStbd.x - pPort.x, pStbd.y - pPort.y)
@@ -143,8 +197,64 @@ function render(
   const scale = Math.min(w / (maxX - minX), h / (maxY - minY))
   const ox = w / 2 - ((minX + maxX) / 2) * scale
   const oy = h / 2 + ((minY + maxY) / 2) * scale
+  return { frame, rot, unrot, scale, ox, oy, minX, maxX, minY, maxY }
+}
 
-  const S = (v: XY) => ({ px: ox + v.x * scale, py: oy - v.y * scale })
+export function toPx(v: StartView, p: LatLon): { px: number; py: number } {
+  const q = v.rot(v.frame.toXY(p))
+  return { px: v.ox + q.x * v.scale, py: v.oy - q.y * v.scale }
+}
+
+export function fromPx(v: StartView, px: number, py: number): LatLon {
+  return v.frame.toLatLon(v.unrot({ x: (px - v.ox) / v.scale, y: (v.oy - py) / v.scale }))
+}
+
+/** How near an end a touch must land to pick it up: a wet fingertip, not a cursor. */
+export const END_HIT_PX = 32
+
+/** The line end under a touch, the nearer if both are in reach, or null. */
+export function hitEnd(
+  v: StartView,
+  line: { port: LatLon; starboard: LatLon },
+  px: number,
+  py: number,
+): 'port' | 'starboard' | null {
+  const d = (at: LatLon) => {
+    const q = toPx(v, at)
+    return Math.hypot(q.px - px, q.py - py)
+  }
+  const dp = d(line.port)
+  const ds = d(line.starboard)
+  if (Math.min(dp, ds) > END_HIT_PX) return null
+  return dp <= ds ? 'port' : 'starboard'
+}
+
+function render(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  p: Props,
+  frozen: StartView | null = null,
+) {
+  ctx.fillStyle = '#050d16'
+  ctx.fillRect(0, 0, w, h)
+
+  const { line, state, wind, numbers, boat, track } = p
+  const declutter = p.secondsSinceGun != null && p.secondsSinceGun > 60
+
+  if (!line.port || !line.starboard) {
+    drawHint(ctx, w, h, 'Ping both ends of the line to begin')
+    return
+  }
+
+  // Frozen while an end is dragged, so the picture does not re-fit under the
+  // finger; otherwise fitted fresh around the line and the boat.
+  const view = frozen ?? startView(line.port, line.starboard, state?.position ?? null, w, h)
+  const { frame, rot, scale, minX, maxX, minY, maxY } = view
+  const pts: XY[] = [rot(frame.toXY(line.port)), rot(frame.toXY(line.starboard))]
+  const boatXY = state ? rot(frame.toXY(state.position)) : null
+
+  const S = (v: XY) => ({ px: view.ox + v.x * scale, py: view.oy - v.y * scale })
   const nmPerPx = 1 / scale
   const blNm = mToNm(boat.loaMetres)
 

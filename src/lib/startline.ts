@@ -192,6 +192,47 @@ export function bowPosition(state: BoatState, boat: Boat): LatLon {
 }
 
 /**
+ * How far to trust a fix at start scale, judged against the boat rather than in
+ * metres. Distance below the line is quoted in boat lengths, so a ±6 m fix on a
+ * 7 m boat makes it a guess, while the same fix on a 40-footer is fine;
+ * mvp-scope asks for an honest warning past half a boat length.
+ */
+export function fixQuality(
+  accuracyM: number | null,
+  loaMetres: number,
+): 'good' | 'poor' | 'bad' | null {
+  if (accuracyM == null || !Number.isFinite(accuracyM) || !(loaMetres > 0)) return null
+  if (accuracyM <= loaMetres / 2) return 'good'
+  return accuracyM <= loaMetres ? 'poor' : 'bad'
+}
+
+/** Below this, GPS COG is noise rather than a direction (technical-spec.md §2). */
+export const COG_TRUSTED_KN = 1
+
+/**
+ * Where a ping records a line end: the bow, when the app knows which way the bow
+ * points, and otherwise the antenna.
+ *
+ * The bow is what sits at the mark when a sailor pings it, and on a 40-footer it
+ * is 10 m from the antenna, so recording the antenna shifts the end by a tenth of
+ * the line (start-line-math.md §1). But the bow is found by projecting along the
+ * heading, and a phone has none: it has COG, which is noise below about a knot -
+ * just where boats creep up to a mark. Projected along noise, the "bow" can land
+ * further from the mark than the antenna, whose error is at least a known length
+ * in a known direction. So an instrument heading is trusted at any speed, COG
+ * only from COG_TRUSTED_KN up, and otherwise the ping stays at the antenna and
+ * says so (`bow: false`).
+ */
+export function pingPosition(state: BoatState, boat: Boat): { at: LatLon; bow: boolean } {
+  const headingKnown =
+    (state.heading != null && Number.isFinite(state.heading)) ||
+    (Number.isFinite(state.cog) && state.sog >= COG_TRUSTED_KN)
+  return headingKnown
+    ? { at: bowPosition(state, boat), bow: true }
+    : { at: state.position, bow: false }
+}
+
+/**
  * Predicted position at the gun, dead-reckoned from the current COG/SOG.
  * Feeds `Start gun dist below line`. Extrapolates backwards happily if the gun
  * has already fired; returns null only when the inputs are not numbers.

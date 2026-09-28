@@ -120,6 +120,25 @@ describe('course edits do not disturb a pinged start line', () => {
     useStore.getState().removeMark(marks[0].id)
     expect(useStore.getState().course.startLine.starboard).toEqual(at(43.6, -70.19))
   })
+
+  it('clearMarks keeps the line and the gun time', () => {
+    // What CLEAR on the Race tab calls, possibly mid-sequence, where losing the
+    // line or the countdown running on it costs the start.
+    courseOf(3)
+    useStore.getState().setStartEnd('port', at(43.6, -70.21))
+    useStore.getState().setStartEnd('starboard', at(43.6, -70.19))
+    useStore.getState().setGunTime(1_900_000_000_000)
+    useStore.getState().setActiveMark(2)
+    useStore.getState().clearMarks()
+    const { course } = useStore.getState()
+    expect(course.marks).toEqual([])
+    expect(course.startLine).toEqual({
+      port: at(43.6, -70.21),
+      starboard: at(43.6, -70.19),
+      gunTime: 1_900_000_000_000,
+    })
+    expect(active()).toBe(0)
+  })
 })
 
 describe('bounded histories', () => {
@@ -163,6 +182,18 @@ describe('persistence', () => {
     expect(persisted.wind).toBeUndefined()
     expect(persisted.route).toBeUndefined()
     expect(persisted.track).toBeUndefined()
+  })
+
+  it('keeps a recording switched on across a reload', () => {
+    // The track itself is saved on its own (trackPersistence.ts); the switch
+    // rides here, so a phone that drops the app mid-race comes back recording.
+    if (!useStore.getState().recording) useStore.getState().toggleRecording()
+    try {
+      const persisted = JSON.parse(localStorage.getItem('newjourney.v1') as string).state
+      expect(persisted.recording).toBe(true)
+    } finally {
+      useStore.getState().toggleRecording()
+    }
   })
 })
 
@@ -231,6 +262,11 @@ describe('a computed route does not outlive the course it was computed for', () 
 
   it('clears when the course is cleared', () => {
     useStore.getState().clearCourse()
+    expect(useStore.getState().route).toBeNull()
+  })
+
+  it('clears when the marks alone are cleared', () => {
+    useStore.getState().clearMarks()
     expect(useStore.getState().route).toBeNull()
   })
 
@@ -319,5 +355,34 @@ describe('wind history belongs to one wind source', () => {
     for (let i = 0; i < 20; i++) useStore.getState().pushWind({ t: i, twd: 270, tws: 12 })
     useStore.getState().setWindMode('manual')
     expect(useStore.getState().windHistory.length).toBe(20)
+  })
+})
+
+describe('the not-for-navigation notice', () => {
+  it('is asked of an install saved before the notice existed', () => {
+    // An old save has no such field; the deep merge must fill in false, not
+    // leave it undefined, and certainly not carry the old save past the notice.
+    const old = { settings: { units: 'metric' as const, northRef: 'true' as const, simulate: false } }
+    const merged = mergePersistedState(old, useStore.getState())
+    expect(merged.settings.acceptedNotForNavigation).toBe(false)
+    expect(DEFAULT_SETTINGS.acceptedNotForNavigation).toBe(false)
+  })
+})
+
+describe('a manual wind knows whether anybody set it', () => {
+  it('stamps the time it was set', () => {
+    const before = Date.now()
+    useStore.getState().setManualWind(235, 14)
+    expect(useStore.getState().manualWindSetAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('treats a save from before the stamp as never set', () => {
+    // Its 270/12 may be the placeholder or a real choice; asking once is honest,
+    // silently trusting it is not.
+    const merged = mergePersistedState({ manualWind: { twd: 270, tws: 12 } }, {
+      ...useStore.getState(),
+      manualWindSetAt: null,
+    })
+    expect(merged.manualWindSetAt).toBeNull()
   })
 })

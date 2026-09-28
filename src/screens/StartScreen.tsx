@@ -10,11 +10,14 @@ import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
 import { StartCanvas } from '@/components/StartCanvas'
 import { Tile, fmtAgo, fmtClock, fmtSigned } from '@/components/Tile'
-import { computeStart, spareTimeS } from '@/lib/startline'
+import { COG_TRUSTED_KN, computeStart, fixQuality, pingPosition, spareTimeS } from '@/lib/startline'
 import { buildLattice } from '@/lib/polar'
 import type { PolarLattice, StartNumbers } from '@/lib/types'
 
 const ROLL_OPTIONS = [5, 4, 3, 1]
+
+/** How long the note after a ping recorded at the phone stays up. */
+const PING_NOTE_MS = 12_000
 
 /**
  * How long after the gun a timer is still worth showing, seconds.
@@ -53,7 +56,11 @@ export function StartScreen() {
   const track = useStore((s) => s.track)
   const setStartEnd = useStore((s) => s.setStartEnd)
   const setGunTime = useStore((s) => s.setGunTime)
+  const setWindSheetOpen = useStore((s) => s.setWindSheetOpen)
+  const keepAwake = useStore((s) => s.settings.keepAwake)
+  const wakeLock = useStore((s) => s.wakeLock)
   const [showDetail, setShowDetail] = useState(false)
+  const [pingNote, setPingNote] = useState<{ which: 'port' | 'starboard'; t: number } | null>(null)
 
   const lattice = useMemo<PolarLattice | null>(() => {
     if (!polar) return null
@@ -90,8 +97,19 @@ export function StartScreen() {
 
   const ping = (which: 'port' | 'starboard') => {
     if (!state) return
-    setStartEnd(which, state.position)
+    const { at, bow } = pingPosition(state, boat)
+    setStartEnd(which, at)
+    setPingNote(bow ? null : { which, t: Date.now() })
   }
+  // Said for a while after a ping that could not find the bow, so the sailor
+  // learns to ping with way on, rather than finding out from a crooked line.
+  const showPingNote = pingNote != null && now - pingNote.t < PING_NOTE_MS
+
+  // A fix vaguer than half a boat length makes distance below the line a guess,
+  // so the tile says how big a one, where the number is.
+  const accuracy = state?.accuracyM ?? null
+  const gpsVague = ['poor', 'bad'].includes(fixQuality(accuracy, boat.loaMetres) ?? '')
+  const gpsBoatLengths = accuracy != null && boat.loaMetres > 0 ? accuracy / boat.loaMetres : 0
 
   const startTimer = (minutes: number) => setGunTime(Date.now() + minutes * 60_000)
   const syncTimer = () => {
@@ -214,6 +232,30 @@ export function StartScreen() {
         </div>
       </div>
 
+      {keepAwake && wakeLock === 'unavailable' && (
+        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+          The screen may sleep: this browser will not keep it awake. Set the phone&apos;s
+          auto-lock to Never before the sequence starts.
+        </div>
+      )}
+
+      {showPingNote && (
+        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+          {pingNote.which === 'port' ? 'PIN' : 'RC'} recorded at the phone, not the bow: under{' '}
+          {COG_TRUSTED_KN} kn the GPS cannot tell which way the bow points. Ping with way on to
+          record the bow, {boat.bowToGpsMetres} m ahead of the phone.
+        </div>
+      )}
+
+      {!wind && (
+        <div className="warnbox wind-needed" style={{ margin: '10px var(--pad) 0' }}>
+          <span>Bias, the favoured end and the laylines need the wind.</span>
+          <button className="btn btn--primary btn--sm" onClick={() => setWindSheetOpen(true)}>
+            SET THE WIND
+          </button>
+        </div>
+      )}
+
       {lineSuspect && (
         <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
           This line is {Math.abs(numbers.biasAngleDeg ?? 0).toFixed(0)}° off square —
@@ -234,6 +276,7 @@ export function StartScreen() {
             wind && lattice ? lattice.targetsAt(wind.tws).upTwa : undefined
           }
           secondsSinceGun={sinceGun}
+          onMoveEnd={setStartEnd}
         />
       </div>
 
@@ -243,11 +286,13 @@ export function StartScreen() {
           value={numbers.distanceBelowLineBoatLengths}
           unit="BL"
           dp={1}
-          tone={numbers.ocs ? 'port' : null}
+          tone={numbers.ocs ? 'port' : gpsVague ? 'warn' : null}
           sub={
             numbers.distanceBelowLineM == null
               ? undefined
-              : `${Math.abs(numbers.distanceBelowLineM).toFixed(0)} m`
+              : gpsVague
+                ? `${Math.abs(numbers.distanceBelowLineM).toFixed(0)} m · GPS ±${gpsBoatLengths.toFixed(1)} BL`
+                : `${Math.abs(numbers.distanceBelowLineM).toFixed(0)} m`
           }
           small
         />

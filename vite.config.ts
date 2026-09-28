@@ -1,9 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
+import { precacheManifest } from './src/lib/pwa/precachePlugin'
 
 export default defineConfig({
-  plugins: [react()],
+  // precacheManifest writes the build's file list into dist/sw.js, so one online
+  // visit leaves everything needed to start offline (src/lib/pwa/precache.ts).
+  plugins: [react(), precacheManifest()],
   base: './',
   resolve: {
     alias: {
@@ -26,5 +29,9 @@ export default defineConfig({
     // vitest exits 0 on "no test files matched the filter" only when it is given
     // no filter, so a whole suite can go missing without a red run.
     include: ['src/**/*.test.{ts,tsx}'],
+    // CI runners are slower than a desktop, and several suites run whole route
+    // solves; a longer limit there keeps the result about the code, not the
+    // machine. Locally the default still fails a hang fast.
+    testTimeout: process.env.CI ? 30_000 : 5_000,
   },
 })

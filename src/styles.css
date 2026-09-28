@@ -119,6 +119,102 @@ button {
   height: 21px;
 }
 
+/* ------------------------------------------------------------------ modal */
+
+/* A sibling of .app, not a child, so it stays reachable while .app is inert. */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--pad) + var(--safe-top)) var(--pad) calc(var(--pad) + var(--safe-bottom));
+  background: rgba(5, 13, 22, 0.9);
+}
+
+.modal__card {
+  width: 100%;
+  max-width: 460px;
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border-radius: var(--r);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-bright);
+}
+
+.modal__card h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.modal__card .warnbox {
+  margin: 0;
+  font-size: 15px;
+}
+
+.modal__card .btn {
+  padding: 18px 12px;
+  font-size: 16px;
+}
+
+/* ------------------------------------------------------------- wind sheet */
+
+.wind-sheet {
+  display: grid;
+  gap: 10px;
+}
+
+.wind-sheet__title {
+  margin: 0;
+  font-size: 20px;
+}
+
+.wind-sheet .note {
+  margin: 0;
+}
+
+.wind-sheet__value label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+
+.wind-sheet__value input {
+  width: 5.5ch;
+  padding: 4px 8px;
+  font-size: 44px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--ink);
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r);
+}
+
+.wind-sheet__steps {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.wind-sheet__steps--2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* The Start tab's ask when no wind is set: the reason, and the one button. */
+.wind-needed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 /* ------------------------------------------------------------------- bits */
 
 .topbar {

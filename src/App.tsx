@@ -14,11 +14,15 @@ import { StartScreen } from '@/screens/StartScreen'
 import { RaceScreen } from '@/screens/RaceScreen'
 import { SetupScreen } from '@/screens/SetupScreen'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { NotForNavigationDialog } from '@/components/NotForNavigation'
+import { useTrackPersistence } from '@/state/trackPersistence'
+import { WindSheet, windChip } from '@/components/WindSheet'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
+import { fixQuality } from '@/lib/startline'
+import { declinationAt } from '@/lib/magnetic'
 import type { WindEstimate } from '@/lib/types'
 import { fetchPointForecast } from '@/lib/weather/openmeteo'
-import { fmtDeg } from '@/lib/angles'
 import { PILOT_VENUE } from '@/data/venues'
 
 const FORECAST_REFRESH_MS = 15 * 60_000
@@ -45,12 +49,17 @@ export function App() {
   const tab = useStore((s) => s.tab)
   const setTab = useStore((s) => s.setTab)
   const settings = useStore((s) => s.settings)
+  const boat = useStore((s) => s.boat)
+  const updateSettings = useStore((s) => s.updateSettings)
   const state = useStore((s) => s.state)
   const gpsError = useStore((s) => s.gpsError)
   const polar = useStore((s) => s.polar)
   const polarId = useStore((s) => s.polarId)
   const setPolar = useStore((s) => s.setPolar)
   const manualWind = useStore((s) => s.manualWind)
+  const manualWindSetAt = useStore((s) => s.manualWindSetAt)
+  const windSheetOpen = useStore((s) => s.windSheetOpen)
+  const setWindSheetOpen = useStore((s) => s.setWindSheetOpen)
   const windMode = useStore((s) => s.windMode)
   const wind = useStore((s) => s.wind)
   const windError = useStore((s) => s.windError)
@@ -75,6 +84,7 @@ export function App() {
   // Start the simulated boat afloat, not on the island the map centre sits on.
   useSimulation(settings.simulate, PILOT_VENUE.waterStart)
   useWakeLock(settings.keepAwake)
+  useTrackPersistence()
   const now = useTick(1)
 
   // Load the class polar on first run / after a rehydrate.
@@ -88,6 +98,12 @@ export function App() {
   // forecast every second — that was making the Forecast switch a cosmetic control.
   useEffect(() => {
     if (windMode !== 'manual') return
+    // Nobody has set it: then there is no wind, and the Start tab says so, rather
+    // than a placeholder quietly deciding which end of the line is favoured.
+    if (manualWindSetAt == null) {
+      setWind(null)
+      return
+    }
     const w: WindEstimate = {
       twd: manualWind.twd,
       tws: manualWind.tws,
@@ -98,7 +114,7 @@ export function App() {
     setWind(w)
     setWindError(null)
     pushWind({ t: now, twd: w.twd, tws: w.tws })
-  }, [manualWind.twd, manualWind.tws, now, windMode, setWind, setWindError, pushWind])
+  }, [manualWind.twd, manualWind.tws, manualWindSetAt, now, windMode, setWind, setWindError, pushWind])
 
   // A point forecast is useful for tactics but never substitutes for the route's
   // gridded field. Refresh deliberately and retain the previous estimate if the
@@ -186,105 +202,128 @@ export function App() {
     if (fixAge != null && fixAge > 8) return { cls: 'chip--warn', text: `stale ${Math.round(fixAge)}s` }
     const acc = state.accuracyM
     if (acc == null) return { cls: 'chip--good', text: 'fix' }
+    // Against this boat, not a fixed number of metres: see `fixQuality`.
+    const q = fixQuality(acc, boat.loaMetres)
     return {
-      cls: acc <= 6 ? 'chip--good' : acc <= 15 ? 'chip--warn' : 'chip--bad',
+      cls: q === 'good' ? 'chip--good' : q === 'poor' ? 'chip--warn' : 'chip--bad',
       text: `±${acc.toFixed(0)} m`,
     }
-  }, [gpsError, state, fixAge])
+  }, [gpsError, state, fixAge, boat.loaMetres])
+
+  // Until the notice is accepted the app sits behind it, `inert` so no tap or
+  // tab-key can reach a number the sailor has not yet been told how far to trust.
+  const mustAccept = !settings.acceptedNotForNavigation
+  const windChipState = windChip(
+    wind,
+    manualWindSetAt,
+    now,
+    settings.northRef === 'magnetic' ? declinationAt(PILOT_VENUE.declination, now) : null,
+  )
 
   return (
-    <div className="app">
-      <div className="topbar">
-        <span className={`chip ${gpsChip.cls}`}>
-          <span className="dot dot--pulse" />
-          {settings.simulate ? 'SIM' : 'GPS'} {gpsChip.text}
-        </span>
-        <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span className="chip">
-            {wind ? `${fmtDeg(wind.twd)}° · ${wind.tws.toFixed(0)} kn` : 'wind unavailable'}
+    <>
+      <div className="app" inert={mustAccept || undefined}>
+        <div className="topbar">
+          <span className={`chip ${gpsChip.cls}`}>
+            <span className="dot dot--pulse" />
+            {settings.simulate ? 'SIM' : 'GPS'} {gpsChip.text}
           </span>
-          <button
-            className={`chip ${recording ? 'chip--bad' : ''}`}
-            onClick={toggleRecording}
-            title="Record track"
-          >
-            <span className="dot" />
-            {recording ? 'REC' : 'rec'}
-          </button>
-        </span>
+          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              className={`chip ${windChipState.warn ? 'chip--warn' : ''}`}
+              onClick={() => setWindSheetOpen(true)}
+              aria-label={`Wind: ${windChipState.text}. Tap to set.`}
+            >
+              {windChipState.text}
+            </button>
+            <button
+              className={`chip ${recording ? 'chip--bad' : ''}`}
+              onClick={toggleRecording}
+              title="Record track"
+            >
+              <span className="dot" />
+              {recording ? 'REC' : 'rec'}
+            </button>
+          </span>
+        </div>
+
+        {gpsError && !settings.simulate && (
+          <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+            {gpsError} — turn on <b>Simulate a boat</b> in Setup to try the app
+            without a GPS fix.
+          </div>
+        )}
+        {windError && (
+          <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+            {windError}
+          </div>
+        )}
+
+        {tab === 'start' && (
+          <ErrorBoundary name="Start" key="start">
+            <StartScreen />
+          </ErrorBoundary>
+        )}
+        {tab === 'race' && (
+          <ErrorBoundary name="Race" key="race">
+            <RaceScreen />
+          </ErrorBoundary>
+        )}
+        {tab === 'weather' && (
+          <ErrorBoundary name="Weather" key="weather" onReset={retryLazy}>
+            <Suspense
+              fallback={
+                <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
+                  <span className="chip">
+                    <span className="spinner" /> loading map…
+                  </span>
+                </div>
+              }
+            >
+              <WeatherScreen />
+            </Suspense>
+          </ErrorBoundary>
+        )}
+        {tab === 'route' && (
+          <ErrorBoundary name="Route" key="route" onReset={retryLazy}>
+            <Suspense
+              fallback={
+                <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
+                  <span className="chip">
+                    <span className="spinner" /> loading chart…
+                  </span>
+                </div>
+              }
+            >
+              <RouteScreen />
+            </Suspense>
+          </ErrorBoundary>
+        )}
+        {tab === 'setup' && (
+          <ErrorBoundary name="Setup" key="setup">
+            <SetupScreen />
+          </ErrorBoundary>
+        )}
+
+        <nav className="tabbar">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              aria-current={tab === t.id}
+              onClick={() => setTab(t.id)}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        {windSheetOpen && <WindSheet onClose={() => setWindSheetOpen(false)} />}
       </div>
-
-      {gpsError && !settings.simulate && (
-        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
-          {gpsError} — turn on <b>Simulate a boat</b> in Setup to try the app
-          without a GPS fix.
-        </div>
+      {mustAccept && (
+        <NotForNavigationDialog onAccept={() => updateSettings({ acceptedNotForNavigation: true })} />
       )}
-      {windError && (
-        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
-          {windError}
-        </div>
-      )}
-
-      {tab === 'start' && (
-        <ErrorBoundary name="Start" key="start">
-          <StartScreen />
-        </ErrorBoundary>
-      )}
-      {tab === 'race' && (
-        <ErrorBoundary name="Race" key="race">
-          <RaceScreen />
-        </ErrorBoundary>
-      )}
-      {tab === 'weather' && (
-        <ErrorBoundary name="Weather" key="weather" onReset={retryLazy}>
-          <Suspense
-            fallback={
-              <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
-                <span className="chip">
-                  <span className="spinner" /> loading map…
-                </span>
-              </div>
-            }
-          >
-            <WeatherScreen />
-          </Suspense>
-        </ErrorBoundary>
-      )}
-      {tab === 'route' && (
-        <ErrorBoundary name="Route" key="route" onReset={retryLazy}>
-          <Suspense
-            fallback={
-              <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
-                <span className="chip">
-                  <span className="spinner" /> loading chart…
-                </span>
-              </div>
-            }
-          >
-            <RouteScreen />
-          </Suspense>
-        </ErrorBoundary>
-      )}
-      {tab === 'setup' && (
-        <ErrorBoundary name="Setup" key="setup">
-          <SetupScreen />
-        </ErrorBoundary>
-      )}
-
-      <nav className="tabbar">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            aria-current={tab === t.id}
-            onClick={() => setTab(t.id)}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
-      </nav>
-    </div>
+    </>
   )
 }
 

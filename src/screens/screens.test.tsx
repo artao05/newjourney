@@ -138,6 +138,7 @@ import { RouteScreen } from './RouteScreen'
 import { useStore } from '@/state/store'
 import { findPolar } from '@/data/polars'
 import { PILOT_VENUE } from '@/data/venues'
+import { distance } from '@/lib/geo'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
 import { angdiff, wrap360 } from '@/lib/angles'
 import { uvFromWind } from '@/lib/weather/cube'
@@ -163,6 +164,7 @@ function emptyStore() {
   s.setRoute(null)
   s.setRouteError(null)
   s.setGpsError(null)
+  useStore.setState({ manualWind: { twd: 270, tws: 12 }, manualWindSetAt: null, windSheetOpen: false })
 }
 
 /** A boat, a wind, a polar and a two-mark course. */
@@ -480,6 +482,154 @@ describe('the Route chart draws the wind the route sails in', () => {
 
     act(() => useStore.getState().setRoute(null))
     expect(allToward(180), 'route cleared: the wind now again').toBe(true)
+  })
+})
+
+describe('the below-line tile says how far the GPS lets it be trusted', () => {
+  const tile = () => screen.getByText('below line').closest('.tile')!
+  const withAccuracy = (accuracyM: number) => {
+    populatedStore()
+    useStore.getState().setBoatState({ ...useStore.getState().state!, accuracyM })
+  }
+
+  it('flags a fix vaguer than half a boat length, in boat lengths', () => {
+    withAccuracy(6) // on a 6.93 m J/70, nearly a boat length
+    render(<StartScreen />)
+    // The fixture's boat is over early, so the tile keeps OCS red, which outranks
+    // the GPS amber; the caveat still rides in the sub-line.
+    expect(tile().textContent).toMatch(/GPS ±0\.9 BL/)
+  })
+
+  it('stays quiet when the fix is good enough for the number', () => {
+    withAccuracy(2)
+    render(<StartScreen />)
+    expect(tile().textContent).not.toContain('GPS ±')
+  })
+})
+
+describe('Start says when the screen may sleep', () => {
+  it('warns when the screen is meant to stay awake and cannot', () => {
+    useStore.getState().updateSettings({ keepAwake: true })
+    useStore.getState().setWakeLock('unavailable')
+    render(<StartScreen />)
+    expect(document.body.textContent).toContain('The screen may sleep')
+  })
+
+  it('says nothing while the lock is held, or when staying awake was switched off', () => {
+    useStore.getState().updateSettings({ keepAwake: true })
+    useStore.getState().setWakeLock('held')
+    const view = render(<StartScreen />)
+    expect(document.body.textContent).not.toContain('The screen may sleep')
+    view.unmount()
+    useStore.getState().updateSettings({ keepAwake: false })
+    useStore.getState().setWakeLock('unavailable')
+    render(<StartScreen />)
+    expect(document.body.textContent).not.toContain('The screen may sleep')
+  })
+})
+
+describe('a recorded track can be exported, and reads back', () => {
+  it('offers nothing to export before anything is recorded', () => {
+    render(<SetupScreen />)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'EXPORT TRACK (GPX)' }).disabled).toBe(true)
+  })
+
+  it('downloads GPX that parses back to the recorded fixes', async () => {
+    const t0 = Date.UTC(2026, 8, 27, 14, 5)
+    const fixes = [0, 1, 2].map((i) => ({
+      t: t0 + i * 1000,
+      lat: 43.6412345 + i * 1e-4,
+      lon: -70.2123456 + i * 1e-4,
+      sog: 5,
+      cog: 40,
+    }))
+    for (const f of fixes) useStore.getState().pushTrack(f)
+
+    let saved: { blob?: Blob; name?: string } = {}
+    const original = { create: URL.createObjectURL, revoke: URL.revokeObjectURL }
+    URL.createObjectURL = (b: Blob) => ((saved.blob = b), 'blob:test')
+    URL.revokeObjectURL = () => {}
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved = { ...saved, name: this.download }
+    })
+    try {
+      render(<SetupScreen />)
+      act(() => screen.getByRole('button', { name: 'EXPORT TRACK (GPX)' }).click())
+      await waitFor(() => expect(saved.name).toBeDefined())
+      expect(saved.name).toMatch(/^newjourney-track-\d{4}-\d{2}-\d{2}-\d{4}\.gpx$/)
+      const { parseGpx } = await import('@/lib/gpx')
+      const back = parseGpx(await saved.blob!.text()).trackPoints
+      const six = (x: number) => Math.round(x * 1e6) / 1e6
+      expect(back.map((p) => [p.t, p.lat, p.lon])).toEqual(fixes.map((f) => [f.t, six(f.lat), six(f.lon)]))
+    } finally {
+      URL.createObjectURL = original.create
+      URL.revokeObjectURL = original.revoke
+    }
+  })
+})
+
+describe('a ping records the bow when it can, and says when it cannot', () => {
+  const antenna = PILOT_VENUE.waterStart
+  const pinged = () => useStore.getState().course.startLine.port!
+
+  it('records the bow, bow-to-GPS metres ahead of the phone, when under way', () => {
+    populatedStore() // heading 42, 5.5 kn, the default 3 m bow-to-GPS
+    render(<StartScreen />)
+    act(() => screen.getByRole('button', { name: 'PING PIN' }).click())
+    expect(distance(antenna, pinged()) * 1852).toBeCloseTo(useStore.getState().boat.bowToGpsMetres, 2)
+    expect(document.body.textContent).not.toContain('recorded at the phone')
+  })
+
+  it('records the phone, and says why, when creeping with no heading', () => {
+    populatedStore()
+    useStore.getState().setBoatState({ ...useStore.getState().state!, heading: null, cog: 40, sog: 0.4 })
+    render(<StartScreen />)
+    act(() => screen.getByRole('button', { name: 'PING PIN' }).click())
+    expect(pinged()).toEqual(antenna)
+    expect(document.body.textContent).toContain('PIN recorded at the phone, not the bow')
+  })
+})
+
+describe('the Start tab asks for the wind it needs', () => {
+  it('asks while no wind is set, and opens the wind sheet', () => {
+    render(<StartScreen />)
+    act(() => screen.getByRole('button', { name: 'SET THE WIND' }).click())
+    expect(useStore.getState().windSheetOpen).toBe(true)
+  })
+
+  it('does not ask once there is a wind', () => {
+    populatedStore()
+    render(<StartScreen />)
+    expect(screen.queryByRole('button', { name: 'SET THE WIND' })).toBeNull()
+  })
+})
+
+describe('the Setup wind fields do not dress a placeholder up as a wind', () => {
+  it('reads empty until somebody sets it, then shows what they set', () => {
+    const field = (label: string) =>
+      screen.getByText(label, { selector: 'label' }).parentElement!.querySelector('input')!
+    const view = render(<SetupScreen />)
+    expect(field('TWD').value).toBe('')
+    expect(field('TWS').value).toBe('')
+    expect(field('TWD').placeholder).toBe('not set')
+    view.unmount()
+    act(() => useStore.getState().setManualWind(235, 14))
+    render(<SetupScreen />)
+    expect(field('TWD').value).toBe('235')
+    expect(field('TWS').value).toBe('14')
+  })
+})
+
+describe("the Race tab's CLEAR removes marks, not the start", () => {
+  it('keeps the pinged line and the running countdown', () => {
+    populatedStore()
+    const { startLine } = useStore.getState().course
+    expect(startLine.port && startLine.starboard && startLine.gunTime).toBeTruthy()
+    render(<RaceScreen />)
+    act(() => screen.getByText('CLEAR').click())
+    const { course } = useStore.getState()
+    expect(course.marks).toEqual([])
+    expect(course.startLine).toEqual(startLine)
   })
 })
 

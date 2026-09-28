@@ -7,10 +7,11 @@
  */
 
 import { useMemo } from 'react'
-import { useStore } from '@/state/store'
+import { MAX_TRACK_POINTS, useStore } from '@/state/store'
 import { POLAR_LIBRARY, findPolar } from '@/data/polars'
 import { buildLattice, parsePolar, validatePolar } from '@/lib/polar'
 import { PolarPlot } from '@/components/PolarPlot'
+import { NotForNavigationText } from '@/components/NotForNavigation'
 import { PILOT_VENUE } from '@/data/venues'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
 
@@ -31,6 +32,13 @@ export function tideStationLabel(
   return listed ? `${id} · ${listed.name}` : `${id} · not listed in the venue manifest`
 }
 
+/** A local `YYYY-MM-DD-HHMM` for a file name: sortable, and the sailor's own clock. */
+export function fileStamp(ms: number): string {
+  const d = new Date(ms)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`
+}
+
 export function SetupScreen() {
   const boat = useStore((s) => s.boat)
   const updateBoat = useStore((s) => s.updateBoat)
@@ -40,11 +48,20 @@ export function SetupScreen() {
   const settings = useStore((s) => s.settings)
   const updateSettings = useStore((s) => s.updateSettings)
   const manualWind = useStore((s) => s.manualWind)
+  // Unset shows as empty, not as the placeholder values - a field reading 270
+  // looks exactly like a wind somebody chose.
+  const manualWindSetAt = useStore((s) => s.manualWindSetAt)
   const setManualWind = useStore((s) => s.setManualWind)
   const windMode = useStore((s) => s.windMode)
   const setWindMode = useStore((s) => s.setWindMode)
   const track = useStore((s) => s.track)
   const clearTrack = useStore((s) => s.clearTrack)
+  const exportTrack = async () => {
+    if (track.length === 0) return
+    const { trackToGpx, downloadText } = await import('@/lib/gpx')
+    const stamp = fileStamp(track[0].t)
+    downloadText(`newjourney-track-${stamp}.gpx`, trackToGpx(track, `newjourney track ${stamp}`))
+  }
 
   const issues = useMemo(() => (polar ? validatePolar(polar) : []), [polar])
   const lattice = useMemo(() => {
@@ -270,12 +287,31 @@ export function SetupScreen() {
             </button>
           ))}
         </div>
+        <div className="seg" style={{ marginBottom: 6 }} role="group" aria-label="North reference">
+          {(['true', 'magnetic'] as const).map((n) => (
+            <button
+              key={n}
+              aria-pressed={settings.northRef === n}
+              onClick={() => updateSettings({ northRef: n })}
+            >
+              {n === 'true' ? 'True north' : 'Magnetic north'}
+            </button>
+          ))}
+        </div>
+        <p className="note">
+          Magnetic is what a compass reads. With it on, the wind sheet takes a compass bearing
+          and the wind chip shows one, marked M. Variation at {PILOT_VENUE.name} is{' '}
+          {Math.abs(PILOT_VENUE.declination.deg).toFixed(1)}°{' '}
+          {PILOT_VENUE.declination.deg < 0 ? 'W' : 'E'} (NOAA {PILOT_VENUE.declination.model}).
+          Every other bearing in the app stays true.
+        </p>
         <div className="field">
           <label>TWD</label>
           <input
             type="number"
             step="1"
-            value={manualWind.twd}
+            value={manualWindSetAt == null ? '' : manualWind.twd}
+            placeholder="not set"
             onChange={(e) => setManualWind(Number(e.target.value), manualWind.tws)}
             inputMode="numeric"
           />
@@ -285,7 +321,8 @@ export function SetupScreen() {
           <input
             type="number"
             step="0.5"
-            value={manualWind.tws}
+            value={manualWindSetAt == null ? '' : manualWind.tws}
+            placeholder="not set"
             onChange={(e) => setManualWind(manualWind.twd, Number(e.target.value))}
             inputMode="decimal"
           />
@@ -327,16 +364,23 @@ export function SetupScreen() {
           <label>Track points</label>
           <span style={{ fontSize: 14 }}>{track.length.toLocaleString()}</span>
         </div>
-        <button className="btn btn--sm btn--ghost" onClick={clearTrack}>
-          CLEAR TRACK
-        </button>
+        <p className="note">
+          Kept across a reload, up to {MAX_TRACK_POINTS.toLocaleString()} points (about five and
+          a half hours at one fix a second), oldest dropped first. Export it as GPX to keep it or
+          send it on.
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn--sm" onClick={exportTrack} disabled={track.length === 0}>
+            EXPORT TRACK (GPX)
+          </button>
+          <button className="btn btn--sm btn--ghost" onClick={clearTrack}>
+            CLEAR TRACK
+          </button>
+        </div>
 
         <h2>Safety</h2>
         <div className="warnbox">
-          <b>Not for navigation.</b> This is a prototype. Nothing here replaces
-          official charts, official tide tables, or your own judgment. Routing
-          output is derived from weather forecasts, which are uncertain by nature.
-          The skipper is responsible for the safety of the vessel and crew.
+          <b>Not for navigation.</b> <NotForNavigationText />
         </div>
         <p className="note">
           Weather: Open-Meteo (GFS / ECMWF / ICON). Charts: OpenStreetMap ©

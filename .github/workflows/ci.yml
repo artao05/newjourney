@@ -1,0 +1,29 @@
+# Every push and pull request: install from the lockfile, run the tests, then
+# build - `npm run build` is `tsc -b && vite build`, so the typecheck is in it.
+# This is what replaces the hand-written test counts in README and RUNNING.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # The routing kernel's wall-clock budgets, on their own: in the parallel
+      # suite above they would measure the other test files, not the kernel.
+      - run: npx vitest run src/lib/routing/isochrone.test.ts
+        env:
+          PERF: '1'
+      - run: npm run build

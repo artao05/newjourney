@@ -30,6 +30,11 @@ export interface Settings {
   /** Simulation replaces the GPS feed. */
   simulate: boolean
   keepAwake: boolean
+  /**
+   * The first-launch not-for-navigation notice has been accepted. False by
+   * default, so an install saved before the notice existed is asked once too.
+   */
+  acceptedNotForNavigation: boolean
 }
 
 interface AppState {
@@ -50,6 +55,9 @@ interface AppState {
   /** Replace marks without resetting a previously pinged start line. */
   replaceMarks(marks: Array<{ name: string; position: LatLon }>): void
   removeMark(id: string): void
+  /** Remove every mark, keeping the pinged start line and the gun time. */
+  clearMarks(): void
+  /** Reset the whole course, start line and gun time included. */
   clearCourse(): void
   activeMarkIndex: number
   setActiveMark(i: number): void
@@ -64,7 +72,24 @@ interface AppState {
   windError: string | null
   setWindError(error: string | null): void
   manualWind: { twd: Degrees; tws: Knots }
+  /**
+   * When a person last set the manual wind. Null means nobody has, and then there
+   * is no manual wind at all: `manualWind` holds a placeholder, and a placeholder
+   * presented as the wind puts a confident favoured end on the Start tab that
+   * nothing measured.
+   */
+  manualWindSetAt: Millis | null
   setManualWind(twd: Degrees, tws: Knots): void
+  /** The wind sheet: opened from the top-bar chip on any tab, and from Start. */
+  windSheetOpen: boolean
+  setWindSheetOpen(open: boolean): void
+  /**
+   * Whether the screen is actually being kept awake. `unavailable` covers both a
+   * browser with no Wake Lock API and a request it refused; either way a screen
+   * that sleeps mid-sequence takes the countdown with it.
+   */
+  wakeLock: 'held' | 'unavailable' | 'off'
+  setWakeLock(s: 'held' | 'unavailable' | 'off'): void
   windMode: WindSource
   setWindMode(m: WindSource): void
   windHistory: Array<{ t: Millis; twd: Degrees; tws: Knots }>
@@ -90,11 +115,19 @@ interface AppState {
   updateSettings(patch: Partial<Settings>): void
 }
 
+/**
+ * The most track points kept, oldest dropped first: about five and a half hours
+ * at one fix a second. The saved copy for reloads is capped the same
+ * (trackPersistence.ts).
+ */
+export const MAX_TRACK_POINTS = 20_000
+
 export const DEFAULT_SETTINGS: Settings = {
   units: 'metric',
   northRef: 'true',
   simulate: false,
   keepAwake: true,
+  acceptedNotForNavigation: false,
 }
 
 export function mergePersistedState(
@@ -232,6 +265,13 @@ export const useStore = create<AppState>()(
           activeMarkIndex: marks.length === 0 ? 0 : Math.min(Math.max(0, shifted), marks.length - 1),
         })
       },
+      /*
+       * What CLEAR on the Race tab does. The start line and the gun time belong to
+       * the start, not to the marks: a sailor clearing old marks mid-sequence must
+       * keep the line they pinged and the countdown running on it.
+       */
+      clearMarks: () =>
+        set({ ...COURSE_CHANGED, course: { ...get().course, marks: [] }, activeMarkIndex: 0 }),
       clearCourse: () => set({ ...COURSE_CHANGED, course: EMPTY_COURSE, activeMarkIndex: 0 }),
       activeMarkIndex: 0,
       setActiveMark: (i) => set({ activeMarkIndex: i }),
@@ -246,7 +286,12 @@ export const useStore = create<AppState>()(
       windError: null,
       setWindError: (windError) => set({ windError }),
       manualWind: { twd: 270, tws: 12 },
-      setManualWind: (twd, tws) => set({ manualWind: { twd, tws } }),
+      manualWindSetAt: null,
+      setManualWind: (twd, tws) => set({ manualWind: { twd, tws }, manualWindSetAt: Date.now() }),
+      windSheetOpen: false,
+      setWindSheetOpen: (open) => set({ windSheetOpen: open }),
+      wakeLock: 'off',
+      setWakeLock: (s) => set({ wakeLock: s }),
       windMode: 'manual',
       /*
        * Changing the wind source empties the history, because the history is
@@ -285,7 +330,7 @@ export const useStore = create<AppState>()(
       toggleRecording: () => set({ recording: !get().recording }),
       pushTrack: (p) => {
         const t = get().track
-        const next = t.length >= 20000 ? t.slice(1) : t.slice()
+        const next = t.length >= MAX_TRACK_POINTS ? t.slice(1) : t.slice()
         next.push(p)
         set({ track: next })
       },
@@ -312,9 +357,13 @@ export const useStore = create<AppState>()(
         polarId: s.polarId,
         course: s.course,
         manualWind: s.manualWind,
+        manualWindSetAt: s.manualWindSetAt,
         windMode: s.windMode,
         settings: s.settings,
         activeMarkIndex: s.activeMarkIndex,
+        // A recording that was on survives a reload too: a phone that drops the app
+        // mid-race must not come back with the track stopped and nothing said.
+        recording: s.recording,
       }),
       merge: mergePersistedState,
     },
