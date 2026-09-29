@@ -60,7 +60,7 @@ leaves something tested and working.
       boat), with id, label, unit, group and source (computed, sensor, licence). Each
       is marked computed or not yet. *Accept:* a test checks the catalogue against
       the appendix list, with no duplicates and a valid unit on every entry.
-- [ ] **2.2 A live channel snapshot.** One per boat, built at 1 Hz from boat state,
+- [x] **2.2 A live channel snapshot.** One per boat, built at 1 Hz from boat state,
       wind, tactics and start numbers. *Accept:* unit tests for each group, and every
       "computed" catalogue entry produces a value under the simulator.
 - [ ] **2.3 Number boxes.** A configurable grid of any channels, with sizes,
