@@ -18,10 +18,13 @@ leaves something tested and working.
 
 ## M0 — A gate that can be trusted
 
-- [ ] **0.1 `npm test` passes on this machine.** It currently exits 1: one test fails
+- [x] **0.1 `npm test` passes on this machine.** It currently exits 1: one test fails
       under load, and vitest's worker RPC times out (`onTaskUpdate`) while long
       synchronous routing tests hold the worker. *Accept:* three consecutive full runs
       exit 0, with no test weakened. Slow tests are split or moved to the `PERF` run.
+      *Done:* vitest never yields between tests, so a file of synchronous solves is
+      one block and the RPC reply can't land. `src/test-setup.ts` yields a macrotask
+      after each test. Three full runs then exited 0 (1,064 tests each).
 
 ## M1 — Wire up what already exists
 
