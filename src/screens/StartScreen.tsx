@@ -53,6 +53,8 @@ const EMPTY_START_NUMBERS: StartNumbers = {
   timeToStarboardEndSimpleS: null,
   speedToPortEndKn: null,
   speedToStarboardEndKn: null,
+  speedOnPortKn: null,
+  speedOnStarboardKn: null,
   targetBsp: null,
   targetTwa: null,
   ocs: false,

@@ -201,6 +201,26 @@ describe('speed to the ends, targets and the simple times', () => {
     expect(after.speedToPortEndKn).toBeNull()
   })
 
+  it('gives the speed that reaches the line at the gun on each tack', () => {
+    // Wind from the north, 50 m below a square line, targets at 40°: each tack
+    // crosses 50/cos 40° = 65.3 m away, and there is a minute to do it in.
+    const r = computeStart({ line: lineOf(100), state: stateOf(), wind: windOf(0), boat: boatOf(), lattice: fakeLattice(), now: NOW })
+    const kn = (50 / Math.cos((40 * Math.PI) / 180) / 1852) * 60
+    expect(r.speedOnPortKn).toBeCloseTo(kn, 3)
+    expect(r.speedOnStarboardKn).toBeCloseTo(kn, 3)
+  })
+
+  it('and bearing away on each tack when over the line early', () => {
+    // 50 m over; downwind targets at 150°: each gybe crosses 57.7 m away.
+    const r = computeStart({
+      line: lineOf(100), state: stateOf({ position: off(0, 50) }), wind: windOf(0), boat: boatOf(),
+      lattice: fakeLattice(), now: NOW,
+    })
+    const kn = (50 / Math.cos((30 * Math.PI) / 180) / 1852) * 60
+    expect(r.speedOnPortKn).toBeCloseTo(kn, 3)
+    expect(r.speedOnStarboardKn).toBeCloseTo(kn, 3)
+  })
+
   it('reads the upwind targets from the start polar', () => {
     const r = computeStart({ line: lineOf(100), state: stateOf(), wind: windOf(0), boat: boatOf(), lattice: fakeLattice(), now: NOW })
     expect(r.targetBsp).toBe(6)

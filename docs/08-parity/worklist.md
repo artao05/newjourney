@@ -137,7 +137,8 @@ leaves something tested and working.
 - [ ] **5.6 Start display extras:** the top-corner time with its time to burn. *Accept:* canvas tests.
 - [x] **5.7a Gun distance and stern below the line** (from 5.7): both start channels, from the bow dead-reckoned to the gun and the stern one hull length back. *Done.*
 - [x] **5.7b Speed to the ends, start targets and the simple times** (from 5.7). *Done.*
-- [ ] **5.7 The remaining start channels:** speed on each tack, time to layline P and S,
+- [x] **5.7c Speed on each tack** (from 5.7), bearing away when over the line early. *Done.*
+- [ ] **5.7 The remaining start channels:** time to layline P and S,
       the pinch times, the reach channels, boat to pin, and gun speed as % of target.
       *Accept:* start-math tests.
 - [x] **5.8 Handicap calculator:** TCF time-on-time and time-on-distance, with

@@ -304,6 +304,9 @@ export interface StartNumbers {
   /** The speed that gets the bow to each end exactly at the gun. */
   speedToPortEndKn: Knots | null
   speedToStarboardEndKn: Knots | null
+  /** The speed that reaches the line at the gun on each tack, close-hauled (or running). */
+  speedOnPortKn: Knots | null
+  speedOnStarboardKn: Knots | null
   /** Upwind targets from the start polar at the present wind. */
   targetBsp: Knots | null
   targetTwa: Degrees | null

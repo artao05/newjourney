@@ -458,6 +458,8 @@ function emptyStart(): StartNumbers {
     timeToStarboardEndSimpleS: null,
     speedToPortEndKn: null,
     speedToStarboardEndKn: null,
+    speedOnPortKn: null,
+    speedOnStarboardKn: null,
     targetBsp: null,
     targetTwa: null,
     ocs: false,
@@ -588,8 +590,8 @@ export function computeStart(i: StartInputs): StartNumbers {
   out.timeToStarboardEndS = timeToPointOverGround(bow, S, ctx)
   if (out.timeToGunS !== null && out.timeToGunS > 0) {
     const h = out.timeToGunS / 3600
-    out.speedToPortEndKn = distance(bow, P) / h
-    out.speedToStarboardEndKn = distance(bow, S) / h
+    out.speedToPortEndKn = finite(distance(bow, P) / h)
+    out.speedToStarboardEndKn = finite(distance(bow, S) / h)
   }
   if (wind && ctx.lattice) {
     const tg = ctx.lattice.targetsAt(wind.tws)
@@ -627,9 +629,20 @@ export function computeStart(i: StartInputs): StartNumbers {
       ['port', -targetTwa],
     ]
     for (const [tack, twa] of tacks) {
-      if (!approaches[tack]) continue
       const cross = crossingPoint(bowXY, courseFor(wind.twd, twa), pxy, lineDir, frame)
+      if (out.timeToGunS !== null && out.timeToGunS > 0) {
+        // Speed on each tack: over the line early, no close-hauled course gets
+        // back to it, so it is the speed bearing away on that tack instead.
+        const other = Math.sign(twa) * Math.abs(upwind ? targets.downTwa : targets.upTwa)
+        const back = cross ?? crossingPoint(bowXY, courseFor(wind.twd, other), pxy, lineDir, frame)
+        if (back) {
+          const kn = finite(distance(bow, back) / (out.timeToGunS / 3600))
+          if (tack === 'port') out.speedOnPortKn = kn
+          else out.speedOnStarboardKn = kn
+        }
+      }
       if (!cross) continue
+      if (!approaches[tack]) continue
       const t = timeToPointOverGround(bow, cross, ctx)
       if (t !== null) candidates.push(t)
     }
@@ -646,6 +659,11 @@ export function computeStart(i: StartInputs): StartNumbers {
   return out
 }
 
+/** A number, or null when it is not one: NaN must never reach a display. */
+function finite(n: number): number | null {
+  return Number.isFinite(n) ? n : null
+}
+
 /**
  * Expedition's simple time to a point: polar speed and nothing else, no current,
  * turns, acceleration or braking. Inside the upwind angle it is a beat at the
@@ -654,6 +672,7 @@ export function computeStart(i: StartInputs): StartNumbers {
  */
 export function simpleTimeS(from: LatLon, to: LatLon, wind: WindEstimate, lattice: PolarLattice): Seconds | null {
   const d = distance(from, to)
+  if (!Number.isFinite(d)) return null
   if (!(d > 0)) return 0
   const twa = Math.abs(angdiff(bearing(from, to), wind.twd))
   const tg = lattice.targetsAt(wind.tws)
