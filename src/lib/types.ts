@@ -281,6 +281,13 @@ export interface StartNumbers {
   /** Signed perpendicular distance to the line, +ve on the pre-start side. */
   distanceBelowLineM: Metres | null
   distanceBelowLineBoatLengths: number | null
+  /**
+   * Where the bow will be at the gun, on the present COG and SOG, as a distance
+   * below the line: positive short of it, negative over. Null without a gun.
+   */
+  gunDistanceBelowLineM: Metres | null
+  /** The stern's distance below the line: the bow's plus the hull's length along the line's normal. */
+  sternBelowLineM: Metres | null
   /** -ve = port favoured, +ve = starboard favoured. */
   biasAngleDeg: Degrees | null
   /** Distance advantage at the favoured end, metres. */

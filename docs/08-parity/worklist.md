@@ -135,8 +135,9 @@ leaves something tested and working.
 - [ ] **5.6 Start display extras:** turn circles, range circles, times at each end, a
       magnified end, heading distinct from COG, approach options in the UI, and an
       end set by range and bearing. *Accept:* canvas and screen tests.
-- [ ] **5.7 The remaining start channels:** speed to ends, time to layline, gun
-      distance below line, stern below line, and the simple and pinch variants.
+- [x] **5.7a Gun distance and stern below the line** (from 5.7): both start channels, from the bow dead-reckoned to the gun and the stern one hull length back. *Done.*
+- [ ] **5.7 The remaining start channels:** speed to ends, time to layline, and
+      the simple and pinch variants.
       *Accept:* start-math tests.
 - [x] **5.8 Handicap calculator:** TCF time-on-time and time-on-distance, with
       elapsed, corrected and owed times. *Accept:* tests against hand-worked

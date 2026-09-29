@@ -435,6 +435,8 @@ function emptyStart(): StartNumbers {
     timeToBurnS: null,
     distanceBelowLineM: null,
     distanceBelowLineBoatLengths: null,
+    gunDistanceBelowLineM: null,
+    sternBelowLineM: null,
     biasAngleDeg: null,
     biasLengthM: null,
     favouredEnd: null,
@@ -532,6 +534,21 @@ export function computeStart(i: StartInputs): StartNumbers {
 
   // OCS only if the bow is over AND the gun has not fired yet.
   out.ocs = belowNm < 0 && out.timeToGunS !== null && out.timeToGunS > 0
+
+  // The same measure for the stern, one hull length back along the heading, and
+  // for the bow at the gun, dead-reckoned on the present COG and SOG.
+  const below = (at: LatLon) => {
+    const nm = orient * signedDistanceToLine(frame.toXY(at), pxy, sxy)
+    return Number.isFinite(nm) ? nmToM(nm) : null
+  }
+  const hdg = state.heading ?? state.cog
+  if (belowKnown && boat.loaMetres > 0 && Number.isFinite(hdg)) {
+    out.sternBelowLineM = below(destination(bow, wrap360(hdg + 180), mToNm(boat.loaMetres)))
+  }
+  if (line.gunTime !== null) {
+    const atGun = positionAtGun(state, line.gunTime)
+    if (atGun) out.gunDistanceBelowLineM = below(bowPosition({ ...state, position: atGun }, boat))
+  }
 
   // --- candidate approaches -----------------------------------------------
   const candidates: Seconds[] = []

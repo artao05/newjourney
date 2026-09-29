@@ -38,6 +38,8 @@ const EMPTY_START_NUMBERS: StartNumbers = {
   timeToBurnS: null,
   distanceBelowLineM: null,
   distanceBelowLineBoatLengths: null,
+  gunDistanceBelowLineM: null,
+  sternBelowLineM: null,
   biasAngleDeg: null,
   biasLengthM: null,
   favouredEnd: null,

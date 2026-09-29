@@ -187,6 +187,60 @@ describe('line geometry and bias', () => {
   })
 })
 
+describe('the stern, and the bow at the gun, below the line', () => {
+  it('puts the stern one hull length further back when pointing at the line', () => {
+    // Bow 5 m ahead of the antenna 50 m below, heading straight at the line on a
+    // 10 m boat: the bow is 45 m below and the stern 55 m.
+    const r = computeStart({
+      line: lineOf(100),
+      state: stateOf({ position: off(180, 50), heading: 0 }),
+      wind: windOf(0),
+      boat: boatOf({ bowToGpsMetres: 5 }),
+      now: NOW,
+    })
+    expect(r.sternBelowLineM).toBeCloseTo(55, 2)
+  })
+
+  it('and level with the bow when sailing along it', () => {
+    const r = computeStart({
+      line: lineOf(100),
+      state: stateOf({ position: off(180, 50), heading: 90, cog: 90 }),
+      wind: windOf(0),
+      boat: boatOf(),
+      now: NOW,
+    })
+    expect(r.sternBelowLineM).toBeCloseTo(50, 2)
+  })
+
+  it('dead-reckons the bow to the gun on COG and SOG', () => {
+    // 50 m below, 60 s to the gun, heading for the line at 1 kn: 30.9 m covered,
+    // so 19.1 m short at the gun. At 4 kn she would be 73.5 m over.
+    const at = (sog: number) =>
+      computeStart({
+        line: lineOf(100),
+        state: stateOf({ position: off(180, 50), heading: 0, cog: 0, sog }),
+        wind: windOf(0),
+        boat: boatOf(),
+        now: NOW,
+      }).gunDistanceBelowLineM
+    expect(at(1)).toBeCloseTo(50 - 1852 / 60, 1)
+    expect(at(4)).toBeCloseTo(50 - (4 * 1852) / 60, 1)
+    expect(at(4)!).toBeLessThan(0)
+  })
+
+  it('has no gun distance without a gun', () => {
+    const r = computeStart({
+      line: lineOf(100, null),
+      state: stateOf(),
+      wind: windOf(0),
+      boat: boatOf(),
+      now: NOW,
+    })
+    expect(r.gunDistanceBelowLineM).toBeNull()
+    expect(r.sternBelowLineM).not.toBeNull()
+  })
+})
+
 describe('distance below the line', () => {
   it('is positive below the line and negative over it', () => {
     const below = computeStart({
