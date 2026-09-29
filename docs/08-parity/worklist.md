@@ -63,7 +63,7 @@ leaves something tested and working.
 - [x] **2.2 A live channel snapshot.** One per boat, built at 1 Hz from boat state,
       wind, tactics and start numbers. *Accept:* unit tests for each group, and every
       "computed" catalogue entry produces a value under the simulator.
-- [ ] **2.3 Number boxes.** A configurable grid of any channels, with sizes,
+- [x] **2.3 Number boxes.** A configurable grid of any channels, with sizes,
       alternating channels, and a layout that persists. *Accept:* screen tests for
       pick, alternate and persist.
 - [ ] **2.4 Nav-station layout at ≥1024 px.** The chart in the middle, the tabs as

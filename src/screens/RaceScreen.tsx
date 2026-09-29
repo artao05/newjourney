@@ -9,6 +9,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
+import { NumberBoxes } from '@/components/NumberBoxes'
 import { Tile, fmtClock } from '@/components/Tile'
 import { computeTactics } from '@/lib/tactics'
 import { buildLattice } from '@/lib/polar'
@@ -111,6 +112,11 @@ export function RaceScreen() {
           These are not the real numbers.
         </div>
       )}
+
+      <h2 className="panel" style={{ paddingBottom: 0 }}>
+        Number boxes
+      </h2>
+      <NumberBoxes />
 
       <div className="tiles">
         <Tile label="TWD" value={t?.twd != null ? fmtDeg(t.twd) : null} unit="°"

@@ -25,6 +25,33 @@ import { DEFAULT_ROUTE_SETTINGS, type RouteSettings } from '@/lib/routing/settin
 
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
 
+/**
+ * A configurable number box: one channel, or up to ten that alternate, as
+ * Expedition's alternating boxes do.
+ */
+export interface NumberBox {
+  id: string
+  /** Channel ids from src/lib/channels/catalogue.ts. The first is shown alone. */
+  channels: string[]
+  size: 'sm' | 'md' | 'lg'
+}
+
+/** The most channels one box alternates between (Expedition's limit). */
+export const MAX_ALTERNATING = 10
+
+/**
+ * What the boxes start as: things a navigator glances at that the fixed Race tiles
+ * do not already show, so the defaults never repeat the screen they sit on.
+ */
+export const DEFAULT_NUMBER_BOXES: NumberBox[] = [
+  { id: 'nb-1', channels: ['cog'], size: 'md' },
+  { id: 'nb-2', channels: ['latitude', 'longtitude'], size: 'md' },
+  { id: 'nb-3', channels: ['start-time-to-gun'], size: 'md' },
+  { id: 'nb-4', channels: ['current-set', 'current-drift'], size: 'md' },
+  { id: 'nb-5', channels: ['time'], size: 'md' },
+  { id: 'nb-6', channels: ['magnetic-variation'], size: 'md' },
+]
+
 export interface Settings {
   /** Display units for lengths (depth, draft, line). Speeds stay in knots. */
   units: 'metric' | 'imperial'
@@ -119,6 +146,11 @@ interface AppState {
    */
   routeStart: LatLon | null
   setRouteStart(at: LatLon | null): void
+
+  numberBoxes: NumberBox[]
+  addNumberBox(channelId: string): void
+  updateNumberBox(id: string, patch: Partial<Omit<NumberBox, 'id'>>): void
+  removeNumberBox(id: string): void
 
   /** Expedition's optimal-routing options: corrections, limits and resolution. */
   routeSettings: RouteSettings
@@ -360,6 +392,31 @@ export const useStore = create<AppState>()(
       },
       clearTrack: () => set({ track: [] }),
 
+      numberBoxes: DEFAULT_NUMBER_BOXES.map((b) => ({ ...b, channels: [...b.channels] })),
+      addNumberBox: (channelId) =>
+        set({
+          numberBoxes: [
+            ...get().numberBoxes,
+            { id: `nb-${Date.now()}-${++markSeq}`, channels: [channelId], size: 'md' },
+          ],
+        }),
+      updateNumberBox: (id, patch) =>
+        set({
+          numberBoxes: get().numberBoxes.map((b) =>
+            b.id !== id
+              ? b
+              : {
+                  ...b,
+                  ...patch,
+                  // Never empty, never more than Expedition allows.
+                  channels: (patch.channels ?? b.channels).slice(0, MAX_ALTERNATING).length
+                    ? (patch.channels ?? b.channels).slice(0, MAX_ALTERNATING)
+                    : b.channels,
+                },
+          ),
+        }),
+      removeNumberBox: (id) => set({ numberBoxes: get().numberBoxes.filter((b) => b.id !== id) }),
+
       routeStart: null,
       setRouteStart: (at) => set({ routeStart: at, route: null, routeError: null }),
 
@@ -400,6 +457,7 @@ export const useStore = create<AppState>()(
         settings: s.settings,
         routeSettings: s.routeSettings,
         routeStart: s.routeStart,
+        numberBoxes: s.numberBoxes,
         activeMarkIndex: s.activeMarkIndex,
         xteOrigin: s.xteOrigin,
         // A recording that was on survives a reload too: a phone that drops the app

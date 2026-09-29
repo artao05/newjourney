@@ -135,7 +135,8 @@ import { RaceScreen } from './RaceScreen'
 import { SetupScreen, tideStationLabel } from './SetupScreen'
 import { WeatherScreen } from './WeatherScreen'
 import { RouteScreen } from './RouteScreen'
-import { useStore } from '@/state/store'
+import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
+import { alternatingIndex } from '@/components/NumberBoxes'
 import { findPolar } from '@/data/polars'
 import { PILOT_VENUE } from '@/data/venues'
 import { distance } from '@/lib/geo'
@@ -172,6 +173,7 @@ function emptyStore() {
     routeSettings: { ...DEFAULT_ROUTE_SETTINGS },
     routeStart: null,
     xteOrigin: null,
+    numberBoxes: DEFAULT_NUMBER_BOXES.map((b) => ({ ...b, channels: [...b.channels] })),
   })
 }
 
@@ -811,6 +813,50 @@ describe('the units setting changes the lengths on screen', () => {
     )
     act(() => useStore.getState().updateSettings({ units: 'metric' }))
     expect(lineTile().textContent).not.toContain('ft')
+  })
+})
+
+describe('number boxes show any channel, alternate, and persist', () => {
+  const box = (name: RegExp) => screen.getByRole('listitem', { name })
+
+  it('shows the live value of the channel a box is set to', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    // The default layout starts with COG, and the populated COG is 40°.
+    expect(box(/^Cog:/).textContent).toContain('040')
+  })
+
+  it('switches a box to another channel, and keeps the layout across a reload', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    fireEvent.click(box(/^Cog:/))
+    fireEvent.change(screen.getByLabelText('Channel 1'), { target: { value: 'twd' } })
+    fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
+    // The populated wind is from 220°.
+    expect(box(/^Twd:/).textContent).toContain('220')
+    const saved = JSON.parse(localStorage.getItem('newjourney.v1') as string).state.numberBoxes
+    expect(saved[0].channels).toEqual(['twd'])
+  })
+
+  it('alternates a box between channels', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    fireEvent.click(box(/^Cog:/))
+    fireEvent.click(screen.getByRole('button', { name: /ALTERNATE WITH ANOTHER/ }))
+    fireEvent.change(screen.getByLabelText('Channel 2'), { target: { value: 'sog' } })
+    expect(useStore.getState().numberBoxes[0].channels).toEqual(['cog', 'sog'])
+    expect([0, 2000, 4000].map((t) => alternatingIndex(2, t))).toEqual([0, 1, 0])
+    expect(alternatingIndex(1, 123_456)).toBe(0)
+  })
+
+  it('adds and removes boxes', () => {
+    render(<RaceScreen />)
+    const before = useStore.getState().numberBoxes.length
+    fireEvent.click(screen.getByRole('button', { name: 'Add a number box' }))
+    expect(useStore.getState().numberBoxes).toHaveLength(before + 1)
+    fireEvent.click(screen.getAllByRole('listitem').at(-1)!)
+    fireEvent.click(screen.getByRole('button', { name: 'REMOVE BOX' }))
+    expect(useStore.getState().numberBoxes).toHaveLength(before)
   })
 })
 
