@@ -216,8 +216,9 @@ leaves something tested and working.
       **air-density correction**. These need swell and wind-sea as separate layers, and
       pressure and temperature, which the field does not carry yet (M10). *Accept:* kernel tests.
 - [x] **9.8 Route to and via the pointer.** *Accept:* tests.
-- [ ] **9.9 Grid algorithm**, with an optional great-circle track. *Accept:* analytic
+- [x] **9.9 Grid algorithm**, with an optional great-circle track. *Accept:* analytic
       tests, and agreement with the isochrone solver on open water.
+- [ ] **9.9b The grid in the app:** choose it in Route SETTINGS and run it in the worker. *Accept:* a screen test.
 - [ ] **9.10 Globally optimal multi-mark routing.** *Accept:* a test where leg-by-leg
       routing loses.
 - [ ] **9.11 Ensemble routing.** *Accept:* tests.
