@@ -138,7 +138,7 @@ leaves something tested and working.
 - [ ] **5.7 The remaining start channels:** speed to ends, time to layline, gun
       distance below line, stern below line, and the simple and pinch variants.
       *Accept:* start-math tests.
-- [ ] **5.8 Handicap calculator:** TCF time-on-time and time-on-distance, with
+- [x] **5.8 Handicap calculator:** TCF time-on-time and time-on-distance, with
       elapsed, corrected and owed times. *Accept:* tests against hand-worked
       examples.
 - [ ] **5.9 Race timer:** multiple class starts, custom sequences, and sounds.

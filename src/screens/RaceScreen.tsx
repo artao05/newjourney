@@ -14,6 +14,7 @@ import { MarkSheet } from '@/components/MarkSheet'
 import { MarksLibrary } from '@/components/MarksLibrary'
 import { CourseLegs } from '@/components/CourseLegs'
 import { RaceNotesList } from '@/components/RaceNotes'
+import { HandicapCalc } from '@/components/Handicap'
 import { useLayout } from '@/hooks/useWide'
 import { usePolarLattices } from '@/hooks/usePolars'
 import { Tile, fmtClock } from '@/components/Tile'
@@ -629,6 +630,7 @@ export function RaceScreen() {
         <CourseLegs lattice={lattice} />
         <MarksLibrary />
         <RaceNotesList />
+        <HandicapCalc />
       </div>
     </div>
   )

@@ -25,6 +25,7 @@ import type {
 import { DEFAULT_ROUTE_SETTINGS, type RouteSettings } from '@/lib/routing/settings'
 import type { SailChart } from '@/lib/sailchart'
 import { NO_WHAT_IF, type WhatIf } from '@/lib/whatif'
+import type { HandicapSystem } from '@/lib/handicap'
 
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
 /** The nav station's two tab sets: panels on the left, charts in the middle. */
@@ -52,6 +53,22 @@ export interface LibraryMark {
   name: string
   position: LatLon
   folder: string
+}
+
+/**
+ * A boat in the fleet: Expedition's boats list, as the handicap calculator uses it.
+ * One boat is the reference (normally us) that the others are compared with.
+ */
+export interface FleetBoat {
+  id: string
+  name: string
+  /** TCF for time on time, seconds a mile for time on distance. */
+  rating: number
+  /** Her own start, for a staggered start; null means the gun. */
+  startAt: Millis | null
+  /** When she rounded or finished: the moment the calculator compares. */
+  eventAt: Millis | null
+  reference: boolean
 }
 
 /**
@@ -255,6 +272,15 @@ interface AppState {
   deleteRoute(id: string): void
   /** Sail the course the other way round: marks reversed, sides of rounding kept. */
   reverseCourse(): void
+
+  fleet: FleetBoat[]
+  addFleetBoat(name: string, rating: number): void
+  updateFleetBoat(id: string, patch: Partial<Omit<FleetBoat, 'id' | 'reference'>>): void
+  removeFleetBoat(id: string): void
+  /** Make one boat the reference; there is only ever one. */
+  setReferenceBoat(id: string): void
+  handicap: { system: HandicapSystem; distanceNm: number }
+  setHandicap(h: Partial<{ system: HandicapSystem; distanceNm: number }>): void
 
   library: LibraryMark[]
   /** File marks under a folder, e.g. from a GPX import or a course being saved. */
@@ -639,6 +665,35 @@ export const useStore = create<AppState>()(
         set({ ...COURSE_CHANGED, course: { ...course, marks: [...course.marks].reverse() }, activeMarkIndex: 0 })
       },
 
+      fleet: [],
+      addFleetBoat: (name, rating) => {
+        const fleet = get().fleet
+        set({
+          fleet: [
+            ...fleet,
+            {
+              id: `boat-${Date.now()}-${++markSeq}`,
+              name: name.trim() || `Boat ${fleet.length + 1}`,
+              rating,
+              startAt: null,
+              eventAt: null,
+              reference: fleet.length === 0,
+            },
+          ],
+        })
+      },
+      updateFleetBoat: (id, patch) =>
+        set({ fleet: get().fleet.map((b) => (b.id === id ? { ...b, ...patch } : b)) }),
+      removeFleetBoat: (id) => {
+        const fleet = get().fleet.filter((b) => b.id !== id)
+        // Removing the reference hands it to the first boat left, so there is one.
+        if (fleet.length && !fleet.some((b) => b.reference)) fleet[0] = { ...fleet[0], reference: true }
+        set({ fleet })
+      },
+      setReferenceBoat: (id) => set({ fleet: get().fleet.map((b) => ({ ...b, reference: b.id === id })) }),
+      handicap: { system: 'tot', distanceNm: 0 },
+      setHandicap: (h) => set({ handicap: { ...get().handicap, ...h } }),
+
       library: [],
       addToLibrary: (folder, marks) =>
         set({
@@ -744,6 +799,8 @@ export const useStore = create<AppState>()(
         routeStart: s.routeStart,
         numberBoxes: s.numberBoxes,
         library: s.library,
+        fleet: s.fleet,
+        handicap: s.handicap,
         routes: s.routes,
         raceNotes: s.raceNotes,
         navPanel: s.navPanel,

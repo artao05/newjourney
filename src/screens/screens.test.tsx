@@ -189,6 +189,8 @@ function emptyStore() {
     whatIf: { shiftDeg: 0, speedDeltaKn: 0, current: null },
     hold: { wind: false, current: false, releaseAtGun: true },
     startApproaches: { ends: true, gps: true, reach: true, port: true, starboard: true },
+    fleet: [],
+    handicap: { system: 'tot', distanceNm: 0 },
   })
 }
 
@@ -1101,6 +1103,51 @@ describe('the course as legs, and saved routes', () => {
     act(() => useStore.getState().clearMarks())
     fireEvent.click(screen.getByRole('button', { name: 'Sail Harbour race' }))
     expect(useStore.getState().course.marks.map((m) => m.name)).toEqual(['W', 'L'])
+  })
+})
+
+describe('the handicap calculator on Race', () => {
+  it('adds boats, stamps them as they finish, and gives corrected times and what is owed', () => {
+    populatedStore()
+    const gun = Date.UTC(2026, 8, 29, 12)
+    useStore.setState({ course: { ...useStore.getState().course, startLine: { ...useStore.getState().course.startLine, gunTime: gun } } })
+    render(<RaceScreen />)
+    const add = (name: string, rating: string) => {
+      fireEvent.change(screen.getByLabelText('New boat name'), { target: { value: name } })
+      fireEvent.change(screen.getByLabelText('New boat rating'), { target: { value: rating } })
+      fireEvent.click(screen.getByRole('button', { name: 'ADD BOAT' }))
+    }
+    add('Us', '1')
+    add('Her', '1.1')
+    expect(useStore.getState().fleet.map((b) => [b.name, b.reference])).toEqual([['Us', true], ['Her', false]])
+
+    const now = vi.spyOn(Date, 'now').mockReturnValue(gun + 7200_000)
+    fireEvent.click(screen.getByRole('button', { name: 'Stamp Her' }))
+    now.mockReturnValue(gun + 7900_000)
+    fireEvent.click(screen.getByRole('button', { name: 'Stamp Us' }))
+    now.mockRestore()
+
+    const table = screen.getByRole('table', { name: 'Handicap results' })
+    const her = within(table).getByRole('button', { name: 'Stamp Her' }).closest('tr')!
+    // 2:00:00 at TCF 1.1 corrects to 2:12:00; we took 2:11:40, so she is 20 s behind.
+    expect(her.textContent).toContain('2:12:00')
+    expect(her.textContent).toContain('+0:00:20')
+    expect(her.textContent).toContain('+0:12:00')
+    expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.fleet).toHaveLength(2)
+  })
+
+  it('switches to time on distance, and moves the reference boat', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'ADD BOAT' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ADD BOAT' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Time on distance' }))
+    fireEvent.change(screen.getByLabelText(/^Course distance/), { target: { value: '12.5' } })
+    expect(useStore.getState().handicap).toEqual({ system: 'tod', distanceNm: 12.5 })
+    fireEvent.click(screen.getByLabelText('Boat 2 is the reference boat'))
+    expect(useStore.getState().fleet.map((b) => b.reference)).toEqual([false, true])
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Boat 2' }))
+    expect(useStore.getState().fleet.map((b) => b.reference)).toEqual([true])
   })
 })
 
