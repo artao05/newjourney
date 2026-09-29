@@ -4,6 +4,7 @@
  * needs to render and what must survive a reload.
  */
 
+import type { ChartMotion, ChartOrientation } from '@/lib/chartView'
 import { create } from 'zustand'
 import type { ColourMode } from '@/lib/maplayers/colormap'
 import { persist, createJSONStorage } from 'zustand/middleware'
@@ -228,6 +229,10 @@ export interface Settings {
    * default, so an install saved before the notice existed is asked once too.
    */
   acceptedNotForNavigation: boolean
+  /** What is up on the Route chart: north, the active leg, or the boat's head. */
+  chartOrientation: ChartOrientation
+  /** What the Route chart keeps in view as the boat moves. */
+  chartMotion: ChartMotion
 }
 
 interface AppState {
@@ -497,6 +502,8 @@ export const DEFAULT_SETTINGS: Settings = {
   simulate: false,
   keepAwake: true,
   acceptedNotForNavigation: false,
+  chartOrientation: 'north',
+  chartMotion: 'free',
 }
 
 export function mergePersistedState(

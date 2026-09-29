@@ -101,6 +101,24 @@ const { FakeMap, FakeLngLatBounds, mapInstances } = vi.hoisted(() => {
     triggerRepaint() {}
     jumpTo() {}
     fitBounds() {}
+    /** The camera, as `easeTo` last left it; every call kept. */
+    bearing = 0
+    zoom = 12
+    eased: Array<{ center?: unknown; zoom?: number; bearing?: number }> = []
+    easeTo(o: { center?: unknown; zoom?: number; bearing?: number }) {
+      this.eased.push(o)
+      if (o.bearing != null) this.bearing = o.bearing
+      if (o.zoom != null) this.zoom = o.zoom
+    }
+    getBearing() {
+      return this.bearing
+    }
+    getZoom() {
+      return this.zoom
+    }
+    cameraForBounds(b: [[number, number], [number, number]], o?: { bearing?: number }) {
+      return { center: [(b[0][0] + b[1][0]) / 2, (b[0][1] + b[1][1]) / 2], zoom: 13, bearing: o?.bearing ?? 0 }
+    }
     project() {
       return { x: 0, y: 0 }
     }
@@ -998,6 +1016,54 @@ describe('a route can start anywhere, not only at the boat', () => {
       act(() => {
         useTracking.getState().clear()
         useStore.setState({ fleet: [] })
+      })
+    }
+  })
+
+  it('turns the chart head up and follows the boat, until it is dragged by hand', () => {
+    try {
+      render(<RouteScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      const map = mapInstances[0]
+      const at = PILOT_VENUE.waterStart
+      const fix = (heading: number | null, t = Date.now()) =>
+        act(() => useStore.getState().setBoatState({ t, position: at, cog: 50, sog: 5, accuracyM: 5, heading, bsp: null, heelDeg: null }))
+      fix(40)
+      expect(screen.getByRole('button', { name: 'Chart orientation: North up' })).toBeTruthy()
+      // North up, course up, head up.
+      fireEvent.click(screen.getByRole('button', { name: 'Chart orientation: North up' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Chart orientation: Course up' }))
+      expect(useStore.getState().settings.chartOrientation).toBe('head')
+      expect(map.bearing).toBe(40)
+      // A heading three degrees off stays inside the dead band; ten degrees off turns the chart.
+      fix(43)
+      expect(map.bearing).toBe(40)
+      fix(50)
+      expect(map.bearing).toBe(50)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Chart motion: Free' }))
+      expect(useStore.getState().settings.chartMotion).toBe('follow')
+      fix(50)
+      expect(map.eased.at(-1)).toMatchObject({ center: [at.lon, at.lat], bearing: 50 })
+
+      // A drag by hand sets the chart free; one the app makes does not.
+      for (const fn of map.handlers.get('dragstart') ?? []) fn({})
+      expect(useStore.getState().settings.chartMotion).toBe('follow')
+      act(() => {
+        for (const fn of map.handlers.get('dragstart') ?? []) fn({ originalEvent: {} })
+      })
+      expect(useStore.getState().settings.chartMotion).toBe('free')
+      expect(screen.getByRole('button', { name: 'Chart motion: Free' })).toBeTruthy()
+
+      // Back to north up: the chart turns back.
+      fireEvent.click(screen.getByRole('button', { name: 'Chart orientation: Head up' }))
+      expect(map.bearing).toBe(0)
+    } finally {
+      act(() => {
+        useStore.getState().updateSettings({ chartOrientation: 'north', chartMotion: 'free' })
+        useStore.getState().setBoatState(null)
       })
     }
   })

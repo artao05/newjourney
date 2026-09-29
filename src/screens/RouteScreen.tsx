@@ -46,7 +46,8 @@ import { RouteSettingsSheet } from '@/components/RouteSettingsSheet'
 import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tides/coops'
 import { PORTLAND_DATUM, datumNote } from '@/lib/tides/datum'
 import { bboxOf, destination, distance, lonSpan } from '@/lib/geo'
-import { fmtDeg, wrap180 } from '@/lib/angles'
+import { angdiff, fmtDeg, wrap180 } from '@/lib/angles'
+import { MOTIONS, MOTION_LABEL, ORIENTATIONS, ORIENTATION_LABEL, motionTarget, shouldReframe, steadyBearing, upBearing } from '@/lib/chartView'
 import type { Isochrone, LatLon, Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
 import { fmtDuration } from '@/components/Tile'
 import { DepartureChart } from '@/components/DepartureChart'
@@ -224,6 +225,10 @@ export function RouteScreen() {
     map.on('load', () => {
       addEmptyLayers(map)
       setReady(true)
+    })
+    // Dragging the chart by hand sets it free of the boat.
+    map.on('dragstart', (e: { originalEvent?: unknown }) => {
+      if (e.originalEvent && useStore.getState().settings.chartMotion !== 'free') useStore.getState().updateSettings({ chartMotion: 'free' })
     })
     // Chart symbols are drawn when the map first asks for one: the key says what to draw.
     map.on('styleimagemissing', (e: { id: string }) => {
@@ -450,6 +455,56 @@ export function RouteScreen() {
   const activeMarkIndex = useStore((s) => s.activeMarkIndex)
   const windHistory = useStore((s) => s.windHistory)
   const activeMark = course.marks[activeMarkIndex]
+
+  /*
+   * Orientation and motion. North up turns the chart back to north when chosen
+   * and then leaves it (a gesture may still turn it); course up and head up
+   * turn it on every fix. Follow, look ahead and boat + mark move it on every
+   * fix, the framing modes only when what they frame has left the view.
+   */
+  const orientation = useStore((s) => s.settings.chartOrientation)
+  const motion = useStore((s) => s.settings.chartMotion)
+  const updateSettings = useStore((s) => s.updateSettings)
+  const legFrom = course.marks[activeMarkIndex - 1]?.position ?? null
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || orientation !== 'north') return
+    if (Math.abs(map.getBearing()) > 0.1) map.easeTo({ bearing: 0, duration: 300 })
+  }, [ready, orientation])
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const now = map.getBearing()
+    let brg = now
+    if (orientation !== 'north') {
+      const up = upBearing(orientation, state, activeMark ? { from: legFrom, to: activeMark.position } : null)
+      if (up != null) brg = orientation === 'head' ? steadyBearing(now, up) : up
+    }
+    const turn = Math.abs(angdiff(brg, now)) > 0.5
+    const t = motionTarget(motion, state, activeMark?.position ?? null)
+    if (t && 'center' in t) {
+      map.easeTo({ center: [t.center.lon, t.center.lat], bearing: brg, duration: 400 })
+    } else if (t) {
+      const lons = t.frame.map((p) => p.lon)
+      const lats = t.frame.map((p) => p.lat)
+      const cam = map.cameraForBounds(
+        [
+          [Math.min(...lons), Math.min(...lats)],
+          [Math.max(...lons), Math.max(...lats)],
+        ],
+        // Close to a mark, not closer than a harbour chart.
+        { padding: 60, bearing: brg, maxZoom: 16 },
+      )
+      if (!cam) return
+      const c = map.getCanvas()
+      const px = t.frame.map((p) => map.project([p.lon, p.lat]))
+      if (turn || shouldReframe(px, c.clientWidth, c.clientHeight, map.getZoom(), cam.zoom ?? map.getZoom())) {
+        map.easeTo({ center: cam.center, zoom: cam.zoom, bearing: brg, duration: 400 })
+      }
+    } else if (turn) {
+      map.easeTo({ bearing: brg, duration: 400 })
+    }
+  }, [ready, state, orientation, motion, activeMark, legFrom])
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
@@ -1221,6 +1276,22 @@ export function RouteScreen() {
               </button>
             )
           )}
+          <button
+            className={`chip${orientation !== 'north' ? ' chip--on' : ''}`}
+            aria-label={`Chart orientation: ${ORIENTATION_LABEL[orientation]}`}
+            title="What is up: north, the active leg, or the boat's head. Tap to change."
+            onClick={() => updateSettings({ chartOrientation: ORIENTATIONS[(ORIENTATIONS.indexOf(orientation) + 1) % ORIENTATIONS.length] })}
+          >
+            {ORIENTATION_LABEL[orientation].toLowerCase()}
+          </button>
+          <button
+            className={`chip${motion !== 'free' ? ' chip--on' : ''}`}
+            aria-label={`Chart motion: ${MOTION_LABEL[motion]}`}
+            title="What the chart keeps in view: nothing, the boat, the boat and ten minutes ahead, or the boat and the active mark. Dragging the chart sets it free. Tap to change."
+            onClick={() => updateSettings({ chartMotion: MOTIONS[(MOTIONS.indexOf(motion) + 1) % MOTIONS.length] })}
+          >
+            {MOTION_LABEL[motion].toLowerCase()}
+          </button>
             {/*
               A correction applied to the forecast changes every route, and nothing
               on the map shows it. Name each one, so a wind rotated for yesterday's

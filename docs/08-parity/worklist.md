@@ -353,8 +353,10 @@ leaves something tested and working.
       *Base cells, updates (applied in sequence), folders and NOAA zips; kept in IndexedDB and
       drawn again on start. Per-cell show/hide is still to do.*
 - [x] **13.6 Chart object query.** *Accept:* tests.
-- [ ] **13.7 Orientation modes:** north-up, course-up and head-up, with follow-boat.
+- [x] **13.7 Orientation modes:** north-up, course-up and head-up, with follow-boat.
       *Accept:* a browser check.
+      *North, course and head up; free, follow, look ahead, and boat + mark (lib/chartView.ts).
+      Checked in the browser with the simulator: bearing, framing and a reload.*
 - [ ] **13.8 BSB/KAP raster charts.** *Accept:* it decodes a NOAA RNC fixture.
 - [ ] **13.9 Georeferenced custom images, and GPS chart offset.** *Accept:* tests.
 - [ ] **13.10 Safe route check and safety-depth routing** against ENC. *Accept:*
