@@ -252,6 +252,44 @@ export function stackSources(cubes: WeatherCube[]): WeatherField {
   return new StackedField(orderSources(cubes).map((c) => new CubeField(c)))
 }
 
+/**
+ * A forecast with tidal streams laid over its current: everything else is the
+ * forecast's, and so is its coverage, so the streams (which run forever) never
+ * stretch it. Where `stream` gives nothing, the forecast's current stands.
+ */
+export class TidalOverlayField implements WeatherField {
+  constructor(
+    private readonly base: WeatherField,
+    private readonly stream: (lat: number, lon: number, t: Millis) => { u: number; v: number } | null,
+    private readonly label = 'tidal streams',
+  ) {}
+  wind(lat: number, lon: number, t: Millis): WindSample | null {
+    return this.base.wind(lat, lon, t)
+  }
+  gust(lat: number, lon: number, t: Millis): Knots | null {
+    return this.base.gust(lat, lon, t)
+  }
+  current(lat: number, lon: number, t: Millis): WindSample | null {
+    const s = this.stream(lat, lon, t)
+    return s ? { ...s, source: this.label } : this.base.current(lat, lon, t)
+  }
+  waves(lat: number, lon: number, t: Millis): WaveState | null {
+    return this.base.waves(lat, lon, t)
+  }
+  seaState(lat: number, lon: number, t: Millis): SeaState | null {
+    return this.base.seaState?.(lat, lon, t) ?? null
+  }
+  airDensity(lat: number, lon: number, t: Millis): number | null {
+    return this.base.airDensity?.(lat, lon, t) ?? null
+  }
+  coverage(): { bbox: BBox; t0: Millis; t1: Millis } {
+    return this.base.coverage()
+  }
+  get dtMs(): number | undefined {
+    return this.base.dtMs
+  }
+}
+
 export interface ConstantFieldOptions {
   twd: Degrees
   tws: Knots

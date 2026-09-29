@@ -297,7 +297,7 @@ leaves something tested and working.
       manual names them but doesn't say what they measure; what does Expedition show there?
 - [x] **11.3 Harmonic tidal currents** and tidal diamonds on the chart. *Accept:*
       tests.
-- [ ] **11.4 Tidal streams in routing**, taking precedence over forecast current.
+- [x] **11.4 Tidal streams in routing**, taking precedence over forecast current.
       *Accept:* kernel tests.
 - [ ] **11.5 Position-aware magnetic variation** (WMM). *Accept:* tests against NOAA
       calculator values.

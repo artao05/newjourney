@@ -21,7 +21,7 @@ import {
   uvFromWind,
   windFromUv,
 } from './cube'
-import { ConstantField, CubeField, ScaledField, StackedField, orderSources, stackSources, twdTws } from './field'
+import { ConstantField, CubeField, ScaledField, StackedField, TidalOverlayField, orderSources, stackSources, twdTws } from './field'
 import { clearWeatherCache, cubeNotes, fetchWindCube } from './openmeteo'
 
 const HOUR = 3600_000
@@ -731,6 +731,23 @@ describe('the sea state and the air, from a cube', () => {
     const stack = new StackedField([new CubeField(cube({ u10: 1, v10: 0 })), c])
     expect(stack.airDensity(43.5, -70.5, T)).toBeCloseTo(1.219, 3)
     expect(stack.seaState(43.5, -70.5, T)).toBeNull()
+  })
+})
+
+describe('tidal streams over a forecast', () => {
+  it('takes the stream where there is one, the forecast current elsewhere, and the forecast for all else', () => {
+    const T = Date.UTC(2026, 8, 29, 12)
+    const n = 8
+    const base = new CubeField({
+      model: 'm', run: '', bbox: { west: -71, south: 43, east: -70, north: 44 }, nx: 2, ny: 2, dx: 1, dy: 1, t0: T, dtMs: 3_600_000, nt: 2,
+      params: ['u10', 'v10', 'uo', 'vo'], data: { u10: new Float32Array(n).fill(10), v10: new Float32Array(n), uo: new Float32Array(n).fill(0.3), vo: new Float32Array(n) },
+    })
+    const f = new TidalOverlayField(base, (lat) => (lat > 43.5 ? { u: 0, v: 2 } : null))
+    expect(f.current(43.8, -70.5, T)).toEqual({ u: 0, v: 2, source: 'tidal streams' })
+    expect(f.current(43.2, -70.5, T)).toMatchObject({ u: expect.closeTo(0.3, 5), v: 0 })
+    expect(f.wind(43.8, -70.5, T)).toMatchObject({ u: 10 })
+    expect(f.coverage()).toEqual(base.coverage())
+    expect(f.dtMs).toBe(3_600_000)
   })
 })
 

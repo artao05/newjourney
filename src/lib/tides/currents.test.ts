@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nearestCurrentStations, parseCurrentHarcon, parseCurrentStations, predictStream } from './currents'
+import { nearestCurrentStations, parseCurrentHarcon, parseCurrentStations, predictStream, streamAt } from './currents'
 
 // The shape NOAA's metadata API returns for a current station's constants.
 const HARCON = {
@@ -57,3 +57,21 @@ describe('harmonic tidal streams', () => {
     expect(nearestCurrentStations(list, { lat: 43.6, lon: -70.25 }, 25).map((s) => s.id)).toEqual(['CAB1401'])
   })
 })
+
+describe('the stream between stations', () => {
+  const steady = (towards: number, cms: number) => ({ bin: 1, depthM: 3, azi: towards, majorMean: cms, minorMean: 0, major: [], minor: [] })
+  it('weights the stations near a point by the inverse square of their distance, and gives none beyond the radius', () => {
+    const t = Date.UTC(2026, 8, 29)
+    const a = { position: { lat: 43.6, lon: -70.2 }, bin: steady(0, 100) }
+    const b = { position: { lat: 43.6, lon: -70.1 }, bin: steady(90, 100) }
+    const mid = streamAt([a, b], 43.6, -70.15, t, 10)!
+    // Halfway: equal weights, so north and east alike.
+    expect(mid.u).toBeCloseTo(mid.v, 6)
+    const nearA = streamAt([a, b], 43.6, -70.19, t, 10)!
+    expect(nearA.v).toBeGreaterThan(nearA.u * 10)
+    // At the station itself, its own stream.
+    expect(streamAt([a], 43.6, -70.2, t, 10)!.v).toBeCloseTo(100 * 0.0194384, 5)
+    expect(streamAt([a, b], 44.5, -70.2, t, 10)).toBeNull()
+  })
+})
+

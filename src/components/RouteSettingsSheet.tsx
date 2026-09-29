@@ -232,6 +232,17 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
         change nothing, and the route says so.
       </p>
 
+      <h2>Tidal streams</h2>
+      <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+        <input type="checkbox" checked={s.tidalStreams} onChange={(e) => update({ tidalStreams: e.target.checked })} />
+        Route with NOAA's tidal streams
+      </label>
+      {s.tidalStreams && num('tidalRadiusNm', 'Within', 'nm of a current station, over the forecast current', '1')}
+      <p className="note">
+        Predicted from the harmonic current stations near the course, weighted by distance; farther out the forecast's current
+        stands.
+      </p>
+
       <h2>Air</h2>
       <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
         <input type="checkbox" checked={s.airDensity} onChange={(e) => update({ airDensity: e.target.checked })} />

@@ -20,6 +20,8 @@
  */
 
 import { bboxOf } from '../geo'
+import { TidalOverlayField } from '../weather/field'
+import { streamAt, type StreamSource } from '../tides/currents'
 import { sweepDepartures, type DepartureSweep } from './departure'
 import { routeIsochrone, type RouteContext } from './isochrone'
 import { routeGrid } from './grid'
@@ -57,6 +59,8 @@ interface WorkerInputs {
   cube: WeatherCube
   /** More forecasts to merge with `cube`, finest grid first (GRIB files the user opened). */
   extraCubes?: WeatherCube[]
+  /** Tidal streams at harmonic stations, over the forecast's current within `radiusNm` of them. */
+  tidal?: { sources: StreamSource[]; radiusNm: number }
   polarTable: PolarTable
   /** The port-tack polar, for a boat whose tacks differ. */
   polarTablePort?: PolarTable | null
@@ -191,11 +195,16 @@ function courseBBox(req: RouteRequest, cube: WeatherCube): BBox {
 
 /** Rebuild the lattice, field and land mask a solve needs from a wire payload. */
 async function buildContext(msg: WorkerInputs): Promise<Omit<RouteContext, 'onProgress'>> {
-  const [lattice, field, latticePort] = await Promise.all([
+  const [lattice, forecast, latticePort] = await Promise.all([
     rebuildLattice(msg.polarTable),
     rebuildField(msg.cube, msg.extraCubes ?? []),
     msg.polarTablePort ? rebuildLattice(msg.polarTablePort) : Promise.resolve(null),
   ])
+  const tidal = msg.tidal
+  const field =
+    tidal && tidal.sources.length > 0
+      ? new TidalOverlayField(forecast, (lat, lon, t) => streamAt(tidal.sources, lat, lon, t, tidal.radiusNm))
+      : forecast
   // A validated venue raster beats rasterising GeoJSON per request.
   const land =
     adoptLandRaster(msg.landRaster) ??
@@ -244,6 +253,11 @@ export async function handleRouteMessage(
       msg.req.algorithm === 'grid'
         ? routeGrid(msg.req, { field: ctx.field, lattice: ctx.lattice, land: ctx.land ?? null }, { greatCircle: msg.req.greatCircle ?? false })
         : routeIsochrone(msg.req, ctx)
+    if (msg.tidal?.sources.length) {
+      result.diagnostics.warnings.unshift(
+        `Tidal streams from ${msg.tidal.sources.length} NOAA station${msg.tidal.sources.length === 1 ? '' : 's'} take the place of the forecast current within ${msg.tidal.radiusNm} nm of them.`,
+      )
+    }
     post({ type: 'result', id: msg.id, result })
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)

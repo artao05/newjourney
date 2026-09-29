@@ -7,6 +7,7 @@
 
 import type { DepartureSweep } from './departure'
 import type { Millis, PolarTable, RouteRequest, RouteResult, WeatherCube } from '../types'
+import type { StreamSource } from '../tides/currents'
 import type {
   LandRasterPayload,
   RouteWorkerRequest,
@@ -18,6 +19,8 @@ export interface RoutePayload {
   cube: WeatherCube
   /** More forecasts merged with `cube` in the worker, the finest grid answering first. */
   extraCubes?: WeatherCube[]
+  /** Tidal streams at harmonic stations, over the forecast current near them. */
+  tidal?: { sources: StreamSource[]; radiusNm: number }
   polar: PolarTable
   /** The port-tack polar, where the boat's tacks differ. */
   polarPort?: PolarTable | null
@@ -107,6 +110,7 @@ export class RoutingClient {
         req,
         cube: payload.cube,
         extraCubes: payload.extraCubes,
+        tidal: payload.tidal,
         polarTable: payload.polar,
         polarTablePort: payload.polarPort ?? null,
         landRaster: payload.landRaster,
@@ -149,6 +153,7 @@ export class RoutingClient {
         req,
         cube: payload.cube,
         extraCubes: payload.extraCubes,
+        tidal: payload.tidal,
         polarTable: payload.polar,
         polarTablePort: payload.polarPort ?? null,
         landRaster: payload.landRaster,

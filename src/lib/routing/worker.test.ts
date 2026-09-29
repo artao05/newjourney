@@ -155,6 +155,38 @@ describe('the worker merges the forecasts it is sent, the finest grid first', ()
   })
 })
 
+// ------------------------------------------------------- tidal streams
+
+describe('the worker routes with tidal streams over the forecast current', () => {
+  // A station on the course with a steady 2.9 kn stream towards the mark (a mean, no tide).
+  const station = (towards: number) => ({
+    position: { lat: 43.65, lon: -70.2 },
+    bin: { bin: 1, depthM: 3, azi: towards, majorMean: 150, minorMean: 0, major: [], minor: [] },
+  })
+  /** The westerly cube with a 1.5 kn current setting the other way, everywhere. */
+  const withCurrent = (setTo: number) => {
+    const c = cube()
+    const n = c.nx * c.ny * c.nt
+    const r = (setTo * Math.PI) / 180
+    return { ...c, params: [...c.params, 'uo', 'vo'], data: { ...c.data, uo: new Float32Array(n).fill(1.5 * Math.sin(r)), vo: new Float32Array(n).fill(1.5 * Math.cos(r)) } }
+  }
+
+  it('sails faster with a fair stream from the station than with the forecast current against it', async () => {
+    const along = 45 // START to MARK is about north-east
+    const plain = await route({ cube: withCurrent(along + 180) })
+    const tidal = await route({ cube: withCurrent(along + 180), tidal: { sources: [station(along)], radiusNm: 30 } })
+    expect(plain.result.ok && tidal.result.ok).toBe(true)
+    expect(tidal.result.elapsedS! / plain.result.elapsedS!).toBeLessThan(0.8)
+    expect(tidal.result.diagnostics.warnings[0]).toMatch(/Tidal streams from 1 NOAA station take the place of the forecast current within 30 nm/)
+  })
+
+  it('leaves the forecast current alone beyond the radius', async () => {
+    const plain = await route({ cube: withCurrent(225) })
+    const far = await route({ cube: withCurrent(225), tidal: { sources: [{ ...station(45), position: { lat: 40, lon: -60 } }], radiusNm: 5 } })
+    expect(far.result.elapsedS).toBeCloseTo(plain.result.elapsedS!, 0)
+  })
+})
+
 // ------------------------------------------------------- a port-tack polar
 
 describe('the worker sails port tack on its own polar when given one', () => {

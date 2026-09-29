@@ -168,3 +168,32 @@ export async function stationStreams(id: string, fetcher: typeof fetch = fetch):
   }
   return bins
 }
+
+// ----------------------------------------------------------- in routing
+
+/** A station as the router takes it: where it is and the bin it predicts. */
+export interface StreamSource {
+  position: LatLon
+  bin: CurrentBin
+}
+
+/**
+ * The tidal stream at a point: the stations within `radiusNm`, weighted by the
+ * inverse square of their distance, as u/v knots. Null farther than that from
+ * every station, where the forecast's current is used instead.
+ */
+export function streamAt(sources: StreamSource[], lat: number, lon: number, t: Millis, radiusNm: number): { u: number; v: number } | null {
+  let su = 0
+  let sv = 0
+  let sw = 0
+  for (const s of sources) {
+    const d = distance({ lat, lon }, s.position)
+    if (d > radiusNm) continue
+    const p = predictStream(s.bin, t)
+    const w = 1 / Math.max(0.05, d) ** 2
+    su += w * p.drift * Math.sin(p.set * DEG)
+    sv += w * p.drift * Math.cos(p.set * DEG)
+    sw += w
+  }
+  return sw > 0 ? { u: su / sw, v: sv / sw } : null
+}

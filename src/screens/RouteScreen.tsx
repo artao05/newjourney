@@ -18,6 +18,7 @@ import { NOTE_MIN_POINTS, useStore, type RaceNote } from '@/state/store'
 import { cubeNotes, fetchWindCube } from '@/lib/weather/openmeteo'
 import { sampleCube } from '@/lib/weather/cube'
 import { gribDrop, useWeatherFiles } from '@/state/weatherFiles'
+import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
 import { RoutingClient } from '@/lib/routing/client'
 import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
 import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
@@ -714,6 +715,30 @@ export function RouteScreen() {
     }
   }, [origin, polar, polarPort, course.marks, cube, buildRequest, landPayload, setRouteError])
 
+  const tidalOn = useStore((s) => s.routeSettings.tidalStreams)
+  const tidalRadius = useStore((s) => s.routeSettings.tidalRadiusNm)
+  /** NOAA's harmonic current stations around the course, when tidal streams are on. */
+  const tidalFor = useCallback(
+    async (marks: LatLon[]): Promise<{ sources: StreamSource[]; radiusNm: number } | undefined> => {
+      if (!tidalOn || !origin) return undefined
+      const pts = [origin, ...marks]
+      const lat = pts.reduce((a, p) => a + p.lat, 0) / pts.length
+      const lon = pts.reduce((a, p) => a + p.lon, 0) / pts.length
+      const reach = Math.max(...pts.map((p) => distance({ lat, lon }, p))) + (tidalRadius ?? 5) + 2
+      const near = nearestCurrentStations(await currentStations(), { lat, lon }, reach, 40)
+      const got = await Promise.all(
+        near.map(async (st) => {
+          const bins = await stationStreams(st.id)
+          const bin = bins.find((b) => b.bin === st.bin) ?? [...bins].sort((a, b) => (a.depthM ?? 99) - (b.depthM ?? 99))[0]
+          return bin ? { position: st.position, bin } : null
+        }),
+      )
+      const sources: StreamSource[] = []
+      for (const g of got) if (g) sources.push(g)
+      return { sources, radiusNm: tidalRadius ?? 5 }
+    },
+    [tidalOn, tidalRadius, origin],
+  )
   const run = useCallback(async (leaveAt?: Millis, marksOverride?: LatLon[]) => {
     if (!origin || !polar || (marksOverride?.length ?? course.marks.length) === 0) return
     const thisRun = ++runIdRef.current
@@ -734,9 +759,15 @@ export function RouteScreen() {
       const startTime = leaveAt ?? Date.now()
       const req = buildRequest(startTime, true, marksOverride)
       if (!req) return
+      let tidalProblem: string | null = null
+      const tidal = await tidalFor(req.marks).catch((e) => {
+        tidalProblem = e instanceof Error ? e.message : String(e)
+        return undefined
+      })
+      if (thisRun !== runIdRef.current) return
       const result = await clientRef.current.route(
         req,
-        { cube: workingCube, extraCubes, polar, polarPort, landRaster: landPayload() },
+        { cube: workingCube, extraCubes, tidal, polar, polarPort, landRaster: landPayload() },
         (f) => { if (thisRun === runIdRef.current) setProgress(f) },
       )
       if (thisRun !== runIdRef.current) return
@@ -745,6 +776,7 @@ export function RouteScreen() {
       // corrupt, and that disagreement used to resolve in favour of the
       // reassuring message — telling a sailor land was avoided on a route that
       // was never checked against it.
+      if (tidalProblem) result.diagnostics.warnings.unshift(`Tidal streams unavailable (${tidalProblem}); the forecast current was used.`)
       if (!result.diagnostics.landAvoided) {
         result.diagnostics.warnings.unshift(
           landError
@@ -788,6 +820,7 @@ export function RouteScreen() {
     course.marks,
     cube,
     pickSources,
+    tidalFor,
     needsDownload,
     noWeather,
     buildRequest,
@@ -844,7 +877,7 @@ export function RouteScreen() {
       if (!req) return
       const s = await clientRef.current.sweep(
         req,
-        { cube: workingCube, extraCubes, polar, polarPort, landRaster: landPayload() },
+        { cube: workingCube, extraCubes, tidal: await tidalFor(course.marks.map((m) => m.position)).catch(() => undefined), polar, polarPort, landRaster: landPayload() },
         { from, to, stepMs: 3_600_000, maxSolves: SWEEP_HOURS + 1 },
         (f) => setProgress(f),
       )
@@ -868,6 +901,7 @@ export function RouteScreen() {
     course.marks,
     cube,
     pickSources,
+    tidalFor,
     needsDownload,
     noWeather,
     legNm,

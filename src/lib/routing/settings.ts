@@ -86,6 +86,9 @@ export interface RouteSettings {
   crossedMarginDeg: number
   /** Scale the wind the polar reads for the air's density. */
   airDensity: boolean
+  /** Route with NOAA's harmonic tidal streams over the forecast current, within `tidalRadiusNm` of a station. */
+  tidalStreams: boolean
+  tidalRadiusNm: number
   /** Which router: the isochrones, or the grid for a second opinion. */
   algorithm: 'isochrone' | 'grid'
   /** For the grid: along the great circle rather than the rhumb line. */
@@ -122,6 +125,8 @@ export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
   crossedTotalM: 1.5,
   crossedMarginDeg: 30,
   airDensity: false,
+  tidalStreams: false,
+  tidalRadiusNm: 5,
   algorithm: 'isochrone',
   greatCircle: false,
 }
@@ -244,6 +249,7 @@ export function nonDefaultLabels(s: RouteSettings): string[] {
   if ((s.windWavePct ?? 0) > 0) out.push(`wind sea −${s.windWavePct}%`)
   if ((s.crossedSeaPct ?? 0) > 0) out.push(`crossed sea −${s.crossedSeaPct}%`)
   if (s.airDensity) out.push('air density')
+  if (s.tidalStreams) out.push(`tidal streams within ${s.tidalRadiusNm ?? 5} nm`)
   if (s.algorithm === 'grid') out.push(s.greatCircle ? 'grid, great circle' : 'grid')
   return out
 }
