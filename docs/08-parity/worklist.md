@@ -113,7 +113,7 @@ leaves something tested and working.
 - [x] **4.4 Sails and the sail chart.** A sail list, a TWA × TWS chart with
       tab-separated import/export, the live point, sail channels and a sail per
       route leg. *Accept:* parser, lookup and screen tests.
-- [ ] **4.5 Asymmetric port and starboard polars.** Moved to 9.14.
+- *4.5 Asymmetric port and starboard polars moved to 9.14.*
 
 ## M5 — Race tools
 
@@ -213,11 +213,11 @@ leaves something tested and working.
 - [ ] **9.11 Ensemble routing.** *Accept:* tests.
 - [ ] **9.12 Fleet routing:** every boat with its own polar (after 13.4). *Accept:*
       tests.
+- [ ] **9.13 World land avoidance** from a tiled OSM land pack. *Accept:* a route
+      outside Portland goes round land.
 - [ ] **9.14 Asymmetric port and starboard polars**, moved here from 4.5 because it
       needs a second set of target tables in the hot loop. *Accept:* the kernel uses
       the right side on each tack, with a test.
-- [ ] **9.13 World land avoidance** from a tiled OSM land pack. *Accept:* a route
-      outside Portland goes round land.
 
 ## M10 — Weather
 
