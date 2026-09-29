@@ -937,6 +937,11 @@ button {
   overflow-y: auto;
 }
 
+/* For a sheet that is a whole editor rather than a detail. */
+.sheet--tall {
+  max-height: 92%;
+}
+
 .sheet__grip {
   width: 38px;
   height: 4px;

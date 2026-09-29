@@ -6,11 +6,12 @@
  * and nothing here blocks the start screen.
  */
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { MAX_TRACK_POINTS, useStore } from '@/state/store'
 import { POLAR_LIBRARY, findPolar } from '@/data/polars'
 import { buildLattice, parsePolar, serialiseExpeditionPolar, validatePolar } from '@/lib/polar'
 import { PolarPlot } from '@/components/PolarPlot'
+import { PolarEditor } from '@/components/PolarEditor'
 import { NotForNavigationText } from '@/components/NotForNavigation'
 import { PILOT_VENUE } from '@/data/venues'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
@@ -48,6 +49,7 @@ export function SetupScreen() {
   const polarId = useStore((s) => s.polarId)
   const polar = useStore((s) => s.polar)
   const polarRoles = useStore((s) => s.polarRoles)
+  const [editingPolar, setEditingPolar] = useState(false)
   const setPolarRole = useStore((s) => s.setPolarRole)
   const setPolar = useStore((s) => s.setPolar)
   const settings = useStore((s) => s.settings)
@@ -341,6 +343,16 @@ export function SetupScreen() {
             {i.message}
           </div>
         ))}
+        <button
+          className="btn btn--sm btn--ghost"
+          style={{ display: 'block', width: '100%', marginTop: 8 }}
+          onClick={() => setEditingPolar(true)}
+          disabled={!polar}
+        >
+          EDIT POLAR
+        </button>
+        {editingPolar && <PolarEditor onClose={() => setEditingPolar(false)} />}
+
         <h2>Polar roles</h2>
         {(['performance', 'start'] as const).map((role) => (
           <div className="field field--wide" key={role}>

@@ -104,8 +104,9 @@ leaves something tested and working.
       separately. *Accept:* store tests, and each consumer reads its own role.
       *Done for performance and start.* The heel polar waits for heel data (6.6),
       because there is nothing to compare it against until then.
-- [ ] **4.2 Polar editor.** Table and drag editing, derived targets, save as
-      Expedition text. *Accept:* editor and serialiser tests.
+- [x] **4.2 Polar editor.** Table and drag editing, derived targets, save as
+      Expedition text. *Accept:* editor and serialiser tests. *Done as a table
+      editor.* Dragging points on the plot waits for a canvas hit-testing layer.
 - [ ] **4.3 Targets table, and logged points drawn on the polar.** *Accept:* tests.
 - [ ] **4.4 Sails and the sail chart.** A sail list, a TWA × TWS chart with
       tab-separated import/export, the live point, sail channels and a sail per

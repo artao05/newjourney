@@ -1163,6 +1163,34 @@ describe('man overboard', () => {
   })
 })
 
+describe('the polar editor', () => {
+  it('edits a speed, re-derives the targets, and saves the table as my polar', () => {
+    useStore.getState().setPolar('j70', findPolar('j70')!.polar)
+    render(<SetupScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'EDIT POLAR' }))
+    const before = screen.getByLabelText('Targets').textContent
+    const first = screen.getAllByLabelText(/^BSP at /)[0] as HTMLInputElement
+    fireEvent.change(first, { target: { value: String(Number(first.value) + 1.5) } })
+    expect(screen.getByLabelText('Targets').textContent).not.toBe(before)
+    fireEvent.click(screen.getByRole('button', { name: 'SAVE AS MY POLAR' }))
+    const { polarId, polar } = useStore.getState()
+    expect(polarId).toBe('custom')
+    expect(polar!.name).toMatch(/\(edited\)$/)
+    expect(polar!.rows[0].bsp[0]).toBeCloseTo(findPolar('j70')!.polar.rows[0].bsp[0] + 1.5, 9)
+    // The library's own J/70 is untouched.
+    expect(findPolar('j70')!.polar.rows[0].bsp[0]).not.toBeCloseTo(polar!.rows[0].bsp[0], 3)
+  })
+
+  it('will not save a table it cannot use, and says why', () => {
+    useStore.getState().setPolar('j70', findPolar('j70')!.polar)
+    render(<SetupScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'EDIT POLAR' }))
+    fireEvent.change(screen.getAllByLabelText(/^BSP at /)[0], { target: { value: '-3' } })
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'SAVE AS MY POLAR' }).disabled).toBe(true)
+    expect(document.querySelector('.sheet .errbox')).not.toBeNull()
+  })
+})
+
 describe('polar roles', () => {
   const targetBsp = () =>
     [...document.querySelectorAll('.tile')]
