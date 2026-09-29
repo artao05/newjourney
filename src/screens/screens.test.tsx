@@ -860,6 +860,31 @@ describe('number boxes show any channel, alternate, and persist', () => {
   })
 })
 
+describe('Setup exports and imports the whole configuration', () => {
+  it('reads a settings file back into the boat and the layout', async () => {
+    const file = new File(
+      [
+        JSON.stringify({
+          format: 'newjourney-config',
+          version: 1,
+          boat: { name: 'Imported boat' },
+          settings: { units: 'imperial' },
+          numberBoxes: [{ id: 'x', channels: ['vmg'], size: 'lg' }],
+        }),
+      ],
+      'boat.json',
+      { type: 'application/json' },
+    )
+    render(<SetupScreen />)
+    fireEvent.change(screen.getByLabelText('Import settings file'), { target: { files: [file] } })
+    await waitFor(() => expect(useStore.getState().boat.name).toBe('Imported boat'))
+    expect(useStore.getState().settings.units).toBe('imperial')
+    expect(useStore.getState().numberBoxes).toEqual([{ id: 'x', channels: ['vmg'], size: 'lg' }])
+    act(() => useStore.getState().updateSettings({ units: 'metric' }))
+    act(() => useStore.getState().updateBoat({ name: 'My boat' }))
+  })
+})
+
 describe('man overboard', () => {
   it('drops a MOB mark at the boat, makes it active, and says so in red', () => {
     populatedStore()

@@ -71,7 +71,7 @@ leaves something tested and working.
       screen tests at both widths, plus a browser check.
 - [x] **2.5 Keyboard shortcuts and full-screen chart.** *Accept:* a keymap test, plus
       a browser check.
-- [ ] **2.6 User configuration export and import.** Boats, polars, marks, settings and
+- [x] **2.6 User configuration export and import.** Boats, polars, marks, settings and
       layouts in one JSON file. *Accept:* a round-trip test.
 
 ## M3 — Marks, routes and race notes

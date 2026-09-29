@@ -177,6 +177,15 @@ interface AppState {
 
   settings: Settings
   updateSettings(patch: Partial<Settings>): void
+
+  /**
+   * Apply a configuration file (src/lib/config.ts). Nested objects merge the way a
+   * reload merges them, so a file from an older version leaves newer fields alone.
+   * Anything the file changes about the course drops the route.
+   */
+  applyConfig(cfg: Partial<Pick<AppState,
+    'boat' | 'polarId' | 'polar' | 'course' | 'settings' | 'routeSettings' |
+    'numberBoxes' | 'manualWind' | 'navPanel' | 'navChart'>>): void
 }
 
 /**
@@ -469,6 +478,22 @@ export const useStore = create<AppState>()(
       settings: { ...DEFAULT_SETTINGS },
       updateSettings: (patch) =>
         set({ settings: { ...get().settings, ...patch } }),
+
+      applyConfig: (cfg) => {
+        const merged = mergePersistedState(cfg, get())
+        set({
+          boat: merged.boat,
+          course: merged.course,
+          settings: merged.settings,
+          routeSettings: merged.routeSettings,
+          ...(cfg.polarId != null ? { polarId: cfg.polarId, polar: cfg.polar ?? null } : {}),
+          ...(cfg.numberBoxes ? { numberBoxes: cfg.numberBoxes } : {}),
+          ...(cfg.manualWind ? { manualWind: cfg.manualWind, manualWindSetAt: Date.now() } : {}),
+          ...(cfg.navPanel ? { navPanel: cfg.navPanel } : {}),
+          ...(cfg.navChart ? { navChart: cfg.navChart } : {}),
+          ...(cfg.course ? { ...COURSE_CHANGED, activeMarkIndex: 0 } : {}),
+        })
+      },
     }),
     {
       name: 'newjourney.v1',

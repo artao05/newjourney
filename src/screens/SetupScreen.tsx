@@ -16,6 +16,7 @@ import { PILOT_VENUE } from '@/data/venues'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
 import { windHeightFactor } from '@/lib/routing/settings'
 import { SHORTCUT_HELP } from '@/lib/shortcuts'
+import { ConfigError, exportConfig, parseConfig } from '@/lib/config'
 
 /**
  * How to name the tide station on the venue panel.
@@ -82,6 +83,23 @@ export function SetupScreen() {
     updateBoat({ className: entry.name, loaMetres: entry.loaM })
   }
 
+  /** Everything configured, as one file: Expedition's "Save user configuration". */
+  const exportSettings = async () => {
+    const { downloadText } = await import('@/lib/gpx')
+    const cfg = exportConfig(useStore.getState())
+    const stamp = cfg.exportedAt.slice(0, 10)
+    const who = boat.name.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'boat'
+    downloadText(`newjourney-${who}-${stamp}.json`, JSON.stringify(cfg, null, 2), 'application/json')
+  }
+
+  const importSettings = async (file: File) => {
+    try {
+      useStore.getState().applyConfig(parseConfig(await file.text()))
+    } catch (e) {
+      alert(e instanceof ConfigError ? e.message : `Could not read that file: ${e}`)
+    }
+  }
+
   /** Save the loaded polar as an Expedition .txt, the format it reads back in. */
   const exportPolar = async () => {
     if (!polar) return
@@ -140,6 +158,32 @@ export function SetupScreen() {
           For depth, draft and the start line. Speed stays in knots and distance in
           nautical miles either way, as on the chart. Boat dimensions below are
           entered in metres.
+        </p>
+
+        <h2>Configuration</h2>
+        <div className="actions" style={{ background: 'none', border: 'none', padding: 0 }}>
+          <button className="btn btn--sm btn--ghost" onClick={() => void exportSettings()}>
+            EXPORT SETTINGS
+          </button>
+          <label className="btn btn--sm btn--ghost" style={{ display: 'block', textAlign: 'center' }}>
+            IMPORT SETTINGS
+            <input
+              type="file"
+              accept=".json,application/json"
+              aria-label="Import settings file"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) void importSettings(f)
+                e.target.value = ''
+              }}
+            />
+          </label>
+        </div>
+        <p className="note">
+          One file with the boat, its polar, the course, units, routing options and
+          number boxes. Use it to move to another device, or to switch between
+          boats. The live position, routes and the track are not in it.
         </p>
 
         <h2>Boat</h2>
