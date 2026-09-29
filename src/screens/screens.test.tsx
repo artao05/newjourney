@@ -1009,6 +1009,46 @@ describe('the marks library', () => {
   })
 })
 
+describe('range and bearing on the Route chart', () => {
+  const tap = (lat: number, lng: number) =>
+    act(() => {
+      for (const fn of mapInstances[0].handlers.get('click') ?? []) fn({ lngLat: { lat, lng } })
+    })
+
+  it('reads out a tapped point: position, then range, bearing and time from the boat', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const boat = useStore.getState().state!.position
+    tap(boat.lat + 1 / 60, boat.lon)
+    const readout = screen.getByLabelText('Pointer readout').textContent ?? ''
+    expect(readout).toMatch(/°.*'N .*'W/)
+    expect(readout).toMatch(/1\.00 nm 0°T/)
+    // A wind and a polar are set in the populated store, so there is a time.
+    expect(readout).toMatch(/nm 0°T · \d/)
+  })
+
+  it('measures between two tapped points with the dividers', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'measure' }))
+    // Measuring is its own mode: the start chip must not claim the tap.
+    expect(screen.queryByText(/tap the chart for the/)).toBeNull()
+    tap(43.6, -70.2)
+    expect(screen.getByText(/tap the second point/)).toBeTruthy()
+    tap(43.6, -70.2 + 1 / 60 / Math.cos((43.6 * Math.PI) / 180))
+    expect(screen.getByText(/1\.00 nm 90°T · done/)).toBeTruthy()
+    expect(mapInstances[0].data.get('measure')).toMatchObject({ features: [{}, {}, { geometry: { type: 'LineString' } }] })
+    fireEvent.click(screen.getByText(/nm 90°T · done/))
+    expect(mapInstances[0].data.get('measure')).toMatchObject({ features: [] })
+  })
+})
+
 describe('a mark can be dragged on the Route chart', () => {
   function drag(map: InstanceType<typeof FakeMap>, id: string, path: Array<[number, number]>) {
     const call = (key: string, e: unknown) => {

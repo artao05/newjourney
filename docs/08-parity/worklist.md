@@ -90,7 +90,7 @@ leaves something tested and working.
 - [x] **3.3 Named routes.** Build from marks or by tapping the chart; insert,
       reorder, reverse and activate; next mark; a legs table with bearing, distance,
       TWA and time. *Accept:* store and screen tests.
-- [ ] **3.4 Range and bearing tools.** Measure between points, EBL/VRM from the boat,
+- [x] **3.4 Range and bearing tools.** Measure between points, EBL/VRM from the boat,
       and a cursor readout with polar time to the cursor. *Accept:* geometry tests
       and a browser check.
 - [ ] **3.5 Race notes.** Points, lines and polygons with text, drawn on the chart.

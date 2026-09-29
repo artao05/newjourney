@@ -16,13 +16,16 @@ import { RoutingClient } from '@/lib/routing/client'
 import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
 import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
 import { nonDefaultLabels, requestParts, windHeightFactor } from '@/lib/routing/settings'
+import { courseLegs } from '@/lib/legs'
+import { buildLattice } from '@/lib/polar'
+import { fmtPosition } from '@/components/MarkSheet'
 import { fmtLength } from '@/lib/units'
 import { RouteSettingsSheet } from '@/components/RouteSettingsSheet'
 import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tides/coops'
 import { PORTLAND_DATUM, datumNote } from '@/lib/tides/datum'
 import { bboxOf, distance, lonSpan } from '@/lib/geo'
 import { fmtDeg, wrap180 } from '@/lib/angles'
-import type { Isochrone, Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
+import type { Isochrone, LatLon, Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
 import { fmtDuration } from '@/components/Tile'
 import { DepartureChart } from '@/components/DepartureChart'
 import { PILOT_VENUE } from '@/data/venues'
@@ -123,6 +126,7 @@ export function RouteScreen() {
   const routeError = useStore((s) => s.routeError)
   const setRouteError = useStore((s) => s.setRouteError)
   const routeSettings = useStore((s) => s.routeSettings)
+  const wind = useStore((s) => s.wind)
   const units = useStore((s) => s.settings.units)
   const routeStart = useStore((s) => s.routeStart)
   const setRouteStart = useStore((s) => s.setRouteStart)
@@ -136,9 +140,23 @@ export function RouteScreen() {
    * Waiting for a tap on the chart: to become the planned start, or a new mark at
    * the end of the course.
    */
-  const [picking, setPicking] = useState<'start' | 'mark' | null>(null)
-  const pickingRef = useRef<'start' | 'mark' | null>(null)
+  const [picking, setPicking] = useState<'start' | 'mark' | 'measure' | null>(null)
+  const pickingRef = useRef<'start' | 'mark' | 'measure' | null>(null)
   pickingRef.current = picking
+  /** Dividers: two tapped points, and the range and bearing between them. */
+  const [measure, setMeasure] = useState<{ a: LatLon; b: LatLon | null } | null>(null)
+  const measureRef = useRef(measure)
+  measureRef.current = measure
+  /** Where the pointer is over the chart (desktop), or the last tapped point (touch). */
+  const [pointer, setPointer] = useState<LatLon | null>(null)
+  const lattice = useMemo(() => {
+    if (!polar) return null
+    try {
+      return buildLattice(polar)
+    } catch {
+      return null
+    }
+  }, [polar])
 
   // ---------------------------------------------------------------- map init
   useEffect(() => {
@@ -199,12 +217,31 @@ export function RouteScreen() {
     // getState, because this handler outlives every render.
     map.on('click', (e: maplibregl.MapMouseEvent) => {
       const mode = pickingRef.current
-      if (!mode) return
       const at = { lat: e.lngLat.lat, lon: e.lngLat.lng }
+      // A plain tap reads out that point: the only pointer a phone has.
+      if (!mode) {
+        setPointer(at)
+        return
+      }
+      if (mode === 'measure') {
+        const m = measureRef.current
+        setMeasure(!m || m.b ? { a: at, b: null } : { a: m.a, b: at })
+        return
+      }
       const s = useStore.getState()
       if (mode === 'start') s.setRouteStart(at)
       else s.addMark(`Mark ${s.course.marks.length + 1}`, at)
       setPicking(null)
+    })
+    // The pointer readout follows the mouse, at most once a frame.
+    let frame = 0
+    map.on('mousemove', (e: maplibregl.MapMouseEvent) => {
+      const at = { lat: e.lngLat.lat, lon: e.lngLat.lng }
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        setPointer(at)
+      })
     })
     mapRef.current = map
     return () => {
@@ -296,6 +333,52 @@ export function RouteScreen() {
     if (!map || !ready) return
     setSource(map, 'start', routeStart ? pointFC(routeStart.lon, routeStart.lat) : emptyFC())
   }, [ready, routeStart])
+
+  const divider = measure?.b ? courseLegs({
+    start: { name: 'A', position: measure.a },
+    marks: [{ name: 'B', position: measure.b }],
+    wind: null,
+    lattice: null,
+    boat,
+  })[0] : null
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    if (!measure) {
+      setSource(map, 'measure', emptyFC())
+      return
+    }
+    const pts = measure.b ? [measure.a, measure.b] : [measure.a]
+    setSource(map, 'measure', {
+      type: 'FeatureCollection',
+      features: [
+        ...pts.map((p) => ({
+          type: 'Feature' as const,
+          properties: {},
+          geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
+        })),
+        ...(measure.b
+          ? [{
+              type: 'Feature' as const,
+              properties: {},
+              geometry: {
+                type: 'LineString' as const,
+                coordinates: [[measure.a.lon, measure.a.lat], [measure.b.lon, measure.b.lat]],
+              },
+            }]
+          : []),
+      ],
+    })
+  }, [ready, measure])
+
+  /** From the boat (or planned start) to the pointer: range, bearing, polar time. */
+  const toPointer = pointer && origin ? courseLegs({
+    start: { name: 'from', position: origin },
+    marks: [{ name: 'pointer', position: pointer }],
+    wind,
+    lattice,
+    boat,
+  })[0] : null
 
   useEffect(() => {
     const map = mapRef.current
@@ -645,7 +728,7 @@ export function RouteScreen() {
               {cube ? `${cube.model} · ${cube.nt}h` : 'no forecast'}
             </span>
             <span className="chip">{PILOT_VENUE.name}</span>
-          {picking ? (
+          {picking === 'start' || picking === 'mark' ? (
             <button className="chip chip--warn" onClick={() => setPicking(null)}>
               tap the chart for the {picking === 'start' ? 'start' : 'new mark'} · cancel
             </button>
@@ -670,6 +753,38 @@ export function RouteScreen() {
             <button className="chip" onClick={() => setPicking('mark')} title="Tap the chart to add a mark">
               + mark
             </button>
+          )}
+          {/*
+            The pointer readout: where the mouse is (or the last tap), and from the
+            boat or planned start, the range, true bearing and polar time to it.
+          */}
+          {pointer && picking !== 'measure' && (
+            <span className="chip" aria-label="Pointer readout" title="Pointer: position, then range, bearing and polar time from the boat">
+              {fmtPosition(pointer)}
+              {toPointer && ` · ${toPointer.distanceNm.toFixed(2)} nm ${fmtDeg(toPointer.bearing)}°T`}
+              {toPointer?.timeS != null && ` · ${fmtDuration(toPointer.timeS)}`}
+            </span>
+          )}
+          {picking === 'measure' ? (
+            <button
+              className="chip chip--warn"
+              onClick={() => {
+                setPicking(null)
+                setMeasure(null)
+              }}
+            >
+              {divider
+                ? `${divider.distanceNm.toFixed(2)} nm ${fmtDeg(divider.bearing)}°T · done`
+                : measure
+                  ? 'tap the second point · done'
+                  : 'tap the first point · done'}
+            </button>
+          ) : (
+            !picking && (
+              <button className="chip" onClick={() => setPicking('measure')} title="Dividers: range and bearing between two points">
+                measure
+              </button>
+            )
           )}
             {/*
               A correction applied to the forecast changes every route, and nothing
@@ -1234,7 +1349,7 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
-  ;['sens', 'wind', 'iso', 'riso', 'route', 'route-beat', 'marks', 'boat', 'start'].forEach(add)
+  ;['sens', 'wind', 'iso', 'riso', 'route', 'route-beat', 'marks', 'boat', 'start', 'measure'].forEach(add)
 
   map.addLayer({
     id: 'sens-fill',
@@ -1335,6 +1450,20 @@ function addEmptyLayers(map: maplibregl.Map) {
       'circle-stroke-color': '#eaf2fa',
       'circle-stroke-width': 2,
     },
+  })
+  map.addLayer({
+    id: 'measure-line',
+    type: 'line',
+    source: 'measure',
+    filter: ['==', ['geometry-type'], 'LineString'],
+    paint: { 'line-color': '#eaf2fa', 'line-width': 1.5, 'line-dasharray': [2, 2] },
+  })
+  map.addLayer({
+    id: 'measure-pt',
+    type: 'circle',
+    source: 'measure',
+    filter: ['==', ['geometry-type'], 'Point'],
+    paint: { 'circle-radius': 4, 'circle-color': '#eaf2fa' },
   })
   // The planned start: hollow, so it never reads as the boat.
   map.addLayer({
