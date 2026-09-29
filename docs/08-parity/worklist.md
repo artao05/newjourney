@@ -142,7 +142,7 @@ leaves something tested and working.
 - [x] **5.8 Handicap calculator:** TCF time-on-time and time-on-distance, with
       elapsed, corrected and owed times. *Accept:* tests against hand-worked
       examples.
-- [ ] **5.9 Race timer:** multiple class starts, custom sequences, and sounds.
+- [x] **5.9 Race timer:** multiple class starts, custom sequences, and sounds.
       *Accept:* timer tests.
 - [ ] **5.10 Wind shadow channels.** *Accept:* geometry tests.
 

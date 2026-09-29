@@ -210,6 +210,12 @@ interface AppState {
   hold: { wind: boolean; current: boolean; releaseAtGun: boolean }
   startApproaches: StartApproaches
   setStartApproaches(a: StartApproaches): void
+  /**
+   * The start sequence: minutes between class starts, how many classes go
+   * before ours (the timer rolls at each of their guns), and whether it sounds.
+   */
+  timer: { rollMin: number; classesBefore: number; sound: boolean }
+  setTimer(patch: Partial<{ rollMin: number; classesBefore: number; sound: boolean }>): void
   holdWind(on: boolean): void
   holdCurrent(on: boolean): void
   setReleaseAtGun(on: boolean): void
@@ -545,6 +551,8 @@ export const useStore = create<AppState>()(
       hold: { wind: false, current: false, releaseAtGun: true },
       startApproaches: { ...DEFAULT_APPROACHES },
       setStartApproaches: (a) => set({ startApproaches: a }),
+      timer: { rollMin: 5, classesBefore: 0, sound: true },
+      setTimer: (patch) => set({ timer: { ...get().timer, ...patch } }),
       holdWind: (on) => {
         const w = get().wind
         // Nothing to hold without a wind; letting go takes the next estimate.
@@ -790,6 +798,7 @@ export const useStore = create<AppState>()(
         polarRoles: s.polarRoles,
         sailChart: s.sailChart,
         startApproaches: s.startApproaches,
+        timer: s.timer,
         course: s.course,
         manualWind: s.manualWind,
         manualWindSetAt: s.manualWindSetAt,

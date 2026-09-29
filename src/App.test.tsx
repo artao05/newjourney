@@ -118,6 +118,7 @@ beforeEach(() => {
     manualWindSetAt: null,
     windSheetOpen: false,
     windHistory: [],
+    timer: { rollMin: 5, classesBefore: 0, sound: false },
   })
   if (s.recording) s.toggleRecording()
 })
@@ -497,6 +498,26 @@ describe('held wind lets go at the gun', () => {
     act(() => {
       useStore.getState().holdWind(false)
       useStore.getState().setReleaseAtGun(true)
+      useStore.getState().setGunTime(null)
+    })
+  })
+})
+
+describe('the timer rolls through the classes before ours', () => {
+  it('rolls at another class gun, keeps the wind held, and lets go at ours', () => {
+    const s = useStore.getState()
+    s.setWind({ twd: 270, tws: 12, source: 'manual', uncertaintyDeg: 8, t: Date.now() })
+    s.holdWind(true)
+    s.setReleaseAtGun(true)
+    s.setTimer({ rollMin: 5, classesBefore: 1 })
+    const first = Date.now() - 1000
+    s.setGunTime(first)
+    render(<App />)
+    expect(useStore.getState().course.startLine.gunTime).toBe(first + 300_000)
+    expect(useStore.getState().timer.classesBefore).toBe(0)
+    expect(useStore.getState().hold.wind).toBe(true)
+    act(() => {
+      useStore.getState().holdWind(false)
       useStore.getState().setGunTime(null)
     })
   })

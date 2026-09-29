@@ -7,7 +7,7 @@
  * because every downstream number inherits its uncertainty.
  */
 
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { useStore, type ChartTab, type PanelTab, type Tab } from '@/state/store'
 import { LayoutContext, useWide } from '@/hooks/useWide'
 import { toggleFullscreen, useShortcuts } from '@/hooks/useShortcuts'
@@ -27,6 +27,8 @@ import { declinationAt } from '@/lib/magnetic'
 import type { WindEstimate } from '@/lib/types'
 import { fetchPointForecast } from '@/lib/weather/openmeteo'
 import { PILOT_VENUE } from '@/data/venues'
+import { beepsBetween, rollGun } from '@/lib/timer'
+import { beep } from '@/lib/beep'
 
 const FORECAST_REFRESH_MS = 15 * 60_000
 
@@ -99,11 +101,30 @@ export function App() {
   // Hold wind and current release at the gun, when that is what was asked for.
   const hold = useStore((s) => s.hold)
   const gunTime = useStore((s) => s.course.startLine.gunTime)
+  const timer = useStore((s) => s.timer)
   useEffect(() => {
-    if (!hold.releaseAtGun || gunTime == null || now < gunTime) return
+    if (gunTime == null || now < gunTime) return
+    // Another class's gun: roll on to the next start, and keep holding.
+    if (timer.classesBefore > 0) {
+      const st = useStore.getState()
+      st.setGunTime(rollGun(gunTime, now, timer.rollMin))
+      st.setTimer({ classesBefore: timer.classesBefore - 1 })
+      return
+    }
+    if (!hold.releaseAtGun) return
     if (hold.wind) useStore.getState().holdWind(false)
     if (hold.current) useStore.getState().holdCurrent(false)
-  }, [now, gunTime, hold])
+  }, [now, gunTime, hold, timer])
+
+  // The countdown's sounds, on the minutes and for the last ten seconds.
+  const lastToGun = useRef<number | null>(null)
+  useEffect(() => {
+    const toGun = gunTime == null ? null : (gunTime - now) / 1000
+    const prev = lastToGun.current
+    lastToGun.current = toGun
+    if (!timer.sound || toGun == null || prev == null) return
+    for (const [i, b] of beepsBetween(prev, toGun).entries()) beep(b, i * 0.35)
+  }, [now, gunTime, timer.sound])
 
   // Load the class polar on first run / after a rehydrate.
   useEffect(() => {

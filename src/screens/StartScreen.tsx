@@ -14,6 +14,8 @@ import { COG_TRUSTED_KN, computeStart, fixQuality, pingPosition, spareTimeS } fr
 import { usePolarLattices } from '@/hooks/usePolars'
 import { applyWhatIfCurrent, applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { LineSheet } from '@/components/LineSheet'
+import { TimerSheet } from '@/components/TimerSheet'
+import { primeAudio } from '@/lib/beep'
 import type { StartNumbers } from '@/lib/types'
 import { fmtLength, lengthUnit, toLength } from '@/lib/units'
 
@@ -80,6 +82,7 @@ export function StartScreen() {
   const whatIf = useStore((s) => s.whatIf)
   const startApproaches = useStore((s) => s.startApproaches)
   const [showLine, setShowLine] = useState(false)
+  const [showTimer, setShowTimer] = useState(false)
   const hold = useStore((s) => s.hold)
   const holdWind = useStore((s) => s.holdWind)
   const holdCurrent = useStore((s) => s.holdCurrent)
@@ -118,7 +121,10 @@ export function StartScreen() {
   const gpsVague = ['poor', 'bad'].includes(fixQuality(accuracy, boat.loaMetres) ?? '')
   const gpsBoatLengths = accuracy != null && boat.loaMetres > 0 ? accuracy / boat.loaMetres : 0
 
-  const startTimer = (minutes: number) => setGunTime(Date.now() + minutes * 60_000)
+  const startTimer = (minutes: number) => {
+    primeAudio()
+    setGunTime(Date.now() + minutes * 60_000)
+  }
   const syncTimer = () => {
     // Round to the nearest whole minute — the universal "sync" gesture.
     if (gun == null) return
@@ -411,12 +417,16 @@ export function StartScreen() {
         <button className="btn btn--sm btn--ghost" onClick={() => setShowLine(true)}>
           LINE
         </button>
+        <button className="btn btn--sm btn--ghost" onClick={() => setShowTimer(true)}>
+          TIMER
+        </button>
       </div>
 
       {showDetail && (
         <DetailSheet numbers={numbers} onClose={() => setShowDetail(false)} />
       )}
       {showLine && <LineSheet onClose={() => setShowLine(false)} />}
+      {showTimer && <TimerSheet onClose={() => setShowTimer(false)} />}
     </>
   )
 }

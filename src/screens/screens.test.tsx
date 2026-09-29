@@ -191,6 +191,7 @@ function emptyStore() {
     startApproaches: { ends: true, gps: true, reach: true, port: true, starboard: true },
     fleet: [],
     handicap: { system: 'tot', distanceNm: 0 },
+    timer: { rollMin: 5, classesBefore: 0, sound: true },
   })
 }
 
@@ -1034,6 +1035,41 @@ describe('the start line can be adjusted without re-pinging', () => {
     }
     expect(useStore.getState().startApproaches).toEqual({ ends: false, gps: true, reach: false, port: false, starboard: false })
     expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.startApproaches.gps).toBe(true)
+  })
+})
+
+describe('the start timer sheet', () => {
+  it('sets the gun by minutes and seconds, or by the clock', () => {
+    populatedStore()
+    render(<StartScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'TIMER' }))
+    fireEvent.change(screen.getByLabelText(/^Time to the gun/), { target: { value: '4:30' } })
+    const before = Date.now()
+    fireEvent.click(screen.getByRole('button', { name: 'START COUNTDOWN' }))
+    const gun = useStore.getState().course.startLine.gunTime!
+    expect(gun - before).toBeGreaterThanOrEqual(270_000)
+    expect(gun - before).toBeLessThan(271_000)
+
+    fireEvent.change(screen.getByLabelText(/^Gun at/), { target: { value: 'soon' } })
+    fireEvent.click(screen.getByRole('button', { name: 'SET GUN TIME' }))
+    expect(screen.getByRole('alert').textContent).toMatch(/not a clock time/)
+    expect(useStore.getState().course.startLine.gunTime).toBe(gun)
+    fireEvent.change(screen.getByLabelText(/^Gun at/), { target: { value: '23:59:59' } })
+    fireEvent.click(screen.getByRole('button', { name: 'SET GUN TIME' }))
+    expect(new Date(useStore.getState().course.startLine.gunTime!).getSeconds()).toBe(59)
+  })
+
+  it('keeps the class-start roll and the sound setting', () => {
+    populatedStore()
+    render(<StartScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'TIMER' }))
+    fireEvent.change(screen.getByLabelText('Minutes between starts'), { target: { value: '3' } })
+    fireEvent.change(screen.getByLabelText('Classes starting before ours'), { target: { value: '2' } })
+    fireEvent.click(screen.getByLabelText('Sound the countdown'))
+    expect(useStore.getState().timer).toEqual({ rollMin: 3, classesBefore: 2, sound: false })
+    expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.timer.classesBefore).toBe(2)
+    fireEvent.click(screen.getByRole('button', { name: 'RESTART AT 3 MIN' }))
+    expect(useStore.getState().course.startLine.gunTime! - Date.now()).toBeGreaterThan(179_000)
   })
 })
 
