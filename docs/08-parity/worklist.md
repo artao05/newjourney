@@ -192,7 +192,7 @@ leaves something tested and working.
 
 ## M8 — Alarms
 
-- [ ] **8.1 Alarm engine:** channel thresholds with hysteresis, sound and screen
+- [x] **8.1 Alarm engine:** channel thresholds with hysteresis, sound and screen
       alerts, acknowledgement and persistence. *Accept:* tests.
 - [ ] **8.2 The standard alarms:** anchor drag, depth, arrival, off-course, layline,
       AIS CPA, GPS lost and wind shift. *Accept:* tests.

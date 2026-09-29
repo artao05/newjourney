@@ -24,6 +24,7 @@ import { useTrackPersistence } from '@/state/trackPersistence'
 import { WindSheet, windChip } from '@/components/WindSheet'
 import { ChannelLogRecorder } from '@/components/ChannelLogRecorder'
 import { PlaybackBar } from '@/components/PlaybackBar'
+import { AlarmBanner, AlarmWatcher } from '@/components/Alarms'
 import { usePlayback } from '@/hooks/usePlayback'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
@@ -99,6 +100,7 @@ export function App() {
   const instruments = useStore((s) => s.instruments)
   // A replaying log is the boat: every live source stands aside while it plays.
   const replaying = useStore((s) => s.playback != null)
+  const hasAlarms = useStore((s) => s.alarms.length > 0)
   usePlayback()
   const instrumentSource: InstrumentSource = settings.simulate || replaying
     ? null
@@ -393,6 +395,7 @@ export function App() {
           </span>
         </div>
         <PlaybackBar />
+        <AlarmBanner />
 
         {gpsError && !settings.simulate && !replaying && (
           <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
@@ -465,6 +468,7 @@ export function App() {
         {windSheetOpen && <WindSheet onClose={() => setWindSheetOpen(false)} />}
         {/* Not while replaying, or the replay would be logged again as today. */}
         {recording && !replaying && <ChannelLogRecorder />}
+        {hasAlarms && <AlarmWatcher />}
       </div>
       {mustAccept && (
         <NotForNavigationDialog onAccept={() => updateSettings({ acceptedNotForNavigation: true })} />

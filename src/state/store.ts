@@ -31,6 +31,7 @@ import { DEFAULT_SIGNALK_URL, type SignalKStatus } from '@/lib/instruments/signa
 import { DEFAULT_PIPELINE, type Derived, type PipelineSettings } from '@/lib/instruments/pipeline'
 import { NO_CALIBRATION, type Calibration } from '@/lib/instruments/calibration'
 import type { PhoneOrientation } from '@/lib/instruments/orientation'
+import type { AlarmRule, AlarmState } from '@/lib/alarms/engine'
 
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'strip' | 'setup'
 /** The nav station's two tab sets: panels on the left, charts in the middle. */
@@ -354,6 +355,14 @@ interface AppState {
   /** The stripchart's panes, one channel each, and the minutes it shows. */
   strip: { panes: string[]; spanMin: number }
   setStrip(patch: Partial<{ panes: string[]; spanMin: number }>): void
+  /** Alarm rules, kept; their states are this session's only. */
+  alarms: AlarmRule[]
+  addAlarm(rule: Omit<AlarmRule, 'id'>): void
+  updateAlarm(id: string, patch: Partial<Omit<AlarmRule, 'id'>>): void
+  removeAlarm(id: string): void
+  alarmStates: Record<string, AlarmState>
+  setAlarmStates(s: Record<string, AlarmState>): void
+  acknowledgeAlarms(ids?: string[]): void
   events: LogEvent[]
   addEvent(kind: LogEvent['kind'], text: string, t?: Millis): void
   removeEvent(id: string): void
@@ -790,6 +799,20 @@ export const useStore = create<AppState>()(
       setPhoneOrientation: (p) => set({ phoneOrientation: p }),
       strip: { panes: ['bsp', 'tws', 'twd', 'sog'], spanMin: 15 },
       setStrip: (patch) => set({ strip: { ...get().strip, ...patch } }),
+      alarms: [],
+      addAlarm: (rule) => set({ alarms: [...get().alarms, { ...rule, id: `alarm-${Date.now()}-${++markSeq}` }] }),
+      updateAlarm: (id, patch) => set({ alarms: get().alarms.map((a) => (a.id === id ? { ...a, ...patch } : a)) }),
+      removeAlarm: (id) => {
+        const { [id]: _gone, ...rest } = get().alarmStates
+        set({ alarms: get().alarms.filter((a) => a.id !== id), alarmStates: rest })
+      },
+      alarmStates: {},
+      setAlarmStates: (s) => set({ alarmStates: s }),
+      acknowledgeAlarms: (ids) => {
+        const next = { ...get().alarmStates }
+        for (const [id, st] of Object.entries(next)) if (st.active && (!ids || ids.includes(id))) next[id] = { ...st, acknowledged: true }
+        set({ alarmStates: next })
+      },
       events: [],
       addEvent: (kind, text, t = Date.now()) =>
         set({
@@ -955,6 +978,7 @@ export const useStore = create<AppState>()(
         phoneSensors: s.phoneSensors,
         strip: s.strip,
         events: s.events,
+        alarms: s.alarms,
         sailTests: s.sailTests,
         routes: s.routes,
         raceNotes: s.raceNotes,

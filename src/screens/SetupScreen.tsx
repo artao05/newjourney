@@ -32,6 +32,7 @@ import { InstrumentsSection } from '@/components/InstrumentsSection'
 import { CalibrationSection } from '@/components/CalibrationSection'
 import { GpsSection } from '@/components/GpsSection'
 import { LogsSection } from '@/components/LogsSection'
+import { AlarmsSection } from '@/components/Alarms'
 
 /**
  * How to name the tide station on the venue panel.
@@ -442,6 +443,7 @@ export function SetupScreen() {
         <CalibrationSection />
         <GpsSection />
         <LogsSection />
+        <AlarmsSection />
 
         <h2>Wind</h2>
         <div className="seg" style={{ marginBottom: 10 }}>

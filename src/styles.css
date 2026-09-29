@@ -1126,3 +1126,37 @@ table.results tr.beating td {
 .strip-block {
   margin: 12px 0;
 }
+
+/* Alarms: across every screen while one is active; red and pulsing until acknowledged. */
+.alarmbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px var(--pad);
+  background: #3a1a12;
+  border-bottom: 1px solid #ff8a4a;
+  color: #ffd2bf;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.alarmbar--loud {
+  background: #5c1010;
+  border-bottom-color: #ff4d4d;
+  animation: alarm-pulse 1s ease-in-out infinite alternate;
+}
+
+.alarmbar__item {
+  flex: 1;
+  min-width: 140px;
+}
+
+@keyframes alarm-pulse {
+  from { background: #5c1010; }
+  to { background: #7a1616; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alarmbar--loud { animation: none; }
+}
