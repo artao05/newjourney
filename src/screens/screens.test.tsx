@@ -938,6 +938,39 @@ describe('marks can be edited, and placed on the chart', () => {
   })
 })
 
+describe("the W/L wizard builds Expedition's course", () => {
+  it('lays a gate above the line and laps, with every mark rounded on the chosen side', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    fireEvent.change(screen.getByLabelText(/Leeward gate/), { target: { value: '60' } })
+    fireEvent.change(screen.getByLabelText('Laps'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Leave to starboard' }))
+    fireEvent.click(screen.getByRole('button', { name: 'BUILD COURSE' }))
+    const marks = useStore.getState().course.marks
+    expect(marks.map((m) => m.name)).toEqual(['Windward 1', 'Leeward gate 1', 'Windward 2', 'Leeward gate 2'])
+    expect(marks[0].roundTo).toBe('starboard')
+    expect(distance(marks[1].gate!.left, marks[1].gate!.right) * 1852).toBeCloseTo(60, 0)
+    // Above the line, as Expedition means a positive leeward distance.
+    const { port, starboard } = useStore.getState().course.startLine
+    expect(marks[1].position.lat).toBeGreaterThan(Math.max(port!.lat, starboard!.lat))
+  })
+
+  it('reads the axis in magnetic when the app is set to magnetic', () => {
+    populatedStore()
+    useStore.getState().updateSettings({ northRef: 'magnetic' })
+    render(<RaceScreen />)
+    fireEvent.change(screen.getByLabelText(/^Axis/), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: 'BUILD COURSE' }))
+    const { port, starboard } = useStore.getState().course.startLine
+    const mid = { lat: (port!.lat + starboard!.lat) / 2, lon: (port!.lon + starboard!.lon) / 2 }
+    const w = useStore.getState().course.marks[0].position
+    // 000°M is about 345.5°T in Portland (variation 14.5° W).
+    const brg = (Math.atan2((w.lon - mid.lon) * Math.cos((mid.lat * Math.PI) / 180), w.lat - mid.lat) * 180) / Math.PI
+    expect(wrap360(brg)).toBeCloseTo(345.5, 0)
+    useStore.getState().updateSettings({ northRef: 'true' })
+  })
+})
+
 describe('the course as legs, and saved routes', () => {
   it('lists each leg from the boat with bearing, distance, angle off the wind and time', () => {
     populatedStore()

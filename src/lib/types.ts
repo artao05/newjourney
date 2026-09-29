@@ -189,6 +189,8 @@ export interface Mark {
   roundTo: RoundingSide
   /** Set on a man-overboard mark: when it went in. */
   mobAt?: Millis
+  /** A gate: its two buoys. `position` is then the middle of the gate. */
+  gate?: { widthM: number; left: LatLon; right: LatLon }
 }
 
 export interface StartLine {

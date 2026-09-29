@@ -141,7 +141,7 @@ interface AppState {
   setGunTime(t: Millis | null): void
   addMark(name: string, at: LatLon): void
   /** Replace marks without resetting a previously pinged start line. */
-  replaceMarks(marks: Array<{ name: string; position: LatLon }>): void
+  replaceMarks(marks: Array<Pick<Mark, 'name' | 'position'> & Partial<Pick<Mark, 'roundTo' | 'gate'>>>): void
   removeMark(id: string): void
   /** Rename, move, or change the rounding side of one mark. */
   updateMark(id: string, patch: Partial<Pick<Mark, 'name' | 'position' | 'roundTo'>>): void
@@ -391,7 +391,8 @@ export const useStore = create<AppState>()(
               id: `m${++markSeq}-${Date.now()}`,
               name: m.name,
               position: m.position,
-              roundTo: 'port',
+              roundTo: m.roundTo ?? 'port',
+              ...(m.gate ? { gate: m.gate } : {}),
             })),
           },
           activeMarkIndex: 0,

@@ -21,7 +21,9 @@ import { computeTactics } from '@/lib/tactics'
 import { angsep, fmtDeg, fmtShift, wrap360 } from '@/lib/angles'
 import { sailAt } from '@/lib/sailchart'
 import { distance, bearing } from '@/lib/geo'
-import { makeWLCourse } from '@/lib/sim'
+import { buildWLCourse } from '@/lib/wlcourse'
+import { declinationAt, magneticToTrue, trueToMagnetic } from '@/lib/magnetic'
+import { PILOT_VENUE } from '@/data/venues'
 import type { TacticalNumbers, WindEstimate } from '@/lib/types'
 
 export function RaceScreen() {
@@ -49,6 +51,11 @@ export function RaceScreen() {
   const [wlAxis, setWlAxis] = useState(0)
   const [wlUp, setWlUp] = useState(1)
   const [wlDown, setWlDown] = useState(0.1)
+  const [wlGate, setWlGate] = useState<number | null>(null)
+  const [wlLaps, setWlLaps] = useState(2)
+  const [wlAbove, setWlAbove] = useState<'committee' | 'middle' | 'pin'>('middle')
+  const [wlLeave, setWlLeave] = useState<'port' | 'starboard'>('port')
+  const northRef = useStore((s) => s.settings.northRef)
 
   const lineMid = useMemo(() => {
     const { port, starboard } = course.startLine
@@ -377,13 +384,16 @@ export function RaceScreen() {
 
         <h2>Windward / leeward course</h2>
         <p className="note">
-          Builds a course around the start line you already pinged, oriented on
-          the course axis — the same construction Expedition offers from its
-          Start panel.
+          Builds a course around the start line you already pinged, as Expedition&apos;s
+          W/L wizard does. A positive leeward distance puts the leeward mark above the
+          line, the usual modern course; negative puts it below.
         </p>
         <div className="field">
-          <label>Axis</label>
+          <label htmlFor="wl-axis">
+            Axis <span className="note">°{northRef === 'magnetic' ? 'M' : 'T'}</span>
+          </label>
           <input
+            id="wl-axis"
             type="number"
             step="1"
             value={wlAxis}
@@ -392,36 +402,66 @@ export function RaceScreen() {
           />
         </div>
         <div className="field">
-          <label>To windward (nm)</label>
-          <input
-            type="number"
-            step="0.1"
-            value={wlUp}
-            onChange={(e) => setWlUp(Number(e.target.value))}
-            inputMode="decimal"
-          />
+          <label htmlFor="wl-up">To windward (nm)</label>
+          <input id="wl-up" type="number" step="0.1" value={wlUp}
+            onChange={(e) => setWlUp(Number(e.target.value))} inputMode="decimal" />
         </div>
         <div className="field">
-          <label>To leeward (nm)</label>
-          <input
-            type="number"
-            step="0.1"
-            value={wlDown}
-            onChange={(e) => setWlDown(Number(e.target.value))}
-            inputMode="decimal"
-          />
+          <label htmlFor="wl-down">To leeward (nm)</label>
+          <input id="wl-down" type="number" step="0.05" value={wlDown}
+            onChange={(e) => setWlDown(Number(e.target.value))} inputMode="decimal" />
+        </div>
+        <div className="field">
+          <label htmlFor="wl-gate">
+            Leeward gate <span className="note">m wide, blank for a mark</span>
+          </label>
+          <input id="wl-gate" type="number" step="10" min="0" placeholder="no gate" value={wlGate ?? ''}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              setWlGate(e.target.value.trim() === '' || !(v > 0) ? null : v)
+            }} inputMode="numeric" />
+        </div>
+        <div className="field">
+          <label htmlFor="wl-laps">Laps</label>
+          <input id="wl-laps" type="number" step="1" min="1" max="10" value={wlLaps}
+            onChange={(e) => setWlLaps(Math.max(1, Math.min(10, Math.round(Number(e.target.value)) || 1)))}
+            inputMode="numeric" />
+        </div>
+        <div className="seg" role="group" aria-label="Leeward mark above" style={{ marginBottom: 6 }}>
+          {(['committee', 'middle', 'pin'] as const).map((a) => (
+            <button key={a} aria-pressed={wlAbove === a} onClick={() => setWlAbove(a)}>
+              {a === 'committee' ? 'Above RC' : a === 'middle' ? 'Mid-line' : 'Above pin'}
+            </button>
+          ))}
+        </div>
+        <div className="seg" role="group" aria-label="Leave marks to" style={{ marginBottom: 6 }}>
+          {(['port', 'starboard'] as const).map((r) => (
+            <button key={r} aria-pressed={wlLeave === r} onClick={() => setWlLeave(r)}>
+              Leave to {r}
+            </button>
+          ))}
         </div>
         <div className="actions" style={{ background: 'none', border: 'none', padding: '4px 0 0' }}>
           <button
             className="btn btn--sm"
-            disabled={!lineMid}
+            disabled={!course.startLine.port || !course.startLine.starboard}
             onClick={() => {
-              if (!lineMid) return
-              const c = makeWLCourse(lineMid, wlAxis, wlUp, wlDown)
-              replaceMarks([
-                { name: 'Windward', position: c.windward },
-                { name: 'Leeward', position: c.leeward },
-              ])
+              const { port, starboard } = course.startLine
+              if (!port || !starboard) return
+              const axisTrue =
+                northRef === 'magnetic' ? magneticToTrue(wlAxis, declinationAt(PILOT_VENUE.declination, now)) : wlAxis
+              replaceMarks(
+                buildWLCourse({
+                  line: { port, starboard },
+                  axisTrue,
+                  windwardNm: wlUp,
+                  leewardNm: wlDown,
+                  leewardAbove: wlAbove,
+                  gateWidthM: wlGate,
+                  leaveTo: wlLeave,
+                  laps: wlLaps,
+                }),
+              )
             }}
           >
             BUILD COURSE
@@ -429,7 +469,16 @@ export function RaceScreen() {
           <button
             className="btn btn--sm btn--ghost"
             disabled={!wind}
-            onClick={() => wind && setWlAxis(Math.round(wind.twd))}
+            onClick={() =>
+              wind &&
+              setWlAxis(
+                Math.round(
+                  northRef === 'magnetic'
+                    ? trueToMagnetic(wind.twd, declinationAt(PILOT_VENUE.declination, now))
+                    : wind.twd,
+                ),
+              )
+            }
           >
             USE TWD
           </button>

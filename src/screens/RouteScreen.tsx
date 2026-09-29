@@ -1430,14 +1430,22 @@ function notesFC(notes: RaceNote[]): FC {
 }
 
 /** The course marks, numbered in order, carrying their ids for dragging. */
-function marksFC(marks: Array<{ id: string; position: { lat: number; lon: number } }>): FC {
+function marksFC(
+  marks: Array<{ id: string; position: { lat: number; lon: number }; gate?: { left: LatLon; right: LatLon } }>,
+): FC {
   return {
     type: 'FeatureCollection',
-    features: marks.map((m, i) => ({
-      type: 'Feature' as const,
-      properties: { name: `${i + 1}`, id: m.id },
-      geometry: { type: 'Point' as const, coordinates: [m.position.lon, m.position.lat] },
-    })),
+    features: marks.flatMap((m, i) => {
+      const pt = (p: LatLon, name: string, id: string) => ({
+        type: 'Feature' as const,
+        properties: { name, id },
+        geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
+      })
+      // A gate is drawn as its two buoys, labelled from the left looking upwind.
+      return m.gate
+        ? [pt(m.gate.left, `${i + 1}L`, m.id), pt(m.gate.right, `${i + 1}R`, m.id)]
+        : [pt(m.position, `${i + 1}`, m.id)]
+    }),
   }
 }
 

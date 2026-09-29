@@ -113,14 +113,15 @@ leaves something tested and working.
 - [x] **4.4 Sails and the sail chart.** A sail list, a TWA × TWS chart with
       tab-separated import/export, the live point, sail channels and a sail per
       route leg. *Accept:* parser, lookup and screen tests.
-- [ ] **4.5 Asymmetric port and starboard polars.** *Accept:* the kernel uses the
-      right side on each tack, with a test.
+- [ ] **4.5 Asymmetric port and starboard polars.** Moved to 9.14.
 
 ## M5 — Race tools
 
-- [ ] **5.1 Full W/L course builder:** axis in °M, gates with width, a separate
+- [x] **5.1 Full W/L course builder:** axis in °M, gates with width, a separate
       finish, leeward alignment to boat, mid-line or pin, and the leave-to-port flag
-      honoured. *Accept:* geometry tests.
+      honoured. *Accept:* geometry tests. *Done, with laps; a separate finish mark
+      is not built yet (P2-244).* The leeward sign now follows Expedition: positive
+      means above the line.
 - [ ] **5.2 Gates:** bearing, range, lay distances and times, gate spot, bias and
       square wind. *Accept:* tactics tests.
 - [ ] **5.3 Laylines on the chart**, with min/max bounds from wind oscillation, and
@@ -212,6 +213,9 @@ leaves something tested and working.
 - [ ] **9.11 Ensemble routing.** *Accept:* tests.
 - [ ] **9.12 Fleet routing:** every boat with its own polar (after 13.4). *Accept:*
       tests.
+- [ ] **9.14 Asymmetric port and starboard polars**, moved here from 4.5 because it
+      needs a second set of target tables in the hot loop. *Accept:* the kernel uses
+      the right side on each tack, with a test.
 - [ ] **9.13 World land avoidance** from a tiled OSM land pack. *Accept:* a route
       outside Portland goes round land.
 
