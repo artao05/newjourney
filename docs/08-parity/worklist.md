@@ -33,9 +33,12 @@ leaves something tested and working.
       penalties, but Route hard-codes all of them. *Accept:* a settings sheet
       reaches every option, the values persist, and a test shows each one reaching the
       `RouteRequest`.
-- [ ] **1.2 Mast height really scales the wind.** Setup says it does, and nothing
+- [x] **1.2 Mast height really scales the wind.** Setup says it does, and nothing
       calls `heightScaleFactor`. *Accept:* routing and polar lookups apply the height
       correction when the polar is 10 m-referenced, and a test pins the factor.
+      *Done, corrected:* the forecast is itself 10 m wind, so a 10 m polar needs no
+      correction. The lift applies to a **masthead** polar. Setup now says which
+      case the loaded polar is.
 - [ ] **1.3 Draw reverse isochrones.** They are computed and never drawn. *Accept:* a
       toggle draws them beside the forward isochrones, and a screen test finds the
       layer.

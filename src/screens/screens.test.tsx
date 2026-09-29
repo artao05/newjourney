@@ -346,6 +346,30 @@ describe('the Route screen keeps its controls on screen', () => {
   })
 })
 
+describe('mast height scales the forecast when, and only when, the polar needs it', () => {
+  const masthead = () => ({ ...findPolar('j70')!.polar, reference: 'masthead' as const })
+
+  it('says a 10 m polar takes the forecast as it is, and Route shows no factor', () => {
+    useStore.getState().setPolar('j70', findPolar('j70')!.polar)
+    render(<SetupScreen />)
+    expect(screen.getByTestId('mast-height-note').textContent).toMatch(/nothing is scaled/)
+    cleanup()
+    render(<RouteScreen />)
+    expect(screen.queryByText(/masthead wind/)).toBeNull()
+  })
+
+  it('names the factor for a masthead polar, in Setup and on the Route chart', () => {
+    useStore.getState().setPolar('custom', masthead())
+    useStore.getState().updateBoat({ mastHeightMetres: 20 })
+    render(<SetupScreen />)
+    expect(screen.getByTestId('mast-height-note').textContent).toMatch(/×1\.09/)
+    cleanup()
+    render(<RouteScreen />)
+    expect(screen.getByText('masthead wind ×1.09')).toBeTruthy()
+    useStore.getState().updateBoat({ mastHeightMetres: 11 })
+  })
+})
+
 describe('the Route screen reaches every routing setting', () => {
   it('opens the settings, keeps what is typed, and names it on the map', () => {
     render(<RouteScreen />)

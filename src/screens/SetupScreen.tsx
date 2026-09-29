@@ -14,6 +14,7 @@ import { PolarPlot } from '@/components/PolarPlot'
 import { NotForNavigationText } from '@/components/NotForNavigation'
 import { PILOT_VENUE } from '@/data/venues'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
+import { windHeightFactor } from '@/lib/routing/settings'
 
 /**
  * How to name the tide station on the venue panel.
@@ -168,11 +169,24 @@ export function SetupScreen() {
             inputMode="decimal"
           />
         </div>
-        <p className="note">
-          Mast height is used to scale forecast wind from 10&nbsp;m to masthead
-          height — <strong>TWS(h) = TWS(10m)·(h/10)^0.12</strong>. A 20&nbsp;m rig
-          reads about 9% more breeze than the model says. Getting this wrong
-          quietly poisons every target number.
+        {/*
+          This note used to say mast height scaled the forecast, and nothing did.
+          It now describes what routing actually does with the loaded polar.
+        */}
+        <p className="note" data-testid="mast-height-note">
+          Forecasts give wind at 10&nbsp;m, and masthead wind blows harder:{' '}
+          <strong>TWS(h) = TWS(10m)·(h/10)^0.12</strong>, about 9% more on a
+          20&nbsp;m rig. Routing lifts the forecast to your mast height when the
+          polar is referenced to masthead wind, as one tuned from your own
+          instruments usually is.{' '}
+          {polar?.reference === 'masthead' ? (
+            <>
+              This polar is, so the forecast is scaled by{' '}
+              <strong>×{windHeightFactor('masthead', boat.mastHeightMetres).toFixed(2)}</strong>.
+            </>
+          ) : (
+            <>This polar is referenced to 10&nbsp;m, like the forecast, so nothing is scaled.</>
+          )}
         </p>
         <div className="field">
           <label>Draft</label>

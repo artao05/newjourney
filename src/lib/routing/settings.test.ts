@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_ROUTE_SETTINGS, nonDefaultLabels, requestParts } from './settings'
+import { DEFAULT_ROUTE_SETTINGS, nonDefaultLabels, requestParts, windHeightFactor } from './settings'
 
 const BOAT = { polarPct: 97, polarPctNight: 92, tackPenaltyS: 12, gybePenaltyS: 8 }
 
@@ -66,5 +66,28 @@ describe('routing settings become a RouteRequest', () => {
         maxGust: 30,
       }),
     ).toEqual(['wind +10°', 'wind -30 min', 'gust ≤ 30 kn'])
+  })
+})
+
+describe('mast height lifts the forecast only for a masthead polar', () => {
+  it('leaves a 10 m polar alone, since the forecast is at 10 m too', () => {
+    expect(windHeightFactor('10m', 20)).toBe(1)
+    expect(windHeightFactor(undefined, 20)).toBe(1)
+  })
+
+  it("lifts it by the manual's power law for a masthead polar", () => {
+    // Expedition's worked example: 20 m, a = 0.12 gives 109 %.
+    expect(windHeightFactor('masthead', 20)).toBeCloseTo(Math.pow(2, 0.12), 12)
+    expect(Math.round(windHeightFactor('masthead', 20) * 100)).toBe(109)
+    // A 10 m rig is the reference height: nothing to lift.
+    expect(windHeightFactor('masthead', 10)).toBe(1)
+  })
+
+  it("compounds with the sailor's own wind scale in the request", () => {
+    const k = windHeightFactor('masthead', 20)
+    const p = requestParts({ ...DEFAULT_ROUTE_SETTINGS, windScalePct: 90 }, BOAT, true, k)
+    expect(p.scalings.windScalePct).toBeCloseTo(90 * k, 12)
+    // And the sailor's setting itself is untouched, so the chip still reads 90 %.
+    expect(nonDefaultLabels({ ...DEFAULT_ROUTE_SETTINGS, windScalePct: 90 })).toEqual(['wind 90%'])
   })
 })

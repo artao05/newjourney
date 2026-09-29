@@ -15,7 +15,7 @@ import { sampleCube } from '@/lib/weather/cube'
 import { RoutingClient } from '@/lib/routing/client'
 import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
 import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
-import { nonDefaultLabels, requestParts } from '@/lib/routing/settings'
+import { nonDefaultLabels, requestParts, windHeightFactor } from '@/lib/routing/settings'
 import { RouteSettingsSheet } from '@/components/RouteSettingsSheet'
 import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tides/coops'
 import { PORTLAND_DATUM, datumNote } from '@/lib/tides/datum'
@@ -352,12 +352,18 @@ export function RouteScreen() {
         start: state.position,
         startTime,
         marks: course.marks.map((m) => m.position),
-        ...requestParts(routeSettings, boat, landPack != null),
+        ...requestParts(
+          routeSettings,
+          boat,
+          landPack != null,
+          windHeightFactor(polar?.reference, boat.mastHeightMetres),
+        ),
         computeSensitivity,
       }
     },
-    [state, course.marks, landPack, boat, routeSettings],
+    [state, course.marks, landPack, boat, routeSettings, polar?.reference],
   )
+  const heightFactor = windHeightFactor(polar?.reference, boat.mastHeightMetres)
 
   const landPayload = useCallback(
     () =>
@@ -572,7 +578,15 @@ export function RouteScreen() {
               on the map shows it. Name each one, so a wind rotated for yesterday's
               race is not still quietly steering today's.
             */}
-            {nonDefaultLabels(routeSettings).map((label) => (
+            {heightFactor !== 1 && (
+            <span
+              className="chip"
+              title="The polar is referenced to masthead wind, so the 10 m forecast is lifted to your mast height"
+            >
+              masthead wind ×{heightFactor.toFixed(2)}
+            </span>
+          )}
+          {nonDefaultLabels(routeSettings).map((label) => (
               <span className="chip chip--warn" key={label} title="Routing setting — change in SETTINGS">
                 {label}
               </span>
