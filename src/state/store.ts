@@ -112,6 +112,13 @@ interface AppState {
   pushTrack(p: TrackPoint): void
   clearTrack(): void
 
+  /**
+   * A planned start for routing, picked on the chart. Null routes from the live
+   * fix. A route belongs to its start, so changing it drops the route.
+   */
+  routeStart: LatLon | null
+  setRouteStart(at: LatLon | null): void
+
   /** Expedition's optimal-routing options: corrections, limits and resolution. */
   routeSettings: RouteSettings
   updateRouteSettings(patch: Partial<RouteSettings>): void
@@ -352,6 +359,9 @@ export const useStore = create<AppState>()(
       },
       clearTrack: () => set({ track: [] }),
 
+      routeStart: null,
+      setRouteStart: (at) => set({ routeStart: at, route: null, routeError: null }),
+
       routeSettings: { ...DEFAULT_ROUTE_SETTINGS },
       updateRouteSettings: (patch) =>
         set({ routeSettings: { ...get().routeSettings, ...patch } }),
@@ -388,6 +398,7 @@ export const useStore = create<AppState>()(
         windMode: s.windMode,
         settings: s.settings,
         routeSettings: s.routeSettings,
+        routeStart: s.routeStart,
         activeMarkIndex: s.activeMarkIndex,
         xteOrigin: s.xteOrigin,
         // A recording that was on survives a reload too: a phone that drops the app

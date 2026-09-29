@@ -197,6 +197,19 @@ describe('persistence', () => {
   })
 })
 
+describe('a planned route start', () => {
+  it('drops the route it no longer describes, and survives a reload', () => {
+    const s = useStore.getState
+    s().setRoute({ ok: true } as RouteResult)
+    s().setRouteStart(at(43.62, -70.18))
+    expect(s().route).toBeNull()
+    expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.routeStart).toEqual(
+      at(43.62, -70.18),
+    )
+    s().setRouteStart(null)
+  })
+})
+
 describe('a reset XTE belongs to one leg', () => {
   it('is kept while the same mark is active, and dropped when the leg or the marks change', () => {
     courseOf(3)

@@ -122,6 +122,18 @@ export function RouteScreen() {
   const routeError = useStore((s) => s.routeError)
   const setRouteError = useStore((s) => s.setRouteError)
   const routeSettings = useStore((s) => s.routeSettings)
+  const routeStart = useStore((s) => s.routeStart)
+  const setRouteStart = useStore((s) => s.setRouteStart)
+  /**
+   * Where routes start: a point picked on the chart for planning, or the live fix.
+   * Expedition plans from anywhere. Requiring a GPS fix meant a navigator could not
+   * route tomorrow's race from the dock, or at all with location turned off.
+   */
+  const origin = routeStart ?? state?.position ?? null
+  /** Waiting for a tap on the chart to become the planned start. */
+  const [pickingStart, setPickingStart] = useState(false)
+  const pickingRef = useRef(false)
+  pickingRef.current = pickingStart
 
   // ---------------------------------------------------------------- map init
   useEffect(() => {
@@ -136,6 +148,13 @@ export function RouteScreen() {
     map.on('load', () => {
       addEmptyLayers(map)
       setReady(true)
+    })
+    // One tap after PICK START becomes the planned start. Read through refs and
+    // getState, because this handler outlives every render.
+    map.on('click', (e: maplibregl.MapMouseEvent) => {
+      if (!pickingRef.current) return
+      useStore.getState().setRouteStart({ lat: e.lngLat.lat, lon: e.lngLat.lng })
+      setPickingStart(false)
     })
     mapRef.current = map
     return () => {
@@ -204,7 +223,7 @@ export function RouteScreen() {
   useEffect(() => {
     setSweep(null)
     setDepartAt(null)
-  }, [course.marks])
+  }, [course.marks, routeStart])
 
   // Follow the boat once, on first fix.
   const centred = useRef(false)
@@ -232,6 +251,12 @@ export function RouteScreen() {
       },
     )
   }, [ready, state, course.marks])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setSource(map, 'start', routeStart ? pointFC(routeStart.lon, routeStart.lat) : emptyFC())
+  }, [ready, routeStart])
 
   useEffect(() => {
     const map = mapRef.current
@@ -298,11 +323,11 @@ export function RouteScreen() {
 
   // ------------------------------------------------------------------ actions
   const loadWeather = useCallback(async (): Promise<WeatherCube | null> => {
-    if (!state) return null
+    if (!origin) return null
     setBusy('Downloading forecast…')
     setRouteError(null)
     try {
-      const pts = [state.position, ...course.marks.map((m) => m.position)]
+      const pts = [origin, ...course.marks.map((m) => m.position)]
       const bbox = pts.length > 1 ? bboxOf(pts, 60) : PILOT_VENUE.bbox
       /*
        * Derive the sample step from the span instead of taking the library
@@ -328,7 +353,7 @@ export function RouteScreen() {
     } finally {
       setBusy(null)
     }
-  }, [state, course.marks, setRouteError])
+  }, [origin, course.marks, setRouteError])
 
   /*
    * Declared before the callbacks that list it as a dependency. A dependency array
@@ -336,15 +361,15 @@ export function RouteScreen() {
    * `legNm` would read it in its temporal dead zone and throw on first paint.
    */
   const legNm = useMemo(() => {
-    if (!state || course.marks.length === 0) return null
+    if (!origin || course.marks.length === 0) return null
     let total = 0
-    let prev = state.position
+    let prev = origin
     for (const m of course.marks) {
       total += distance(prev, m.position)
       prev = m.position
     }
     return total
-  }, [state, course.marks])
+  }, [origin, course.marks])
 
   /**
    * The request shared by a single route and a departure sweep.
@@ -355,9 +380,9 @@ export function RouteScreen() {
    */
   const buildRequest = useCallback(
     (startTime: Millis, computeSensitivity: boolean): RouteRequest | null => {
-      if (!state || course.marks.length === 0) return null
+      if (!origin || course.marks.length === 0) return null
       return {
-        start: state.position,
+        start: origin,
         startTime,
         marks: course.marks.map((m) => m.position),
         ...requestParts(
@@ -369,7 +394,7 @@ export function RouteScreen() {
         computeSensitivity,
       }
     },
-    [state, course.marks, landPack, boat, routeSettings, polar?.reference],
+    [origin, course.marks, landPack, boat, routeSettings, polar?.reference],
   )
   const heightFactor = windHeightFactor(polar?.reference, boat.mastHeightMetres)
 
@@ -387,7 +412,7 @@ export function RouteScreen() {
   )
 
   const run = useCallback(async (leaveAt?: Millis) => {
-    if (!state || !polar || course.marks.length === 0) return
+    if (!origin || !polar || course.marks.length === 0) return
     const thisRun = ++runIdRef.current
     let workingCube = cube
     if (!workingCube) {
@@ -454,7 +479,7 @@ export function RouteScreen() {
      * invisible unless some other dependency happened to change first.
      */
   }, [
-    state,
+    origin,
     polar,
     course.marks,
     cube,
@@ -475,7 +500,7 @@ export function RouteScreen() {
    * a 15-minute sweep would be ranking interpolation artefacts.
    */
   const runSweep = useCallback(async () => {
-    if (!state || !polar || course.marks.length === 0) return
+    if (!origin || !polar || course.marks.length === 0) return
     let workingCube = cube
     if (!workingCube) workingCube = await loadWeather()
     if (!workingCube) {
@@ -528,7 +553,7 @@ export function RouteScreen() {
       setBusy(null)
     }
   }, [
-    state,
+    origin,
     polar,
     course.marks,
     cube,
@@ -542,7 +567,7 @@ export function RouteScreen() {
 
   useEffect(() => () => clientRef.current?.dispose(), [])
 
-  const canRoute = !!state && !!polar && course.marks.length > 0 && !busy
+  const canRoute = !!origin && !!polar && course.marks.length > 0 && !busy
   const forecastNotes = useMemo(() => (cube ? cubeNotes(cube) : []), [cube])
 
   /*
@@ -581,6 +606,27 @@ export function RouteScreen() {
               {cube ? `${cube.model} · ${cube.nt}h` : 'no forecast'}
             </span>
             <span className="chip">{PILOT_VENUE.name}</span>
+          {pickingStart ? (
+            <button className="chip chip--warn" onClick={() => setPickingStart(false)}>
+              tap the chart for the start · cancel
+            </button>
+          ) : routeStart ? (
+            <button
+              className="chip chip--warn"
+              onClick={() => setRouteStart(null)}
+              title="Routes start from the point you picked. Tap to route from the boat again."
+            >
+              from planned start ✕
+            </button>
+          ) : (
+            <button
+              className="chip"
+              onClick={() => setPickingStart(true)}
+              title="Plan from anywhere: pick a start on the chart"
+            >
+              {state ? 'from the boat · pick start' : 'no fix · pick a start'}
+            </button>
+          )}
             {/*
               A correction applied to the forecast changes every route, and nothing
               on the map shows it. Name each one, so a wind rotated for yesterday's
@@ -698,7 +744,7 @@ export function RouteScreen() {
       </div>
 
       <div className="actions" style={{ position: 'relative', zIndex: 2 }}>
-        <button className="btn btn--sm" onClick={loadWeather} disabled={!state || !!busy}>
+        <button className="btn btn--sm" onClick={loadWeather} disabled={!origin || !!busy}>
           FORECAST
         </button>
         {/*
@@ -1131,7 +1177,7 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
-  ;['sens', 'wind', 'iso', 'riso', 'route', 'route-beat', 'marks', 'boat'].forEach(add)
+  ;['sens', 'wind', 'iso', 'riso', 'route', 'route-beat', 'marks', 'boat', 'start'].forEach(add)
 
   map.addLayer({
     id: 'sens-fill',
@@ -1231,6 +1277,18 @@ function addEmptyLayers(map: maplibregl.Map) {
       'circle-color': '#35d07f',
       'circle-stroke-color': '#eaf2fa',
       'circle-stroke-width': 2,
+    },
+  })
+  // The planned start: hollow, so it never reads as the boat.
+  map.addLayer({
+    id: 'start-pt',
+    type: 'circle',
+    source: 'start',
+    paint: {
+      'circle-radius': 7,
+      'circle-color': 'rgba(0,0,0,0)',
+      'circle-stroke-color': '#35d07f',
+      'circle-stroke-width': 3,
     },
   })
 }

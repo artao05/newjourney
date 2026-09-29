@@ -47,7 +47,7 @@ leaves something tested and working.
 - [x] **1.5 Show the computed-but-hidden numbers:** XTE, distance to finish, polar BSP,
       VMG %, VMC, layline bearings and next-mark bearing/range. *Accept:* each is
       reachable on screen, and a test finds it.
-- [ ] **1.6 Route from anywhere.** Planning from a mark or a tapped point, not only the
+- [x] **1.6 Route from anywhere.** Planning from a mark or a tapped point, not only the
       live fix. *Accept:* a start picker, with a test that the request's start is the
       picked point.
 - [ ] **1.7 Units that do something.** `settings.units` is persisted and read by

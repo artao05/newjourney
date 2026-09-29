@@ -170,6 +170,8 @@ function emptyStore() {
     manualWindSetAt: null,
     windSheetOpen: false,
     routeSettings: { ...DEFAULT_ROUTE_SETTINGS },
+    routeStart: null,
+    xteOrigin: null,
   })
 }
 
@@ -424,6 +426,49 @@ describe('the Route chart can draw the reverse isochrones', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /reverse isochrones on/ }))
     expect(drawn()).toBe(0)
+  })
+})
+
+describe('a route can start anywhere, not only at the boat', () => {
+  it('routes with no GPS fix once a start is picked on the chart, and can go back', () => {
+    populatedStore()
+    useStore.getState().setBoatState(null)
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const routeBtn = () => screen.getByRole<HTMLButtonElement>('button', { name: 'ROUTE' })
+    expect(routeBtn().disabled, 'no fix, no start').toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: /pick a start/ }))
+    expect(screen.getByText(/tap the chart for the start/)).toBeTruthy()
+    const picked = { lat: 43.62, lon: -70.18 }
+    act(() => {
+      for (const fn of mapInstances[0].handlers.get('click') ?? []) {
+        fn({ lngLat: { lat: picked.lat, lng: picked.lon } })
+      }
+    })
+    expect(useStore.getState().routeStart).toEqual(picked)
+    expect(routeBtn().disabled, 'a picked start is enough').toBe(false)
+    expect(mapInstances[0].data.get('start')).toMatchObject({
+      features: [{ geometry: { coordinates: [picked.lon, picked.lat] } }],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /from planned start/ }))
+    expect(useStore.getState().routeStart).toBeNull()
+    expect(routeBtn().disabled).toBe(true)
+  })
+
+  it('ignores chart taps unless a start is being picked', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    act(() => {
+      for (const fn of mapInstances[0].handlers.get('click') ?? []) fn({ lngLat: { lat: 43.6, lng: -70.2 } })
+    })
+    expect(useStore.getState().routeStart).toBeNull()
   })
 })
 
