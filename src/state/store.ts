@@ -81,6 +81,17 @@ export interface SavedRoute {
   marks: Array<Pick<Mark, 'name' | 'position' | 'roundTo'>>
 }
 
+/** Which approaches count toward time to line: Expedition takes the quickest ticked. */
+export interface StartApproaches {
+  ends: boolean
+  gps: boolean
+  reach: boolean
+  port: boolean
+  starboard: boolean
+}
+
+export const DEFAULT_APPROACHES: StartApproaches = { ends: true, gps: true, reach: true, port: true, starboard: true }
+
 /** The most channels one box alternates between (Expedition's limit). */
 export const MAX_ALTERNATING = 10
 
@@ -180,6 +191,8 @@ interface AppState {
    * when they are at their noisiest, and let them go at the gun if asked.
    */
   hold: { wind: boolean; current: boolean; releaseAtGun: boolean }
+  startApproaches: StartApproaches
+  setStartApproaches(a: StartApproaches): void
   holdWind(on: boolean): void
   holdCurrent(on: boolean): void
   setReleaseAtGun(on: boolean): void
@@ -504,6 +517,8 @@ export const useStore = create<AppState>()(
         set({ wind: w })
       },
       hold: { wind: false, current: false, releaseAtGun: true },
+      startApproaches: { ...DEFAULT_APPROACHES },
+      setStartApproaches: (a) => set({ startApproaches: a }),
       holdWind: (on) => {
         const w = get().wind
         // Nothing to hold without a wind; letting go takes the next estimate.
@@ -719,6 +734,7 @@ export const useStore = create<AppState>()(
         polar: s.polarId === 'custom' ? s.polar : null,
         polarRoles: s.polarRoles,
         sailChart: s.sailChart,
+        startApproaches: s.startApproaches,
         course: s.course,
         manualWind: s.manualWind,
         manualWindSetAt: s.manualWindSetAt,

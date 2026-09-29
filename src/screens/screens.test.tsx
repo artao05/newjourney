@@ -188,6 +188,7 @@ function emptyStore() {
     sailChart: null,
     whatIf: { shiftDeg: 0, speedDeltaKn: 0, current: null },
     hold: { wind: false, current: false, releaseAtGun: true },
+    startApproaches: { ends: true, gps: true, reach: true, port: true, starboard: true },
   })
 }
 
@@ -991,6 +992,46 @@ describe('a gate as the active mark', () => {
     populatedStore()
     render(<RaceScreen />)
     expect(screen.queryByText('favoured buoy')).toBeNull()
+  })
+})
+
+describe('the start line can be adjusted without re-pinging', () => {
+  it('sets the pin at a range and bearing from the RC end', () => {
+    populatedStore()
+    render(<StartScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'LINE' }))
+    fireEvent.change(screen.getByLabelText(/^Range/), { target: { value: '300' } })
+    fireEvent.change(screen.getByLabelText(/^Bearing/), { target: { value: '270' } })
+    fireEvent.click(screen.getByRole('button', { name: 'SET PIN END' }))
+    const { port, starboard } = useStore.getState().course.startLine
+    expect(distance(starboard!, port!) * 1852).toBeCloseTo(300, 1)
+    expect(port!.lon).toBeLessThan(starboard!.lon)
+  })
+
+  it('nudges an end up the wind, and swaps the ends', () => {
+    populatedStore()
+    const before = useStore.getState().course.startLine
+    render(<StartScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'LINE' }))
+    fireEvent.change(screen.getByLabelText(/^Metres/), { target: { value: '20' } })
+    fireEvent.click(screen.getByRole('button', { name: 'NUDGE PIN' }))
+    const nudged = useStore.getState().course.startLine.port!
+    expect(distance(before.port!, nudged) * 1852).toBeCloseTo(20, 1)
+    fireEvent.click(screen.getByRole('button', { name: 'SWAP ENDS' }))
+    const after = useStore.getState().course.startLine
+    expect(after.port).toEqual(before.starboard)
+    expect(after.starboard).toEqual(nudged)
+  })
+
+  it('keeps the approach choice across a reload (the start maths reads it; startline tests cover the effect)', () => {
+    populatedStore()
+    render(<StartScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'LINE' }))
+    for (const name of ['Line ends', 'Reaching to the line', 'Port layline', 'Starboard layline']) {
+      fireEvent.click(screen.getByLabelText(name))
+    }
+    expect(useStore.getState().startApproaches).toEqual({ ends: false, gps: true, reach: false, port: false, starboard: false })
+    expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.startApproaches.gps).toBe(true)
   })
 })
 

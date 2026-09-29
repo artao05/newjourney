@@ -30,6 +30,7 @@ export function useChannelSnapshot(): ChannelValues {
   const windHistory = useStore((s) => s.windHistory)
   const xteOrigin = useStore((s) => s.xteOrigin)
   const whatIf = useStore((s) => s.whatIf)
+  const startApproaches = useStore((s) => s.startApproaches)
 
   const polars = usePolarLattices()
   const lattice = polars.navigation
@@ -50,7 +51,10 @@ export function useChannelSnapshot(): ChannelValues {
         tactics = null
       }
       try {
-        start = computeStart({ line: course.startLine, state, wind, current, boat, lattice: polars.start, now })
+        start = computeStart({
+          line: course.startLine, state, wind, current, boat, lattice: polars.start, now,
+          approaches: startApproaches,
+        })
       } catch {
         start = null
       }
@@ -72,5 +76,5 @@ export function useChannelSnapshot(): ChannelValues {
       activeMarkIndex,
       variationDeg: declinationAt(PILOT_VENUE.declination, now),
     })
-  }, [now, state, realWind, realCurrent, whatIf, boat, lattice, polars.performance, polars.start, course, activeMarkIndex, windHistory, xteOrigin])
+  }, [now, state, realWind, realCurrent, whatIf, startApproaches, boat, lattice, polars.performance, polars.start, course, activeMarkIndex, windHistory, xteOrigin])
 }

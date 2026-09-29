@@ -131,6 +131,7 @@ leaves something tested and working.
       *Accept:* tests.
 - [x] **5.5 Hold wind and hold current** before the start, released at the gun.
       *Accept:* store tests.
+- [x] **5.6a Start line adjustments** (from 5.6): an end set by range and bearing, nudge up the wind, swap ends, and approach options. *Done.*
 - [ ] **5.6 Start display extras:** turn circles, range circles, times at each end, a
       magnified end, heading distinct from COG, approach options in the UI, and an
       end set by range and bearing. *Accept:* canvas and screen tests.

@@ -13,6 +13,7 @@ import { Tile, fmtAgo, fmtClock, fmtSigned } from '@/components/Tile'
 import { COG_TRUSTED_KN, computeStart, fixQuality, pingPosition, spareTimeS } from '@/lib/startline'
 import { usePolarLattices } from '@/hooks/usePolars'
 import { applyWhatIfCurrent, applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
+import { LineSheet } from '@/components/LineSheet'
 import type { StartNumbers } from '@/lib/types'
 import { fmtLength, lengthUnit, toLength } from '@/lib/units'
 
@@ -75,6 +76,8 @@ export function StartScreen() {
    * instead of throwing.
    */
   const whatIf = useStore((s) => s.whatIf)
+  const startApproaches = useStore((s) => s.startApproaches)
+  const [showLine, setShowLine] = useState(false)
   const hold = useStore((s) => s.hold)
   const holdWind = useStore((s) => s.holdWind)
   const holdCurrent = useStore((s) => s.holdCurrent)
@@ -86,11 +89,12 @@ export function StartScreen() {
       state,
       wind: applyWhatIfWind(wind, whatIf),
       current: applyWhatIfCurrent(current, whatIf),
+      approaches: startApproaches,
       boat,
       lattice,
       now,
     })
-  }, [course.startLine, state, wind, current, whatIf, boat, lattice, now])
+  }, [course.startLine, state, wind, current, whatIf, startApproaches, boat, lattice, now])
 
   const gun = course.startLine.gunTime
   const sinceGun = gun == null ? null : (now - gun) / 1000
@@ -402,11 +406,15 @@ export function StartScreen() {
             </button>
           </>
         )}
+        <button className="btn btn--sm btn--ghost" onClick={() => setShowLine(true)}>
+          LINE
+        </button>
       </div>
 
       {showDetail && (
         <DetailSheet numbers={numbers} onClose={() => setShowDetail(false)} />
       )}
+      {showLine && <LineSheet onClose={() => setShowLine(false)} />}
     </>
   )
 }
