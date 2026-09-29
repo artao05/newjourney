@@ -113,6 +113,25 @@ export function RouteScreen() {
   // Ticked GRIB files are merged with the download, the finest grid answering first.
   const weatherFiles = useWeatherFiles((s) => s.files)
   const fileCubes = useMemo(() => weatherFiles.filter((f) => f.enabled && f.cube).map((f) => f.cube as WeatherCube), [weatherFiles])
+  const routeModel = useStore((s) => s.routeSettings.model)
+  const routeSource = useStore((s) => s.routeSettings.source)
+  // A forecast downloaded for another model is not the one asked for.
+  useEffect(() => setCube(null), [routeModel])
+  /** The forecasts a route is sailed on, by the source chosen in the settings. */
+  const pickSources = useCallback(
+    (download: WeatherCube | null): { cube: WeatherCube; extraCubes: WeatherCube[] } | null => {
+      const all = routeSource === 'download' ? [download] : routeSource === 'files' ? fileCubes : [download, ...fileCubes]
+      const got = all.filter((c): c is WeatherCube => c != null)
+      return got.length ? { cube: got[0], extraCubes: got.slice(1) } : null
+    },
+    [routeSource, fileCubes],
+  )
+  /** Download first only when the source needs it and nothing else will do. */
+  const needsDownload = routeSource === 'download' || (routeSource === 'merged' && fileCubes.length === 0)
+  const noWeather =
+    routeSource === 'files'
+      ? 'No GRIB file ticked: open one under Weather → GRIB files, or route on the download in SETTINGS.'
+      : 'No forecast loaded — tap Forecast first, or open a GRIB file.'
   const [showResults, setShowResults] = useState(false)
   const [landPack, setLandPack] = useState<LoadedLandMask | null>(null)
   const [landError, setLandError] = useState<string | null>(null)
@@ -578,6 +597,7 @@ export function RouteScreen() {
         bbox,
         stepDeg,
         hours: 72,
+        model: routeModel,
         includeWaves: true,
         includeCurrent: true,
       })
@@ -589,7 +609,7 @@ export function RouteScreen() {
     } finally {
       setBusy(null)
     }
-  }, [origin, course.marks, setRouteError])
+  }, [origin, course.marks, setRouteError, routeModel])
 
   /*
    * Declared before the callbacks that list it as a dependency. A dependency array
@@ -697,16 +717,15 @@ export function RouteScreen() {
   const run = useCallback(async (leaveAt?: Millis, marksOverride?: LatLon[]) => {
     if (!origin || !polar || (marksOverride?.length ?? course.marks.length) === 0) return
     const thisRun = ++runIdRef.current
-    let workingCube: WeatherCube | null = cube ?? fileCubes[0] ?? null
-    if (!workingCube) {
-      workingCube = await loadWeather()
-    }
+    let download = cube
+    if (!download && needsDownload) download = await loadWeather()
     if (thisRun !== runIdRef.current) return
-    if (!workingCube) {
-      setRouteError('No forecast loaded — tap Forecast first, or open a GRIB file.')
+    const sources = pickSources(download)
+    if (!sources) {
+      setRouteError(noWeather)
       return
     }
-    const extraCubes = fileCubes.filter((c) => c !== workingCube)
+    const { cube: workingCube, extraCubes } = sources
     setBusy('Routing…')
     setProgress(0)
     setRouteError(null)
@@ -768,7 +787,9 @@ export function RouteScreen() {
     polarPort,
     course.marks,
     cube,
-    fileCubes,
+    pickSources,
+    needsDownload,
+    noWeather,
     buildRequest,
     landPayload,
     landPack,
@@ -787,13 +808,14 @@ export function RouteScreen() {
    */
   const runSweep = useCallback(async () => {
     if (!origin || !polar || course.marks.length === 0) return
-    let workingCube: WeatherCube | null = cube ?? fileCubes[0] ?? null
-    if (!workingCube) workingCube = await loadWeather()
-    if (!workingCube) {
-      setRouteError('No forecast loaded — tap Forecast first, or open a GRIB file.')
+    let download = cube
+    if (!download && needsDownload) download = await loadWeather()
+    const sources = pickSources(download)
+    if (!sources) {
+      setRouteError(noWeather)
       return
     }
-    const extraCubes = fileCubes.filter((c) => c !== workingCube)
+    const { cube: workingCube, extraCubes } = sources
 
     /*
      * Never sweep past the forecast. The cube ends at a hard edge, and a departure
@@ -845,7 +867,9 @@ export function RouteScreen() {
     polarPort,
     course.marks,
     cube,
-    fileCubes,
+    pickSources,
+    needsDownload,
+    noWeather,
     legNm,
     buildRequest,
     landPayload,
@@ -890,11 +914,20 @@ export function RouteScreen() {
 
         <div className="canvas-overlay">
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <span className={`chip ${cube || fileCubes.length ? 'chip--good' : ''}`}>
-              <span className="dot" />
-              {cube ? `${cube.model} · ${cube.nt}h` : fileCubes.length ? fileCubes[0].model : 'no forecast'}
-              {fileCubes.length > (cube ? 0 : 1) ? ` + ${fileCubes.length - (cube ? 0 : 1)} GRIB file${fileCubes.length - (cube ? 0 : 1) === 1 ? '' : 's'}` : ''}
-            </span>
+            {(() => {
+              // What the next route will sail on, by the source chosen in SETTINGS.
+              const s = pickSources(cube)
+              const label = !s ? 'no forecast' : `${s.cube.model}${s.cube === cube ? ` · ${cube.nt}h` : ''}`
+              const more = s?.extraCubes.length ?? 0
+              return (
+                <span className={`chip ${s ? 'chip--good' : ''}`} title={`Route on: ${routeSource}`}>
+                  <span className="dot" />
+                  {label}
+                  {more ? ` + ${more} GRIB file${more === 1 ? '' : 's'}` : ''}
+                  {routeSource !== 'merged' ? ` · ${routeSource === 'download' ? 'download only' : 'files only'}` : ''}
+                </span>
+              )
+            })()}
             <span className="chip">{PILOT_VENUE.name}</span>
           {picking === 'start' || picking === 'mark' ? (
             <button className="chip chip--warn" onClick={() => setPicking(null)}>

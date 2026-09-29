@@ -128,14 +128,16 @@ vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}))
 // The forecast client, passed through untouched — straight into the disabled
 // network — unless a test hands it a cube to return instead.
 const { stubForecast } = vi.hoisted(() => ({
-  stubForecast: { cube: null as WeatherCube | null, ensemble: null as WeatherCube[] | null },
+  stubForecast: { cube: null as WeatherCube | null, ensemble: null as WeatherCube[] | null, calls: [] as Array<{ model?: string }> },
 }))
 vi.mock('@/lib/weather/openmeteo', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/lib/weather/openmeteo')>()
   return {
     ...real,
-    fetchWindCube: (...args: Parameters<typeof real.fetchWindCube>) =>
-      stubForecast.cube ? Promise.resolve(stubForecast.cube) : real.fetchWindCube(...args),
+    fetchWindCube: (...args: Parameters<typeof real.fetchWindCube>) => {
+      stubForecast.calls.push({ model: args[0].model })
+      return stubForecast.cube ? Promise.resolve(stubForecast.cube) : real.fetchWindCube(...args)
+    },
     fetchEnsembleCubes: (...args: Parameters<typeof real.fetchEnsembleCubes>) =>
       stubForecast.ensemble ? Promise.resolve(stubForecast.ensemble) : real.fetchEnsembleCubes(...args),
   }
@@ -744,6 +746,69 @@ describe('a route can start anywhere, not only at the boat', () => {
       spy.mockRestore()
       stubForecast.cube = null
       act(() => useWeatherFiles.getState().clear())
+    }
+  })
+
+  it('downloads the model chosen for routing, and routes on the source chosen', async () => {
+    const g = gfsGrid(44, 289.5, 5, 3, 0.25)
+    const ref = Date.now() - 3_600_000
+    const bytes = file(
+      ...[0, 6].flatMap((h) => [
+        message({ category: 2, number: 2, levelType: 103, levelValue: 10, ref, forecastH: h, grid: g, values: over(g, () => 3), packing: 'simple', D: 2 }),
+        message({ category: 2, number: 3, levelType: 103, levelValue: 10, ref, forecastH: h, grid: g, values: over(g, () => 1), packing: 'simple', D: 2 }),
+      ]),
+    )
+    await openWeatherFiles([new File([bytes], 'local.grb2')])
+    const payloads: Array<{ cube: string; extra: string[] }> = []
+    const spy = vi.spyOn(RoutingClient.prototype, 'route').mockImplementation(async (_req, payload) => {
+      payloads.push({ cube: payload.cube.model, extra: (payload.extraCubes ?? []).map((c) => c.model) })
+      const leg = { t: Date.now(), position: PILOT_VENUE.waterStart, twd: 200, tws: 8, twa: 90, bsp: 6, heading: 0, isBeating: false, tack: 'starboard' as const, currentSet: null, currentDrift: null, distanceNm: 1 }
+      return { ok: true, legs: [leg, { ...leg, t: leg.t + 60_000 }], etaMs: Date.now() + 60_000, elapsedS: 60, directTimeS: 60, isochrones: [], reverseIsochrones: [], sensitivity: null, diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: true, warnings: [] } }
+    })
+    try {
+      const b = PILOT_VENUE.bbox
+      stubForecast.calls = []
+      stubForecast.cube = {
+        model: 'download', run: 'test-run', bbox: b, nx: 2, ny: 2, dx: b.east - b.west, dy: b.north - b.south,
+        t0: Date.now() - 3_600_000, dtMs: 3_600_000, nt: 3, params: ['u10', 'v10'],
+        data: { u10: new Float32Array(12).fill(5), v10: new Float32Array(12).fill(0) },
+      }
+      populatedStore()
+      render(<RouteScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      // Chosen in SETTINGS: GFS, and the download only.
+      fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }))
+      fireEvent.change(screen.getByLabelText('Forecast to download'), { target: { value: 'gfs_seamless' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Download only' }))
+      expect(useStore.getState().routeSettings).toMatchObject({ model: 'gfs_seamless', source: 'download' })
+      fireEvent.click(screen.getByRole('button', { name: 'ROUTE' }))
+      await waitFor(() => expect(payloads).toHaveLength(1))
+      expect(stubForecast.calls.at(-1)).toEqual({ model: 'gfs_seamless' })
+      expect(payloads[0]).toEqual({ cube: 'download', extra: [] })
+      expect(document.body.textContent).toContain('download only')
+
+      // The ticked files only: no download is needed for it.
+      act(() => useStore.getState().updateRouteSettings({ source: 'files' }))
+      const downloads = stubForecast.calls.length
+      fireEvent.click(screen.getByRole('button', { name: 'ROUTE' }))
+      await waitFor(() => expect(payloads).toHaveLength(2))
+      expect(payloads[1]).toEqual({ cube: 'local.grb2', extra: [] })
+      expect(stubForecast.calls.length).toBe(downloads)
+
+      // With nothing ticked, it says what to do rather than routing on something else.
+      act(() => useWeatherFiles.getState().setEnabled(useWeatherFiles.getState().files[0].id, false))
+      fireEvent.click(screen.getByRole('button', { name: 'ROUTE' }))
+      await waitFor(() => expect(useStore.getState().routeError).toMatch(/No GRIB file ticked/))
+      expect(payloads).toHaveLength(2)
+    } finally {
+      spy.mockRestore()
+      stubForecast.cube = null
+      act(() => {
+        useWeatherFiles.getState().clear()
+        useStore.getState().updateRouteSettings({ model: 'best_match', source: 'merged' })
+      })
     }
   })
 

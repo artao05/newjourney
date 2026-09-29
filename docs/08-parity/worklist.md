@@ -251,7 +251,7 @@ leaves something tested and working.
 - [x] **10.2b GRIB2 CCSDS packing** (5.42, used by ECMWF open data and DWD). *Accept:*
       fixture tests. *A CCSDS 121.0-B decoder of our own (src/lib/weather/aec.ts), with a
       test encoder, round trips over every option and flag, and one stream built by hand.*
-- [ ] **10.5 Pick the model for routing.** *Accept:* a test that the request uses the
+- [x] **10.5 Pick the model for routing.** *Accept:* a test that the request uses the
       chosen model.
 - [ ] **10.6 Display parity:** a display mode per parameter, contours with step and a
       bold level, Beaufort and other colour modes, isobars, gust, rain, waves, SST and

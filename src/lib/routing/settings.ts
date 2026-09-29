@@ -22,8 +22,19 @@ import type {
   RouteScalings,
 } from '@/lib/types'
 import { heightScaleFactor } from '@/lib/polar'
+import type { ModelId } from '@/lib/weather/openmeteo'
+
+/**
+ * Which weather the router sails on: the download and every ticked GRIB file
+ * merged (finest grid first), the download alone, or the ticked files alone.
+ * Tick one file to route on that file only.
+ */
+export type RouteWeatherSource = 'merged' | 'download' | 'files'
 
 export interface RouteSettings {
+  /** The model downloaded for routing. */
+  model: ModelId
+  source: RouteWeatherSource
   resolution: RouteResolution
   /** Multiply forecast wind speed, before any height correction. 100 = as forecast. */
   windScalePct: number
@@ -71,6 +82,8 @@ export interface RouteSettings {
 }
 
 export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
+  model: 'best_match',
+  source: 'merged',
   resolution: 'balanced',
   windScalePct: 100,
   windRotateDeg: 0,
@@ -176,6 +189,9 @@ export function zonesFromNotes(
 export function nonDefaultLabels(s: RouteSettings): string[] {
   const out: string[] = []
   const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`)
+  if (s.model && s.model !== 'best_match') out.push(s.model)
+  if (s.source === 'download') out.push('download only')
+  if (s.source === 'files') out.push('GRIB files only')
   if (s.resolution !== 'balanced') out.push(s.resolution)
   if (s.windScalePct !== 100) out.push(`wind ${s.windScalePct}%`)
   if (s.windRotateDeg !== 0) out.push(`wind ${signed(s.windRotateDeg)}°`)

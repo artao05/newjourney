@@ -13,6 +13,7 @@ import { useState } from 'react'
 import { parseTable } from '@/lib/instruments/calibration'
 import { DEFAULT_ROUTE_SETTINGS, type RouteSettings } from '@/lib/routing/settings'
 import type { RouteResolution } from '@/lib/types'
+import { MODELS, type ModelId } from '@/lib/weather/openmeteo'
 
 const RESOLUTIONS: Array<{ id: RouteResolution; label: string }> = [
   { id: 'fast', label: 'Fast' },
@@ -82,6 +83,29 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
   return (
     <div className="sheet" role="dialog" aria-label="Routing settings">
       <div className="sheet__grip" onClick={onClose} />
+      <h2>Weather</h2>
+      <div className="field">
+        <label htmlFor="rs-model">Forecast to download</label>
+        <select id="rs-model" value={s.model} onChange={(e) => update({ model: e.target.value as ModelId })}>
+          {MODELS.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="seg" role="group" aria-label="Route on" style={{ marginBottom: 6 }}>
+        <button aria-pressed={s.source === 'merged'} onClick={() => update({ source: 'merged' })}>Merged</button>
+        <button aria-pressed={s.source === 'download'} onClick={() => update({ source: 'download' })}>Download only</button>
+        <button aria-pressed={s.source === 'files'} onClick={() => update({ source: 'files' })}>GRIB files only</button>
+      </div>
+      <p className="note" style={{ marginBottom: 12 }}>
+        {s.source === 'merged'
+          ? 'The download and every ticked GRIB file, the finest grid answering first where they overlap.'
+          : s.source === 'download'
+            ? 'Only the downloaded forecast; GRIB files are left out.'
+            : 'Only the ticked GRIB files, the finest first. Tick just one to route on that file alone.'}
+      </p>
       <h2>Resolution</h2>
       <div className="seg" style={{ marginBottom: 6 }} role="group" aria-label="Resolution">
         {RESOLUTIONS.map((r) => (

@@ -116,3 +116,11 @@ describe('race notes become keep-out and slow areas', () => {
     expect(zonesFromNotes([note({}), note({ kind: 'line', avoid: true }), note({ kind: 'point', speedPct: 50 })])).toEqual({})
   })
 })
+
+describe('the weather a route was sailed on is named with it', () => {
+  it('names a model other than the default, and a source other than merged', () => {
+    expect(nonDefaultLabels(DEFAULT_ROUTE_SETTINGS)).toEqual([])
+    expect(nonDefaultLabels({ ...DEFAULT_ROUTE_SETTINGS, model: 'ecmwf_ifs025', source: 'download' })).toEqual(['ecmwf_ifs025', 'download only'])
+    expect(nonDefaultLabels({ ...DEFAULT_ROUTE_SETTINGS, source: 'files' })).toEqual(['GRIB files only'])
+  })
+})
