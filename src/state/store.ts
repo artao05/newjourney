@@ -52,6 +52,13 @@ export interface LibraryMark {
   folder: string
 }
 
+/** A course kept by name, to sail again: Expedition's route database. */
+export interface SavedRoute {
+  id: string
+  name: string
+  marks: Array<Pick<Mark, 'name' | 'position' | 'roundTo'>>
+}
+
 /** The most channels one box alternates between (Expedition's limit). */
 export const MAX_ALTERNATING = 10
 
@@ -175,6 +182,14 @@ interface AppState {
    */
   routeStart: LatLon | null
   setRouteStart(at: LatLon | null): void
+
+  routes: SavedRoute[]
+  saveRoute(name: string): void
+  /** Make a saved route the course: its marks, in order, the first one active. */
+  loadRoute(id: string): void
+  deleteRoute(id: string): void
+  /** Sail the course the other way round: marks reversed, sides of rounding kept. */
+  reverseCourse(): void
 
   library: LibraryMark[]
   /** File marks under a folder, e.g. from a GPX import or a course being saved. */
@@ -481,6 +496,38 @@ export const useStore = create<AppState>()(
       },
       clearTrack: () => set({ track: [] }),
 
+      routes: [],
+      saveRoute: (name) =>
+        set({
+          routes: [
+            ...get().routes,
+            {
+              id: `rt-${Date.now()}-${++markSeq}`,
+              name: name.trim() || `Route ${get().routes.length + 1}`,
+              marks: get().course.marks.map((m) => ({ name: m.name, position: m.position, roundTo: m.roundTo })),
+            },
+          ],
+        }),
+      loadRoute: (id) => {
+        const r = get().routes.find((x) => x.id === id)
+        if (!r) return
+        set({
+          ...COURSE_CHANGED,
+          course: {
+            ...get().course,
+            name: r.name,
+            marks: r.marks.map((m) => ({ ...m, id: `m${++markSeq}-${Date.now()}` })),
+          },
+          activeMarkIndex: 0,
+        })
+      },
+      deleteRoute: (id) => set({ routes: get().routes.filter((r) => r.id !== id) }),
+      reverseCourse: () => {
+        const { course } = get()
+        if (course.marks.length < 2) return
+        set({ ...COURSE_CHANGED, course: { ...course, marks: [...course.marks].reverse() }, activeMarkIndex: 0 })
+      },
+
       library: [],
       addToLibrary: (folder, marks) =>
         set({
@@ -582,6 +629,7 @@ export const useStore = create<AppState>()(
         routeStart: s.routeStart,
         numberBoxes: s.numberBoxes,
         library: s.library,
+        routes: s.routes,
         navPanel: s.navPanel,
         navChart: s.navChart,
         activeMarkIndex: s.activeMarkIndex,

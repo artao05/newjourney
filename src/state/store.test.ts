@@ -197,6 +197,30 @@ describe('persistence', () => {
   })
 })
 
+describe('saved routes and reversing the course', () => {
+  it('saves the course by name, and sails it again later', () => {
+    courseOf(3)
+    const s = useStore.getState
+    s().saveRoute('Wednesday')
+    s().clearMarks()
+    expect(s().course.marks).toHaveLength(0)
+    s().loadRoute(s().routes[0].id)
+    expect(names()).toEqual(['M1', 'M2', 'M3'])
+    expect(s().course.name).toBe('Wednesday')
+    expect(active()).toBe(0)
+    s().deleteRoute(s().routes[0].id)
+    expect(s().routes).toHaveLength(0)
+  })
+
+  it('reverses the course and starts it from the new first mark', () => {
+    courseOf(3)
+    useStore.getState().setActiveMark(2)
+    useStore.getState().reverseCourse()
+    expect(names()).toEqual(['M3', 'M2', 'M1'])
+    expect(active()).toBe(0)
+  })
+})
+
 describe('editing marks', () => {
   it('moves a mark and drops the route, but a rename keeps it', () => {
     const [m] = courseOf(2)

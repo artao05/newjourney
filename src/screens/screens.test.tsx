@@ -21,7 +21,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { RouteResult, WeatherCube } from '@/lib/types'
 
 // ------------------------------------------------------------- maplibre stub
@@ -180,6 +180,7 @@ function emptyStore() {
     xteOrigin: null,
     numberBoxes: DEFAULT_NUMBER_BOXES.map((b) => ({ ...b, channels: [...b.channels] })),
     library: [],
+    routes: [],
   })
 }
 
@@ -929,6 +930,28 @@ describe('marks can be edited, and placed on the chart', () => {
     expect(marks).toHaveLength(n + 1)
     expect(marks.at(-1)!.position).toEqual({ lat: 43.61, lon: -70.15 })
     expect(useStore.getState().routeStart).toBeNull()
+  })
+})
+
+describe('the course as legs, and saved routes', () => {
+  it('lists each leg from the boat with bearing, distance, angle off the wind and time', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    const rows = within(screen.getByRole('table', { name: 'Legs' })).getAllByRole('row')
+    expect(rows).toHaveLength(3) // two legs and the total
+    expect(rows[0].textContent).toMatch(/1\. Boat → W/)
+    expect(rows[0].textContent).toMatch(/nm · \d+° off · \d/)
+    expect(rows[2].textContent).toMatch(/Total/)
+  })
+
+  it('saves the course as a route and sails it again after a clear', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    fireEvent.change(screen.getByLabelText('Save course as'), { target: { value: 'Harbour race' } })
+    fireEvent.click(screen.getByRole('button', { name: 'SAVE ROUTE' }))
+    act(() => useStore.getState().clearMarks())
+    fireEvent.click(screen.getByRole('button', { name: 'Sail Harbour race' }))
+    expect(useStore.getState().course.marks.map((m) => m.name)).toEqual(['W', 'L'])
   })
 })
 

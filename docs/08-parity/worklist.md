@@ -87,7 +87,7 @@ leaves something tested and working.
       *Accept:* store and screen tests.
 - [x] **3.2 Marks import and export:** GPX and Expedition-style CSV. *Accept:*
       round-trip tests.
-- [ ] **3.3 Named routes.** Build from marks or by tapping the chart; insert,
+- [x] **3.3 Named routes.** Build from marks or by tapping the chart; insert,
       reorder, reverse and activate; next mark; a legs table with bearing, distance,
       TWA and time. *Accept:* store and screen tests.
 - [ ] **3.4 Range and bearing tools.** Measure between points, EBL/VRM from the boat,

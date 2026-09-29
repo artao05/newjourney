@@ -551,7 +551,7 @@ function previousPoint(course: Course, activeMarkIndex: number): LatLon | null {
  * one manoeuvre. Outside the no-go zone it is the range at the polar speed for
  * that angle.
  */
-function markTime(
+export function markTime(
   rangeNm: NauticalMiles,
   offWindDeg: Degrees,
   targets: { upTwa: Degrees; upVmg: Knots; downTwa: Degrees; downVmg: Knots },

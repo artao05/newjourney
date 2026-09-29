@@ -12,6 +12,7 @@ import { useTick } from '@/hooks/useSensors'
 import { NumberBoxes } from '@/components/NumberBoxes'
 import { MarkSheet } from '@/components/MarkSheet'
 import { MarksLibrary } from '@/components/MarksLibrary'
+import { CourseLegs } from '@/components/CourseLegs'
 import { useLayout } from '@/hooks/useWide'
 import { Tile, fmtClock } from '@/components/Tile'
 import { computeTactics } from '@/lib/tactics'
@@ -507,6 +508,7 @@ export function RaceScreen() {
             EXPORT GPX
           </button>
         </div>
+        <CourseLegs lattice={lattice} />
         <MarksLibrary />
       </div>
     </div>
