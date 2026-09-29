@@ -17,6 +17,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { NOTE_MIN_POINTS, useStore, type RaceNote } from '@/state/store'
 import { cubeNotes, fetchWindCube } from '@/lib/weather/openmeteo'
 import { sampleCube } from '@/lib/weather/cube'
+import { gribDrop, useWeatherFiles } from '@/state/weatherFiles'
 import { RoutingClient } from '@/lib/routing/client'
 import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
 import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
@@ -109,6 +110,9 @@ export function RouteScreen() {
   const [busy, setBusy] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
   const [cube, setCube] = useState<WeatherCube | null>(null)
+  // Ticked GRIB files are merged with the download, the finest grid answering first.
+  const weatherFiles = useWeatherFiles((s) => s.files)
+  const fileCubes = useMemo(() => weatherFiles.filter((f) => f.enabled && f.cube).map((f) => f.cube as WeatherCube), [weatherFiles])
   const [showResults, setShowResults] = useState(false)
   const [landPack, setLandPack] = useState<LoadedLandMask | null>(null)
   const [landError, setLandError] = useState<string | null>(null)
@@ -693,15 +697,16 @@ export function RouteScreen() {
   const run = useCallback(async (leaveAt?: Millis, marksOverride?: LatLon[]) => {
     if (!origin || !polar || (marksOverride?.length ?? course.marks.length) === 0) return
     const thisRun = ++runIdRef.current
-    let workingCube = cube
+    let workingCube: WeatherCube | null = cube ?? fileCubes[0] ?? null
     if (!workingCube) {
       workingCube = await loadWeather()
     }
     if (thisRun !== runIdRef.current) return
     if (!workingCube) {
-      setRouteError('No forecast loaded — tap Forecast first.')
+      setRouteError('No forecast loaded — tap Forecast first, or open a GRIB file.')
       return
     }
+    const extraCubes = fileCubes.filter((c) => c !== workingCube)
     setBusy('Routing…')
     setProgress(0)
     setRouteError(null)
@@ -712,7 +717,7 @@ export function RouteScreen() {
       if (!req) return
       const result = await clientRef.current.route(
         req,
-        { cube: workingCube, polar, polarPort, landRaster: landPayload() },
+        { cube: workingCube, extraCubes, polar, polarPort, landRaster: landPayload() },
         (f) => { if (thisRun === runIdRef.current) setProgress(f) },
       )
       if (thisRun !== runIdRef.current) return
@@ -763,6 +768,7 @@ export function RouteScreen() {
     polarPort,
     course.marks,
     cube,
+    fileCubes,
     buildRequest,
     landPayload,
     landPack,
@@ -781,12 +787,13 @@ export function RouteScreen() {
    */
   const runSweep = useCallback(async () => {
     if (!origin || !polar || course.marks.length === 0) return
-    let workingCube = cube
+    let workingCube: WeatherCube | null = cube ?? fileCubes[0] ?? null
     if (!workingCube) workingCube = await loadWeather()
     if (!workingCube) {
-      setRouteError('No forecast loaded — tap Forecast first.')
+      setRouteError('No forecast loaded — tap Forecast first, or open a GRIB file.')
       return
     }
+    const extraCubes = fileCubes.filter((c) => c !== workingCube)
 
     /*
      * Never sweep past the forecast. The cube ends at a hard edge, and a departure
@@ -815,7 +822,7 @@ export function RouteScreen() {
       if (!req) return
       const s = await clientRef.current.sweep(
         req,
-        { cube: workingCube, polar, polarPort, landRaster: landPayload() },
+        { cube: workingCube, extraCubes, polar, polarPort, landRaster: landPayload() },
         { from, to, stepMs: 3_600_000, maxSolves: SWEEP_HOURS + 1 },
         (f) => setProgress(f),
       )
@@ -838,6 +845,7 @@ export function RouteScreen() {
     polarPort,
     course.marks,
     cube,
+    fileCubes,
     legNm,
     buildRequest,
     landPayload,
@@ -877,14 +885,15 @@ export function RouteScreen() {
         styles.css). That pushed FORECAST, ROUTE, WHEN and RESULTS below the
         screen's clipped edge, where nobody could see them.
       */}
-      <div className="chart-area">
+      <div className="chart-area" onDragOver={gribDrop.onDragOver} onDrop={gribDrop.onDrop}>
         <div ref={containerRef} className="map" />
 
         <div className="canvas-overlay">
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <span className={`chip ${cube ? 'chip--good' : ''}`}>
+            <span className={`chip ${cube || fileCubes.length ? 'chip--good' : ''}`}>
               <span className="dot" />
-              {cube ? `${cube.model} · ${cube.nt}h` : 'no forecast'}
+              {cube ? `${cube.model} · ${cube.nt}h` : fileCubes.length ? fileCubes[0].model : 'no forecast'}
+              {fileCubes.length > (cube ? 0 : 1) ? ` + ${fileCubes.length - (cube ? 0 : 1)} GRIB file${fileCubes.length - (cube ? 0 : 1) === 1 ? '' : 's'}` : ''}
             </span>
             <span className="chip">{PILOT_VENUE.name}</span>
           {picking === 'start' || picking === 'mark' ? (

@@ -31,7 +31,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useStore } from '@/state/store'
 import { PILOT_VENUE } from '@/data/venues'
 import { MODELS, fetchWindCube, type ModelId } from '@/lib/weather/openmeteo'
-import { activeFileCube, looksLikeGrib, openWeatherFiles, useWeatherFiles } from '@/state/weatherFiles'
+import { activeFileCube, gribDrop, useWeatherFiles } from '@/state/weatherFiles'
 import { ParticleLayer } from '@/lib/maplayers/particleLayer'
 import { ScalarLayer } from '@/lib/maplayers/scalarLayer'
 import { barbToImageData, buildBarbSprites } from '@/lib/maplayers/barbs'
@@ -350,15 +350,8 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
         className="screen screen--flush"
         style={{ position: 'relative' }}
         // GRIB files dropped anywhere on the chart are opened, several at once.
-        onDragOver={(e) => {
-          if (e.dataTransfer?.types?.includes('Files')) e.preventDefault()
-        }}
-        onDrop={(e) => {
-          const files = [...(e.dataTransfer?.files ?? [])].filter((f) => looksLikeGrib(f.name))
-          if (!files.length) return
-          e.preventDefault()
-          void openWeatherFiles(files)
-        }}
+        onDragOver={gribDrop.onDragOver}
+        onDrop={gribDrop.onDrop}
       >
         <div ref={containerRef} className="map" />
 

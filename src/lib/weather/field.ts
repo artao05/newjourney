@@ -177,6 +177,32 @@ export class StackedField implements WeatherField {
   }
 }
 
+/**
+ * Several forecasts in the order they should answer: the finest grid first, and
+ * of two on the same grid, the newer run. Expedition merges its GRIBs the same
+ * way, using the best data available at each point; its manual does not give
+ * the rule, so this is ours (P1-011). Sorting is stable, so otherwise the
+ * caller's order stands.
+ */
+export function orderSources(cubes: WeatherCube[]): WeatherCube[] {
+  const cell = (c: WeatherCube) => (c.dx > 0 && c.dy > 0 ? c.dx * c.dy : Infinity)
+  const run = (c: WeatherCube) => {
+    const t = Date.parse(c.run)
+    return Number.isFinite(t) ? t : -Infinity
+  }
+  return [...cubes].sort((a, b) => cell(a) - cell(b) || run(b) - run(a))
+}
+
+/**
+ * One field from several forecasts, each parameter from the first source that
+ * has it at that point and time: a fine local wind file over a coarse global
+ * one, and a current model under both for current alone.
+ */
+export function stackSources(cubes: WeatherCube[]): WeatherField {
+  if (cubes.length === 1) return new CubeField(cubes[0])
+  return new StackedField(orderSources(cubes).map((c) => new CubeField(c)))
+}
+
 export interface ConstantFieldOptions {
   twd: Degrees
   tws: Knots

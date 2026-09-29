@@ -74,6 +74,19 @@ export async function openWeatherFiles(list: Iterable<File>, opts: { bbox?: BBox
   return out
 }
 
+/** Drag-and-drop handlers for a chart: GRIB files dropped on it are opened, several at once. */
+export const gribDrop = {
+  onDragOver(e: { dataTransfer: DataTransfer | null; preventDefault(): void }) {
+    if (e.dataTransfer?.types?.includes('Files')) e.preventDefault()
+  },
+  onDrop(e: { dataTransfer: DataTransfer | null; preventDefault(): void }) {
+    const files = [...(e.dataTransfer?.files ?? [])].filter((f) => looksLikeGrib(f.name))
+    if (!files.length) return
+    e.preventDefault()
+    void openWeatherFiles(files)
+  },
+}
+
 /** The cube the chart shows: the newest ticked file that has one. */
 export function activeFileCube(files: WeatherFile[]): { cube: WeatherCube; name: string } | null {
   const f = files.find((x) => x.enabled && x.cube)

@@ -38,5 +38,5 @@ export {
   windFromUv,
 } from './cube'
 
-export { ConstantField, CubeField, ScaledField, StackedField, twdTws } from './field'
+export { ConstantField, CubeField, ScaledField, StackedField, orderSources, stackSources, twdTws } from './field'
 export type { ConstantFieldOptions, FieldScalings } from './field'

@@ -16,6 +16,8 @@ import type {
 
 export interface RoutePayload {
   cube: WeatherCube
+  /** More forecasts merged with `cube` in the worker, the finest grid answering first. */
+  extraCubes?: WeatherCube[]
   polar: PolarTable
   /** The port-tack polar, where the boat's tacks differ. */
   polarPort?: PolarTable | null
@@ -104,6 +106,7 @@ export class RoutingClient {
         id,
         req,
         cube: payload.cube,
+        extraCubes: payload.extraCubes,
         polarTable: payload.polar,
         polarTablePort: payload.polarPort ?? null,
         landRaster: payload.landRaster,
@@ -145,6 +148,7 @@ export class RoutingClient {
         id,
         req,
         cube: payload.cube,
+        extraCubes: payload.extraCubes,
         polarTable: payload.polar,
         polarTablePort: payload.polarPort ?? null,
         landRaster: payload.landRaster,

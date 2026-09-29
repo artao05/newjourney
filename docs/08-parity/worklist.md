@@ -246,7 +246,7 @@ leaves something tested and working.
       small inflate of our own (src/lib/inflate.ts); GRIB1 with NCEP and ECMWF tables.*
 - [x] **10.3 Open GRIB files** by picker or drag-drop, several at once, with a
       parameter catalogue. *Accept:* tests and a browser check.
-- [ ] **10.4 Merge sources** in production: StackedField, best resolution first, per
+- [x] **10.4 Merge sources** in production: StackedField, best resolution first, per
       parameter. *Accept:* tests.
 - [ ] **10.2b GRIB2 JPEG 2000 and CCSDS packing** (5.40, used by NAM and Canada's GEM;
       5.42, used by ECMWF open data and DWD). Each needs a decoder of its own, a few

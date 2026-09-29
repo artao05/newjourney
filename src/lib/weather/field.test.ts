@@ -21,7 +21,7 @@ import {
   uvFromWind,
   windFromUv,
 } from './cube'
-import { ConstantField, CubeField, ScaledField, StackedField, twdTws } from './field'
+import { ConstantField, CubeField, ScaledField, StackedField, orderSources, stackSources, twdTws } from './field'
 import { clearWeatherCache, cubeNotes, fetchWindCube } from './openmeteo'
 
 const HOUR = 3600_000
@@ -664,5 +664,42 @@ describe('fetchWindCube ingest', () => {
     // The bbox is still spanned exactly, so coverage does not silently shrink.
     expect(cube.bbox.east).toBeCloseTo(-20, 9)
     expect(cube.bbox.north).toBeCloseTo(40, 9)
+  })
+})
+
+describe('merging several forecasts', () => {
+  const T = Date.UTC(2026, 8, 29, 12)
+  function src(model: string, bbox: BBox, d: number, fill: Record<string, number>, run = '2026-09-29T06:00:00Z'): WeatherCube {
+    const nx = Math.round((bbox.east - bbox.west) / d) + 1
+    const ny = Math.round((bbox.north - bbox.south) / d) + 1
+    const data: Record<string, Float32Array> = {}
+    for (const [k, v] of Object.entries(fill)) data[k] = new Float32Array(nx * ny * 2).fill(v)
+    return { model, run, bbox, nx, ny, dx: d, dy: d, t0: T, dtMs: 3_600_000, nt: 2, params: Object.keys(fill), data }
+  }
+  const wide = { west: -72, south: 42, east: -68, north: 45 }
+  const local = { west: -70.5, south: 43.4, east: -70, north: 43.8 }
+
+  it('orders the finest grid first, then the newer run, and otherwise keeps the order given', () => {
+    const gfs = src('gfs', wide, 0.25, { u10: 1, v10: 0 })
+    const hrrr = src('hrrr', wide, 0.03, { u10: 1, v10: 0 })
+    const oldHrrr = src('hrrr-old', wide, 0.03, { u10: 1, v10: 0 }, '2026-09-28T18:00:00Z')
+    const twin = src('gfs-twin', wide, 0.25, { u10: 1, v10: 0 })
+    expect(orderSources([gfs, oldHrrr, twin, hrrr]).map((c) => c.model)).toEqual(['hrrr', 'hrrr-old', 'gfs', 'gfs-twin'])
+  })
+
+  it('answers each parameter from the first source that has it there', () => {
+    const gfs = src('gfs', wide, 0.25, { u10: 10, v10: 0, gust: 14 })
+    const file = src('saildocs.grb', local, 0.05, { u10: 4, v10: 2 })
+    const ocean = src('rtofs', wide, 0.5, { uo: 0.3, vo: -0.1 })
+    const f = stackSources([gfs, ocean, file])
+    // Inside the file: its wind, but gust and current from the others.
+    expect(f.wind(43.6, -70.2, T)).toMatchObject({ u: 4, v: 2, source: 'saildocs.grb' })
+    expect(f.gust(43.6, -70.2, T)).toBe(14)
+    expect(f.current(43.6, -70.2, T)).toMatchObject({ source: 'rtofs' })
+    // Outside it, the download.
+    expect(f.wind(44.5, -69, T)).toMatchObject({ u: 10, source: 'gfs' })
+    expect(f.dtMs).toBe(3_600_000)
+    // One source is just that source.
+    expect(stackSources([gfs])).toBeInstanceOf(CubeField)
   })
 })

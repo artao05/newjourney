@@ -112,6 +112,49 @@ async function route(
   return { result: last.result, posts }
 }
 
+// ------------------------------------------------------- several forecasts
+
+describe('the worker merges the forecasts it is sent, the finest grid first', () => {
+  /** A 9×7 file at 0.05°, over the course only, with half the wind of the 0.2° download. */
+  function fineFile(kn: number): WeatherCube {
+    const nx = 9
+    const ny = 7
+    const nt = 25
+    const bbox = { west: -70.4, south: 43.5, east: -70.0, north: 43.8 }
+    return {
+      model: 'local.grb2',
+      run: '2026-08-06T06:00:00.000Z',
+      bbox,
+      nx,
+      ny,
+      dx: 0.05,
+      dy: 0.05,
+      t0: T0,
+      dtMs: HOUR,
+      nt,
+      params: ['u10', 'v10'],
+      data: { u10: new Float32Array(nx * ny * nt).fill(kn), v10: new Float32Array(nx * ny * nt).fill(0) },
+    }
+  }
+
+  it("sails the course in the finer file's wind wherever it covers", async () => {
+    const coarse = await route()
+    const merged = await route({ extraCubes: [fineFile(6)] })
+    expect(coarse.result.ok && merged.result.ok).toBe(true)
+    // 6 kn instead of 12: markedly slower, so the file's wind is the one sailed.
+    expect(merged.result.elapsedS! / coarse.result.elapsedS!).toBeGreaterThan(1.2)
+    // The order they are sent in does not matter; resolution decides.
+    const swapped = await route({ cube: fineFile(6), extraCubes: [cube()] })
+    expect(swapped.result.elapsedS).toBeCloseTo(merged.result.elapsedS!, 0)
+  })
+
+  it('rebuilds one field that falls back to the coarse forecast outside the file', async () => {
+    const f = await rebuildField(cube(), [fineFile(6)])
+    expect(f.wind(43.6, -70.2, T0)).toMatchObject({ u: 6, source: 'local.grb2' })
+    expect(f.wind(43.9, -69.9, T0)).toMatchObject({ u: 12, source: 'test' })
+  })
+})
+
 // ------------------------------------------------------- a port-tack polar
 
 describe('the worker sails port tack on its own polar when given one', () => {

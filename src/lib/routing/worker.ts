@@ -55,6 +55,8 @@ export interface LandRasterPayload {
 interface WorkerInputs {
   req: RouteRequest
   cube: WeatherCube
+  /** More forecasts to merge with `cube`, finest grid first (GRIB files the user opened). */
+  extraCubes?: WeatherCube[]
   polarTable: PolarTable
   /** The port-tack polar, for a boat whose tacks differ. */
   polarTablePort?: PolarTable | null
@@ -131,11 +133,11 @@ export async function rebuildLattice(table: PolarTable): Promise<PolarLattice> {
   }
 }
 
-/** Rebuild a `WeatherField` from a transferred cube. */
-export async function rebuildField(cube: WeatherCube): Promise<WeatherField> {
+/** Rebuild a `WeatherField` from a transferred cube, merged with any others sent. */
+export async function rebuildField(cube: WeatherCube, extra: WeatherCube[] = []): Promise<WeatherField> {
   try {
-    const { CubeField } = await import('../weather')
-    return new CubeField(cube)
+    const { CubeField, stackSources } = await import('../weather')
+    return extra.length ? stackSources([cube, ...extra]) : new CubeField(cube)
   } catch (e) {
     throw new Error(
       `could not rebuild the forecast field: ${e instanceof Error ? e.message : String(e)}`,
@@ -191,7 +193,7 @@ function courseBBox(req: RouteRequest, cube: WeatherCube): BBox {
 async function buildContext(msg: WorkerInputs): Promise<Omit<RouteContext, 'onProgress'>> {
   const [lattice, field, latticePort] = await Promise.all([
     rebuildLattice(msg.polarTable),
-    rebuildField(msg.cube),
+    rebuildField(msg.cube, msg.extraCubes ?? []),
     msg.polarTablePort ? rebuildLattice(msg.polarTablePort) : Promise.resolve(null),
   ])
   // A validated venue raster beats rasterising GeoJSON per request.
