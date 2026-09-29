@@ -56,6 +56,8 @@ interface WorkerInputs {
   req: RouteRequest
   cube: WeatherCube
   polarTable: PolarTable
+  /** The port-tack polar, for a boat whose tacks differ. */
+  polarTablePort?: PolarTable | null
   /** Prebuilt raster. Takes precedence over `landData`. */
   landRaster?: LandRasterPayload
   landData?: unknown
@@ -187,15 +189,16 @@ function courseBBox(req: RouteRequest, cube: WeatherCube): BBox {
 
 /** Rebuild the lattice, field and land mask a solve needs from a wire payload. */
 async function buildContext(msg: WorkerInputs): Promise<Omit<RouteContext, 'onProgress'>> {
-  const [lattice, field] = await Promise.all([
+  const [lattice, field, latticePort] = await Promise.all([
     rebuildLattice(msg.polarTable),
     rebuildField(msg.cube),
+    msg.polarTablePort ? rebuildLattice(msg.polarTablePort) : Promise.resolve(null),
   ])
   // A validated venue raster beats rasterising GeoJSON per request.
   const land =
     adoptLandRaster(msg.landRaster) ??
     rebuildLand(msg.landData, courseBBox(msg.req, msg.cube), msg.landCellDeg ?? 0.01)
-  return { field, lattice, land }
+  return { field, lattice, latticePort, land }
 }
 
 function failedResult(error: string): RouteResult {

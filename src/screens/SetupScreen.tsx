@@ -133,6 +133,8 @@ export function SetupScreen() {
     downloadText(`${safe}.txt`, serialiseExpeditionPolar(polar), 'text/plain')
   }
 
+  const polarPort = useStore((s) => s.polarPort)
+  const setPolarPort = useStore((s) => s.setPolarPort)
   const importPolar = async (file: File) => {
     const text = await file.text()
     try {
@@ -437,6 +439,43 @@ export function SetupScreen() {
           Reads Expedition <code>.txt</code> polars (TWS in the first column,
           then TWA/BSP pairs) and qtVlm/ORC CSV, and saves in the Expedition
           format. An imported polar is kept on this device until you pick another.
+        </p>
+
+        <div className="rows" aria-label="Port tack polar" style={{ marginTop: 8 }}>
+          <div className="row">
+            <span>Port tack polar</span>
+            <span>{polarPort ? polarPort.name : 'the same as starboard'}</span>
+          </div>
+        </div>
+        <div className="actions" style={{ background: 'none', border: 'none', padding: '8px 0 0' }}>
+          <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+            IMPORT PORT POLAR
+            <input
+              type="file"
+              accept=".txt,.pol,.csv"
+              aria-label="Import a port tack polar"
+              style={{ display: 'none' }}
+              onChange={async (e) => {
+                const f = e.target.files?.[0]
+                e.target.value = ''
+                if (!f) return
+                try {
+                  setPolarPort(parsePolar(await f.text(), f.name.replace(/\.[^.]+$/, '')))
+                } catch (err) {
+                  alert(`Could not read that polar: ${err instanceof Error ? err.message : err}`)
+                }
+              }}
+            />
+          </label>
+          {polarPort && (
+            <button className="btn btn--sm btn--ghost" onClick={() => setPolarPort(null)}>
+              SAME BOTH TACKS
+            </button>
+          )}
+        </div>
+        <p className="note">
+          For a boat whose tacks differ (a canting keel, a foil on one side): the router sails port tack on this
+          polar, and a zigzag mixes the two.
         </p>
 
         <InstrumentsSection />

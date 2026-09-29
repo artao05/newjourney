@@ -17,6 +17,8 @@ import type {
 export interface RoutePayload {
   cube: WeatherCube
   polar: PolarTable
+  /** The port-tack polar, where the boat's tacks differ. */
+  polarPort?: PolarTable | null
   /**
    * A prebuilt, validated land raster from a venue pack. Preferred over `land`:
    * finer, already checked against known-water coordinates, and free at route
@@ -103,6 +105,7 @@ export class RoutingClient {
         req,
         cube: payload.cube,
         polarTable: payload.polar,
+        polarTablePort: payload.polarPort ?? null,
         landRaster: payload.landRaster,
         landData: payload.land,
         landCellDeg: payload.landCellDeg,
@@ -143,6 +146,7 @@ export class RoutingClient {
         req,
         cube: payload.cube,
         polarTable: payload.polar,
+        polarTablePort: payload.polarPort ?? null,
         landRaster: payload.landRaster,
         landData: payload.land,
         landCellDeg: payload.landCellDeg,

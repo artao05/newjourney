@@ -354,6 +354,9 @@ interface AppState {
   setPipeline(patch: Partial<PipelineSettings>): void
   calibration: Calibration
   setCalibration(patch: Partial<Calibration>): void
+  /** The port-tack polar, for a boat whose tacks differ; null when one polar does both. */
+  polarPort: PolarTable | null
+  setPolarPort(p: PolarTable | null): void
   /**
    * The phone's own tilt and compass. Heel is used whenever this is on; the
    * compass only with `trustCompass`, and only while the phone calls it good.
@@ -822,6 +825,8 @@ export const useStore = create<AppState>()(
       pipeline: { ...DEFAULT_PIPELINE },
       setPipeline: (patch) => set({ pipeline: { ...get().pipeline, ...patch } }),
       calibration: { ...NO_CALIBRATION, offsets: { ...NO_CALIBRATION.offsets } },
+      polarPort: null,
+      setPolarPort: (p) => set({ polarPort: p }),
       setCalibration: (patch) => set({ calibration: { ...get().calibration, ...patch } }),
       phoneSensors: { on: false, trustCompass: false },
       setPhoneSensors: (patch) => set({ phoneSensors: { ...get().phoneSensors, ...patch } }),
@@ -1026,6 +1031,7 @@ export const useStore = create<AppState>()(
         instruments: s.instruments,
         pipeline: s.pipeline,
         calibration: s.calibration,
+        polarPort: s.polarPort,
         phoneSensors: s.phoneSensors,
         strip: s.strip,
         events: s.events,

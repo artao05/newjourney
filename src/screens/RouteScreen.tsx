@@ -601,6 +601,7 @@ export function RouteScreen() {
    * time for a boat that is not theirs.
    */
   const liveWind = useStore((s) => s.wind)
+  const polarPort = useStore((s) => s.polarPort)
   const buildRequest = useCallback(
     (startTime: Millis, computeSensitivity: boolean, marksOverride?: LatLon[]): RouteRequest | null => {
       const marks = marksOverride ?? course.marks.map((m) => m.position)
@@ -677,7 +678,7 @@ export function RouteScreen() {
       if (!req) return
       const result = await clientRef.current.route(
         req,
-        { cube: workingCube, polar, landRaster: landPayload() },
+        { cube: workingCube, polar, polarPort, landRaster: landPayload() },
         (f) => { if (thisRun === runIdRef.current) setProgress(f) },
       )
       if (thisRun !== runIdRef.current) return
@@ -725,6 +726,7 @@ export function RouteScreen() {
   }, [
     origin,
     polar,
+    polarPort,
     course.marks,
     cube,
     buildRequest,
@@ -779,7 +781,7 @@ export function RouteScreen() {
       if (!req) return
       const s = await clientRef.current.sweep(
         req,
-        { cube: workingCube, polar, landRaster: landPayload() },
+        { cube: workingCube, polar, polarPort, landRaster: landPayload() },
         { from, to, stepMs: 3_600_000, maxSolves: SWEEP_HOURS + 1 },
         (f) => setProgress(f),
       )
@@ -799,6 +801,7 @@ export function RouteScreen() {
   }, [
     origin,
     polar,
+    polarPort,
     course.marks,
     cube,
     legNm,

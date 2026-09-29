@@ -112,6 +112,20 @@ async function route(
   return { result: last.result, posts }
 }
 
+// ------------------------------------------------------- a port-tack polar
+
+describe('the worker sails port tack on its own polar when given one', () => {
+  it('builds the second polar and routes a port leg slower on it', async () => {
+    // A westerly and a mark to the north-east: the leg is on port tack.
+    const slowPort = { ...POLAR, name: 'port', rows: POLAR.rows.map((r) => ({ ...r, bsp: r.bsp.map((v) => v * 0.5) })) }
+    const same = await route()
+    const port = await route({ polarTablePort: slowPort })
+    expect(same.result.ok && port.result.ok).toBe(true)
+    const ratio = port.result.elapsedS! / same.result.elapsedS!
+    expect(ratio).toBeGreaterThan(1.5)
+  })
+})
+
 // ------------------------------------------------------- the grid, on request
 
 describe('the worker runs the grid when asked', () => {

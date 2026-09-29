@@ -1212,6 +1212,21 @@ describe('Setup connects to the instruments', () => {
   })
 })
 
+describe('Setup keeps a port-tack polar for a boat whose tacks differ', () => {
+  it('imports it, keeps it, and goes back to one polar for both', async () => {
+    emptyStore()
+    useStore.setState({ polarPort: null })
+    render(<SetupScreen />)
+    const text = ['twa/tws\t6\t12', '52\t4.0\t5.5', '90\t5.0\t6.5', '150\t4.5\t6.8', ''].join('\n')
+    fireEvent.change(screen.getByLabelText('Import a port tack polar'), { target: { files: [new File([text], 'port.txt')] } })
+    await waitFor(() => expect(useStore.getState().polarPort?.name).toBe('port'))
+    expect(screen.getByLabelText('Port tack polar').textContent).toMatch(/port/)
+    expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.polarPort.name).toBe('port')
+    fireEvent.click(screen.getByRole('button', { name: 'SAME BOTH TACKS' }))
+    expect(useStore.getState().polarPort).toBeNull()
+  })
+})
+
 describe('Setup exports and imports the whole configuration', () => {
   it('reads a settings file back into the boat and the layout', async () => {
     const file = new File(

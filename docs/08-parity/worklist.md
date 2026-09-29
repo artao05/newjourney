@@ -228,7 +228,7 @@ leaves something tested and working.
       outside Portland goes round land.
 - [x] **9.14 Asymmetric port and starboard polars**, moved here from 4.5 because it
       needs a second set of target tables in the hot loop. *Accept:* the kernel uses
-- [ ] **9.14b A port polar in the app:** import it in Setup, keep it, and pass it through the worker. *Accept:* store and worker tests.
+- [x] **9.14b A port polar in the app:** import it in Setup, keep it, and pass it through the worker. *Accept:* store and worker tests.
       the right side on each tack, with a test.
 
 ## M10 — Weather
