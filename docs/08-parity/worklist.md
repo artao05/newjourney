@@ -178,7 +178,7 @@ leaves something tested and working.
 
 ## M7 — Logging, playback and stripchart
 
-- [ ] **7.1 Channel logger:** 1 Hz to IndexedDB, one log per day, a size cap, and CSV
+- [x] **7.1 Channel logger:** 1 Hz to IndexedDB, one log per day, a size cap, and CSV
       export. *Accept:* tests.
 - [ ] **7.1b Logged points on the polar**, coloured by tack and hollow when below the
       polar's VMG, as Expedition draws them. *Accept:* tests.

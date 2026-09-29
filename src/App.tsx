@@ -21,6 +21,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { NotForNavigationDialog } from '@/components/NotForNavigation'
 import { useTrackPersistence } from '@/state/trackPersistence'
 import { WindSheet, windChip } from '@/components/WindSheet'
+import { ChannelLogRecorder } from '@/components/ChannelLogRecorder'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
 import { fixQuality } from '@/lib/startline'
@@ -442,6 +443,7 @@ export function App() {
         )}
 
         {windSheetOpen && <WindSheet onClose={() => setWindSheetOpen(false)} />}
+        {recording && <ChannelLogRecorder />}
       </div>
       {mustAccept && (
         <NotForNavigationDialog onAccept={() => updateSettings({ acceptedNotForNavigation: true })} />

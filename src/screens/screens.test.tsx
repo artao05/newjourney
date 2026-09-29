@@ -23,6 +23,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PIPELINE } from '@/lib/instruments/pipeline'
 import { NO_CALIBRATION } from '@/lib/instruments/calibration'
+import { MemoryLogStore } from '@/lib/logging/logger'
+import { setLogStore } from '@/lib/logging/idbStore'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { RouteResult, WeatherCube } from '@/lib/types'
 
@@ -996,6 +998,25 @@ describe('Setup connects to the instruments', () => {
     expect(nmea).toMatch(/Fixdifferential \(DGPS\)/)
     expect(nmea).toMatch(/Satellites9/)
     expect(nmea).toMatch(/HDOP1\.1/)
+  })
+
+  it('lists the logs by day, newest first, and deletes one when confirmed', async () => {
+    emptyStore()
+    const store = new MemoryLogStore()
+    await store.append('2026-09-28', [{ t: 1, v: { bsp: 6 } }])
+    await store.append('2026-09-29', [{ t: 2, v: { bsp: 6 } }, { t: 3, v: { bsp: 6 } }])
+    setLogStore(store)
+    render(<SetupScreen />)
+    const table = await screen.findByRole('table', { name: 'Channel logs' })
+    expect(within(table).getAllByRole('row').map((r) => r.textContent)).toEqual([
+      expect.stringMatching(/^2026-09-292 s/),
+      expect.stringMatching(/^2026-09-281 s/),
+    ])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    fireEvent.click(within(table).getByRole('button', { name: 'Delete the log for 2026-09-28' }))
+    await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(1))
+    expect((await store.days()).map((d) => d.day)).toEqual(['2026-09-29'])
+    setLogStore(null)
   })
 
   it('offers the instruments as a wind source', () => {
