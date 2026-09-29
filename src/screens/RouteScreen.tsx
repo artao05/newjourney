@@ -19,6 +19,7 @@ import { cubeNotes, fetchWindCube } from '@/lib/weather/openmeteo'
 import { sampleCube } from '@/lib/weather/cube'
 import { gribDrop, useWeatherFiles } from '@/state/weatherFiles'
 import { useAis } from '@/state/ais'
+import { useTracking } from '@/state/tracking'
 import { AisSheet } from '@/components/AisSheet'
 import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
 import { RoutingClient } from '@/lib/routing/client'
@@ -538,6 +539,24 @@ export function RouteScreen() {
     setSource(map, 'sens', sensitivityFC(route, routeSettings.bandMin))
     setSource(map, 'explored', routeSettings.showExplored ? exploredFC(route.explored) : emptyFC())
   }, [ready, route, routeSettings.isoEveryMin, routeSettings.bandMin, routeSettings.showExplored])
+
+  // The fleet's tracks from tracking files, in each boat's colour.
+  const fleetTracks = useTracking((s) => s.tracks)
+  const fleetBoats = useStore((s) => s.fleet)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const features: GeoJSON.Feature[] = []
+    for (const tr of fleetTracks) {
+      if (!tr.points.length) continue
+      const boat = fleetBoats.find((b) => b.id === tr.boatId)
+      const props = { key: tr.key, color: boat?.colour ?? '#90a4ae', name: boat?.name ?? tr.key }
+      if (tr.points.length > 1) features.push({ type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: tr.points.map((p) => [p.lon, p.lat]) } })
+      const last = tr.points[tr.points.length - 1]
+      features.push({ type: 'Feature', properties: props, geometry: { type: 'Point', coordinates: [last.lon, last.lat] } })
+    }
+    setSource(map, 'fleet', { type: 'FeatureCollection', features } as FC)
+  }, [ready, fleetTracks, fleetBoats])
 
   // AIS targets on the chart, each with where it will be in six minutes.
   const aisTargets = useAis((s) => s.targets)
@@ -1858,7 +1877,7 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
-  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais'].forEach(add)
+  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'fleet', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
   // plain notes grey, so the colour says what the router will do with each.
@@ -2068,6 +2087,21 @@ function addEmptyLayers(map: maplibregl.Map) {
     source: 'measure',
     filter: ['==', ['geometry-type'], 'Point'],
     paint: { 'circle-radius': 4, 'circle-color': '#eaf2fa' },
+  })
+  // The fleet's tracks, each in her own colour, with a dot at her last fix.
+  map.addLayer({
+    id: 'fleet-line',
+    type: 'line',
+    source: 'fleet',
+    filter: ['==', ['geometry-type'], 'LineString'],
+    paint: { 'line-color': ['get', 'color'] as never, 'line-width': 1.6, 'line-opacity': 0.85 },
+  })
+  map.addLayer({
+    id: 'fleet-pt',
+    type: 'circle',
+    source: 'fleet',
+    filter: ['==', ['geometry-type'], 'Point'],
+    paint: { 'circle-radius': 4.5, 'circle-color': ['get', 'color'] as never, 'circle-stroke-color': '#04101c', 'circle-stroke-width': 1.2 },
   })
   // AIS targets: a six-minute course vector, and a dot by class, red for a distress beacon.
   map.addLayer({

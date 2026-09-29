@@ -3,7 +3,46 @@
  * what AIS and the trackers know her by.
  */
 import { POLAR_LIBRARY } from '@/data/polars'
+import { useState } from 'react'
 import { useStore } from '@/state/store'
+import { importTrackingFiles, useTracking } from '@/state/tracking'
+
+/** Tracking files in: GPX with a track a boat, or a CSV of boat, time, lat and lon. */
+function ImportTracks() {
+  const fleet = useStore((s) => s.fleet)
+  const tracks = useTracking((s) => s.tracks)
+  const clear = useTracking((s) => s.clear)
+  const [note, setNote] = useState<string | null>(null)
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+      <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+        IMPORT TRACKS
+        <input
+          type="file"
+          multiple
+          accept=".gpx,.csv,.txt,application/gpx+xml,text/csv"
+          aria-label="Tracking files to import"
+          style={{ display: 'none' }}
+          onChange={async (e) => {
+            const files = [...(e.target.files ?? [])]
+            e.target.value = ''
+            if (!files.length) return
+            const r = await importTrackingFiles(files, fleet)
+            setNote(`${r.tracks} track${r.tracks === 1 ? '' : 's'}, ${r.matched} matched to the boats here${r.errors.length ? `; ${r.errors.join('; ')}` : ''}`)
+          }}
+        />
+      </label>
+      {tracks.length > 0 && (
+        <button className="btn btn--sm btn--ghost" onClick={clear}>
+          CLEAR TRACKS
+        </button>
+      )}
+      <span className="note" aria-label="Tracks">
+        {note ?? (tracks.length ? `${tracks.length} tracks held` : 'No tracks')}
+      </span>
+    </div>
+  )
+}
 
 export function BoatsDatabase() {
   const fleet = useStore((s) => s.fleet)
@@ -63,6 +102,7 @@ export function BoatsDatabase() {
         </tbody>
       </table>
       <p className="note">A polar lets a boat be routed and her targets worked out; the MMSI and tracker id match her to AIS and to tracking files.</p>
+      <ImportTracks />
     </section>
   )
 }

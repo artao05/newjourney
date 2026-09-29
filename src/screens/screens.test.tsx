@@ -158,6 +158,7 @@ import { file, gfsGrid, message, over } from '@/lib/weather/fixtures/grib2'
 import { openWeatherFiles, useChartImages, useWeatherFiles } from '@/state/weatherFiles'
 import { DEFAULT_CONTOURS } from '@/state/store'
 import { useAis } from '@/state/ais'
+import { useTracking } from '@/state/tracking'
 import { useEnsembleView } from '@/state/ensembleView'
 import { RouteScreen, exploredFC, isochroneFC, keptFC, sensitivityFC } from './RouteScreen'
 import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
@@ -338,6 +339,34 @@ describe('the boats database', () => {
     fireEvent.change(screen.getByLabelText('Sea Fever sail number'), { target: { value: 'USA 7' } })
     expect(useStore.getState().fleet[1]).toMatchObject({ name: 'Sea Fever', polarId: 'navigation', lengthM: 10.4, mmsi: 367000002, sailNumber: 'USA 7' })
     act(() => useStore.setState({ fleet: [] }))
+  })
+
+  it('imports a tracking file, matches its boats, and draws their tracks in their colours', async () => {
+    act(() => {
+      useStore.setState({ fleet: [] })
+      useStore.getState().addFleetBoat('Wild Horses', 1)
+    })
+    useStore.getState().updateFleetBoat(useStore.getState().fleet[0].id, { sailNumber: 'USA 50' })
+    const view = render(<RaceScreen />)
+    const csv = ['boat,time,lat,lon', 'USA-50,2026-09-29T14:00:00Z,43.60,-70.20', 'USA-50,2026-09-29T14:05:00Z,43.61,-70.19', 'Stranger,2026-09-29T14:00:00Z,43.5,-70.3'].join('\n')
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Tracking files to import'), { target: { files: [new File([csv], 'fleet.csv')] } })
+      await new Promise((r) => setTimeout(r, 20))
+    })
+    expect(screen.getByLabelText('Tracks').textContent).toBe('2 tracks, 1 matched to the boats here')
+    view.unmount()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const fc = mapInstances[mapInstances.length - 1].data.get('fleet') as GeoJSON.FeatureCollection
+    const line = fc.features.find((f) => f.geometry.type === 'LineString')!
+    expect(line.properties).toMatchObject({ name: 'Wild Horses', color: useStore.getState().fleet[0].colour })
+    expect(fc.features.filter((f) => f.geometry.type === 'Point')).toHaveLength(2)
+    act(() => {
+      useTracking.getState().clear()
+      useStore.setState({ fleet: [] })
+    })
   })
 })
 

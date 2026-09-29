@@ -315,8 +315,11 @@ leaves something tested and working.
       (github sign-in at aisstream.io) and say where the app should keep it?
 - [x] **12.4 Boats database:** several boats, each with a polar, colour and size.
       *Accept:* tests.
-- [ ] **12.5 Race-tracking import:** native, Basic, Volvo, MaxSea, GPX, YB XML and
-      Vessel Finder formats, plus boat-id maps. *Accept:* parser tests.
+- [x] **12.5 Race-tracking import:** GPX (a track a boat), Expedition's own lines, Basic, Volvo and
+      MaxSea reports as the manual lays them out, and a plain CSV; each matched to the boats
+      database by tracker id, sail number or name. *Accept:* parser tests.
+- [ ] **12.5b YB XML and Vessel Finder JSON.** `blocked: D7`: the manual gives neither schema;
+      a file of each from a past race is what the parsers need to be written against.
 - [ ] **12.6 Tracking window:** positions interpolated to now, range and bearing,
       Ahead-of, and a leaderboard. *Accept:* tests.
 - [ ] **12.7 Wind shadow channels** (from 5.10): Shadow and Shadow opposite gybe, from
