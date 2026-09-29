@@ -34,6 +34,7 @@ export function RaceScreen() {
   const resetXte = useStore((s) => s.resetXte)
   const setActiveMark = useStore((s) => s.setActiveMark)
   const addMark = useStore((s) => s.addMark)
+  const dropMob = useStore((s) => s.dropMob)
   const replaceMarks = useStore((s) => s.replaceMarks)
   const clearMarks = useStore((s) => s.clearMarks)
 
@@ -106,6 +107,14 @@ export function RaceScreen() {
         </span>
         <span className="chip">{now % 2 === 0 ? '·' : ' '} live</span>
       </div>
+
+      {active?.mobAt != null && (
+        <div className="errbox mob" role="alert" style={{ margin: 'var(--pad)', marginBottom: 0 }}>
+          <b>MAN OVERBOARD</b> · {fmtClock((now - active.mobAt) / 1000)} ago ·{' '}
+          {t?.markBearing != null ? `${fmtDeg(t.markBearing)}°` : '—'}{' '}
+          {t?.markRange != null ? `${t.markRange.toFixed(2)} nm` : ''}
+        </div>
+      )}
 
       {whatIfOn && (
         <div className="warnbox" style={{ margin: 'var(--pad)', marginBottom: 0 }}>
@@ -447,6 +456,14 @@ export function RaceScreen() {
           </button>
         ))}
         <div className="actions" style={{ background: 'none', border: 'none', padding: '8px 0' }}>
+          <button
+            className="btn btn--sm btn--mob"
+            disabled={!state}
+            onClick={() => state && dropMob(state.position)}
+            title="Man overboard: a mark here now, made active (F2)"
+          >
+            MOB
+          </button>
           <button
             className="btn btn--sm"
             disabled={!state}

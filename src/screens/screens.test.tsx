@@ -860,6 +860,21 @@ describe('number boxes show any channel, alternate, and persist', () => {
   })
 })
 
+describe('man overboard', () => {
+  it('drops a MOB mark at the boat, makes it active, and says so in red', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'MOB' }))
+    const { course, activeMarkIndex, state } = useStore.getState()
+    const mob = course.marks[activeMarkIndex]
+    expect(mob.name).toBe('MOB')
+    expect(mob.position).toEqual(state!.position)
+    expect(mob.mobAt).toBeTypeOf('number')
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toMatch(/MAN OVERBOARD · 0:0\d ago/)
+  })
+})
+
 describe('the loaded polar can be saved in the format it was read in', () => {
   it('downloads an Expedition .txt that parses back to the same speeds', async () => {
     const polar = findPolar('j70')!.polar

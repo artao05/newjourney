@@ -49,8 +49,7 @@ export function useShortcuts(wide: boolean): void {
           // Man overboard: a mark where the boat is now, made the active mark, so
           // every bearing and range on screen points back at it.
           if (!s.state) return
-          s.addMark('MOB', s.state.position)
-          s.setActiveMark(useStore.getState().course.marks.length - 1)
+          s.dropMob(s.state.position)
           panel('race')
           break
         case 'nextMark':

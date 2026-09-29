@@ -91,6 +91,11 @@ interface AppState {
   /** Replace marks without resetting a previously pinged start line. */
   replaceMarks(marks: Array<{ name: string; position: LatLon }>): void
   removeMark(id: string): void
+  /**
+   * Man overboard: a MOB mark at `at`, stamped with the time and made the active
+   * mark, so every bearing and range on screen points back at the person.
+   */
+  dropMob(at: LatLon): void
   /** Remove every mark, keeping the pinged start line and the gun time. */
   clearMarks(): void
   /** Reset the whole course, start line and gun time included. */
@@ -333,6 +338,26 @@ export const useStore = create<AppState>()(
        * the start, not to the marks: a sailor clearing old marks mid-sequence must
        * keep the line they pinged and the countdown running on it.
        */
+      dropMob: (at) => {
+        const marks = get().course.marks
+        set({
+          ...COURSE_CHANGED,
+          course: {
+            ...get().course,
+            marks: [
+              ...marks,
+              {
+                id: `mob-${Date.now()}-${++markSeq}`,
+                name: 'MOB',
+                position: at,
+                roundTo: 'port',
+                mobAt: Date.now(),
+              },
+            ],
+          },
+          activeMarkIndex: marks.length,
+        })
+      },
       clearMarks: () =>
         set({ ...COURSE_CHANGED, course: { ...get().course, marks: [] }, activeMarkIndex: 0 }),
       clearCourse: () => set({ ...COURSE_CHANGED, course: EMPTY_COURSE, activeMarkIndex: 0 }),

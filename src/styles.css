@@ -664,6 +664,19 @@ button {
 .btn--ghost {
   background: transparent;
 }
+
+/* Man overboard: the one button that must be found without looking for it. */
+.btn--mob {
+  background: var(--port);
+  border-color: var(--port);
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.mob {
+  font-size: 15px;
+}
 .btn:disabled {
   opacity: 0.35;
   pointer-events: none;

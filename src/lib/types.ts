@@ -187,6 +187,8 @@ export interface Mark {
   name: string
   position: LatLon
   roundTo: RoundingSide
+  /** Set on a man-overboard mark: when it went in. */
+  mobAt?: Millis
 }
 
 export interface StartLine {
