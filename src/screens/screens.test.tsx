@@ -920,6 +920,27 @@ describe('a route can start anywhere, not only at the boat', () => {
     }
   })
 
+  it('says what the chart has where it is tapped, with ENC cells open', async () => {
+    const { decodeS57 } = await import('@/lib/charts/s57')
+    act(() => useCharts.getState().add(decodeS57(encCell())))
+    try {
+      render(<RouteScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      act(() => {
+        for (const fn of mapInstances[0].handlers.get('click') ?? []) fn({ lngLat: { lat: 43.62, lng: -70.21 } })
+      })
+      const card = screen.getByRole('dialog', { name: 'Chart objects' })
+      expect(card.textContent).toMatch(/LIGHTS · Portland Head Light/)
+      expect(card.textContent).toMatch(/DEPARE.*DRVAL1 5, DRVAL2 10/)
+      fireEvent.click(screen.getByRole('button', { name: 'Close chart objects' }))
+      expect(screen.queryByRole('dialog', { name: 'Chart objects' })).toBeNull()
+    } finally {
+      act(() => useCharts.getState().clear())
+    }
+  })
+
   it('ignores chart taps unless a start is being picked', () => {
     populatedStore()
     render(<RouteScreen />)

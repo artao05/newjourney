@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEPTH_SHADES, LAND, dim, encDrawFeatures } from './s52'
+import { DEPTH_SHADES, LAND, dim, encDrawFeatures, encObjectsAt } from './s52'
 import { decodeS57, type EncCell } from './s57'
 import { cell } from './fixtures/cell'
 
@@ -44,5 +44,19 @@ describe('ENC display settings', () => {
     expect(dim('#ffffff')).toBe('#595959')
     const night = encDrawFeatures([made([area(20)])], { safetyDepthM: 3, night: true })[0].properties.color
     expect(night).toBe(dim(DEPTH_SHADES.deep))
+  })
+})
+
+describe('chart object query', () => {
+  const c = [decodeS57(cell())]
+  it('finds the light at a tap and the depth area it stands in, points first', () => {
+    const got = encObjectsAt(c, { lat: 43.62, lon: -70.21 })
+    expect(got.map((o) => o.cls)).toEqual(['LIGHTS', 'DEPARE'])
+    expect(got[0]).toMatchObject({ cell: 'US5ME11M.000', attrs: { OBJNAM: 'Portland Head Light' } })
+  })
+
+  it('finds a line near a tap, and nothing out in open water', () => {
+    expect(encObjectsAt(c, { lat: 43.635, lon: -70.2555 }).map((o) => o.cls)).toEqual(['COALNE'])
+    expect(encObjectsAt(c, { lat: 44, lon: -69 })).toEqual([])
   })
 })

@@ -21,7 +21,8 @@ import { gribDrop, useWeatherFiles } from '@/state/weatherFiles'
 import { useAis } from '@/state/ais'
 import { useTracking } from '@/state/tracking'
 import { useCharts } from '@/state/charts'
-import { encDrawFeatures } from '@/lib/charts/s52'
+import { encDrawFeatures, encObjectsAt } from '@/lib/charts/s52'
+import type { EncFeature } from '@/lib/charts/s57'
 import { openEncCell } from '@/lib/charts/s57Client'
 import { AisSheet } from '@/components/AisSheet'
 import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
@@ -266,9 +267,15 @@ export function RouteScreen() {
     map.on('click', (e: maplibregl.MapMouseEvent) => {
       const mode = pickingRef.current
       const at = { lat: e.lngLat.lat, lon: e.lngLat.lng }
-      // A plain tap reads out that point: the only pointer a phone has.
+      // A plain tap reads out that point: the only pointer a phone has. With
+      // charts open, it also says what the chart has there.
       if (!mode) {
         setPointer(at)
+        const cells = useCharts.getState().cells
+        if (cells.length) {
+          const found = encObjectsAt(cells, at)
+          setEncQuery(found.length ? { at, objects: found } : null)
+        }
         return
       }
       if (mode === 'measure') {
@@ -550,6 +557,7 @@ export function RouteScreen() {
   const safetyDepthM = useCharts((s) => s.safetyDepthM)
   const encDisplay = useCharts((s) => s.display)
   const [showEnc, setShowEnc] = useState(false)
+  const [encQuery, setEncQuery] = useState<{ at: LatLon; objects: Array<EncFeature & { cell: string }> } | null>(null)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
@@ -1321,6 +1329,30 @@ export function RouteScreen() {
       {showSettings && <RouteSettingsSheet onClose={() => setShowSettings(false)} />}
       {showAis && <AisSheet onClose={() => setShowAis(false)} />}
       {showEnc && <EncSheet onClose={() => setShowEnc(false)} />}
+      {encQuery && (
+        <div className="legend" role="dialog" aria-label="Chart objects" style={{ position: 'absolute', right: 10, top: 90, maxWidth: 260, maxHeight: 260, overflow: 'auto', pointerEvents: 'auto', zIndex: 5 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <b>Chart objects</b>
+            <button onClick={() => setEncQuery(null)} aria-label="Close chart objects" style={{ color: 'var(--ink-faint)' }}>
+              ✕
+            </button>
+          </div>
+          {encQuery.objects.map((o, i) => (
+            <div key={i} style={{ marginTop: 4 }}>
+              <b>{o.cls}</b>
+              {o.attrs.OBJNAM ? ` · ${o.attrs.OBJNAM}` : ''}
+              <div className="note">
+                {Object.entries(o.attrs)
+                  .filter(([k]) => k !== 'OBJNAM')
+                  .map(([k, v]) => `${k} ${v}`)
+                  .join(', ') || 'no attributes'}{' '}
+                · {o.cell}
+              </div>
+            </div>
+          ))}
+          <p className="note" style={{ marginTop: 6 }}>Not for navigation.</p>
+        </div>
+      )}
       {editingNote && raceNotes.some((n) => n.id === editingNote) && (
         <RaceNoteSheet note={raceNotes.find((n) => n.id === editingNote)!} onClose={() => setEditingNote(null)} />
       )}

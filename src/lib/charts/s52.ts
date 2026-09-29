@@ -5,7 +5,8 @@
  * it standing out, land, coastline, lights, buoys and dangers. A simplified
  * rendition, not the conformant PresLib: not for navigation.
  */
-import type { EncCell, EncFeature } from './s57'
+import { distance } from '../geo'
+import type { EncCell, EncFeature, EncFeature as Feature } from './s57'
 
 /** Dark-palette depth shades, from drying to deep. */
 export const DEPTH_SHADES = { drying: '#2f4a2c', shallow: '#1f5f8b', medium: '#15466a', deep: '#0a2438' } as const
@@ -111,4 +112,48 @@ export function encDrawFeatures(cells: EncCell[], o: EncStyleOptions): DrawFeatu
   }
   if (o.night) for (const x of out) if (typeof x.properties.color === 'string') x.properties.color = dim(x.properties.color)
   return out
+}
+
+// ---------------------------------------------------------- object query
+
+
+function inRing(ring: Array<[number, number]>, lon: number, lat: number): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]
+    const [xj, yj] = ring[j]
+    if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+function nearLine(line: Array<[number, number]>, at: { lat: number; lon: number }, nm: number): boolean {
+  for (let i = 1; i < line.length; i++) {
+    // Sampled along each segment: exact enough at a tap's tolerance.
+    const [x0, y0] = line[i - 1]
+    const [x1, y1] = line[i]
+    for (let k = 0; k <= 10; k++) if (distance(at, { lat: y0 + ((y1 - y0) * k) / 10, lon: x0 + ((x1 - x0) * k) / 10 }) <= nm) return true
+  }
+  return false
+}
+
+/** The chart objects at a point: areas it lies in, and lines and points within `toleranceNm`. */
+export function encObjectsAt(cells: EncCell[], at: { lat: number; lon: number }, toleranceNm = 0.05): Array<Feature & { cell: string }> {
+  const out: Array<Feature & { cell: string }> = []
+  for (const c of cells) {
+    for (const f of c.features) {
+      const g = f.geometry
+      if (!g) continue
+      let hit = false
+      if (g.type === 'Polygon') hit = inRing(g.coordinates[0], at.lon, at.lat) && !g.coordinates.slice(1).some((r) => inRing(r, at.lon, at.lat))
+      else if (g.type === 'LineString') hit = nearLine(g.coordinates, at, toleranceNm)
+      else if (g.type === 'MultiLineString') hit = g.coordinates.some((l) => nearLine(l, at, toleranceNm))
+      else if (g.type === 'Point') hit = distance(at, { lat: g.coordinates[1], lon: g.coordinates[0] }) <= toleranceNm
+      else if (g.type === 'MultiPoint') hit = g.coordinates.some(([lon, lat]) => distance(at, { lat, lon }) <= toleranceNm)
+      if (hit) out.push({ ...f, cell: c.name })
+    }
+  }
+  // Points and lines first, then the areas they sit in.
+  const rank = (f: Feature) => (f.prim === 1 ? 0 : f.prim === 2 ? 1 : 2)
+  return out.sort((a, b) => rank(a) - rank(b))
 }

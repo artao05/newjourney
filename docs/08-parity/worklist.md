@@ -348,7 +348,7 @@ leaves something tested and working.
       them with (the dots stand in until then). *Accept:* a browser check.
 - [ ] **13.5 Chart installer:** load `.000` files or a folder, a cell catalogue and
       bounds. *Accept:* tests.
-- [ ] **13.6 Chart object query.** *Accept:* tests.
+- [x] **13.6 Chart object query.** *Accept:* tests.
 - [ ] **13.7 Orientation modes:** north-up, course-up and head-up, with follow-boat.
       *Accept:* a browser check.
 - [ ] **13.8 BSB/KAP raster charts.** *Accept:* it decodes a NOAA RNC fixture.
