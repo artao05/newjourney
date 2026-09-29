@@ -21,7 +21,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { RouteResult, WeatherCube } from '@/lib/types'
 
 // ------------------------------------------------------------- maplibre stub
@@ -142,6 +142,7 @@ import { distance } from '@/lib/geo'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
 import { angdiff, wrap360 } from '@/lib/angles'
 import { uvFromWind } from '@/lib/weather/cube'
+import { DEFAULT_ROUTE_SETTINGS } from '@/lib/routing/settings'
 
 // ------------------------------------------------------------------ fixtures
 
@@ -164,7 +165,12 @@ function emptyStore() {
   s.setRoute(null)
   s.setRouteError(null)
   s.setGpsError(null)
-  useStore.setState({ manualWind: { twd: 270, tws: 12 }, manualWindSetAt: null, windSheetOpen: false })
+  useStore.setState({
+    manualWind: { twd: 270, tws: 12 },
+    manualWindSetAt: null,
+    windSheetOpen: false,
+    routeSettings: { ...DEFAULT_ROUTE_SETTINGS },
+  })
 }
 
 /** A boat, a wind, a polar and a two-mark course. */
@@ -320,6 +326,58 @@ describe('the Route screen tells the truth about land avoidance', () => {
     const text = document.body.textContent ?? ''
     expect(text).toMatch(/no land pack|land pack failed/)
     expect(text).not.toMatch(/land pack \d+ m/)
+  })
+})
+
+describe('the Route screen keeps its controls on screen', () => {
+  /*
+   * MapLibre's stylesheet makes the map container position: relative, so a map
+   * sitting directly in the screen took its full height and pushed the actions
+   * row off the clipped bottom edge. The map has to live in its own flexing area,
+   * with the actions as a sibling of that area. jsdom has no layout, so the
+   * structure is what can be pinned here. The browser check is in the commit.
+   */
+  it('puts the map in a chart area and the actions beside it, not below it', () => {
+    render(<RouteScreen />)
+    const map = document.querySelector('.map')!
+    const actions = screen.getByRole('button', { name: 'ROUTE' }).closest('.actions')!
+    expect(map.parentElement?.classList.contains('chart-area')).toBe(true)
+    expect(actions.parentElement).toBe(map.parentElement?.parentElement)
+  })
+})
+
+describe('the Route screen reaches every routing setting', () => {
+  it('opens the settings, keeps what is typed, and names it on the map', () => {
+    render(<RouteScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }))
+    fireEvent.change(screen.getByLabelText(/Wind direction/), { target: { value: '10' } })
+    fireEvent.change(screen.getByLabelText(/Gusts above/), { target: { value: '30' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Best' }))
+    expect(useStore.getState().routeSettings).toMatchObject({
+      windRotateDeg: 10,
+      maxGust: 30,
+      resolution: 'best',
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
+    for (const chip of ['wind +10°', 'gust ≤ 30 kn', 'best']) {
+      expect(screen.getByText(chip)).toBeTruthy()
+    }
+  })
+
+  it('treats a cleared limit as no limit, not as zero', () => {
+    useStore.getState().updateRouteSettings({ maxTws: 25 })
+    render(<RouteScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }))
+    fireEvent.change(screen.getByLabelText(/Wind above/), { target: { value: '' } })
+    expect(useStore.getState().routeSettings.maxTws).toBeNull()
+  })
+
+  it('edits the tack and gybe costs the router and the mark times use', () => {
+    render(<RouteScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }))
+    fireEvent.change(screen.getByLabelText(/Tack costs/), { target: { value: '20' } })
+    fireEvent.change(screen.getByLabelText(/Gybe costs/), { target: { value: '-5' } })
+    expect(useStore.getState().boat).toMatchObject({ tackPenaltyS: 20, gybePenaltyS: 0 })
   })
 })
 

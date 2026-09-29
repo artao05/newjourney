@@ -28,7 +28,7 @@ leaves something tested and working.
 
 ## M1 — Wire up what already exists
 
-- [ ] **1.1 Routing settings.** The kernel supports resolution presets, wind
+- [x] **1.1 Routing settings.** The kernel supports resolution presets, wind
       scale/rotate/time shift, current scale, max TWS/gust/waves and tack/gybe
       penalties, but Route hard-codes all of them. *Accept:* a settings sheet
       reaches every option, the values persist, and a test shows each one reaching the

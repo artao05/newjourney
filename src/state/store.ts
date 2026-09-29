@@ -21,6 +21,7 @@ import type {
   WindEstimate,
   WindSource,
 } from '@/lib/types'
+import { DEFAULT_ROUTE_SETTINGS, type RouteSettings } from '@/lib/routing/settings'
 
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
 
@@ -104,6 +105,10 @@ interface AppState {
   pushTrack(p: TrackPoint): void
   clearTrack(): void
 
+  /** Expedition's optimal-routing options: corrections, limits and resolution. */
+  routeSettings: RouteSettings
+  updateRouteSettings(patch: Partial<RouteSettings>): void
+
   route: RouteResult | null
   routing: boolean
   routeError: string | null
@@ -146,6 +151,7 @@ export function mergePersistedState(
       startLine: { ...c.course.startLine, ...p.course?.startLine },
     },
     settings: { ...c.settings, ...p.settings },
+    routeSettings: { ...c.routeSettings, ...p.routeSettings },
   }
 }
 
@@ -336,6 +342,10 @@ export const useStore = create<AppState>()(
       },
       clearTrack: () => set({ track: [] }),
 
+      routeSettings: { ...DEFAULT_ROUTE_SETTINGS },
+      updateRouteSettings: (patch) =>
+        set({ routeSettings: { ...get().routeSettings, ...patch } }),
+
       route: null,
       routing: false,
       routeError: null,
@@ -360,6 +370,7 @@ export const useStore = create<AppState>()(
         manualWindSetAt: s.manualWindSetAt,
         windMode: s.windMode,
         settings: s.settings,
+        routeSettings: s.routeSettings,
         activeMarkIndex: s.activeMarkIndex,
         // A recording that was on survives a reload too: a phone that drops the app
         // mid-race must not come back with the track stopped and nothing said.
