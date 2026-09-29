@@ -28,6 +28,7 @@ import {
 } from '@/lib/wind'
 import type { Reading } from './nmea0183'
 import { headingTrueOf } from './toBoat'
+import { NO_CALIBRATION, calibrateRaw, calibrateTrue, type Calibration } from './calibration'
 
 export type DampKind = 'linear' | 'bearing' | 'signed'
 
@@ -144,15 +145,20 @@ export class InstrumentPipeline {
   private dampers = new Map<keyof Derived, Damper>()
   private lastHeading: { t: number; h: number } | null = null
 
-  constructor(readonly settings: PipelineSettings = DEFAULT_PIPELINE) {
+  constructor(
+    readonly settings: PipelineSettings = DEFAULT_PIPELINE,
+    readonly calibration: Calibration = NO_CALIBRATION,
+  ) {
     for (const [k, kind, group] of CHANNELS) {
       const tau = group === 'angle' ? settings.dampAngleS : settings.dampSpeedS
       this.dampers.set(k, new Damper(tau, kind, settings.dampMode))
     }
   }
 
-  step(r: Reading, t: number): Derived {
+  step(input: Reading, t: number): Derived {
     const s = this.settings
+    // Sensor calibration first: offsets, deviation, and the BSP, AWA and AWS tables.
+    const r = calibrateRaw(input, this.calibration)
     const damp = (k: keyof Derived, v: number | null | undefined) =>
       v == null || !Number.isFinite(v) ? null : this.dampers.get(k)!.push(v, t)
     const rawHeading = headingTrueOf(r)
@@ -196,7 +202,9 @@ export class InstrumentPipeline {
     const sent = r.tws != null && (r.twd != null || r.twa != null)
     if (s.trueWind === 'calculate' && out.awa != null && out.aws != null && out.bsp != null && out.course != null) {
       const tw = apparentToTrue({ awa: out.awa, aws: out.aws, bsp: out.bsp, course: out.course })
-      ;[out.twa, out.tws, out.twd] = [tw.twa, tw.tws, tw.twd]
+      // Then the upwash and twist tables, which is why TWD is worked out again after.
+      const c = calibrateTrue(tw.twa, tw.tws, this.calibration)
+      ;[out.twa, out.tws, out.twd] = [c.twa, c.tws, wrap360(out.course + c.twa)]
     } else if (sent) {
       out.tws = r.tws!
       out.twd = r.twd ?? (rawHeading != null && r.twa != null ? wrap360(rawHeading + r.twa) : null)

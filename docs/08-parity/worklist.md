@@ -162,8 +162,10 @@ leaves something tested and working.
 - [x] **6.4 The instrument pipeline:** per-channel damping, true wind from apparent
       (heel and upwash corrected), the leeway coefficient, and set and drift gated on
       rate of turn. *Accept:* fixture tests.
-- [ ] **6.5 Calibration tables:** BSP, AWA/TWA and TWS correction matrices, compass
-      deviation and mast angle. *Accept:* tests.
+- [x] **6.5 Calibration tables:** BSP, AWA, AWS, TWA and TWS correction tables, compass
+      deviation and offsets. *Accept:* tests.
+- [ ] **6.5b Mast angle** (from 6.5): read a mast-rotation sensor (XDR or Signal K) and
+      correct it with an offset. *Accept:* tests.
 - [ ] **6.6 Phone heading and heel** from DeviceOrientation, with an honest quality
       flag. *Accept:* hook tests.
 - [ ] **6.7 GPS window:** fix, HDOP and satellites when NMEA provides them. *Accept:*

@@ -15,18 +15,23 @@ import { SerialNmeaSource, grantedPort } from '@/lib/instruments/webserial'
 import type { Reading } from '@/lib/instruments/nmea0183'
 import { boatStateFrom } from '@/lib/instruments/toBoat'
 import { InstrumentPipeline, type Derived, type PipelineSettings } from '@/lib/instruments/pipeline'
+import { NO_CALIBRATION, type Calibration } from '@/lib/instruments/calibration'
 
 export type InstrumentSource =
   | { kind: 'signalk'; url: string }
   | { kind: 'serial'; baud: number }
   | null
 
-export function useInstruments(source: InstrumentSource, settings: PipelineSettings) {
+export function useInstruments(
+  source: InstrumentSource,
+  settings: PipelineSettings,
+  calibration: Calibration = NO_CALIBRATION,
+) {
   const reading = useRef<Reading>({})
   const derived = useRef<Derived | null>(null)
   const fresh = useRef(false)
   const key = source ? (source.kind === 'signalk' ? `sk:${source.url}` : `serial:${source.baud}`) : ''
-  const settingsKey = JSON.stringify(settings)
+  const settingsKey = JSON.stringify([settings, calibration])
 
   useEffect(() => {
     const st = useStore.getState()
@@ -37,7 +42,7 @@ export function useInstruments(source: InstrumentSource, settings: PipelineSetti
     reading.current = {}
     derived.current = null
     // Stepped on every reading, not once a second, so damping sees the full rate.
-    const pipeline = new InstrumentPipeline(settings)
+    const pipeline = new InstrumentPipeline(settings, calibration)
     const onReading = (r: Partial<Reading>) => {
       Object.assign(reading.current, r)
       derived.current = pipeline.step(reading.current, Date.now())

@@ -102,7 +102,8 @@ export function App() {
         : null
   useGeolocation(!settings.simulate && !instrumentSource)
   const pipeline = useStore((s) => s.pipeline)
-  useInstruments(instrumentSource, pipeline)
+  const calibration = useStore((s) => s.calibration)
+  useInstruments(instrumentSource, pipeline, calibration)
   // Start the simulated boat afloat, not on the island the map centre sits on.
   useSimulation(settings.simulate, PILOT_VENUE.waterStart)
   useWakeLock(settings.keepAwake)

@@ -22,6 +22,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PIPELINE } from '@/lib/instruments/pipeline'
+import { NO_CALIBRATION } from '@/lib/instruments/calibration'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { RouteResult, WeatherCube } from '@/lib/types'
 
@@ -197,6 +198,7 @@ function emptyStore() {
     instrumentReading: null,
     instrumentDerived: null,
     pipeline: { ...DEFAULT_PIPELINE },
+    calibration: { ...NO_CALIBRATION, offsets: { ...NO_CALIBRATION.offsets } },
     instrumentStatus: { status: 'off', detail: null, lastAt: null },
   })
 }
@@ -931,6 +933,25 @@ describe('Setup connects to the instruments', () => {
     fireEvent.click(within(section).getByLabelText('Correct apparent wind for heel'))
     expect(useStore.getState().pipeline).toMatchObject({ trueWind: 'instrument', dampAngleS: 6, leewayK: 8.5, heelCorrect: true })
     expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.pipeline.leewayK).toBe(8.5)
+  })
+
+  it('loads a correction table from a file, says why a bad one will not load, and clears it', async () => {
+    emptyStore()
+    render(<SetupScreen />)
+    const section = screen.getByRole('region', { name: 'Calibration' })
+    const good = new File(['tws, 30, 60\n10, 2, 1\n20, 2, 1'], 'twa.csv', { type: 'text/csv' })
+    fireEvent.change(within(section).getByLabelText('Import the true angle (upwash) table'), { target: { files: [good] } })
+    await waitFor(() => expect(useStore.getState().calibration.twa?.cols).toEqual([30, 60]))
+    expect(within(section).getByText('2×2')).toBeTruthy()
+    const bad = new File(['4, 8'], 'bsp.csv', { type: 'text/csv' })
+    fireEvent.change(within(section).getByLabelText('Import the boat speed table'), { target: { files: [bad] } })
+    await waitFor(() => expect(within(section).getByRole('alert').textContent).toMatch(/header line/))
+    expect(useStore.getState().calibration.bsp).toBeNull()
+    fireEvent.click(within(section).getByRole('button', { name: 'CLEAR' }))
+    expect(useStore.getState().calibration.twa).toBeNull()
+    fireEvent.change(within(section).getByLabelText(/^Compass offset/), { target: { value: '-2.5' } })
+    expect(useStore.getState().calibration.offsets.compass).toBe(-2.5)
+    expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.calibration.offsets.compass).toBe(-2.5)
   })
 
   it('offers the instruments as a wind source', () => {
