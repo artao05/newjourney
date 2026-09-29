@@ -950,6 +950,32 @@ describe('a route can start anywhere, not only at the boat', () => {
     }
   })
 
+  it('moves the ENC by the chart offset, from the ENC sheet, and back', async () => {
+    const { decodeS57 } = await import('@/lib/charts/s57')
+    try {
+      act(() => useCharts.getState().add(decodeS57(encCell())))
+      render(<RouteScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      const light = () => (mapInstances[0].data.get('enc') as GeoJSON.FeatureCollection).features.find((f) => f.properties!.cls === 'LIGHTS')!.geometry as GeoJSON.Point
+      expect(light().coordinates[1]).toBeCloseTo(43.62, 9)
+      fireEvent.click(screen.getByRole('button', { name: 'ENC · 1' }))
+      // 111.12 m north is a thousandth of a degree of latitude.
+      fireEvent.change(screen.getByLabelText('Chart offset north'), { target: { value: '111.12' } })
+      expect(useStore.getState().settings.chartOffset).toEqual({ northM: 111.12, eastM: 0 })
+      expect(light().coordinates[1]).toBeCloseTo(43.621, 9)
+      expect(light().coordinates[0]).toBeCloseTo(-70.21, 9)
+      fireEvent.click(screen.getByRole('button', { name: 'RESET' }))
+      expect(light().coordinates[1]).toBeCloseTo(43.62, 9)
+    } finally {
+      act(() => {
+        useCharts.getState().clear()
+        useStore.getState().updateSettings({ chartOffset: { northM: 0, eastM: 0 } })
+      })
+    }
+  })
+
   it('says what the chart has where it is tapped, with ENC cells open', async () => {
     const { decodeS57 } = await import('@/lib/charts/s57')
     act(() => useCharts.getState().add(decodeS57(encCell())))

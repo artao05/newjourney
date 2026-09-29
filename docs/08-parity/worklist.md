@@ -363,7 +363,9 @@ leaves something tested and working.
 - [ ] **13.8b Check the raster reader on a real BSB/KAP chart.** `blocked: D8`: NOAA has withdrawn
       its RNCs; may I download one archived NOAA KAP (public domain), or will you drop any real
       `.kap` into `src/lib/charts/fixtures/`?
-- [ ] **13.9 Georeferenced custom images, and GPS chart offset.** *Accept:* tests.
+- [x] **13.9 Georeferenced custom images, and GPS chart offset.** *Accept:* tests.
+      *Images placed by two or more control points (Mercator or lat/lon); a chart offset in metres
+      moves the ENC and raster charts (lib/charts/georef.ts). The base map cannot be moved.*
 - [ ] **13.10 Safe route check and safety-depth routing** against ENC. *Accept:*
       kernel tests.
 

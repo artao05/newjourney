@@ -27,6 +27,7 @@ import { fleetPolar } from '@/lib/fleet'
 import { POLAR_LIBRARY } from '@/data/polars'
 import { encDrawFeatures, encObjectsAt } from '@/lib/charts/s52'
 import { parseSymbolKey, rasterSymbol } from '@/lib/charts/symbols'
+import { offsetCorners, offsetFeatures } from '@/lib/charts/georef'
 import type { EncFeature } from '@/lib/charts/s57'
 import { AisSheet } from '@/components/AisSheet'
 import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
@@ -619,8 +620,9 @@ export function RouteScreen() {
   // ENC cells the user opened, drawn against the safety depth.
   const encCells = useCharts((s) => s.cells)
   const rasters = useCharts((s) => s.rasters)
+  const chartOffset = useStore((s) => s.settings.chartOffset)
   // Raster charts: an image source each, under the ENC cells and everything else.
-  const shownRasters = useRef(new Map<string, number>())
+  const shownRasters = useRef(new Map<string, { opacity: number; offset: typeof chartOffset }>())
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
@@ -633,16 +635,17 @@ export function RouteScreen() {
     }
     for (const r of rasters) {
       if (!r.on) continue
-      if (!shown.has(r.id)) {
-        map.addSource(r.id, { type: 'image', url: r.url, coordinates: r.corners })
+      const was = shown.get(r.id)
+      if (!was) {
+        map.addSource(r.id, { type: 'image', url: r.url, coordinates: offsetCorners(r.corners, chartOffset) })
         map.addLayer({ id: r.id, type: 'raster', source: r.id, paint: { 'raster-opacity': r.opacity } }, 'enc-area')
-        shown.set(r.id, r.opacity)
-      } else if (shown.get(r.id) !== r.opacity) {
-        map.setPaintProperty(r.id, 'raster-opacity', r.opacity)
-        shown.set(r.id, r.opacity)
+      } else {
+        if (was.opacity !== r.opacity) map.setPaintProperty(r.id, 'raster-opacity', r.opacity)
+        if (was.offset !== chartOffset) (map.getSource(r.id) as maplibregl.ImageSource | undefined)?.setCoordinates(offsetCorners(r.corners, chartOffset))
       }
+      shown.set(r.id, { opacity: r.opacity, offset: chartOffset })
     }
-  }, [ready, rasters])
+  }, [ready, rasters, chartOffset])
   // Installed cells come back once a session.
   useEffect(() => {
     void restoreCharts()
@@ -661,8 +664,11 @@ export function RouteScreen() {
         ? [{ type: 'Feature', properties: { layer: 'bounds', name: cellKey(c.name) }, geometry: { type: 'LineString', coordinates: [[c.bounds.west, c.bounds.south], [c.bounds.east, c.bounds.south], [c.bounds.east, c.bounds.north], [c.bounds.west, c.bounds.north], [c.bounds.west, c.bounds.south]] } }]
         : [],
     )
-    setSource(map, 'enc', { type: 'FeatureCollection', features: [...encDrawFeatures(encCells, { safetyDepthM, ...encDisplay }), ...outlines] } as unknown as FC)
-  }, [ready, encCells, safetyDepthM, encDisplay])
+    // Moved by the chart offset, at the charts' own latitude.
+    const b = encCells.find((c) => c.bounds)?.bounds
+    const features = offsetFeatures([...encDrawFeatures(encCells, { safetyDepthM, ...encDisplay }), ...outlines] as Array<{ geometry: { type: string; coordinates: unknown } | null }>, chartOffset, b ? (b.south + b.north) / 2 : 45)
+    setSource(map, 'enc', { type: 'FeatureCollection', features } as unknown as FC)
+  }, [ready, encCells, safetyDepthM, encDisplay, chartOffset])
 
   // The fleet's tracks from tracking files, in each boat's colour.
   const fleetTracks = useTracking((s) => s.tracks)
@@ -2486,6 +2492,8 @@ function EncSheet({ onClose, onShow }: { onClose: () => void; onShow: (b: EncBou
   const cells = useCharts((s) => s.cells)
   const rasters = useCharts((s) => s.rasters)
   const [busy, setBusy] = useState<string | null>(null)
+  const offset = useStore((s) => s.settings.chartOffset)
+  const updateSettings = useStore((s) => s.updateSettings)
   const install = async (input: HTMLInputElement) => {
     const files = [...(input.files ?? [])]
     input.value = ''
@@ -2593,6 +2601,22 @@ function EncSheet({ onClose, onShow }: { onClose: () => void; onShow: (b: EncBou
         <label>
           <input type="checkbox" checked={display.night} onChange={(e) => setDisplay({ night: e.target.checked })} /> Night palette
         </label>
+      </div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }} title="Where a chart is off against GPS, move it: the boat stays where GPS puts her. Moves the ENC and raster charts, not the base map.">
+        <span>Chart offset</span>
+        <label>
+          N{' '}
+          <input aria-label="Chart offset north" type="number" step="1" value={offset.northM} onChange={(e) => updateSettings({ chartOffset: { ...offset, northM: Number(e.target.value) || 0 } })} style={{ width: 64 }} /> m
+        </label>
+        <label>
+          E{' '}
+          <input aria-label="Chart offset east" type="number" step="1" value={offset.eastM} onChange={(e) => updateSettings({ chartOffset: { ...offset, eastM: Number(e.target.value) || 0 } })} style={{ width: 64 }} /> m
+        </label>
+        {(offset.northM !== 0 || offset.eastM !== 0) && (
+          <button className="btn btn--sm btn--ghost" onClick={() => updateSettings({ chartOffset: { northM: 0, eastM: 0 } })}>
+            RESET
+          </button>
+        )}
       </div>
       {cells.length > 0 && (
         <table className="targets" aria-label="Installed cells" style={{ width: '100%' }}>

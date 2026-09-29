@@ -5,6 +5,7 @@
  */
 
 import type { ChartMotion, ChartOrientation } from '@/lib/chartView'
+import type { ChartOffset } from '@/lib/charts/georef'
 import { create } from 'zustand'
 import type { ColourMode } from '@/lib/maplayers/colormap'
 import { persist, createJSONStorage } from 'zustand/middleware'
@@ -233,6 +234,8 @@ export interface Settings {
   chartOrientation: ChartOrientation
   /** What the Route chart keeps in view as the boat moves. */
   chartMotion: ChartMotion
+  /** Our own charts (ENC, raster) moved to line up with GPS where a chart is off. */
+  chartOffset: ChartOffset
 }
 
 interface AppState {
@@ -504,6 +507,7 @@ export const DEFAULT_SETTINGS: Settings = {
   acceptedNotForNavigation: false,
   chartOrientation: 'north',
   chartMotion: 'free',
+  chartOffset: { northM: 0, eastM: 0 },
 }
 
 export function mergePersistedState(
