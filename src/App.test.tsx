@@ -13,7 +13,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 const { FakeMap, FakeLngLatBounds } = vi.hoisted(() => {
   class FakeLngLatBounds {
@@ -472,5 +472,42 @@ describe('the nav-station layout at laptop width', () => {
     expect(useStore.getState().navChart).toBe('route')
     const saved = JSON.parse(localStorage.getItem('newjourney.v1') ?? '{}').state
     expect(saved.navPanel).toBe('start')
+  })
+})
+
+describe("Expedition's keyboard shortcuts", () => {
+  const press = (key: string, mods: Record<string, boolean> = {}) =>
+    act(() => {
+      fireEvent.keyDown(window, { key, ...mods })
+    })
+
+  it('steps the active mark with the left and right arrows, within the course', () => {
+    const s = useStore.getState()
+    for (const n of ['A', 'B', 'C']) s.addMark(n, AT)
+    s.setActiveMark(0)
+    render(<App />)
+    press('ArrowRight')
+    press('ArrowRight')
+    press('ArrowRight')
+    expect(useStore.getState().activeMarkIndex).toBe(2)
+    press('ArrowLeft')
+    expect(useStore.getState().activeMarkIndex).toBe(1)
+  })
+
+  it('drops a MOB mark at the boat on F2 and makes it the active mark', () => {
+    useStore.getState().setBoatState(instrumented())
+    render(<App />)
+    press('F2')
+    const { course, activeMarkIndex, tab } = useStore.getState()
+    expect(course.marks[activeMarkIndex]).toMatchObject({ name: 'MOB', position: AT })
+    expect(tab).toBe('race')
+  })
+
+  it('opens Setup on Ctrl-S and Weather on Alt-W', () => {
+    render(<App />)
+    press('s', { ctrlKey: true })
+    expect(useStore.getState().tab).toBe('setup')
+    press('w', { altKey: true })
+    expect(useStore.getState().tab).toBe('weather')
   })
 })

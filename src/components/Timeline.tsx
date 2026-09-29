@@ -198,8 +198,10 @@ export function Timeline({
       // itself, and double-stepping it would feel broken.
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
 
-      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') step(1)
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') step(-1)
+      // Up and down, as in Expedition. Left and right belong to the marks
+      // (src/lib/shortcuts.ts).
+      if (e.key === 'ArrowUp') step(1)
+      else if (e.key === 'ArrowDown') step(-1)
       // Space activates a focused button on its own; toggling as well would fire
       // twice.
       else if (e.key === ' ' && tag !== 'BUTTON') onPlayingChange(!playing)

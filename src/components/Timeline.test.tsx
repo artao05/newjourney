@@ -98,12 +98,12 @@ describe('stepping', () => {
     // the stepping arithmetic wraps — the attribute masks it. Arrow keys reach
     // `step` directly and are the only way to see what it actually computes.
     const atEnd = mount({ value: T0 + 11 * HOUR })
-    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    fireEvent.keyDown(window, { key: 'ArrowUp' })
     expect(atEnd.changes.map(indexOf)).toEqual([11])
     cleanup()
 
     const atStart = mount({ value: T0 })
-    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
     expect(atStart.changes.map(indexOf)).toEqual([0])
   })
 
@@ -183,26 +183,26 @@ describe('playback', () => {
 // ------------------------------------------------------------------ keyboard
 
 describe('keyboard', () => {
-  it('steps with both arrow pairs', () => {
+  it('steps with up and down, as Expedition does, and leaves left and right to the marks', () => {
     const h = mount({ value: T0 + 5 * HOUR })
-    fireEvent.keyDown(window, { key: 'ArrowRight' })
     fireEvent.keyDown(window, { key: 'ArrowUp' })
-    fireEvent.keyDown(window, { key: 'ArrowLeft' })
     fireEvent.keyDown(window, { key: 'ArrowDown' })
-    expect(h.changes.map(indexOf)).toEqual([6, 6, 4, 4])
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    expect(h.changes.map(indexOf)).toEqual([6, 4])
   })
 
   it('leaves a focused field its own arrow keys', () => {
     // The range input steps itself; double-stepping it would feel broken.
     const h = mount()
-    fireEvent.keyDown(slider(), { key: 'ArrowRight' })
+    fireEvent.keyDown(slider(), { key: 'ArrowUp' })
     expect(h.changes).toEqual([])
   })
 
   it('ignores an arrow key that carries a modifier', () => {
     const h = mount()
-    fireEvent.keyDown(window, { key: 'ArrowRight', metaKey: true })
-    fireEvent.keyDown(window, { key: 'ArrowRight', ctrlKey: true })
+    fireEvent.keyDown(window, { key: 'ArrowUp', metaKey: true })
+    fireEvent.keyDown(window, { key: 'ArrowUp', ctrlKey: true })
     expect(h.changes).toEqual([])
   })
 
@@ -218,7 +218,7 @@ describe('keyboard', () => {
   it('stops listening once unmounted', () => {
     const h = mount()
     cleanup()
-    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    fireEvent.keyDown(window, { key: 'ArrowUp' })
     expect(h.changes).toEqual([])
   })
 })

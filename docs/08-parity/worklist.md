@@ -69,7 +69,7 @@ leaves something tested and working.
 - [x] **2.4 Nav-station layout at ≥1024 px.** The chart in the middle, the tabs as
       side panes, and a number-box column. The phone layout is unchanged. *Accept:*
       screen tests at both widths, plus a browser check.
-- [ ] **2.5 Keyboard shortcuts and full-screen chart.** *Accept:* a keymap test, plus
+- [x] **2.5 Keyboard shortcuts and full-screen chart.** *Accept:* a keymap test, plus
       a browser check.
 - [ ] **2.6 User configuration export and import.** Boats, polars, marks, settings and
       layouts in one JSON file. *Accept:* a round-trip test.

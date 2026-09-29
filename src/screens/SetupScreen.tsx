@@ -15,6 +15,7 @@ import { NotForNavigationText } from '@/components/NotForNavigation'
 import { PILOT_VENUE } from '@/data/venues'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
 import { windHeightFactor } from '@/lib/routing/settings'
+import { SHORTCUT_HELP } from '@/lib/shortcuts'
 
 /**
  * How to name the tide station on the venue panel.
@@ -422,6 +423,22 @@ export function SetupScreen() {
             CLEAR TRACK
           </button>
         </div>
+
+        <h2>Keyboard</h2>
+        <div className="rows" aria-label="Keyboard shortcuts">
+          {SHORTCUT_HELP.map(([keys, does]) => (
+            <div className="row" key={keys}>
+              <span>{does}</span>
+              <span>
+                <kbd>{keys}</kbd>
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="note">
+          Expedition&apos;s keys where a browser allows them. Ctrl-W closes the tab in
+          every browser, so weather is Alt-W.
+        </p>
 
         <h2>Safety</h2>
         <div className="warnbox">

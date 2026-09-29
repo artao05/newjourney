@@ -10,6 +10,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
 import { useStore, type ChartTab, type PanelTab, type Tab } from '@/state/store'
 import { LayoutContext, useWide } from '@/hooks/useWide'
+import { toggleFullscreen, useShortcuts } from '@/hooks/useShortcuts'
 import { NumberBoxes } from '@/components/NumberBoxes'
 import { useGeolocation, useSimulation, useWakeLock, useTick } from '@/hooks/useSensors'
 import { StartScreen } from '@/screens/StartScreen'
@@ -74,6 +75,7 @@ export function App() {
   const pushTrack = useStore((s) => s.pushTrack)
 
   const wide = useWide()
+  useShortcuts(wide)
   const navPanel = useStore((s) => s.navPanel)
   const navChart = useStore((s) => s.navChart)
   const setNav = useStore((s) => s.setNav)
@@ -293,6 +295,16 @@ export function App() {
             >
               {windChipState.text}
             </button>
+            {typeof document !== 'undefined' && document.fullscreenEnabled && (
+              <button
+                className="chip"
+                onClick={() => toggleFullscreen(wide)}
+                title="Full-screen chart (Ctrl-Shift-F)"
+                aria-label="Full screen"
+              >
+                ⛶
+              </button>
+            )}
             <button
               className={`chip ${recording ? 'chip--bad' : ''}`}
               onClick={toggleRecording}
