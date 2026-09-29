@@ -18,6 +18,7 @@ import {
   computeStart,
   pingPosition,
   positionAtGun,
+  pinchTimeS,
   simpleTimeS,
   spareTimeS,
   turnRadiusM,
@@ -257,6 +258,44 @@ describe('speed to the ends, targets and the simple times', () => {
     expect(simpleTimeS(from, beam, windOf(0), lattice)).toBeCloseTo(3600 / lattice.speed(12, 90), 3)
     const run = destination(from, 180, 1)
     expect(simpleTimeS(from, run, windOf(0), lattice)).toBeCloseTo(3600 / (8 * Math.cos((30 * Math.PI) / 180)), 3)
+  })
+})
+
+describe('pinch times, gun speed, running the line, and time to the laylines', () => {
+  const base = () => ({ line: lineOf(100), wind: windOf(0), boat: boatOf(), lattice: fakeLattice(), now: NOW })
+
+  it('pinches straight at an end at the polar speed for that angle', () => {
+    // 50 m below the middle of a 100 m line in a northerly: each end is 45° off the wind.
+    const r = computeStart({ ...base(), state: stateOf() })
+    const kn = fakeLattice().speed(12, 45)
+    expect(r.pinchTimeToPortS).toBeCloseTo((Math.hypot(50, 50) / 1852 / kn) * 3600, 3)
+    expect(r.pinchTimeToStarboardS).toBeCloseTo(r.pinchTimeToPortS!, 6)
+    // Dead upwind the polar gives nothing, so there is no pinch time.
+    expect(pinchTimeS(off(180, 50), off(0, 50), windOf(0), fakeLattice())).toBeNull()
+  })
+
+  it('gives speed now against the target and the polar', () => {
+    const r = computeStart({ ...base(), state: stateOf({ bsp: 4.5, heading: 45, cog: 45 }) })
+    expect(r.gunBspTargetPct).toBeCloseTo((4.5 / 6) * 100, 6)
+    expect(r.gunBspPolarPct).toBeCloseTo((4.5 / fakeLattice().speed(12, 45)) * 100, 6)
+  })
+
+  it('runs the line from the bow’s foot on it to the pin', () => {
+    // 20 m east of the middle and 30 m below: 70 m along the line to the pin, on a beam reach.
+    const r = computeStart({ ...base(), state: stateOf({ position: destination(off(90, 20), 180, mToNm(30)) }) })
+    expect(r.boatToPinS).toBeCloseTo((70 / 1852 / fakeLattice().speed(12, 90)) * 3600, 1)
+  })
+
+  it('times the run along the line to each end’s layline, negative once past it', () => {
+    // From 50 m below the middle, heading for the pin: the starboard layline through the
+    // pin (course 320°) is met 50 − 50·tan 40° m along.
+    const r = computeStart({ ...base(), state: stateOf() })
+    const metres = 50 - 50 * Math.tan((40 * Math.PI) / 180)
+    expect(r.timeToLaylinePS).toBeCloseTo((metres / 1852 / fakeLattice().speed(12, 90)) * 3600, 1)
+    expect(r.timeToLaylineSS).toBeCloseTo(r.timeToLaylinePS!, 1)
+    // Right under the pin, the pin's layline is behind: negative.
+    const past = computeStart({ ...base(), state: stateOf({ position: destination(off(270, 50), 180, mToNm(10)) }) })
+    expect(past.timeToLaylinePS!).toBeLessThan(0)
   })
 })
 

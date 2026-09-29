@@ -60,6 +60,13 @@ const EMPTY_START_NUMBERS: StartNumbers = {
   reachSpeedKn: null,
   targetBsp: null,
   targetTwa: null,
+  pinchTimeToPortS: null,
+  pinchTimeToStarboardS: null,
+  gunBspTargetPct: null,
+  gunBspPolarPct: null,
+  boatToPinS: null,
+  timeToLaylinePS: null,
+  timeToLaylineSS: null,
   ocs: false,
 }
 

@@ -37,6 +37,7 @@ import {
   nmToM,
   rayIntersect,
   signedDistanceToLine,
+  vecAdd,
   vecBearing,
   vecLen,
   vecScale,
@@ -465,6 +466,13 @@ function emptyStart(): StartNumbers {
     reachSpeedKn: null,
     targetBsp: null,
     targetTwa: null,
+    pinchTimeToPortS: null,
+    pinchTimeToStarboardS: null,
+    gunBspTargetPct: null,
+    gunBspPolarPct: null,
+    boatToPinS: null,
+    timeToLaylinePS: null,
+    timeToLaylineSS: null,
     ocs: false,
   }
 }
@@ -602,6 +610,34 @@ export function computeStart(i: StartInputs): StartNumbers {
     out.targetTwa = tg.upTwa
     out.timeToPortEndSimpleS = simpleTimeS(bow, P, wind, ctx.lattice)
     out.timeToStarboardEndSimpleS = simpleTimeS(bow, S, wind, ctx.lattice)
+    const lat = ctx.lattice
+    out.pinchTimeToPortS = pinchTimeS(bow, P, wind, lat)
+    out.pinchTimeToStarboardS = pinchTimeS(bow, S, wind, lat)
+
+    // Speed now against the targets: what the boat will be doing at the gun if it holds this.
+    const bsp = state.bsp ?? (Number.isFinite(state.sog) ? state.sog : null)
+    const hdgNow = state.heading ?? state.cog
+    if (bsp != null && tg.upBsp > 0) out.gunBspTargetPct = finite((bsp / tg.upBsp) * 100)
+    if (bsp != null && Number.isFinite(hdgNow)) {
+      const polarNow = lat.speed(wind.tws, Math.abs(angdiff(wind.twd, hdgNow)))
+      if (polarNow > 0.1) out.gunBspPolarPct = finite((bsp / polarNow) * 100)
+    }
+
+    // Along the line: toward the pin is S->P, toward the committee boat P->S.
+    const toPin = wrap360(lineBrg + 180)
+    const alongSpeed = (brg: number) => lat.speed(wind.tws, Math.abs(angdiff(wind.twd, brg)))
+    const foot = vecAdd(pxy, vecScale(lineDir, (bowXY.x - pxy.x) * lineDir.x + (bowXY.y - pxy.y) * lineDir.y))
+    const vPin = alongSpeed(toPin)
+    if (vPin > 0.1) out.boatToPinS = finite((vecLen(vecSub(foot, pxy)) / vPin) * 3600)
+
+    // The layline through an end, from its close-hauled course on the tack that fetches it.
+    const layTime = (end: XY, sailBrg: number, twa: number) => {
+      const hit = rayIntersect(bowXY, fromPolar(sailBrg, 1), end, fromPolar(courseFor(wind.twd, twa), 1))
+      const v = alongSpeed(sailBrg)
+      return hit && v > 0.1 ? finite((hit.t / v) * 3600) : null
+    }
+    out.timeToLaylinePS = layTime(pxy, toPin, tg.upTwa)
+    out.timeToLaylineSS = layTime(sxy, lineBrg, -tg.upTwa)
   }
   if (approaches.ends) {
     if (out.timeToPortEndS !== null) candidates.push(out.timeToPortEndS)
@@ -665,6 +701,19 @@ export function computeStart(i: StartInputs): StartNumbers {
   }
 
   return out
+}
+
+/**
+ * The pinch time to a point: straight at it at the polar speed for that angle,
+ * no tacks and no gybes, sailing above or below the targets if that is what it
+ * takes. Null where the polar gives next to nothing (dead into the wind).
+ */
+export function pinchTimeS(from: LatLon, to: LatLon, wind: WindEstimate, lattice: PolarLattice): Seconds | null {
+  const d = distance(from, to)
+  if (!Number.isFinite(d)) return null
+  if (!(d > 0)) return 0
+  const kn = lattice.speed(wind.tws, Math.abs(angdiff(bearing(from, to), wind.twd)))
+  return kn > 0.3 ? (d / kn) * 3600 : null
 }
 
 /** A number, or null when it is not one: NaN must never reach a display. */

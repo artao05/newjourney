@@ -317,6 +317,21 @@ export interface StartNumbers {
   /** Upwind targets from the start polar at the present wind. */
   targetBsp: Knots | null
   targetTwa: Degrees | null
+  /** Straight at each end at the polar speed for that angle: no tacks, pinching if need be. */
+  pinchTimeToPortS: Seconds | null
+  pinchTimeToStarboardS: Seconds | null
+  /** Boat speed now as a percentage of the upwind target, and of the polar at the present angle. */
+  gunBspTargetPct: number | null
+  gunBspPolarPct: number | null
+  /** Running the line: from the bow's foot on it to the pin, at the polar speed along it. */
+  boatToPinS: Seconds | null
+  /**
+   * Sailing parallel to the line toward an end, the time to its layline: the
+   * starboard-tack layline through the pin (P), the port-tack one through the
+   * committee boat (S). Negative when already past it.
+   */
+  timeToLaylinePS: Seconds | null
+  timeToLaylineSS: Seconds | null
   /** True once the bow is over the line before the gun. */
   ocs: boolean
 }
