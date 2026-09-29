@@ -167,7 +167,10 @@ const P_GUST = 2
 const P_WAVE = 3
 const P_CU = 4
 const P_CV = 5
-const P_COUNT = 6
+/** The direction the waves come from, as a unit vector, so it interpolates. */
+const P_WDX = 6
+const P_WDY = 7
+const P_COUNT = 8
 
 class DenseField {
   readonly lon0: number
@@ -185,6 +188,8 @@ class DenseField {
   readonly wave: Float32Array
   readonly cu: Float32Array
   readonly cv: Float32Array
+  readonly wdx: Float32Array
+  readonly wdy: Float32Array
   hasGust = false
   hasCurrent = false
   hasWaves = false
@@ -206,6 +211,8 @@ class DenseField {
     this.wave = new Float32Array(n)
     this.cu = new Float32Array(n)
     this.cv = new Float32Array(n)
+    this.wdx = new Float32Array(n)
+    this.wdy = new Float32Array(n)
   }
 
   /**
@@ -248,6 +255,10 @@ class DenseField {
     out[P_WAVE] = a * bi(this.wave, b0, sx, sy, w00, w10, w01, w11) + gt * bi(this.wave, b1, sx, sy, w00, w10, w01, w11)
     out[P_CU] = a * bi(this.cu, b0, sx, sy, w00, w10, w01, w11) + gt * bi(this.cu, b1, sx, sy, w00, w10, w01, w11)
     out[P_CV] = a * bi(this.cv, b0, sx, sy, w00, w10, w01, w11) + gt * bi(this.cv, b1, sx, sy, w00, w10, w01, w11)
+    if (this.hasWaves) {
+      out[P_WDX] = a * bi(this.wdx, b0, sx, sy, w00, w10, w01, w11) + gt * bi(this.wdx, b1, sx, sy, w00, w10, w01, w11)
+      out[P_WDY] = a * bi(this.wdy, b0, sx, sy, w00, w10, w01, w11) + gt * bi(this.wdy, b1, sx, sy, w00, w10, w01, w11)
+    }
   }
 }
 
@@ -466,7 +477,13 @@ function hydrate(
         }
         if (anyWaves) {
           const wv = src.waves(latq, lonq, tNoShift)
-          if (wv != null) out.wave[idx] = wv.heightM
+          if (wv != null) {
+            out.wave[idx] = wv.heightM
+            if (Number.isFinite(wv.directionDeg)) {
+              out.wdx[idx] = Math.sin(wv.directionDeg * DEG)
+              out.wdy[idx] = Math.cos(wv.directionDeg * DEG)
+            }
+          }
         }
       }
     }
@@ -821,6 +838,10 @@ class Search {
   private readonly land: LandMask | null
   private readonly maxTws: number
   private readonly minTws: number
+  private readonly waveTable: RouteScalings['waveTable'] | null
+  /** The wave height and direction at the node being expanded. */
+  private nodeWaveH = 0
+  private nodeWaveFrom = NaN
   private readonly maxTwsUp: number
   private readonly maxTwsDown: number
   private readonly motorKn: number
@@ -906,6 +927,7 @@ class Search {
     this.land = o.land
     this.maxTws = o.constraints.maxTws ?? Infinity
     this.minTws = o.constraints.minTws ?? 0
+    this.waveTable = o.scalings?.waveTable ?? null
     this.maxTwsUp = o.constraints.maxTwsUpwind ?? Infinity
     this.maxTwsDown = o.constraints.maxTwsDownwind ?? Infinity
     this.motorKn = o.constraints.motorSpeedKn != null && o.constraints.motorBelowKn != null ? o.constraints.motorSpeedKn : 0
@@ -995,6 +1017,14 @@ class Search {
     const twa = twaFrom(hdg, twd)
     this.effective(tws, Math.abs(twa), tb)
     return this.limited(this.effBsp * polarF, tws, Math.abs(twa))
+  }
+
+  /** The wave table's factor for a heading, 1 with no table or no waves here. */
+  private waveFactor(heightM: number, fromDeg: number, hdg: number): number {
+    const w = this.waveTable
+    if (!w || !(heightM > 0) || !Number.isFinite(fromDeg)) return 1
+    const rel = Math.abs(angdiff(fromDeg, hdg))
+    return lookupPct(w, heightM, rel) / 100
   }
 
   /**
@@ -1164,7 +1194,7 @@ class Search {
       const twa = angdiff(twd, hdg)
       const twaAbs = twa < 0 ? -twa : twa
       this.effective(tws, twaAbs, tb)
-      bsp = this.limited(this.effBsp * polarF, tws, twaAbs)
+      bsp = this.limited(this.effBsp * polarF * this.waveFactor(this.nodeWaveH, this.nodeWaveFrom, hdg), tws, twaAbs)
       if (bsp <= 1e-9) return false
       if (it === 3) break
       const need = (-dir * cPerp) / bsp
@@ -1312,6 +1342,8 @@ class Search {
         if (tws > this.maxTws || tws < this.minTws) continue
         if (f.hasGust && s[P_GUST] > this.maxGust) continue
         if (f.hasWaves && s[P_WAVE] > this.maxWave) continue
+        this.nodeWaveH = f.hasWaves ? s[P_WAVE] : 0
+        this.nodeWaveFrom = f.hasWaves && (s[P_WDX] !== 0 || s[P_WDY] !== 0) ? wrap360(Math.atan2(s[P_WDX], s[P_WDY]) * RAD) : NaN
         const twd = wrap360(Math.atan2(-u, -v) * RAD)
         const cu = s[P_CU]
         const cv = s[P_CV]
@@ -1385,7 +1417,11 @@ class Search {
           const twa = angdiff(twd, this.fanHdg[j])
           const twaAbs = twa < 0 ? -twa : twa
           this.effective(tws, twaAbs, tb)
-          const bsp = this.limited(this.effBsp * polarF, tws, twaAbs)
+          const bsp = this.limited(
+            this.effBsp * polarF * this.waveFactor(this.nodeWaveH, this.nodeWaveFrom, this.fanHdg[j]),
+            tws,
+            twaAbs,
+          )
           if (bsp <= 1e-9) continue
           const vx = bsp * this.fanSin[j] + cu
           const vy = bsp * this.fanCos[j] + cv
@@ -1659,6 +1695,24 @@ function directTimeS(
 // -------------------------------------------------------------- the entry
 
 /** Sensible defaults — handy for tests and for the UI's initial state. */
+/** A wave table's percentage at a height and angle: bilinear, held at the edges. */
+export function lookupPct(t: NonNullable<RouteScalings['waveTable']>, heightM: number, angle: number): number {
+  const at = (xs: number[], x: number): [number, number] => {
+    if (xs.length === 1 || x <= xs[0]) return [0, 0]
+    const last = xs.length - 1
+    if (x >= xs[last]) return [last - 1, 1]
+    let i = 0
+    while (xs[i + 1] < x) i++
+    return [i, (x - xs[i]) / (xs[i + 1] - xs[i])]
+  }
+  const [r, fr] = at(t.heights, heightM)
+  const [c, fc] = at(t.angles, angle)
+  const v = (ri: number, ci: number) => t.pct[Math.min(ri, t.heights.length - 1)]?.[Math.min(ci, t.angles.length - 1)] ?? 100
+  const top = v(r, c) * (1 - fc) + v(r, c + 1) * fc
+  const bottom = v(r + 1, c) * (1 - fc) + v(r + 1, c + 1) * fc
+  return t.heights.length === 1 ? top : top * (1 - fr) + bottom * fr
+}
+
 /** The most explored segments a result carries: enough to see the search, not to swamp the map. */
 export const MAX_EXPLORED_SEGMENTS = 40_000
 

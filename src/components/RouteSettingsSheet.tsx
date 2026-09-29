@@ -9,6 +9,8 @@
  */
 
 import { useStore } from '@/state/store'
+import { useState } from 'react'
+import { parseTable } from '@/lib/instruments/calibration'
 import { DEFAULT_ROUTE_SETTINGS, type RouteSettings } from '@/lib/routing/settings'
 import type { RouteResolution } from '@/lib/types'
 
@@ -33,6 +35,7 @@ export function limitFrom(raw: string): number | null {
 export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
   const s = useStore((st) => st.routeSettings)
   const update = useStore((st) => st.updateRouteSettings)
+  const [waveError, setWaveError] = useState<string | null>(null)
   const boat = useStore((st) => st.boat)
   const updateBoat = useStore((st) => st.updateBoat)
 
@@ -131,6 +134,46 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
       <p className="note">
         The difference between the wind now (instruments or manual) and the forecast at the start, applied in full now
         and fading to the forecast over that time.
+      </p>
+
+      <h2>Waves</h2>
+      <p className="note">
+        {s.waveTable
+          ? `Wave table: ${s.waveTable.heights.length} heights by ${s.waveTable.angles.length} angles.`
+          : 'No wave table: waves change nothing but the wave limit above.'}
+      </p>
+      <div className="actions" style={{ background: 'none', border: 'none', padding: '0 0 8px' }}>
+        <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+          IMPORT WAVE TABLE
+          <input
+            type="file"
+            accept=".txt,.csv,text/plain,text/csv"
+            aria-label="Import a wave table"
+            style={{ display: 'none' }}
+            onChange={async (e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (!f) return
+              try {
+                const t = parseTable(await f.text())
+                update({ waveTable: { heights: t.rows, angles: t.cols, pct: t.values } })
+                setWaveError(null)
+              } catch (err) {
+                setWaveError(err instanceof Error ? err.message : String(err))
+              }
+            }}
+          />
+        </label>
+        {s.waveTable && (
+          <button className="btn btn--sm btn--ghost" onClick={() => update({ waveTable: null })}>
+            CLEAR
+          </button>
+        )}
+      </div>
+      {waveError && <p className="warnbox" role="alert">{waveError}</p>}
+      <p className="note">
+        A line of wave angles to the boat (0 head seas, 180 following), then a line per wave height in metres
+        with the percentage of polar speed at each angle.
       </p>
 
       <h2>Display</h2>

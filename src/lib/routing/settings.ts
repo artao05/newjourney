@@ -62,6 +62,8 @@ export interface RouteSettings {
    * to it over this many minutes. 0 is off.
    */
   nowDecayMin: number
+  /** Speed in waves as a percentage of the polar, by height and angle to the boat; null for none. */
+  waveTable: { heights: number[]; angles: number[]; pct: number[][] } | null
 }
 
 export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
@@ -82,6 +84,7 @@ export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
   isoEveryMin: 0,
   showExplored: false,
   nowDecayMin: 0,
+  waveTable: null,
 }
 
 /**
@@ -138,6 +141,7 @@ export function requestParts(
       windRotateDeg: settings.windRotateDeg,
       windTimeShiftS: settings.windTimeShiftMin * 60,
       currentScalePct: settings.currentScalePct,
+      ...(settings.waveTable ? { waveTable: settings.waveTable } : {}),
     },
     resolution: settings.resolution,
   }
@@ -179,5 +183,6 @@ export function nonDefaultLabels(s: RouteSettings): string[] {
   if (s.maxTwsDownwind != null) out.push(`run ≤ ${s.maxTwsDownwind} kn`)
   if (s.motorSpeedKn != null && s.motorBelowKn != null) out.push(`motor ${s.motorSpeedKn} kn below ${s.motorBelowKn} kn`)
   if (s.nowDecayMin > 0) out.push(`wind now over ${s.nowDecayMin} min`)
+  if (s.waveTable) out.push('wave table')
   return out
 }

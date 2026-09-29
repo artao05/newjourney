@@ -389,6 +389,12 @@ export interface RouteScalings {
    * over `decayMin` minutes.
    */
   nowCorrection?: { t0: Millis; observedTwd: Degrees; observedTws: Knots; decayMin: number }
+  /**
+   * Speed in waves, as a percentage of the polar: `pct[r][c]` at wave height
+   * `heights[r]` (m) and wave angle `angles[c]` to the boat, 0° head seas and
+   * 180° following. Interpolated, and held beyond the edges.
+   */
+  waveTable?: { heights: number[]; angles: number[]; pct: number[][] }
 }
 
 export type RouteResolution = 'fast' | 'balanced' | 'best'

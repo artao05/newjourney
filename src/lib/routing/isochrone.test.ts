@@ -25,7 +25,7 @@ import type {
   Targets,
   WeatherField,
 } from '../types'
-import { defaultConstraints, defaultScalings, isNight, routeIsochrone, MAX_EXPLORED_SEGMENTS } from './isochrone'
+import { defaultConstraints, defaultScalings, isNight, lookupPct, routeIsochrone, MAX_EXPLORED_SEGMENTS } from './isochrone'
 import { PolygonLandMask, buildLandMask, extractPolygons } from './land'
 import type { RouteWorkerResponse } from './worker'
 
@@ -197,6 +197,8 @@ interface FieldOpts {
   gribStepS?: number
   /** Epoch for the fake field, ms UTC. */
   t0?: Millis
+  /** Uniform waves, or none. */
+  waves?: { heightM: number; directionDeg: number; periodS?: number } | null
 }
 
 function makeField(o: FieldOpts): WeatherField {
@@ -214,7 +216,7 @@ function makeField(o: FieldOpts): WeatherField {
     gust: () => null,
     current: (_lat: number, _lon: number, _t: Millis) =>
       o.current ? { ...o.current, source: 'test' } : null,
-    waves: () => null,
+    waves: () => (o.waves ? { periodS: 8, ...o.waves } : null),
     coverage: () => ({
       bbox: { west: -180, south: -85, east: 180, north: 85 },
       t0,
@@ -855,6 +857,31 @@ describe('isochrone routing kernel', () => {
     )
     expect(Math.min(res.legs[0].twd, 360 - res.legs[0].twd)).toBeLessThan(0.5)
     expect(res.diagnostics.warnings.some((w) => /blended/.test(w))).toBe(false)
+  })
+
+  it('slows the boat in head seas by the wave table, and not in following seas', () => {
+    const start = { lat: 40, lon: -70 }
+    // A beam reach either way, in 3 m of sea from the north.
+    const field = makeField({ twd: 90, tws: 12, waves: { heightM: 3, directionDeg: 0 } })
+    const waveTable = { heights: [0, 3], angles: [0, 180], pct: [[100, 100], [50, 100]] }
+    const time = (to: LatLon, withTable: boolean) =>
+      routeIsochrone(
+        request({ start, marks: [to], resolution: 'balanced', scalings: { ...defaultScalings(), ...(withTable ? { waveTable } : {}) } }),
+        { field, lattice: LATTICE },
+      ).elapsedS!
+    const up = time(north(start, 4), true) / time(north(start, 4), false)
+    const down = time(destination(start, 180, 4), true) / time(destination(start, 180, 4), false)
+    note(`9.7a head seas at 50%: ${up.toFixed(2)}× as long; following at 100%: ${down.toFixed(2)}×`)
+    expect(up).toBeGreaterThan(1.8)
+    expect(up).toBeLessThan(2.2)
+    expect(down).toBeCloseTo(1, 1)
+  })
+
+  it('reads a wave table between its points, and holds its edges', () => {
+    const t = { heights: [0, 2, 4], angles: [0, 90, 180], pct: [[100, 100, 100], [80, 90, 100], [60, 80, 100]] }
+    expect(lookupPct(t, 1, 45)).toBeCloseTo((100 * 0.5 + 100 * 0.5) * 0.5 + (80 * 0.5 + 90 * 0.5) * 0.5, 9)
+    expect(lookupPct(t, 6, 0)).toBe(60)
+    expect(lookupPct(t, -1, 180)).toBe(100)
   })
 
   it('an impassable band returns a clean failure, not a throw', () => {
