@@ -60,6 +60,16 @@ export interface LibraryMark {
   folder: string
 }
 
+/** Where a replay is: the day, the play time within it, and how it is running. */
+export interface Playback {
+  day: string
+  t: Millis
+  start: Millis
+  end: Millis
+  playing: boolean
+  speed: number
+}
+
 /**
  * A boat in the fleet: Expedition's boats list, as the handicap calculator uses it.
  * One boat is the reference (normally us) that the others are compared with.
@@ -312,6 +322,12 @@ interface AppState {
   setPhoneSensors(patch: Partial<{ on: boolean; trustCompass: boolean }>): void
   phoneOrientation: PhoneOrientation | null
   setPhoneOrientation(p: PhoneOrientation | null): void
+  /**
+   * A logged day replaying: while it is set, the log is the boat, and the live
+   * sources (GPS, simulator, instruments, the wind modes) stand aside.
+   */
+  playback: Playback | null
+  setPlayback(p: Partial<Playback> | null): void
   instrumentStatus: { status: SignalKStatus; detail: string | null; lastAt: Millis | null }
   setInstrumentStatus(s: Partial<{ status: SignalKStatus; detail: string | null; lastAt: Millis | null }>): void
 
@@ -739,6 +755,13 @@ export const useStore = create<AppState>()(
       setPhoneSensors: (patch) => set({ phoneSensors: { ...get().phoneSensors, ...patch } }),
       phoneOrientation: null,
       setPhoneOrientation: (p) => set({ phoneOrientation: p }),
+      playback: null,
+      setPlayback: (p) => {
+        if (p === null) return set({ playback: null })
+        const cur = get().playback
+        const next = { ...(cur ?? { day: '', t: 0, start: 0, end: 0, playing: false, speed: 1 }), ...p }
+        set({ playback: { ...next, t: Math.max(next.start, Math.min(next.end, next.t)) } })
+      },
       instrumentStatus: { status: 'off', detail: null, lastAt: null },
       setInstrumentStatus: (s) => set({ instrumentStatus: { ...get().instrumentStatus, ...s } }),
 

@@ -22,6 +22,8 @@ import { NotForNavigationDialog } from '@/components/NotForNavigation'
 import { useTrackPersistence } from '@/state/trackPersistence'
 import { WindSheet, windChip } from '@/components/WindSheet'
 import { ChannelLogRecorder } from '@/components/ChannelLogRecorder'
+import { PlaybackBar } from '@/components/PlaybackBar'
+import { usePlayback } from '@/hooks/usePlayback'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
 import { fixQuality } from '@/lib/startline'
@@ -94,21 +96,24 @@ export function App() {
   const forecastLon = Math.round((state?.position.lon ?? PILOT_VENUE.center.lon) * 100) / 100
 
   const instruments = useStore((s) => s.instruments)
-  const instrumentSource: InstrumentSource = settings.simulate
+  // A replaying log is the boat: every live source stands aside while it plays.
+  const replaying = useStore((s) => s.playback != null)
+  usePlayback()
+  const instrumentSource: InstrumentSource = settings.simulate || replaying
     ? null
     : instruments.signalKOn
       ? { kind: 'signalk', url: instruments.signalKUrl }
       : instruments.serialOn
         ? { kind: 'serial', baud: instruments.serialBaud, format: instruments.serialFormat }
         : null
-  useGeolocation(!settings.simulate && !instrumentSource)
+  useGeolocation(!settings.simulate && !instrumentSource && !replaying)
   const phoneSensors = useStore((s) => s.phoneSensors)
-  usePhoneOrientation(phoneSensors.on && !settings.simulate && !instrumentSource)
+  usePhoneOrientation(phoneSensors.on && !settings.simulate && !instrumentSource && !replaying)
   const pipeline = useStore((s) => s.pipeline)
   const calibration = useStore((s) => s.calibration)
   useInstruments(instrumentSource, pipeline, calibration)
   // Start the simulated boat afloat, not on the island the map centre sits on.
-  useSimulation(settings.simulate, PILOT_VENUE.waterStart)
+  useSimulation(settings.simulate && !replaying, PILOT_VENUE.waterStart)
   useWakeLock(settings.keepAwake)
   useTrackPersistence()
   const now = useTick(1)
@@ -151,7 +156,7 @@ export function App() {
   // Manual is the honest default with no instrument. Do not overwrite a selected
   // forecast every second — that was making the Forecast switch a cosmetic control.
   useEffect(() => {
-    if (windMode !== 'manual') return
+    if (windMode !== 'manual' || replaying) return
     // Nobody has set it: then there is no wind, and the Start tab says so, rather
     // than a placeholder quietly deciding which end of the line is favoured.
     if (manualWindSetAt == null) {
@@ -168,23 +173,23 @@ export function App() {
     setWind(w)
     setWindError(null)
     pushWind({ t: now, twd: w.twd, tws: w.tws })
-  }, [manualWind.twd, manualWind.tws, manualWindSetAt, now, windMode, setWind, setWindError, pushWind])
+  }, [manualWind.twd, manualWind.tws, manualWindSetAt, now, windMode, setWind, setWindError, pushWind, replaying])
 
   // Instrument wind comes from useInstruments. With nothing from them for ten
   // seconds there is no wind, said so, rather than one left over from another source.
   useEffect(() => {
-    if (windMode !== 'instrument') return
+    if (windMode !== 'instrument' || replaying) return
     const w = useStore.getState().wind
     if (w && w.source === 'instrument' && now - w.t <= 10_000) return
     setWind(null)
     setWindError('No wind from the instruments. Connect Signal K in Setup.')
-  }, [windMode, now, setWind, setWindError])
+  }, [windMode, now, setWind, setWindError, replaying])
 
   // A point forecast is useful for tactics but never substitutes for the route's
   // gridded field. Refresh deliberately and retain the previous estimate if the
   // network drops, rather than changing the displayed wind source silently.
   useEffect(() => {
-    if (windMode !== 'forecast') return
+    if (windMode !== 'forecast' || replaying) return
     const at = { lat: forecastLat, lon: forecastLon }
     const controller = new AbortController()
     let cancelled = false
@@ -219,11 +224,11 @@ export function App() {
       controller.abort()
       window.clearInterval(timer)
     }
-  }, [windMode, forecastLat, forecastLon, setWind, setWindError, pushWind])
+  }, [windMode, forecastLat, forecastLon, setWind, setWindError, pushWind, replaying])
 
   // Estimated set & drift, gated on rate of turn — see navigation-math.md §5.
   // With instruments connected, their pipeline does this, with leeway and the gate.
-  const instrumentsOwnCurrent = instrumentSource != null
+  const instrumentsOwnCurrent = instrumentSource != null || replaying
   useEffect(() => {
     if (instrumentsOwnCurrent) return
     if (!state || state.bsp == null || state.heading == null) {
@@ -343,7 +348,7 @@ export function App() {
         <div className="topbar">
           <span className={`chip ${gpsChip.cls}`}>
             <span className="dot dot--pulse" />
-            {settings.simulate ? 'SIM' : 'GPS'} {gpsChip.text}
+            {replaying ? 'LOG' : settings.simulate ? 'SIM' : 'GPS'} {gpsChip.text}
           </span>
           <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button
@@ -373,8 +378,9 @@ export function App() {
             </button>
           </span>
         </div>
+        <PlaybackBar />
 
-        {gpsError && !settings.simulate && (
+        {gpsError && !settings.simulate && !replaying && (
           <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
             {gpsError} — turn on <b>Simulate a boat</b> in Setup to try the app
             without a GPS fix.
@@ -443,7 +449,8 @@ export function App() {
         )}
 
         {windSheetOpen && <WindSheet onClose={() => setWindSheetOpen(false)} />}
-        {recording && <ChannelLogRecorder />}
+        {/* Not while replaying, or the replay would be logged again as today. */}
+        {recording && !replaying && <ChannelLogRecorder />}
       </div>
       {mustAccept && (
         <NotForNavigationDialog onAccept={() => updateSettings({ acceptedNotForNavigation: true })} />

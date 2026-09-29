@@ -8,6 +8,7 @@ import { useStore } from '@/state/store'
 import { logStore } from '@/lib/logging/idbStore'
 import { dayOf, logToCsv, type LogRow } from '@/lib/logging/logger'
 import { LogImportError, importLog } from '@/lib/logging/importLog'
+import { startPlayback } from '@/hooks/usePlayback'
 
 export function LogsSection() {
   const recording = useStore((s) => s.recording)
@@ -79,6 +80,15 @@ export function LogsSection() {
                 <td style={{ textAlign: 'left' }}>{d.day}</td>
                 <td>{d.rows.toLocaleString()} s</td>
                 <td>
+                  <button
+                    className="btn btn--sm btn--ghost"
+                    disabled={recording}
+                    title={recording ? 'Stop REC to replay' : undefined}
+                    onClick={() => void startPlayback(d.day)}
+                    aria-label={`Replay the log for ${d.day}`}
+                  >
+                    PLAY
+                  </button>
                   <button className="btn btn--sm btn--ghost" onClick={() => void exportDay(d.day)} aria-label={`Export the log for ${d.day}`}>
                     CSV
                   </button>

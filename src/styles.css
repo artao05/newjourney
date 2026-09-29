@@ -1068,3 +1068,22 @@ table.results td:first-child {
 table.results tr.beating td {
   color: var(--warn);
 }
+
+/* Log playback: across every screen while a logged day replays. */
+.playback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px var(--pad);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.playback__label {
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}

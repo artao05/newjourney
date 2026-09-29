@@ -523,6 +523,22 @@ describe('the timer rolls through the classes before ours', () => {
   })
 })
 
+describe('while a log replays', () => {
+  it('lets the log be the boat: no manual wind over it, and the chip says LOG', () => {
+    const s = useStore.getState()
+    s.setManualWind(270, 12)
+    useStore.setState({
+      playback: { day: '2026-09-29', t: 1, start: 0, end: 10, playing: false, speed: 1 },
+      wind: { twd: 250, tws: 11, source: 'instrument', uncertaintyDeg: 5, t: Date.now() },
+    })
+    render(<App />)
+    expect(useStore.getState().wind).toMatchObject({ twd: 250, source: 'instrument' })
+    expect(screen.getByRole('region', { name: 'Log playback' })).toBeTruthy()
+    expect(document.querySelector('.topbar')!.textContent).toMatch(/LOG/)
+    act(() => useStore.getState().setPlayback(null))
+  })
+})
+
 describe("Expedition's keyboard shortcuts", () => {
   const press = (key: string, mods: Record<string, boolean> = {}) =>
     act(() => {
