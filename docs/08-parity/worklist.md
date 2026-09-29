@@ -333,8 +333,9 @@ leaves something tested and working.
       the ISO 8211 layout with S-57-shaped fields; a real cell is 13.1b.*
 - [ ] **13.1b Check the reader on a real NOAA ENC cell.** `blocked: D8`: may I download one small
       public-domain cell for the venue (US5ME11M or similar, a few hundred KB) as a fixture?
-- [ ] **13.2 S-57 decoder** to features in a worker. *Accept:* feature counts match
+- [x] **13.2 S-57 decoder** to features in a worker. *Accept:* feature counts match
       GDAL's on the same cell.
+      *On a cell built to the layout; feature counts against a real cell wait on 13.1b (D8).*
 - [ ] **13.3 S-52-style display:** depth areas, contours, soundings, land, lights,
       buoys, beacons and hazards. *Accept:* a browser check against NOAA's own
       rendering.
