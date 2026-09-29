@@ -31,6 +31,8 @@ import type {
   WeatherCube,
 } from '../types'
 import type { RouteWorkerResponse, SweepWorkerResponse } from './worker'
+import { checkRoute, withEncHazards } from '../charts/encRouting'
+import type { EncCell } from '../charts/s57'
 
 const T0 = Date.UTC(2026, 7, 6, 12, 0, 0)
 const HOUR = 3_600_000
@@ -398,3 +400,38 @@ describe('progress reporting', () => {
   })
 })
 
+
+// ------------------------------------------------------- ENC safety depth
+
+describe('the router keeps to water deep enough, from the ENC', () => {
+  // A shoal square across the straight line from START to MARK.
+  const shoal: EncCell = {
+    name: 'T.000', edition: '1', update: '0', comf: 1e7, somf: 10, scale: 0,
+    bounds: { west: -70.24, south: 43.61, east: -70.16, north: 43.69 },
+    features: [
+      { objl: 42, cls: 'DEPARE', prim: 3, attrs: { DRVAL1: '1', DRVAL2: '2' }, geometry: { type: 'Polygon', coordinates: [[[-70.24, 43.61], [-70.16, 43.61], [-70.16, 43.69], [-70.24, 43.69], [-70.24, 43.61]]] } },
+    ],
+    counts: {}, warnings: [],
+  }
+  const water = () => raster(320, 240)
+  const path = (r: RouteResult) => r.legs.map((l) => l.position)
+
+  it('sails straight over the shoal when it is not told of it', async () => {
+    const { result } = await route({ landRaster: water() })
+    expect(result.ok).toBe(true)
+    expect(checkRoute(path(result), [shoal], 3).map((h) => h.kind)).toEqual(['shallow'])
+  })
+
+  it('goes round water shallower than the safety depth', async () => {
+    const { result } = await route({ landRaster: withEncHazards(water(), [shoal], 3) })
+    expect(result.ok).toBe(true)
+    expect(result.diagnostics.landAvoided).toBe(true)
+    expect(checkRoute(path(result), [shoal], 3)).toEqual([])
+  }, 30_000)
+
+  it('sails over it for a boat that needs less water than it has', async () => {
+    const { result } = await route({ landRaster: withEncHazards(water(), [shoal], 0.8) })
+    expect(result.ok).toBe(true)
+    expect(checkRoute(path(result), [shoal], 3).map((h) => h.kind)).toEqual(['shallow'])
+  })
+})

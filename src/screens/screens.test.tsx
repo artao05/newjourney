@@ -976,6 +976,57 @@ describe('a route can start anywhere, not only at the boat', () => {
     }
   })
 
+  it('routes by the safety depth with ENC cells open, and checks the route against them', async () => {
+    const b = PILOT_VENUE.bbox
+    stubForecast.cube = {
+      model: 'download', run: 'test-run', bbox: b, nx: 2, ny: 2, dx: b.east - b.west, dy: b.north - b.south,
+      t0: Date.now() - 3_600_000, dtMs: 3_600_000, nt: 3, params: ['u10', 'v10'],
+      data: { u10: new Float32Array(12).fill(5), v10: new Float32Array(12).fill(0) },
+    }
+    const s0 = PILOT_VENUE.waterStart
+    // A shoal a little north of the start, and a route straight through it.
+    const ring: Array<[number, number]> = [[s0.lon - 0.01, s0.lat + 0.005], [s0.lon + 0.01, s0.lat + 0.005], [s0.lon + 0.01, s0.lat + 0.01], [s0.lon - 0.01, s0.lat + 0.01], [s0.lon - 0.01, s0.lat + 0.005]]
+    const shoal = { name: 'SHOAL.000', edition: '1', update: '0', comf: 1e7, somf: 10, scale: 0, bounds: { west: s0.lon - 0.01, south: s0.lat + 0.005, east: s0.lon + 0.01, north: s0.lat + 0.01 }, features: [{ objl: 42, cls: 'DEPARE', prim: 3, attrs: { DRVAL1: '0.5', DRVAL2: '1' }, geometry: { type: 'Polygon' as const, coordinates: [ring] } }], counts: {}, warnings: [] }
+    const payloads: Array<{ nx: number; bits: Uint32Array } | undefined> = []
+    const spy = vi.spyOn(RoutingClient.prototype, 'route').mockImplementation(async (req, payload) => {
+      payloads.push(payload.landRaster as { nx: number; bits: Uint32Array } | undefined)
+      const leg = { t: Date.now(), position: req.start, twd: 90, tws: 10, twa: 90, bsp: 6, heading: 0, isBeating: false, tack: 'starboard' as const, currentSet: null, currentDrift: null, distanceNm: 1 }
+      const eta = Date.now() + 3_600_000
+      return { ok: true, legs: [leg, { ...leg, t: eta, position: { lat: req.start.lat + 0.02, lon: req.start.lon } }], etaMs: eta, elapsedS: 3600, directTimeS: 1, isochrones: [], reverseIsochrones: [], sensitivity: null, diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: true, warnings: [] } }
+    })
+    try {
+      populatedStore()
+      act(() => {
+        useStore.getState().setRouteStart(s0)
+        useCharts.getState().add(shoal)
+      })
+      render(<RouteScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'ROUTE' }))
+      await waitFor(() => expect(useStore.getState().route?.ok).toBe(true))
+      // The shoal went to the router as land.
+      expect(payloads.at(-1)!.bits.some((w) => w !== 0)).toBe(true)
+      fireEvent.click(screen.getByRole('button', { name: 'Route check: 1 hazard' }))
+      expect(within(screen.getByRole('list', { name: 'Hazards on the route' })).getByText('Leg 1: Depth area 0.5–1 m, under the 3 m safety depth')).toBeTruthy()
+      expect((mapInstances[0].data.get('route-hazards') as GeoJSON.FeatureCollection).features).toHaveLength(1)
+      // Switched off, the router is not told.
+      act(() => useCharts.getState().setRouteBySafety(false))
+      fireEvent.click(screen.getByRole('button', { name: 'ROUTE' }))
+      await waitFor(() => expect(payloads).toHaveLength(2))
+      expect(payloads[1]?.bits.some((w) => w !== 0) ?? false).toBe(false)
+    } finally {
+      spy.mockRestore()
+      stubForecast.cube = null
+      act(() => {
+        useCharts.getState().clear()
+        useCharts.getState().setRouteBySafety(true)
+        useStore.getState().setRouteStart(null)
+      })
+    }
+  })
+
   it('says what the chart has where it is tapped, with ENC cells open', async () => {
     const { decodeS57 } = await import('@/lib/charts/s57')
     act(() => useCharts.getState().add(decodeS57(encCell())))

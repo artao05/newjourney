@@ -366,8 +366,10 @@ leaves something tested and working.
 - [x] **13.9 Georeferenced custom images, and GPS chart offset.** *Accept:* tests.
       *Images placed by two or more control points (Mercator or lat/lon); a chart offset in metres
       moves the ENC and raster charts (lib/charts/georef.ts). The base map cannot be moved.*
-- [ ] **13.10 Safe route check and safety-depth routing** against ENC. *Accept:*
+- [x] **13.10 Safe route check and safety-depth routing** against ENC. *Accept:*
       kernel tests.
+      *ENC land, water under the safety depth and dangers go to the router as land; routes are
+      checked against the cells (lib/charts/encRouting.ts, worker.test.ts).*
 
 ## M14 — Integration and the rest of the shell
 

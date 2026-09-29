@@ -418,7 +418,7 @@ function getBit(bits: Uint32Array, k: number): boolean {
  * "no land cell touched ⇒ segment is clear" early accept. Accuracy is not lost,
  * because the exact polygon test is the arbiter for anything the raster flags.
  */
-function dilate(bits: Uint32Array, nx: number, ny: number): Uint32Array {
+export function dilate(bits: Uint32Array, nx: number, ny: number): Uint32Array {
   const out = bits.slice()
   for (let iy = 0; iy < ny; iy++) {
     for (let ix = 0; ix < nx; ix++) {
@@ -438,28 +438,13 @@ function dilate(bits: Uint32Array, nx: number, ny: number): Uint32Array {
 }
 
 /**
- * Rasterise GeoJSON land into a bitmask at `cellDeg` resolution, keeping the
- * source polygons for the exact second stage.
- *
- * Even-odd fill is applied *per polygon* rather than globally, so two separate
- * islands that overlap in the bbox union correctly instead of cancelling, while
- * holes inside a single polygon still punch through.
+ * Set the cells whose centres lie inside any of the polygons, in a row-major
+ * grid of `nx` × `ny` cells over `bbox`. Even-odd per polygon, so holes punch
+ * through and overlapping polygons do not cancel.
  */
-export function buildLandMask(
-  geojson: unknown,
-  bbox: BBox,
-  cellDeg: number,
-): RasterLandMask {
-  const polys = extractPolygons(geojson)
-  const spanLon = Math.max(1e-9, bbox.east - bbox.west)
-  const spanLat = Math.max(1e-9, bbox.north - bbox.south)
-  const cell = Math.max(1e-6, cellDeg)
-  const nx = Math.max(1, Math.min(8192, Math.round(spanLon / cell)))
-  const ny = Math.max(1, Math.min(8192, Math.round(spanLat / cell)))
-  const dLon = spanLon / nx
-  const dLat = spanLat / ny
-  const bits = new Uint32Array(((nx * ny + 31) >>> 5) || 1)
-
+export function fillPolygons(bits: Uint32Array, bbox: BBox, nx: number, ny: number, polys: PolygonCoords[]): void {
+  const dLon = Math.max(1e-9, bbox.east - bbox.west) / nx
+  const dLat = Math.max(1e-9, bbox.north - bbox.south) / ny
   const xs: number[] = []
   for (let j = 0; j < ny; j++) {
     const latC = bbox.south + (j + 0.5) * dLat
@@ -493,6 +478,29 @@ export function buildLandMask(
       }
     }
   }
+}
+
+/**
+ * Rasterise GeoJSON land into a bitmask at `cellDeg` resolution, keeping the
+ * source polygons for the exact second stage.
+ *
+ * Even-odd fill is applied *per polygon* rather than globally, so two separate
+ * islands that overlap in the bbox union correctly instead of cancelling, while
+ * holes inside a single polygon still punch through.
+ */
+export function buildLandMask(
+  geojson: unknown,
+  bbox: BBox,
+  cellDeg: number,
+): RasterLandMask {
+  const polys = extractPolygons(geojson)
+  const spanLon = Math.max(1e-9, bbox.east - bbox.west)
+  const spanLat = Math.max(1e-9, bbox.north - bbox.south)
+  const cell = Math.max(1e-6, cellDeg)
+  const nx = Math.max(1, Math.min(8192, Math.round(spanLon / cell)))
+  const ny = Math.max(1, Math.min(8192, Math.round(spanLat / cell)))
+  const bits = new Uint32Array(((nx * ny + 31) >>> 5) || 1)
+  fillPolygons(bits, bbox, nx, ny, polys)
 
   return new RasterLandMask(
     bbox,

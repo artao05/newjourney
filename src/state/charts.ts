@@ -46,6 +46,9 @@ interface ChartsState {
   remove(name: string): void
   clear(): void
   setSafetyDepth(m: number): void
+  /** Route through water at least the safety depth, and clear of dangers, where there are cells. */
+  routeBySafety: boolean
+  setRouteBySafety(on: boolean): void
   setDisplay(p: Partial<EncDisplay>): void
 }
 
@@ -72,6 +75,8 @@ export const useCharts = create<ChartsState>()((set) => ({
   remove: (name) => set((s) => ({ cells: s.cells.filter((x) => cellKey(x.name) !== cellKey(name)) })),
   clear: () => set({ cells: [] }),
   setSafetyDepth: (m) => set({ safetyDepthM: m }),
+  routeBySafety: true,
+  setRouteBySafety: (on) => set({ routeBySafety: on }),
   setDisplay: (p) => set((s) => ({ display: { ...s.display, ...p } })),
 }))
 

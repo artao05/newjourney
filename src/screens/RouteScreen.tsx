@@ -28,6 +28,7 @@ import { POLAR_LIBRARY } from '@/data/polars'
 import { encDrawFeatures, encObjectsAt } from '@/lib/charts/s52'
 import { parseSymbolKey, rasterSymbol } from '@/lib/charts/symbols'
 import { offsetCorners, offsetFeatures } from '@/lib/charts/georef'
+import { checkRoute, withEncHazards } from '@/lib/charts/encRouting'
 import type { EncFeature } from '@/lib/charts/s57'
 import { AisSheet } from '@/components/AisSheet'
 import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
@@ -847,18 +848,21 @@ export function RouteScreen() {
   )
   const heightFactor = windHeightFactor(polar?.reference, boat.mastHeightMetres)
 
-  const landPayload = useCallback(
-    () =>
-      landPack
-        ? {
-            bbox: landPack.meta.bbox,
-            nx: landPack.meta.nx,
-            ny: landPack.meta.ny,
-            bits: landPack.bits,
-          }
-        : undefined,
-    [landPack],
-  )
+  // The venue's land, and with ENC cells open, water under the safety depth and the dangers.
+  const routeBySafety = useCharts((s) => s.routeBySafety)
+  const landPayload = useCallback(() => {
+    const base = landPack ? { bbox: landPack.meta.bbox, nx: landPack.meta.nx, ny: landPack.meta.ny, bits: landPack.bits } : undefined
+    return routeBySafety && encCells.length ? withEncHazards(base, encCells, safetyDepthM) : base
+  }, [landPack, routeBySafety, encCells, safetyDepthM])
+
+  // The route checked against the ENC: land, shallow water and dangers it meets.
+  const hazards = useMemo(() => (route?.ok && encCells.length ? checkRoute(route.legs.map((l) => l.position), encCells, safetyDepthM) : null), [route, encCells, safetyDepthM])
+  const [showHazards, setShowHazards] = useState(false)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setSource(map, 'route-hazards', { type: 'FeatureCollection', features: (hazards ?? []).map((h) => ({ type: 'Feature', properties: { what: h.what }, geometry: { type: 'Point', coordinates: [h.at.lon, h.at.lat] } })) } as FC)
+  }, [ready, hazards])
 
   /** Route the course, or, given marks, those instead: to or via the pointer. */
   /** The course through each member of an ensemble forecast, one after another in the worker. */
@@ -1307,6 +1311,16 @@ export function RouteScreen() {
               </button>
             )
           )}
+          {hazards && (
+            <button
+              className={`chip${hazards.length ? ' chip--warn' : ''}`}
+              aria-label={hazards.length ? `Route check: ${hazards.length} hazard${hazards.length === 1 ? '' : 's'}` : 'Route check: clear'}
+              title="The route checked against the ENC cells: land, water under the safety depth, and dangers within 50 m"
+              onClick={() => setShowHazards((v) => !v)}
+            >
+              {hazards.length ? `⚠ ${hazards.length} on route` : '✓ route clear'}
+            </button>
+          )}
           <button
             className={`chip${orientation !== 'north' ? ' chip--on' : ''}`}
             aria-label={`Chart orientation: ${ORIENTATION_LABEL[orientation]}`}
@@ -1502,6 +1516,27 @@ export function RouteScreen() {
 
       {showSettings && <RouteSettingsSheet onClose={() => setShowSettings(false)} />}
       {showAis && <AisSheet onClose={() => setShowAis(false)} />}
+      {showHazards && hazards && (
+        <div className="sheet" role="dialog" aria-label="Route check">
+          <div className="sheet__grip" onClick={() => setShowHazards(false)} />
+          <h2>Route check</h2>
+          {hazards.length === 0 ? (
+            <p className="note">The route keeps off land, in water of at least {safetyDepthM} m, and 50 m or more from charted dangers, on the cells open.</p>
+          ) : (
+            <ol aria-label="Hazards on the route">
+              {hazards.map((h, i) => (
+                <li key={i}>
+                  Leg {h.leg + 1}: {h.what}
+                </li>
+              ))}
+            </ol>
+          )}
+          <p className="note">Only as good as the cells open and their survey. Not for navigation.</p>
+          <button className="btn btn--sm" onClick={() => setShowHazards(false)}>
+            Done
+          </button>
+        </div>
+      )}
       {showEnc && <EncSheet onClose={() => setShowEnc(false)} onShow={(b) => mapRef.current?.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 40, duration: 0 })} />}
       {showFleet && fleetRows && <FleetRoutesSheet rows={fleetRows.rows} skipped={fleetRows.skipped} onClose={() => setShowFleet(false)} />}
       {encQuery && (
@@ -2126,7 +2161,7 @@ function addEmptyLayers(map: maplibregl.Map) {
     // Shallower than the safety depth stands out; deeper recedes, as S-52 has it.
     paint: { 'text-color': ['case', ['get', 'shallow'], '#ffffff', '#7f9bb3'] as never, 'text-halo-color': '#04101c', 'text-halo-width': 1 },
   })
-  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'fleet', 'fleet-route', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais'].forEach(add)
+  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'fleet', 'fleet-route', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais', 'route-hazards'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
   // plain notes grey, so the colour says what the router will do with each.
@@ -2359,6 +2394,8 @@ function addEmptyLayers(map: maplibregl.Map) {
     source: 'fleet-route',
     paint: { 'line-color': ['get', 'color'] as never, 'line-width': 1.4, 'line-dasharray': [3, 2], 'line-opacity': 0.8 },
   })
+  // Where the route meets a hazard on the ENC: a red ring.
+  map.addLayer({ id: 'route-hazards', type: 'circle', source: 'route-hazards', paint: { 'circle-radius': 9, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#ff5252', 'circle-stroke-width': 2.5 } })
   // AIS targets: a six-minute course vector, and a dot by class, red for a distress beacon.
   map.addLayer({
     id: 'ais-vector',
@@ -2494,6 +2531,7 @@ function EncSheet({ onClose, onShow }: { onClose: () => void; onShow: (b: EncBou
   const [busy, setBusy] = useState<string | null>(null)
   const offset = useStore((s) => s.settings.chartOffset)
   const updateSettings = useStore((s) => s.updateSettings)
+  const routeBySafety = useCharts((s) => s.routeBySafety)
   const install = async (input: HTMLInputElement) => {
     const files = [...(input.files ?? [])]
     input.value = ''
@@ -2602,6 +2640,9 @@ function EncSheet({ onClose, onShow }: { onClose: () => void; onShow: (b: EncBou
           <input type="checkbox" checked={display.night} onChange={(e) => setDisplay({ night: e.target.checked })} /> Night palette
         </label>
       </div>
+      <label style={{ display: 'block', marginBottom: 8 }} title="The router keeps out of water shallower than the safety depth and 50 m clear of dangers shallower than it, on the cells open">
+        <input type="checkbox" checked={routeBySafety} onChange={(e) => useCharts.getState().setRouteBySafety(e.target.checked)} /> Route by the safety depth
+      </label>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }} title="Where a chart is off against GPS, move it: the boat stays where GPS puts her. Moves the ENC and raster charts, not the base map.">
         <span>Chart offset</span>
         <label>

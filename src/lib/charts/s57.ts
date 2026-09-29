@@ -20,7 +20,7 @@ import { parse8211, type Field, type Value } from './iso8211'
 /** Object classes by code, the ones a sailor's chart draws most. */
 export const OBJECT_CLASSES: Record<number, string> = {
   4: 'ACHARE', 5: 'BCNCAR', 6: 'BCNISD', 7: 'BCNLAT', 8: 'BCNSAW', 9: 'BCNSPP', 11: 'BRIDGE', 14: 'BOYCAR', 15: 'BOYINB', 16: 'BOYISD', 17: 'BOYLAT', 18: 'BOYSAW', 19: 'BOYSPP',
-  30: 'COALNE', 39: 'DAYMAR', 42: 'DEPARE', 43: 'DEPCNT', 71: 'LNDARE', 74: 'LNDMRK', 75: 'LIGHTS', 76: 'LITFLT', 77: 'LITVES', 86: 'OBSTRN', 112: 'RESARE', 122: 'SLCONS',
+  30: 'COALNE', 39: 'DAYMAR', 42: 'DEPARE', 46: 'DRGARE', 43: 'DEPCNT', 71: 'LNDARE', 74: 'LNDMRK', 75: 'LIGHTS', 76: 'LITFLT', 77: 'LITVES', 86: 'OBSTRN', 112: 'RESARE', 122: 'SLCONS',
   129: 'SOUNDG', 144: 'TOPMAR', 153: 'UWTROC', 159: 'WRECKS', 302: 'M_COVR', 308: 'M_QUAL',
 }
 
