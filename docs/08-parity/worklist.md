@@ -201,7 +201,7 @@ leaves something tested and working.
 
 - [x] **9.1 Upwind and downwind TWS limits, and motoring** below a minimum sailing
       speed. *Accept:* kernel tests.
-- [ ] **9.2 Keep and compare routes:** several optimised routes, highlighting the
+- [x] **9.2 Keep and compare routes:** several optimised routes, highlighting the
       previous one. *Accept:* store and screen tests.
 - [ ] **9.3 Results parity:** current and sail columns, a meteogram along the route,
       barbs at each leg's own time, and export to the marks database. *Accept:*

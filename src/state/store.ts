@@ -22,7 +22,7 @@ import type {
   WindEstimate,
   WindSource,
 } from '@/lib/types'
-import { DEFAULT_ROUTE_SETTINGS, type RouteSettings } from '@/lib/routing/settings'
+import { DEFAULT_ROUTE_SETTINGS, nonDefaultLabels, type RouteSettings } from '@/lib/routing/settings'
 import type { SailChart } from '@/lib/sailchart'
 import { NO_WHAT_IF, type WhatIf } from '@/lib/whatif'
 import type { HandicapSystem } from '@/lib/handicap'
@@ -60,6 +60,22 @@ export interface LibraryMark {
   position: LatLon
   folder: string
 }
+
+/**
+ * An optimised route kept for comparison: its track and times, and the settings
+ * it was run with, but not its isochrones, which are most of its size.
+ */
+export interface KeptRoute {
+  id: string
+  at: Millis
+  track: LatLon[]
+  elapsedS: number | null
+  etaMs: Millis | null
+  settings: string[]
+}
+
+/** How many earlier routes are kept to compare with. */
+export const MAX_KEPT_ROUTES = 5
 
 /** Something that happened, on the log's timeline: a note, a sail change, a ping, the gun. */
 export interface LogEvent {
@@ -397,8 +413,13 @@ interface AppState {
   /** Expedition's optimal-routing options: corrections, limits and resolution. */
   routeSettings: RouteSettings
   updateRouteSettings(patch: Partial<RouteSettings>): void
+  /** The settings the current route was run with, so a kept route says what it was. */
+  routeSettingsAtLastRoute: RouteSettings | null
 
   route: RouteResult | null
+  /** Earlier optimised routes, newest first: the first is "the previous one". */
+  keptRoutes: KeptRoute[]
+  clearKeptRoutes(): void
   routing: boolean
   routeError: string | null
   setRoute(r: RouteResult | null): void
@@ -501,7 +522,13 @@ let markSeq = 0
  * pinging an end or switching the active leg changes the tactical numbers and
  * nothing the router computed.
  */
-const COURSE_CHANGED = { route: null, routeError: null, xteOrigin: null } as const
+// Earlier routes go too: a route for other marks is no comparison.
+const COURSE_CHANGED = {
+  route: null,
+  routeError: null,
+  xteOrigin: null,
+  keptRoutes: [] as KeptRoute[],
+} satisfies Partial<AppState>
 
 export const useStore = create<AppState>()(
   persist(
@@ -922,7 +949,26 @@ export const useStore = create<AppState>()(
       route: null,
       routing: false,
       routeError: null,
-      setRoute: (r) => set({ route: r }),
+      setRoute: (r) => {
+        const prev = get().route
+        // A new optimised route keeps the one it replaces, to compare with.
+        if (r?.ok && prev?.ok && prev !== r && prev.legs.length > 1) {
+          const kept: KeptRoute = {
+            id: `route-${Date.now()}-${++markSeq}`,
+            at: Date.now(),
+            track: prev.legs.map((l) => l.position),
+            elapsedS: prev.elapsedS,
+            etaMs: prev.etaMs,
+            settings: nonDefaultLabels(get().routeSettingsAtLastRoute ?? get().routeSettings),
+          }
+          set({ route: r, keptRoutes: [kept, ...get().keptRoutes].slice(0, MAX_KEPT_ROUTES), routeSettingsAtLastRoute: get().routeSettings })
+          return
+        }
+        set({ route: r, ...(r?.ok ? { routeSettingsAtLastRoute: get().routeSettings } : {}) })
+      },
+      keptRoutes: [],
+      clearKeptRoutes: () => set({ keptRoutes: [] }),
+      routeSettingsAtLastRoute: null,
       setRouting: (b) => set({ routing: b }),
       setRouteError: (e) => set({ routeError: e }),
 

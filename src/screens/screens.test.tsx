@@ -144,7 +144,7 @@ import { RaceScreen } from './RaceScreen'
 import { SetupScreen, tideStationLabel } from './SetupScreen'
 import { StripchartScreen } from './StripchartScreen'
 import { WeatherScreen } from './WeatherScreen'
-import { RouteScreen } from './RouteScreen'
+import { RouteScreen, keptFC } from './RouteScreen'
 import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
 import { alternatingIndex } from '@/components/NumberBoxes'
 import { findPolar } from '@/data/polars'
@@ -209,6 +209,8 @@ function emptyStore() {
     strip: { panes: ['bsp', 'tws', 'twd', 'sog'], spanMin: 15 },
     events: [],
     sailTests: [],
+    keptRoutes: [],
+    routeSettingsAtLastRoute: null,
   })
 }
 
@@ -463,6 +465,65 @@ describe('the Route chart can draw the reverse isochrones', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /reverse isochrones on/ }))
     expect(drawn()).toBe(0)
+  })
+})
+
+describe('earlier routes, kept to compare', () => {
+  const p = PILOT_VENUE.waterStart
+  const route = (elapsedS: number, dLon = 0): RouteResult => ({
+    ok: true,
+    legs: [0, 0.01].map((dLat) => ({
+      t: Date.now(), position: { lat: p.lat + dLat, lon: p.lon + dLon }, twd: 90, tws: 12, twa: 90, bsp: 6, heading: 0,
+      isBeating: false, tack: 'starboard' as const, currentSet: null, currentDrift: null, distanceNm: 0.6,
+    })),
+    etaMs: Date.now() + elapsedS * 1000, elapsedS, directTimeS: elapsedS, isochrones: [], reverseIsochrones: [],
+    sensitivity: null, diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: true, warnings: [] },
+  })
+
+  it('keeps the route a new one replaces, the last five, and not a failed one', () => {
+    populatedStore()
+    const s = useStore.getState()
+    s.setRoute(route(3600))
+    expect(useStore.getState().keptRoutes).toEqual([])
+    s.updateRouteSettings({ windScalePct: 110 })
+    s.setRoute(route(3300, 0.01))
+    const kept = useStore.getState().keptRoutes
+    expect(kept).toHaveLength(1)
+    expect(kept[0]).toMatchObject({ elapsedS: 3600, settings: [] })
+    expect(kept[0].track[0].lon).toBeCloseTo(p.lon, 9)
+    s.setRoute({ ...route(1), ok: false, legs: [] })
+    expect(useStore.getState().keptRoutes).toHaveLength(1)
+    for (let i = 0; i < 8; i++) s.setRoute(route(3000 + i))
+    expect(useStore.getState().keptRoutes).toHaveLength(5)
+    // The route kept carries the settings it was run with.
+    expect(useStore.getState().keptRoutes.at(-1)!.settings).toEqual(['wind 110%'])
+    s.addMark('X', { lat: p.lat + 0.02, lon: p.lon })
+    expect(useStore.getState().keptRoutes).toEqual([])
+  })
+
+  it('draws them under the route, the previous one marked, and compares them in RESULTS', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    act(() => {
+      useStore.getState().setRoute(route(3600))
+      useStore.getState().setRoute(route(3300, 0.01))
+    })
+    const fc = mapInstances[0].data.get('kept') as GeoJSON.FeatureCollection
+    expect(fc.features.map((f) => f.properties!.previous)).toEqual([true])
+    expect(mapInstances[0].layers.some((l) => l.id === 'kept-prev-line')).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'RESULTS' }))
+    const table = screen.getByRole('table', { name: 'Earlier routes' })
+    expect(table.textContent).toMatch(/previous/)
+    expect(table.textContent).toMatch(/this one 5m faster/)
+    fireEvent.click(screen.getByRole('button', { name: 'CLEAR EARLIER ROUTES' }))
+    expect(useStore.getState().keptRoutes).toEqual([])
+  })
+
+  it('makes one line a kept route, and skips a route with no length', () => {
+    expect(keptFC([{ id: 'a', track: [{ lat: 1, lon: 2 }, { lat: 1.1, lon: 2 }] }, { id: 'b', track: [{ lat: 1, lon: 2 }] }]).features).toHaveLength(1)
   })
 })
 

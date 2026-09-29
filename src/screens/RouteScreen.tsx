@@ -126,6 +126,7 @@ export function RouteScreen() {
   const course = useStore((s) => s.course)
   const polar = useStore((s) => s.polar)
   const route = useStore((s) => s.route)
+  const keptRoutes = useStore((s) => s.keptRoutes)
   const setRoute = useStore((s) => s.setRoute)
   const routeError = useStore((s) => s.routeError)
   const setRouteError = useStore((s) => s.setRouteError)
@@ -496,6 +497,13 @@ export function RouteScreen() {
       map.fitBounds(b, { padding: 56, maxZoom: 12, duration: 600 })
     }
   }, [ready, route])
+
+  // Earlier routes, for comparison: their own source, so a new route does not refit for them.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setSource(map, 'kept', keptFC(keptRoutes))
+  }, [ready, keptRoutes])
 
   // Its own effect, so the toggle redraws one layer without refitting the map.
   useEffect(() => {
@@ -1319,6 +1327,42 @@ function DepthPanel({
   )
 }
 
+/** The earlier routes against this one: how much longer or shorter, and what was different. */
+function CompareRoutes({ route }: { route: RouteResult }) {
+  const kept = useStore((s) => s.keptRoutes)
+  const clear = useStore((s) => s.clearKeptRoutes)
+  if (kept.length === 0) return null
+  return (
+    <section aria-label="Compare routes" style={{ marginBottom: 12 }}>
+      <h2>Compare</h2>
+      <table className="results" aria-label="Earlier routes">
+        <tbody>
+          {kept.map((k, i) => {
+            const d = k.elapsedS != null && route.elapsedS != null ? k.elapsedS - route.elapsedS : null
+            return (
+              <tr key={k.id}>
+                <td>{i === 0 ? 'previous' : new Date(k.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                <td>{fmtDuration(k.elapsedS) ?? '—'}</td>
+                <td>
+                  {d == null
+                    ? '—'
+                    : Math.abs(d) < 30
+                      ? 'about the same'
+                      : `this one ${d > 0 ? fmtDuration(d) + ' faster' : fmtDuration(-d) + ' slower'}`}
+                </td>
+                <td>{k.settings.length ? k.settings.join(', ') : 'default settings'}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <button className="btn btn--sm btn--ghost" onClick={clear}>
+        CLEAR EARLIER ROUTES
+      </button>
+    </section>
+  )
+}
+
 function ResultsSheet({
   route,
   depth,
@@ -1375,6 +1419,8 @@ function ResultsSheet({
       </div>
 
       {depth?.shallowest && <DepthPanel depth={depth} levels={levels} />}
+
+      <CompareRoutes route={route} />
 
       {route.diagnostics.warnings.map((w) => (
         <div className="warnbox" key={w}>
@@ -1509,6 +1555,20 @@ function isochroneFC(isochrones: Isochrone[]): FC {
   }
 }
 
+/** Kept routes as lines, the newest marked as the previous one. */
+export function keptFC(kept: ReadonlyArray<{ id: string; track: Array<{ lat: number; lon: number }> }>): FC {
+  return {
+    type: 'FeatureCollection',
+    features: kept
+      .filter((k) => k.track.length > 1)
+      .map((k, i) => ({
+        type: 'Feature' as const,
+        properties: { id: k.id, previous: i === 0 },
+        geometry: { type: 'LineString' as const, coordinates: k.track.map((p) => [p.lon, p.lat]) },
+      })),
+  }
+}
+
 function setSource(map: maplibregl.Map, id: string, data: FC) {
   const src = map.getSource(id) as maplibregl.GeoJSONSource | undefined
   if (src) src.setData(data)
@@ -1516,7 +1576,7 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
-  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'iso', 'riso', 'route', 'route-beat', 'marks', 'boat', 'start', 'measure'].forEach(add)
+  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'iso', 'riso', 'kept', 'route', 'route-beat', 'marks', 'boat', 'start', 'measure'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
   // plain notes grey, so the colour says what the router will do with each.
@@ -1627,6 +1687,21 @@ function addEmptyLayers(map: maplibregl.Map) {
       'line-opacity': 0.6,
       'line-dasharray': [3, 2],
     },
+  })
+  // Earlier routes under the current one: the previous dashed and bright, older faint.
+  map.addLayer({
+    id: 'kept-old-line',
+    type: 'line',
+    source: 'kept',
+    filter: ['!', ['get', 'previous']],
+    paint: { 'line-color': '#9fb3c8', 'line-width': 1.5, 'line-opacity': 0.45 },
+  })
+  map.addLayer({
+    id: 'kept-prev-line',
+    type: 'line',
+    source: 'kept',
+    filter: ['get', 'previous'],
+    paint: { 'line-color': '#eaf2fa', 'line-width': 2.5, 'line-opacity': 0.85, 'line-dasharray': [2, 1.5] },
   })
   map.addLayer({
     id: 'route-line',
