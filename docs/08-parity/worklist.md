@@ -129,7 +129,7 @@ leaves something tested and working.
       the tide:* tide-affected laylines need a current field, which comes with 11.4.
 - [x] **5.4 What-if for current**, and what-if applied to Start and Route as well.
       *Accept:* tests.
-- [ ] **5.5 Hold wind and hold current** before the start, released at the gun.
+- [x] **5.5 Hold wind and hold current** before the start, released at the gun.
       *Accept:* store tests.
 - [ ] **5.6 Start display extras:** turn circles, range circles, times at each end, a
       magnified end, heading distinct from COG, approach options in the UI, and an

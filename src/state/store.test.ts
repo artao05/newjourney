@@ -247,6 +247,34 @@ describe('editing marks', () => {
   })
 })
 
+describe('hold wind and hold current', () => {
+  const w = (twd: number) => ({ twd, tws: 12, source: 'manual' as const, uncertaintyDeg: 8, t: 1 })
+
+  it('freezes the wind as held, ignores updates, and takes the next one once let go', () => {
+    const s = useStore.getState
+    s().setWind(w(270))
+    s().holdWind(true)
+    expect(s().wind).toMatchObject({ twd: 270, source: 'held' })
+    s().setWind(w(300))
+    expect(s().wind!.twd).toBe(270)
+    s().holdWind(false)
+    s().setWind(w(300))
+    expect(s().wind).toMatchObject({ twd: 300, source: 'manual' })
+  })
+
+  it('holds the current the same way, and will not hold what is not there', () => {
+    const s = useStore.getState
+    s().setCurrent(null)
+    s().holdCurrent(true)
+    expect(s().hold.current).toBe(false)
+    s().setCurrent({ set: 45, drift: 0.6, source: 'sim' })
+    s().holdCurrent(true)
+    s().setCurrent({ set: 200, drift: 2, source: 'sim' })
+    expect(s().current).toMatchObject({ set: 45, drift: 0.6 })
+    s().holdCurrent(false)
+  })
+})
+
 describe('a planned route start', () => {
   it('drops the route it no longer describes, and survives a reload', () => {
     const s = useStore.getState

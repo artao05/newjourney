@@ -475,6 +475,33 @@ describe('the nav-station layout at laptop width', () => {
   })
 })
 
+describe('held wind lets go at the gun', () => {
+  it('releases a held wind once the gun has gone, when asked to', () => {
+    const s = useStore.getState()
+    s.setWind({ twd: 270, tws: 12, source: 'manual', uncertaintyDeg: 8, t: Date.now() })
+    s.holdWind(true)
+    s.setReleaseAtGun(true)
+    s.setGunTime(Date.now() - 1000)
+    render(<App />)
+    expect(useStore.getState().hold.wind).toBe(false)
+  })
+
+  it('keeps holding past the gun when release is off', () => {
+    const s = useStore.getState()
+    s.setWind({ twd: 270, tws: 12, source: 'manual', uncertaintyDeg: 8, t: Date.now() })
+    s.holdWind(true)
+    s.setReleaseAtGun(false)
+    s.setGunTime(Date.now() - 1000)
+    render(<App />)
+    expect(useStore.getState().hold.wind).toBe(true)
+    act(() => {
+      useStore.getState().holdWind(false)
+      useStore.getState().setReleaseAtGun(true)
+      useStore.getState().setGunTime(null)
+    })
+  })
+})
+
 describe("Expedition's keyboard shortcuts", () => {
   const press = (key: string, mods: Record<string, boolean> = {}) =>
     act(() => {

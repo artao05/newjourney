@@ -187,6 +187,7 @@ function emptyStore() {
     polarRoles: { performance: 'navigation', start: 'navigation' },
     sailChart: null,
     whatIf: { shiftDeg: 0, speedDeltaKn: 0, current: null },
+    hold: { wind: false, current: false, releaseAtGun: true },
   })
 }
 
@@ -990,6 +991,17 @@ describe('a gate as the active mark', () => {
     populatedStore()
     render(<RaceScreen />)
     expect(screen.queryByText('favoured buoy')).toBeNull()
+  })
+})
+
+describe('Start holds the wind for the pre-start', () => {
+  it('holds and lets go from the Start buttons', () => {
+    populatedStore()
+    render(<StartScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'HOLD WIND' }))
+    expect(useStore.getState().wind?.source).toBe('held')
+    fireEvent.click(screen.getByRole('button', { name: 'WIND HELD' }))
+    expect(useStore.getState().hold.wind).toBe(false)
   })
 })
 

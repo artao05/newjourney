@@ -96,6 +96,15 @@ export function App() {
   useTrackPersistence()
   const now = useTick(1)
 
+  // Hold wind and current release at the gun, when that is what was asked for.
+  const hold = useStore((s) => s.hold)
+  const gunTime = useStore((s) => s.course.startLine.gunTime)
+  useEffect(() => {
+    if (!hold.releaseAtGun || gunTime == null || now < gunTime) return
+    if (hold.wind) useStore.getState().holdWind(false)
+    if (hold.current) useStore.getState().holdCurrent(false)
+  }, [now, gunTime, hold])
+
   // Load the class polar on first run / after a rehydrate.
   useEffect(() => {
     if (polar) return

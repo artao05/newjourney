@@ -173,7 +173,16 @@ interface AppState {
   setGpsError(e: string | null): void
 
   wind: WindEstimate | null
+  /** While the wind is held, this is ignored and the held wind stays. */
   setWind(w: WindEstimate | null): void
+  /**
+   * Expedition's Hold wind and Hold current: freeze them through the pre-start,
+   * when they are at their noisiest, and let them go at the gun if asked.
+   */
+  hold: { wind: boolean; current: boolean; releaseAtGun: boolean }
+  holdWind(on: boolean): void
+  holdCurrent(on: boolean): void
+  setReleaseAtGun(on: boolean): void
   windError: string | null
   setWindError(error: string | null): void
   manualWind: { twd: Degrees; tws: Knots }
@@ -490,7 +499,22 @@ export const useStore = create<AppState>()(
       setGpsError: (e) => set({ gpsError: e }),
 
       wind: null,
-      setWind: (w) => set({ wind: w }),
+      setWind: (w) => {
+        if (get().hold.wind) return
+        set({ wind: w })
+      },
+      hold: { wind: false, current: false, releaseAtGun: true },
+      holdWind: (on) => {
+        const w = get().wind
+        // Nothing to hold without a wind; letting go takes the next estimate.
+        if (on && !w) return
+        set({
+          hold: { ...get().hold, wind: on },
+          ...(on && w ? { wind: { ...w, source: 'held' as const } } : {}),
+        })
+      },
+      holdCurrent: (on) => set({ hold: { ...get().hold, current: on && get().current != null } }),
+      setReleaseAtGun: (on) => set({ hold: { ...get().hold, releaseAtGun: on } }),
       windError: null,
       setWindError: (windError) => set({ windError }),
       manualWind: { twd: 270, tws: 12 },
@@ -531,7 +555,10 @@ export const useStore = create<AppState>()(
       },
 
       current: null,
-      setCurrent: (c) => set({ current: c }),
+      setCurrent: (c) => {
+        if (get().hold.current) return
+        set({ current: c })
+      },
 
       whatIf: { ...NO_WHAT_IF },
       setWhatIf: (patch) => set({ whatIf: { ...get().whatIf, ...patch } }),

@@ -75,6 +75,10 @@ export function StartScreen() {
    * instead of throwing.
    */
   const whatIf = useStore((s) => s.whatIf)
+  const hold = useStore((s) => s.hold)
+  const holdWind = useStore((s) => s.holdWind)
+  const holdCurrent = useStore((s) => s.holdCurrent)
+  const setReleaseAtGun = useStore((s) => s.setReleaseAtGun)
   const numbers: StartNumbers = useMemo(() => {
     if (!state) return EMPTY_START_NUMBERS
     return computeStart({
@@ -340,7 +344,36 @@ export function StartScreen() {
         />
       </div>
 
-      <div className="actions">
+            <div className="actions" style={{ paddingTop: 0 }}>
+        <button
+          className={'btn btn--sm ' + (hold.wind ? 'btn--primary' : 'btn--ghost')}
+          aria-pressed={hold.wind}
+          disabled={!hold.wind && !wind}
+          onClick={() => holdWind(!hold.wind)}
+          title="Freeze the wind through the pre-start"
+        >
+          {hold.wind ? 'WIND HELD' : 'HOLD WIND'}
+        </button>
+        <button
+          className={'btn btn--sm ' + (hold.current ? 'btn--primary' : 'btn--ghost')}
+          aria-pressed={hold.current}
+          disabled={!hold.current && !current}
+          onClick={() => holdCurrent(!hold.current)}
+          title="Freeze the current through the pre-start"
+        >
+          {hold.current ? 'CURRENT HELD' : 'HOLD CURRENT'}
+        </button>
+        <label className="chip" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input
+            type="checkbox"
+            checked={hold.releaseAtGun}
+            onChange={(e) => setReleaseAtGun(e.target.checked)}
+            aria-label="Release at the gun"
+          />
+          release at gun
+        </label>
+      </div>
+<div className="actions">
         <button className="btn btn--port" onClick={() => ping('port')} disabled={!state}>
           PING PIN
         </button>
