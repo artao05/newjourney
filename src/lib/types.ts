@@ -436,6 +436,11 @@ export interface RouteRequest {
   algorithm?: 'isochrone' | 'grid'
   /** For the grid: lay it along the great circle rather than the rhumb line. */
   greatCircle?: boolean
+  /**
+   * Route each leg for itself, as older routers do, rather than carrying the
+   * best arrival on each tack into the next leg. For comparison; off by default.
+   */
+  legByLeg?: boolean
 }
 
 export interface RouteLeg {

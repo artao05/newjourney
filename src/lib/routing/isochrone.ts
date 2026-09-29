@@ -99,6 +99,8 @@ const MAX_STEP_S = 21_600
 const MIN_COS_LAT = 0.02
 /** Extra steps run after the first finish candidate, hunting a cheaper one. */
 const FINISH_GRACE_STEPS = 2
+/** How long past the first finish a pass waits for the other tack's arrival. */
+const BOTH_TACKS_GRACE_STEPS = 12
 /** Steps at full cone width without closing on the mark before we give up. */
 const MAX_STALLED_STEPS = 40
 const MAX_ISOCHRONES = 120
@@ -818,6 +820,8 @@ interface PassInput {
    */
   initialTack?: number
   initialTwa?: number
+  /** Keep going a little after the first finish to find the other tack's best arrival too. */
+  wantBothTacks?: boolean
 }
 
 interface PassOutput {
@@ -825,6 +829,8 @@ interface PassOutput {
   /** Pool index of the arrival node, or −1. */
   finishNode: number
   finishT: Millis
+  /** The best arrival on each tack found, for carrying into the next leg. */
+  finishes: Array<{ tack: number; node: number; t: Millis }>
   isochrones: Isochrone[]
   evaluated: number
   stopped: string | null
@@ -1340,6 +1346,8 @@ class Search {
     let finishNode = -1
     let finishT = isFwd ? Infinity : -Infinity
     let finishStep = -1
+    // The best arrival on each tack, port (−1) and starboard (+1).
+    const byTack = new Map<number, { node: number; t: Millis }>()
 
     for (let k = 0; k < input.maxSteps; k++) {
       if (input.onProgress && (k & 7) === 0) {
@@ -1409,7 +1417,9 @@ class Search {
               hopPen = manoeuvre(parentTwa, this.hopTwa) === 'tack' ? this.tackPen : this.gybePen
             }
             const tArr = pt + dir * (hours * MS_PER_HOUR + hopPen * 1000)
-            if (isFwd ? tArr < finishT : tArr > finishT) {
+            const bestOnTack = byTack.get(hopNewTack)
+            const betterOnTack = !bestOnTack || (isFwd ? tArr < bestOnTack.t : tArr > bestOnTack.t)
+            if (betterOnTack || (isFwd ? tArr < finishT : tArr > finishT)) {
               P.ensure(P.n + 1)
               const fnode = P.n++
               P.lat[fnode] = goal.lat
@@ -1426,8 +1436,11 @@ class Search {
               P.curU[fnode] = cu
               P.curV[fnode] = cv
               P.dist[fnode] = dGoal
-              finishNode = fnode
-              finishT = tArr
+              if (betterOnTack) byTack.set(hopNewTack, { node: fnode, t: tArr })
+              if (isFwd ? tArr < finishT : tArr > finishT) {
+                finishNode = fnode
+                finishT = tArr
+              }
               if (finishStep < 0) finishStep = k
             }
           }
@@ -1615,7 +1628,10 @@ class Search {
         }
       }
 
-      if (finishNode >= 0 && k - finishStep >= FINISH_GRACE_STEPS) break
+      if (finishNode >= 0 && k - finishStep >= FINISH_GRACE_STEPS) {
+        // Asked for both tacks, give the other one a little longer to arrive.
+        if (!input.wantBothTacks || byTack.size >= 2 || k - finishStep >= BOTH_TACKS_GRACE_STEPS) break
+      }
       // A frontier that has been at full cone width and no closer to the mark
       // for this long is behind something it cannot get round. Grinding out the
       // remaining step budget just explores the whole ocean to say so.
@@ -1638,6 +1654,7 @@ class Search {
       reached: finishNode >= 0,
       finishNode,
       finishT,
+      finishes: [...byTack].map(([tack, f]) => ({ tack, node: f.node, t: f.t })),
       isochrones,
       evaluated,
       stopped: finishNode >= 0 ? null : stopped,
@@ -1963,19 +1980,28 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
 
     // ------------------------------------------------------- §7 multi-leg
     //
-    // Leg by leg, carrying the arrival time forward. The doc is explicit that
-    // this is not globally optimal — arriving at a mark slightly later can put
-    // you into a better field for the next leg — but that is a v2 problem and
-    // it is what the commercial product does.
-    const legs: RouteLeg[] = []
+    // Leg by leg, carrying the arrivals forward. The doc warns that greedy leg by
+    // leg is not globally optimal. In a field where a boat can always wait,
+    // arriving earlier never hurts later legs, so what greedy loses is the tack
+    // it arrives on: that is what the (mark, tack) labels below carry.
     const isochrones: Isochrone[] = []
-    let clock = req.startTime
     let from = req.start
-    const passCount = req.marks.length * (req.computeSensitivity ? 2 : 1)
+    // Every leg may run from two arrivals (one per tack), so allow for twice the passes.
+    const global = !req.legByLeg && req.marks.length > 1
+    const passCount = req.marks.length * (global ? 2 : 1) + (req.computeSensitivity ? req.marks.length : 0)
     const explored: Float32Array[] = []
     let passIndex = 0
-    let prevTack = 0
-    let prevTwa = 0
+
+    /*
+     * Leg by leg, but not greedily. Arriving first is not always best: a boat
+     * that reaches a mark on the tack the next leg does not want pays a tack at
+     * the rounding, and a slightly later arrival on the other tack can win. So
+     * the best arrival on each tack is carried into the next leg, each is routed
+     * on, and the course finishes on whichever arrives first. That is exact on
+     * (mark, tack) for a boat that can always wait, which a sailing boat can.
+     */
+    type Label = { tack: number; twa: number; t: Millis; legs: RouteLeg[] }
+    let labels: Label[] = [{ tack: 0, twa: 0, t: req.startTime, legs: [] }]
 
     for (let li = 0; li < req.marks.length; li++) {
       const to = req.marks[li]
@@ -1988,31 +2014,54 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
         3000,
         Math.ceil(legNm / Math.max(0.05, typicalSpeed * (dtS / 3600))) * 3 + 30,
       )
-      const out = search.run({
-        origin: from,
-        goal: to,
-        t0: clock,
-        dtMs,
-        dir: 1,
-        maxSteps,
-        typicalSpeed,
-        recorder: fwdRecorder,
-        onProgress: ctx.onProgress ?? null,
-        progressBase: passIndex / passCount,
-        progressSpan: 1 / passCount,
-        initialTack: prevTack,
-        initialTwa: prevTwa,
-      })
-      passIndex++
-      evaluated += out.evaluated
-      // Already capped at MAX_ISOCHRONES per pass; a multi-leg course gets that
-      // many per leg, which is what the UI wants to draw.
-      for (const iso of out.isochrones) isochrones.push(iso)
-      // The search tree, before the next leg's pass reuses the pool.
-      if (req.returnExplored) explored.push(harvestExplored(search.pool, MAX_EXPLORED_SEGMENTS / req.marks.length))
-      if (!out.reached) {
+      const last = li === req.marks.length - 1
+      const next = new Map<number, Label>()
+      let lastStopped: string | null = null
+      // Earliest label first: its run is the one drawn and recorded for sensitivity.
+      labels.sort((a, b) => a.t - b.t)
+      for (const [bi, lab] of labels.entries()) {
+        const out = search.run({
+          origin: from,
+          goal: to,
+          t0: lab.t,
+          dtMs,
+          dir: 1,
+          maxSteps,
+          typicalSpeed,
+          recorder: bi === 0 ? fwdRecorder : null,
+          onProgress: ctx.onProgress ?? null,
+          progressBase: passIndex / passCount,
+          progressSpan: 1 / passCount,
+          initialTack: lab.tack,
+          initialTwa: lab.twa,
+          wantBothTacks: global && !last,
+        })
+        passIndex++
+        evaluated += out.evaluated
+        if (bi === 0) {
+          // Already capped at MAX_ISOCHRONES per pass; a multi-leg course gets that
+          // many per leg, which is what the UI wants to draw.
+          for (const iso of out.isochrones) isochrones.push(iso)
+          // The search tree, before the next pass reuses the pool.
+          if (req.returnExplored) explored.push(harvestExplored(search.pool, MAX_EXPLORED_SEGMENTS / req.marks.length))
+        }
+        if (!out.reached) {
+          lastStopped = out.stopped
+          continue
+        }
+        // Greedy, or the last leg: only the first arrival matters.
+        const arrivals = global && !last ? out.finishes : [{ tack: search.pool.tack[out.finishNode], node: out.finishNode, t: out.finishT }]
+        for (const a of arrivals) {
+          const have = next.get(a.tack)
+          if (have && have.t <= a.t) continue
+          const legs = lab.legs.slice()
+          appendLegs(legs, search, reconstruct(search, a.node), dense.hasCurrent, legs.length > 0)
+          next.set(a.tack, { tack: a.tack, twa: search.pool.twa[a.node], t: a.t, legs })
+        }
+      }
+      if (next.size === 0) {
         return failed(
-          `leg ${li + 1} of ${req.marks.length}: ${out.stopped ?? 'no route found'}`,
+          `leg ${li + 1} of ${req.marks.length}: ${lastStopped ?? 'no route found'}`,
           warnings,
           timeStepS,
           evaluated,
@@ -2020,12 +2069,12 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
           landAvoided,
         )
       }
-      appendLegs(legs, search, reconstruct(search, out.finishNode), dense.hasCurrent, li > 0)
-      prevTack = search.pool.tack[out.finishNode]
-      prevTwa = search.pool.twa[out.finishNode]
-      clock = out.finishT
+      labels = [...next.values()]
       from = to
     }
+    const best = labels.reduce((a, b) => (b.t < a.t ? b : a))
+    const legs = best.legs
+    const clock = best.t
 
     if (legs.length === 0) {
       return failed('route collapsed to zero length', warnings, timeStepS, evaluated, started, landAvoided)

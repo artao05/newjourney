@@ -927,6 +927,44 @@ describe('isochrone routing kernel', () => {
     expect(mixedVmg(40, 5, 40, 2.5)).toBeCloseTo((1 / 3) * 5 + (2 / 3) * 2.5, 9)
   })
 
+  it('beats greedy leg-by-leg routing when the arrival tack matters at the rounding', () => {
+    // A run south with an island in the way: round one side and the boat reaches
+    // the mark on starboard, round the other and it is on port, a second later.
+    // The next leg is a port run, so the first arrival pays a gybe at the mark
+    // that the second never does. Greedy takes the first.
+    const start = { lat: 40.08, lon: -70 }
+    const a = { lat: 39.92, lon: -70 }
+    const b = destination(a, 145, 3)
+    const island = {
+      type: 'FeatureCollection' as const,
+      features: [{
+        type: 'Feature' as const,
+        properties: {},
+        geometry: { type: 'Polygon' as const, coordinates: [[[-70.012, 39.99], [-69.99, 39.99], [-69.99, 40.01], [-70.012, 40.01], [-70.012, 39.99]]] },
+      }],
+    }
+    const land = buildLandMask(island, { west: -70.3, south: 39.7, east: -69.7, north: 40.3 }, 0.002)
+    const field = makeField({ twd: 0, tws: 12 })
+    const constraints = { ...defaultConstraints(), tackPenaltyS: 300, gybePenaltyS: 300 }
+    const run = (legByLeg: boolean) =>
+      routeIsochrone(request({ start, marks: [a, b], resolution: 'balanced', constraints, legByLeg }), { field, lattice: LATTICE, land })
+    const greedy = run(true)
+    const global = run(false)
+    expect(greedy.ok && global.ok, greedy.error ?? global.error).toBe(true)
+    note(`9.10 greedy ${(greedy.elapsedS! / 60).toFixed(1)} min, global ${(global.elapsedS! / 60).toFixed(1)} min`)
+    expect(global.elapsedS!).toBeLessThan(greedy.elapsedS! - 60)
+  })
+
+  it('never does worse than greedy, on a course with nothing to gain', () => {
+    const start = { lat: 40, lon: -70 }
+    const a = destination(start, 90, 3)
+    const b = destination(a, 90, 3)
+    const field = makeField({ twd: 0, tws: 12 })
+    const run = (legByLeg: boolean) =>
+      routeIsochrone(request({ start, marks: [a, b], resolution: 'fast', legByLeg }), { field, lattice: LATTICE }).elapsedS!
+    expect(run(false)).toBeLessThanOrEqual(run(true) + 1e-6)
+  })
+
   it('an impassable band returns a clean failure, not a throw', () => {
     const start = { lat: 40, lon: -70 }
     const finish = { lat: 40, lon: -69 }
