@@ -17,22 +17,27 @@ import { declinationAt } from '@/lib/magnetic'
 import { PILOT_VENUE } from '@/data/venues'
 import { buildSnapshot, type ChannelValues } from '@/lib/channels/snapshot'
 import { gateNumbers } from '@/lib/gates'
+import { applyWhatIfCurrent, applyWhatIfWind } from '@/lib/whatif'
 
 export function useChannelSnapshot(): ChannelValues {
   const now = useTick(1)
   const state = useStore((s) => s.state)
-  const wind = useStore((s) => s.wind)
-  const current = useStore((s) => s.current)
+  const realWind = useStore((s) => s.wind)
+  const realCurrent = useStore((s) => s.current)
   const boat = useStore((s) => s.boat)
   const course = useStore((s) => s.course)
   const activeMarkIndex = useStore((s) => s.activeMarkIndex)
   const windHistory = useStore((s) => s.windHistory)
   const xteOrigin = useStore((s) => s.xteOrigin)
+  const whatIf = useStore((s) => s.whatIf)
 
   const polars = usePolarLattices()
   const lattice = polars.navigation
 
   return useMemo(() => {
+    // The boxes show what Race shows: What-if included, as Expedition's channels do.
+    const wind = applyWhatIfWind(realWind, whatIf)
+    const current = applyWhatIfCurrent(realCurrent, whatIf)
     let tactics = null
     let start = null
     if (state) {
@@ -67,5 +72,5 @@ export function useChannelSnapshot(): ChannelValues {
       activeMarkIndex,
       variationDeg: declinationAt(PILOT_VENUE.declination, now),
     })
-  }, [now, state, wind, current, boat, lattice, polars.performance, polars.start, course, activeMarkIndex, windHistory, xteOrigin])
+  }, [now, state, realWind, realCurrent, whatIf, boat, lattice, polars.performance, polars.start, course, activeMarkIndex, windHistory, xteOrigin])
 }

@@ -186,6 +186,7 @@ function emptyStore() {
     raceNotes: [],
     polarRoles: { performance: 'navigation', start: 'navigation' },
     sailChart: null,
+    whatIf: { shiftDeg: 0, speedDeltaKn: 0, current: null },
   })
 }
 
@@ -989,6 +990,42 @@ describe('a gate as the active mark', () => {
     populatedStore()
     render(<RaceScreen />)
     expect(screen.queryByText('favoured buoy')).toBeNull()
+  })
+})
+
+describe('what-if reaches every screen', () => {
+  const tile = (label: string) =>
+    [...document.querySelectorAll('.tile')].find((el) => el.querySelector('.tile__label')?.textContent === label)!
+      .querySelector('.tile__value')!.textContent
+
+  it('shifts the start line bias on Start, and says so there, not only on Race', () => {
+    populatedStore()
+    render(<StartScreen />)
+    const before = screen.queryByText(/What-if active/)
+    expect(before).toBeNull()
+    cleanup()
+    act(() => useStore.getState().setWhatIf({ shiftDeg: 30 }))
+    render(<StartScreen />)
+    expect(screen.getByText(/What-if active/).closest('.warnbox')!.textContent).toMatch(/\+30° shift/)
+  })
+
+  it('uses a what-if current on Race, where the steer allows for it', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    const plain = tile('steer')
+    fireEvent.click(screen.getByLabelText('What-if current'))
+    fireEvent.change(document.getElementById('wi-drift')!, { target: { value: '1.5' } })
+    fireEvent.change(document.getElementById('wi-set')!, { target: { value: '90' } })
+    expect(useStore.getState().whatIf.current).toEqual({ set: 90, drift: 1.5 })
+    expect(tile('steer')).not.toBe(plain)
+    fireEvent.click(screen.getByRole('button', { name: 'RESET WHAT-IF' }))
+    expect(useStore.getState().whatIf).toEqual({ shiftDeg: 0, speedDeltaKn: 0, current: null })
+  })
+
+  it('is never saved, so a what-if cannot survive into tomorrow', () => {
+    act(() => useStore.getState().setWhatIf({ shiftDeg: 12 }))
+    const saved = JSON.parse(localStorage.getItem('newjourney.v1') ?? '{}').state ?? {}
+    expect(saved.whatIf).toBeUndefined()
   })
 })
 

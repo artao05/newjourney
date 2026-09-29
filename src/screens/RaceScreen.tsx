@@ -18,10 +18,11 @@ import { useLayout } from '@/hooks/useWide'
 import { usePolarLattices } from '@/hooks/usePolars'
 import { Tile, fmtClock } from '@/components/Tile'
 import { computeTactics } from '@/lib/tactics'
-import { angsep, fmtDeg, fmtShift, wrap360 } from '@/lib/angles'
+import { angsep, fmtDeg, fmtShift } from '@/lib/angles'
 import { sailAt } from '@/lib/sailchart'
 import { distance, bearing } from '@/lib/geo'
 import { buildWLCourse } from '@/lib/wlcourse'
+import { NO_WHAT_IF, applyWhatIfCurrent, applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { gateNumbers } from '@/lib/gates'
 import { declinationAt, magneticToTrue, trueToMagnetic } from '@/lib/magnetic'
 import { PILOT_VENUE } from '@/data/venues'
@@ -47,8 +48,12 @@ export function RaceScreen() {
   const clearMarks = useStore((s) => s.clearMarks)
 
   const [editingMark, setEditingMark] = useState<string | null>(null)
-  const [whatIfShift, setWhatIfShift] = useState(0)
-  const [whatIfSpeed, setWhatIfSpeed] = useState(0)
+  const whatIf = useStore((s) => s.whatIf)
+  const setWhatIf = useStore((s) => s.setWhatIf)
+  const whatIfShift = whatIf.shiftDeg
+  const whatIfSpeed = whatIf.speedDeltaKn
+  const setWhatIfShift = (v: number) => setWhatIf({ shiftDeg: v })
+  const setWhatIfSpeed = (v: number) => setWhatIf({ speedDeltaKn: v })
   const [wlAxis, setWlAxis] = useState(0)
   const [wlUp, setWlUp] = useState(1)
   const [wlDown, setWlDown] = useState(0.1)
@@ -70,13 +75,9 @@ export function RaceScreen() {
   /** What-if is just a decorated wind estimate — the same trick Expedition uses. */
   const effectiveWind: WindEstimate | null = useMemo(() => {
     if (!wind) return null
-    if (whatIfShift === 0 && whatIfSpeed === 0) return wind
-    return {
-      ...wind,
-      twd: wrap360(wind.twd + whatIfShift),
-      tws: Math.max(0.5, wind.tws + whatIfSpeed),
-    }
-  }, [wind, whatIfShift, whatIfSpeed])
+    return applyWhatIfWind(wind, whatIf)
+  }, [wind, whatIf])
+  const effectiveCurrent = applyWhatIfCurrent(current, whatIf)
 
   const t: TacticalNumbers | null = useMemo(() => {
     if (!state) return null
@@ -84,7 +85,7 @@ export function RaceScreen() {
       return computeTactics({
         state,
         wind: effectiveWind,
-        current,
+        current: effectiveCurrent,
         boat,
         lattice,
         course,
@@ -96,7 +97,7 @@ export function RaceScreen() {
     } catch {
       return null
     }
-  }, [state, effectiveWind, current, boat, lattice, course, activeMarkIndex, windHistory, xteOrigin, polars.performance])
+  }, [state, effectiveWind, effectiveCurrent, boat, lattice, course, activeMarkIndex, windHistory, xteOrigin, polars.performance])
 
   const marks = course.marks
   const active = marks[activeMarkIndex]
@@ -107,7 +108,7 @@ export function RaceScreen() {
         : null,
     [state, active, effectiveWind, lattice],
   )
-  const whatIfOn = whatIfShift !== 0 || whatIfSpeed !== 0
+  const whatIfOn = whatIfActive(whatIf)
 
   return (
     <div className="screen">
@@ -134,9 +135,8 @@ export function RaceScreen() {
 
       {whatIfOn && (
         <div className="warnbox" style={{ margin: 'var(--pad)', marginBottom: 0 }}>
-          <b>What-if active</b> — showing {whatIfShift > 0 ? '+' : ''}
-          {whatIfShift}° shift{whatIfSpeed !== 0 ? `, ${whatIfSpeed > 0 ? '+' : ''}${whatIfSpeed} kn` : ''}.
-          These are not the real numbers.
+          <b>What-if active</b> — showing {describeWhatIf(whatIf)}. These are not the real
+          numbers.
         </div>
       )}
 
@@ -407,13 +407,33 @@ export function RaceScreen() {
             style={{ width: '100%' }}
           />
         </div>
+        <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            type="checkbox"
+            checked={whatIf.current !== null}
+            onChange={(e) => setWhatIf({ current: e.target.checked ? { set: current?.set ?? 0, drift: current?.drift ?? 0.5 } : null })}
+            aria-label="What-if current"
+          />
+          <span>What-if current, instead of the one measured</span>
+        </label>
+        {whatIf.current && (
+          <>
+            <div className="field">
+              <label htmlFor="wi-set">Current set <span className="note">°T, toward</span></label>
+              <input id="wi-set" type="number" step="5" value={whatIf.current.set}
+                onChange={(e) => setWhatIf({ current: { ...whatIf.current!, set: Number(e.target.value) } })} inputMode="numeric" />
+            </div>
+            <div className="field">
+              <label htmlFor="wi-drift">Current drift <span className="note">kn</span></label>
+              <input id="wi-drift" type="number" step="0.1" min="0" value={whatIf.current.drift}
+                onChange={(e) => setWhatIf({ current: { ...whatIf.current!, drift: Math.max(0, Number(e.target.value)) } })} inputMode="decimal" />
+            </div>
+          </>
+        )}
         {whatIfOn && (
           <button
             className="btn btn--sm"
-            onClick={() => {
-              setWhatIfShift(0)
-              setWhatIfSpeed(0)
-            }}
+            onClick={() => setWhatIf({ ...NO_WHAT_IF })}
           >
             RESET WHAT-IF
           </button>

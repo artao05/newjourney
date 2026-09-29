@@ -24,6 +24,7 @@ import type {
 } from '@/lib/types'
 import { DEFAULT_ROUTE_SETTINGS, type RouteSettings } from '@/lib/routing/settings'
 import type { SailChart } from '@/lib/sailchart'
+import { NO_WHAT_IF, type WhatIf } from '@/lib/whatif'
 
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
 /** The nav station's two tab sets: panels on the left, charts in the middle. */
@@ -201,6 +202,10 @@ interface AppState {
 
   current: CurrentEstimate | null
   setCurrent(c: CurrentEstimate | null): void
+
+  /** Expedition's What-if, laid over wind and current everywhere. Never persisted. */
+  whatIf: WhatIf
+  setWhatIf(patch: Partial<WhatIf>): void
 
   track: TrackPoint[]
   recording: boolean
@@ -527,6 +532,9 @@ export const useStore = create<AppState>()(
 
       current: null,
       setCurrent: (c) => set({ current: c }),
+
+      whatIf: { ...NO_WHAT_IF },
+      setWhatIf: (patch) => set({ whatIf: { ...get().whatIf, ...patch } }),
 
       track: [],
       recording: false,

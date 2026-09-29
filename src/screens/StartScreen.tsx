@@ -12,6 +12,7 @@ import { StartCanvas } from '@/components/StartCanvas'
 import { Tile, fmtAgo, fmtClock, fmtSigned } from '@/components/Tile'
 import { COG_TRUSTED_KN, computeStart, fixQuality, pingPosition, spareTimeS } from '@/lib/startline'
 import { usePolarLattices } from '@/hooks/usePolars'
+import { applyWhatIfCurrent, applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import type { StartNumbers } from '@/lib/types'
 import { fmtLength, lengthUnit, toLength } from '@/lib/units'
 
@@ -73,18 +74,19 @@ export function StartScreen() {
    * missing position. Every field is nullable precisely so this degrades
    * instead of throwing.
    */
+  const whatIf = useStore((s) => s.whatIf)
   const numbers: StartNumbers = useMemo(() => {
     if (!state) return EMPTY_START_NUMBERS
     return computeStart({
       line: course.startLine,
       state,
-      wind,
-      current,
+      wind: applyWhatIfWind(wind, whatIf),
+      current: applyWhatIfCurrent(current, whatIf),
       boat,
       lattice,
       now,
     })
-  }, [course.startLine, state, wind, current, boat, lattice, now])
+  }, [course.startLine, state, wind, current, whatIf, boat, lattice, now])
 
   const gun = course.startLine.gunTime
   const sinceGun = gun == null ? null : (now - gun) / 1000
@@ -165,6 +167,11 @@ export function StartScreen() {
 
   return (
     <>
+      {whatIfActive(whatIf) && (
+        <div className="warnbox" style={{ margin: 'var(--pad)', marginBottom: 0 }}>
+          <b>What-if active</b> — {describeWhatIf(whatIf)}. The start numbers are not the real ones.
+        </div>
+      )}
       <div className="hero">
         <div className="hero__label">
           {timerStale

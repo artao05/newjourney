@@ -18,6 +18,7 @@ import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
 import { nonDefaultLabels, requestParts, windHeightFactor, zonesFromNotes } from '@/lib/routing/settings'
 import { courseLegs } from '@/lib/legs'
 import { laylineLines } from '@/lib/laylineGeo'
+import { applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { boundsFrom } from '@/lib/tactics'
 import { buildLattice } from '@/lib/polar'
 import { fmtPosition } from '@/components/MarkSheet'
@@ -129,7 +130,9 @@ export function RouteScreen() {
   const routeError = useStore((s) => s.routeError)
   const setRouteError = useStore((s) => s.setRouteError)
   const routeSettings = useStore((s) => s.routeSettings)
-  const wind = useStore((s) => s.wind)
+  const whatIf = useStore((s) => s.whatIf)
+  // Laylines and the pointer readout follow What-if; the router follows the forecast.
+  const wind = applyWhatIfWind(useStore((s) => s.wind), whatIf)
   const units = useStore((s) => s.settings.units)
   const routeStart = useStore((s) => s.routeStart)
   const setRouteStart = useStore((s) => s.setRouteStart)
@@ -925,6 +928,11 @@ export function RouteScreen() {
               </span>
             ) : null
           })()}
+          {whatIfActive(whatIf) && (
+            <span className="chip chip--warn" title="What-if is on: laylines show it, routes do not">
+              what-if: {describeWhatIf(whatIf)}
+            </span>
+          )}
           {nonDefaultLabels(routeSettings).map((label) => (
               <span className="chip chip--warn" key={label} title="Routing setting — change in SETTINGS">
                 {label}
