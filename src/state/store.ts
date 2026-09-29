@@ -360,6 +360,9 @@ interface AppState {
   addAlarm(rule: Omit<AlarmRule, 'id'>): void
   updateAlarm(id: string, patch: Partial<Omit<AlarmRule, 'id'>>): void
   removeAlarm(id: string): void
+  /** Where the anchor went down, for the anchor-drag alarm. */
+  anchor: LatLon | null
+  setAnchor(at: LatLon | null): void
   alarmStates: Record<string, AlarmState>
   setAlarmStates(s: Record<string, AlarmState>): void
   acknowledgeAlarms(ids?: string[]): void
@@ -806,6 +809,8 @@ export const useStore = create<AppState>()(
         const { [id]: _gone, ...rest } = get().alarmStates
         set({ alarms: get().alarms.filter((a) => a.id !== id), alarmStates: rest })
       },
+      anchor: null,
+      setAnchor: (at) => set({ anchor: at }),
       alarmStates: {},
       setAlarmStates: (s) => set({ alarmStates: s }),
       acknowledgeAlarms: (ids) => {
@@ -979,6 +984,7 @@ export const useStore = create<AppState>()(
         strip: s.strip,
         events: s.events,
         alarms: s.alarms,
+        anchor: s.anchor,
         sailTests: s.sailTests,
         routes: s.routes,
         raceNotes: s.raceNotes,

@@ -22,6 +22,8 @@ export interface AlarmRule {
   enabled: boolean
   /** Compare the size, not the sign: cross-track error either side of the line. */
   absolute?: boolean
+  /** No value at all is the alarm: a GPS that has stopped sending. */
+  missingFires?: boolean
 }
 
 export interface AlarmState {
@@ -70,16 +72,19 @@ export function evaluate(
       if (s.active) cleared.push(rule)
       continue
     }
-    const v = values[rule.channel]
-    if (v == null || !Number.isFinite(v)) {
+    const raw = values[rule.channel]
+    const missing = raw == null || !Number.isFinite(raw)
+    if (missing && !rule.missingFires) {
       states[rule.id] = s
       continue
     }
+    // Missing, where missing is the alarm, reads as the worst value there is.
+    const v = missing ? (rule.op === 'above' ? Infinity : -Infinity) : (raw as number)
     if (s.active) {
       if (clears(rule, v)) {
         states[rule.id] = IDLE
         cleared.push(rule)
-      } else states[rule.id] = { ...s, value: v }
+      } else states[rule.id] = { ...s, value: missing ? null : v }
       continue
     }
     if (!breaches(rule, v)) {
@@ -88,7 +93,7 @@ export function evaluate(
     }
     const pendingSince = s.pendingSince ?? now
     if (now - pendingSince >= rule.delayS * 1000) {
-      states[rule.id] = { active: true, pendingSince: null, since: now, acknowledged: false, value: v }
+      states[rule.id] = { active: true, pendingSince: null, since: now, acknowledged: false, value: missing ? null : v }
       fired.push(rule)
     } else states[rule.id] = { ...IDLE, pendingSince }
   }

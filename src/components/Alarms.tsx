@@ -14,6 +14,7 @@ import { evaluate, sounding } from '@/lib/alarms/engine'
 import { beep } from '@/lib/beep'
 import { CHANNELS } from '@/lib/channels/catalogue'
 import { formatChannel } from '@/lib/channels/format'
+import { DERIVED_UNITS, STANDARD_ALARMS, anchorDistanceM, windShiftDeg } from '@/lib/alarms/standard'
 
 const NAMES = new Map(CHANNELS.map((c) => [c.id, c]))
 const REPEAT_MS = 10_000
@@ -26,7 +27,12 @@ export function AlarmWatcher() {
     const s = useStore.getState()
     if (s.alarms.length === 0) return
     const now = Date.now()
-    const e = evaluate(s.alarms, snap, s.alarmStates, now)
+    const values = {
+      ...snap,
+      'anchor-distance': anchorDistanceM(s.anchor, s.state?.position ?? null),
+      'wind-shift': windShiftDeg(s.windHistory, now),
+    }
+    const e = evaluate(s.alarms, values, s.alarmStates, now)
     s.setAlarmStates(e.states)
     for (const r of e.fired) s.addEvent('note', `Alarm: ${r.name}`, now)
     const loud = sounding(s.alarms, e.states)
@@ -52,9 +58,11 @@ export function AlarmBanner() {
         const st = states[a.id]
         const def = NAMES.get(a.channel)
         const f = def ? formatChannel(def, st.value) : null
+        const derived = DERIVED_UNITS[a.channel]
+        const text = f ? `${f.text}${f.unit ?? ''}` : derived && st.value != null ? `${Math.round(st.value)}${derived}` : ''
         return (
           <span key={a.id} className="alarmbar__item">
-            <b>{a.name}</b> {f ? `${f.text}${f.unit ?? ''}` : ''}
+            <b>{a.name}</b> {text}
             {st.acknowledged ? ' · acknowledged' : ''}
           </span>
         )
@@ -74,6 +82,9 @@ export function AlarmsSection() {
   const updateAlarm = useStore((s) => s.updateAlarm)
   const removeAlarm = useStore((s) => s.removeAlarm)
   const states = useStore((s) => s.alarmStates)
+  const anchor = useStore((s) => s.anchor)
+  const setAnchor = useStore((s) => s.setAnchor)
+  const position = useStore((s) => s.state?.position ?? null)
   const [channel, setChannel] = useState('depth')
   const [op, setOp] = useState<'above' | 'below'>('below')
   const [value, setValue] = useState(3)
@@ -111,6 +122,35 @@ export function AlarmsSection() {
           </tbody>
         </table>
       )}
+      <p className="note">Standard alarms, with their usual settings; change them by removing and adding your own.</p>
+      <div className="strip-toolbar">
+        {STANDARD_ALARMS.map((p) => {
+          const have = alarms.some((a) => a.name === p.rule.name)
+          return (
+            <button key={p.key} className="btn btn--sm btn--ghost" disabled={have} onClick={() => addAlarm(p.rule)}>
+              {have ? `${p.label} ✓` : `+ ${p.label}`}
+            </button>
+          )
+        })}
+      </div>
+      <div className="strip-toolbar">
+        <button
+          className="btn btn--sm"
+          disabled={!anchor && !position}
+          onClick={() => setAnchor(anchor ? null : position)}
+        >
+          {anchor ? 'ANCHOR UP' : 'DROP ANCHOR HERE'}
+        </button>
+        <span className="note">
+          {anchor
+            ? `Anchor down at ${anchor.lat.toFixed(5)}, ${anchor.lon.toFixed(5)}${
+                position ? `, ${Math.round(anchorDistanceM(anchor, position)!)} m from it` : ''
+              }.`
+            : 'The anchor alarm measures from where you drop it.'}
+        </span>
+      </div>
+      <p className="note">AIS closest-approach alarms come with AIS targets.</p>
+
       <div className="field">
         <label htmlFor="alarm-channel">Channel</label>
         <select id="alarm-channel" value={channel} onChange={(e) => setChannel(e.target.value)}>

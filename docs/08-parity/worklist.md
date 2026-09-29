@@ -194,8 +194,8 @@ leaves something tested and working.
 
 - [x] **8.1 Alarm engine:** channel thresholds with hysteresis, sound and screen
       alerts, acknowledgement and persistence. *Accept:* tests.
-- [ ] **8.2 The standard alarms:** anchor drag, depth, arrival, off-course, layline,
-      AIS CPA, GPS lost and wind shift. *Accept:* tests.
+- [x] **8.2 The standard alarms:** anchor drag, depth, arrival, off-course, layline,
+      GPS lost and wind shift. *Accept:* tests. *AIS CPA moved to 12.2, with the targets.*
 
 ## M9 — Routing to Expedition's depth
 
@@ -271,7 +271,7 @@ leaves something tested and working.
 
 - [ ] **12.1 AIS decoder:** AIVDM/AIVDO types 1–5, 9, 14, 18, 19, 21, 24 and 27, with
       multipart messages. *Accept:* fixture tests.
-- [ ] **12.2 AIS targets:** list, chart symbols, CPA/TCPA, filters, alarms, and
+- [ ] **12.2 AIS targets:** list, chart symbols, CPA/TCPA, filters, alarms (the CPA alarm from 8.2), and
       SART/MOB/EPIRB alerts. *Accept:* tests.
 - [ ] **12.3 aisstream.io source.** It needs a free key (needs §2). *Accept:* a test
       against a recorded stream.

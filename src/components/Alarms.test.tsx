@@ -43,6 +43,34 @@ describe('alarms in the app', () => {
     expect(screen.queryByRole('alert', { name: 'Alarms' })).toBeNull()
   })
 
+  it('adds the standard alarms once each, and drops the anchor where the boat is', () => {
+    useStore.setState({ anchor: null, state: { t: Date.now(), position: { lat: 43.66, lon: -70.25 }, cog: 0, sog: 0, accuracyM: 3, heading: null, bsp: null, heelDeg: null } })
+    render(<AlarmsSection />)
+    fireEvent.click(screen.getByRole('button', { name: '+ Shallow water' }))
+    expect(useStore.getState().alarms.map((a) => a.name)).toEqual(['Shallow water'])
+    expect((screen.getByRole('button', { name: 'Shallow water ✓' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'DROP ANCHOR HERE' }))
+    expect(useStore.getState().anchor).toEqual({ lat: 43.66, lon: -70.25 })
+    expect(screen.getByText(/0 m from it/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'ANCHOR UP' }))
+    expect(useStore.getState().anchor).toBeNull()
+  })
+
+  it('rings the anchor alarm when the boat drags', () => {
+    const anchor = { lat: 43.66, lon: -70.25 }
+    useStore.setState({ anchor, state: { t: Date.now(), position: { lat: 43.6605, lon: -70.25 }, cog: 0, sog: 0, accuracyM: 3, heading: null, bsp: null, heelDeg: null } })
+    useStore.getState().addAlarm({ name: 'Anchor dragging', channel: 'anchor-distance', op: 'above', value: 30, hysteresis: 5, delayS: 0, enabled: true })
+    render(
+      <>
+        <AlarmWatcher />
+        <AlarmBanner />
+      </>,
+    )
+    act(() => vi.advanceTimersByTime(1100))
+    // 0.0005° of latitude is 56 m.
+    expect(screen.getByRole('alert', { name: 'Alarms' }).textContent).toMatch(/Anchor dragging 56m/)
+  })
+
   it('adds, switches off and removes rules in Setup, and keeps them', () => {
     render(<AlarmsSection />)
     fireEvent.change(screen.getByLabelText('Channel'), { target: { value: 'sog' } })
