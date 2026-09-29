@@ -46,7 +46,16 @@ interface Props {
   onSpeedChange?(s: number): void
   /** Model and run, e.g. "GFS 06Z" — the provenance half of §7. */
   runLabel?: string
+  /**
+   * Step by this many minutes instead of the forecast's own steps, interpolating
+   * between them, as Expedition's fixed-interval stepping does. Null: forecast steps.
+   */
+  stepMin?: number | null
+  onStepMinChange?(m: number | null): void
 }
+
+/** The fixed intervals offered, minutes. */
+export const STEP_CHOICES = [10, 15, 30, 60, 180] as const
 
 /**
  * Wall-clock milliseconds per forecast step at speed 1.
@@ -132,6 +141,8 @@ export function Timeline({
   speed = 1,
   onSpeedChange,
   runLabel,
+  stepMin = null,
+  onStepMinChange,
 }: Props) {
   const lastIndex = Math.max(0, (Number.isFinite(nt) ? nt : 1) - 1)
   const idx = dtMs > 0 ? clamp((value - t0) / dtMs, 0, lastIndex) : 0
@@ -168,12 +179,17 @@ export function Timeline({
    */
   const step = useCallback(
     (delta: number) => {
+      if (stepMin && stepMin > 0 && dtMs > 0) {
+        // A fixed interval, from wherever the scrubber is: the layers mix between steps.
+        goToIndex(idxRef.current + (delta * stepMin * 60_000) / dtMs)
+        return
+      }
       const snap = delta > 0
         ? Math.floor(idxRef.current + 1e-6)
         : Math.ceil(idxRef.current - 1e-6)
       goToIndex(snap + delta)
     },
-    [goToIndex],
+    [goToIndex, stepMin, dtMs],
   )
 
   // -------------------------------------------------------------- play timer
@@ -291,6 +307,23 @@ export function Timeline({
           aria-label="Forecast time"
           style={{ flex: 1, minWidth: 0, height: 30, accentColor: 'var(--accent)' }}
         />
+
+        {onStepMinChange ? (
+          <select
+            className="chip"
+            aria-label="Time step"
+            value={stepMin ?? ''}
+            onChange={(e) => onStepMinChange(e.currentTarget.value ? Number(e.currentTarget.value) : null)}
+            style={{ flexShrink: 0, maxWidth: 96 }}
+          >
+            <option value="">forecast step</option>
+            {STEP_CHOICES.map((m) => (
+              <option key={m} value={m}>
+                {m < 60 ? `${m} min` : `${m / 60} h`}
+              </option>
+            ))}
+          </select>
+        ) : null}
 
         {onSpeedChange ? (
           <div className="seg" style={{ flexShrink: 0 }}>

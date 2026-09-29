@@ -156,6 +156,7 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
   const [speed, setSpeed] = useState(1)
 
   const boatState = useStore((s) => s.state)
+  const stepMin = useStore((s) => s.settings.weatherStepMin) ?? null
 
   // ------------------------------------------------------------------ map init
   useEffect(() => {
@@ -381,6 +382,8 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
               speed={speed}
               onSpeedChange={setSpeed}
               runLabel={modelLabel}
+              stepMin={stepMin}
+              onStepMinChange={(m) => useStore.getState().updateSettings({ weatherStepMin: m })}
             />
           </div>
         )}

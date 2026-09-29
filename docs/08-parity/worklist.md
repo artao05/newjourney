@@ -260,7 +260,7 @@ leaves something tested and working.
       tests and a browser check.
 - [x] **10.6c A display mode per parameter:** Beaufort, spectrum, greyscale and single-colour
       modes, and a line width. *Accept:* tests and a browser check.
-- [ ] **10.7 Meteogram** at the boat or any point, and a time step setting. *Accept:*
+- [x] **10.7 Meteogram** at the boat or any point, and a time step setting. *Accept:*
       tests.
 - [ ] **10.8 Observations:** NDBC, METAR and NOS PORTS on the chart, with history.
       *Accept:* parser tests.

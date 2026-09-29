@@ -72,6 +72,7 @@ import type { WeatherCube } from '@/lib/types'
 import { useStore } from '@/state/store'
 import { fmtLength } from '@/lib/units'
 import { WeatherFilesSheet } from '@/components/WeatherFiles'
+import { PointMeteogram } from '@/components/PointMeteogram'
 import { contourFeatures, type ContourField } from '@/lib/maplayers/contours'
 import { DEFAULT_CONTOURS, type ContourKind } from '@/state/store'
 import { useWeatherFiles } from '@/state/weatherFiles'
@@ -140,6 +141,8 @@ function WeatherOverlay() {
   const [depthError, setDepthError] = useState<string | null>(null)
 
   const [moreLayers, setMoreLayers] = useState(false)
+  const [meteo, setMeteo] = useState<'point' | 'boat' | null>(null)
+  const boatNow = useStore((s) => s.state)
   const [showContourSheet, setShowContourSheet] = useState(false)
   const contourSettings = useStore((s) => s.settings.contours) ?? DEFAULT_CONTOURS
   const updateSettings = useStore((s) => s.updateSettings)
@@ -769,6 +772,14 @@ function WeatherOverlay() {
             ))}
           </select>
           <button
+            className="chip"
+            disabled={!cube || (!boatNow && !probe)}
+            onClick={() => setMeteo(boatNow ? 'boat' : 'point')}
+            title="The forecast over time at the boat, or at the point tapped"
+          >
+            Meteogram
+          </button>
+          <button
             className={`chip${fileName ? ' chip--good' : ''}`}
             onClick={() => setShowFiles(true)}
             title={fileName ? `Showing ${fileName}` : 'Open GRIB files, or drop them on the chart'}
@@ -857,6 +868,11 @@ function WeatherOverlay() {
               : '—'}
           </div>
           <div>mslp {fmt(probeValues.prmsl, 0, ' hPa')}</div>
+          {cube && (
+            <button className="btn btn--sm btn--ghost" onClick={() => setMeteo('point')} style={{ marginTop: 4 }}>
+              Meteogram
+            </button>
+          )}
           {probeValues.extra.map((x) => (
             <div key={x.param}>
               {x.label} {fmt(x.value, x.dp, x.unit)}
@@ -1021,6 +1037,29 @@ function WeatherOverlay() {
             )
           })}
           <button className="btn btn--sm" onClick={() => setShowContourSheet(false)}>
+            Done
+          </button>
+        </div>
+      )}
+      {meteo && cube && (meteo === 'boat' ? boatNow : probe) && (
+        <div className="sheet sheet--tall" role="dialog" aria-label="Meteogram">
+          <div className="sheet__grip" onClick={() => setMeteo(null)} />
+          <h2>Meteogram</h2>
+          <div className="seg" role="group" aria-label="Meteogram at" style={{ marginBottom: 8 }}>
+            <button aria-pressed={meteo === 'point'} disabled={!probe} onClick={() => setMeteo('point')}>
+              Tapped point
+            </button>
+            <button aria-pressed={meteo === 'boat'} disabled={!boatNow} onClick={() => setMeteo('boat')}>
+              Boat
+            </button>
+          </div>
+          <PointMeteogram
+            cube={cube}
+            at={meteo === 'boat' ? boatNow!.position : probe!}
+            t={t}
+            place={meteo === 'boat' ? 'the boat' : `${probe!.lat.toFixed(3)}, ${probe!.lon.toFixed(3)}`}
+          />
+          <button className="btn btn--sm" onClick={() => setMeteo(null)} style={{ marginTop: 8 }}>
             Done
           </button>
         </div>

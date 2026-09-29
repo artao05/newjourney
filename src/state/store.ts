@@ -201,6 +201,8 @@ export const DEFAULT_CONTOURS: Record<ContourKind, ContourSetting> = {
 export interface Settings {
   /** Contour lines on the Weather chart. */
   contours: Record<ContourKind, ContourSetting>
+  /** The timeline's ‹ › step in minutes, or null for the forecast's own steps. */
+  weatherStepMin: number | null
   /** How each Weather layer is coloured, by layer id. Absent is the default ramp. */
   displayModes: Record<string, { mode: ColourMode; colour: string }>
   /** Display units for lengths (depth, draft, line). Speeds stay in knots. */
@@ -477,6 +479,7 @@ export const MAX_TRACK_POINTS = 20_000
 export const DEFAULT_SETTINGS: Settings = {
   contours: DEFAULT_CONTOURS,
   displayModes: {},
+  weatherStepMin: null,
   units: 'metric',
   northRef: 'true',
   simulate: false,

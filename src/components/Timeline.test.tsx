@@ -282,3 +282,26 @@ describe('a forecast the component cannot scrub', () => {
     }
   })
 })
+
+describe('stepping by a fixed interval', () => {
+  it('moves by the interval chosen, between forecast steps, and back to whole steps when cleared', () => {
+    const picked: Array<number | null> = []
+    const h = mount({ value: T0 + 2 * HOUR, stepMin: 15, onStepMinChange: (m) => picked.push(m) })
+    fireEvent.click(next())
+    expect(h.changes.at(-1)).toBe(T0 + 2 * HOUR + 15 * 60_000)
+    fireEvent.click(prev())
+    expect(h.changes.at(-1)).toBe(T0 + 2 * HOUR - 15 * 60_000)
+    const pick = screen.getByLabelText('Time step') as HTMLSelectElement
+    expect([...pick.options].map((o) => o.textContent)).toEqual(['forecast step', '10 min', '15 min', '30 min', '1 h', '3 h'])
+    fireEvent.change(pick, { target: { value: '' } })
+    expect(picked).toEqual([null])
+    h.rerender({ stepMin: null, value: T0 + 2 * HOUR + 15 * 60_000 })
+    fireEvent.click(next())
+    expect(indexOf(h.changes.at(-1)!)).toBe(3)
+  })
+
+  it('offers no picker where the host keeps no setting', () => {
+    mount()
+    expect(screen.queryByLabelText('Time step')).toBeNull()
+  })
+})

@@ -988,6 +988,43 @@ describe('the Weather screen states its provenance', () => {
     act(() => useStore.getState().updateSettings({ displayModes: {} }))
   })
 
+  it('draws a meteogram and a weather table for the point tapped', async () => {
+    const g = gfsGrid(44, 289, 9, 9, 0.25)
+    const ref = Date.now() - 3_600_000
+    const bytes = file(
+      ...[0, 3, 6].flatMap((h) => [
+        message({ category: 2, number: 2, levelType: 103, levelValue: 10, ref, forecastH: h, grid: g, values: over(g, () => 4 + h / 3), packing: 'simple', D: 2 }),
+        message({ category: 2, number: 3, levelType: 103, levelValue: 10, ref, forecastH: h, grid: g, values: over(g, () => 0), packing: 'simple', D: 2 }),
+        message({ category: 0, number: 0, levelType: 103, levelValue: 2, ref, forecastH: h, grid: g, values: over(g, () => 283.15 + h), packing: 'simple', D: 2 }),
+      ]),
+    )
+    await openWeatherFiles([new File([bytes], 'point.grb2')])
+    try {
+      useStore.setState({ state: null })
+      render(<WeatherScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      act(() => {
+        for (const fn of mapInstances[0].handlers.get('click') ?? []) fn({ lngLat: { lat: 43.5, lng: -70.5 } })
+      })
+      // The readout carries the air temperature, since this file has it.
+      // (An hour into the file, so between its 10 and 13 °C steps.)
+      expect(document.body.textContent).toMatch(/air 11\.0 °C/)
+      fireEvent.click(screen.getAllByRole('button', { name: 'Meteogram' }).at(-1)!)
+      const sheet = screen.getByRole('dialog', { name: 'Meteogram' })
+      expect(within(sheet).getByRole('button', { name: 'Boat' })).toHaveProperty('disabled', true)
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Weather table' }))
+      const rows = within(sheet).getAllByRole('row').map((r) => r.textContent)
+      expect(rows[0]).toBe('TimeTWD °TWS knAir °C')
+      expect(rows).toHaveLength(4)
+      // 4 m/s from the west at the first step, 10 °C.
+      expect(rows[1]).toMatch(/270.*7\.8.*10\.0$/)
+    } finally {
+      act(() => useWeatherFiles.getState().clear())
+    }
+  })
+
   it('shows no legend at all rather than an unattributed one', () => {
     /*
      * The legend renders "source unknown" in the warning colour when it has no
