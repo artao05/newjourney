@@ -348,8 +348,10 @@ leaves something tested and working.
       them with (the dots stand in until then). *Accept:* a browser check.
       *The simplified set, drawn in plain TypeScript and registered on demand (lib/charts/symbols.ts);
       checked in the browser on a built cell. The paper-chart set and light sectors are still to do.*
-- [ ] **13.5 Chart installer:** load `.000` files or a folder, a cell catalogue and
+- [x] **13.5 Chart installer:** load `.000` files or a folder, a cell catalogue and
       bounds. *Accept:* tests.
+      *Base cells, updates (applied in sequence), folders and NOAA zips; kept in IndexedDB and
+      drawn again on start. Per-cell show/hide is still to do.*
 - [x] **13.6 Chart object query.** *Accept:* tests.
 - [ ] **13.7 Orientation modes:** north-up, course-up and head-up, with follow-boat.
       *Accept:* a browser check.

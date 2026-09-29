@@ -4,10 +4,10 @@ import { decodeS57 } from './s57'
 
 declare const self: DedicatedWorkerGlobalScope
 
-self.onmessage = (e: MessageEvent<{ id: number; buf: ArrayBuffer }>) => {
-  const { id, buf } = e.data
+self.onmessage = (e: MessageEvent<{ id: number; buf: ArrayBuffer; updates?: ArrayBuffer[] }>) => {
+  const { id, buf, updates } = e.data
   try {
-    self.postMessage({ id, ok: true, cell: decodeS57(buf) })
+    self.postMessage({ id, ok: true, cell: decodeS57(buf, updates ?? []) })
   } catch (err) {
     self.postMessage({ id, ok: false, error: err instanceof Error ? err.message : String(err) })
   }

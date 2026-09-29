@@ -20,14 +20,14 @@ import { sampleCube } from '@/lib/weather/cube'
 import { gribDrop, useWeatherFiles } from '@/state/weatherFiles'
 import { useAis } from '@/state/ais'
 import { useTracking } from '@/state/tracking'
-import { useCharts } from '@/state/charts'
+import { cellKey, installChartFiles, restoreCharts, uninstallAllCells, uninstallCell, useCharts } from '@/state/charts'
+import type { EncBounds } from '@/lib/charts/s57'
 import { fleetPositions, fleetRouteJobs, fleetRouteRow, rankFleet, type FleetRouteRow } from '@/lib/routing/fleetRoute'
 import { fleetPolar } from '@/lib/fleet'
 import { POLAR_LIBRARY } from '@/data/polars'
 import { encDrawFeatures, encObjectsAt } from '@/lib/charts/s52'
 import { parseSymbolKey, rasterSymbol } from '@/lib/charts/symbols'
 import type { EncFeature } from '@/lib/charts/s57'
-import { openEncCell } from '@/lib/charts/s57Client'
 import { AisSheet } from '@/components/AisSheet'
 import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
 import { RoutingClient } from '@/lib/routing/client'
@@ -563,6 +563,10 @@ export function RouteScreen() {
 
   // ENC cells the user opened, drawn against the safety depth.
   const encCells = useCharts((s) => s.cells)
+  // Installed cells come back once a session.
+  useEffect(() => {
+    void restoreCharts()
+  }, [])
   const safetyDepthM = useCharts((s) => s.safetyDepthM)
   const encDisplay = useCharts((s) => s.display)
   const [showEnc, setShowEnc] = useState(false)
@@ -571,7 +575,13 @@ export function RouteScreen() {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    setSource(map, 'enc', { type: 'FeatureCollection', features: encDrawFeatures(encCells, { safetyDepthM, ...encDisplay }) } as unknown as FC)
+    // Each cell's bounds, faint, so its coverage shows when zoomed out.
+    const outlines = encCells.flatMap((c) =>
+      c.bounds
+        ? [{ type: 'Feature', properties: { layer: 'bounds', name: cellKey(c.name) }, geometry: { type: 'LineString', coordinates: [[c.bounds.west, c.bounds.south], [c.bounds.east, c.bounds.south], [c.bounds.east, c.bounds.north], [c.bounds.west, c.bounds.north], [c.bounds.west, c.bounds.south]] } }]
+        : [],
+    )
+    setSource(map, 'enc', { type: 'FeatureCollection', features: [...encDrawFeatures(encCells, { safetyDepthM, ...encDisplay }), ...outlines] } as unknown as FC)
   }, [ready, encCells, safetyDepthM, encDisplay])
 
   // The fleet's tracks from tracking files, in each boat's colour.
@@ -1390,7 +1400,7 @@ export function RouteScreen() {
 
       {showSettings && <RouteSettingsSheet onClose={() => setShowSettings(false)} />}
       {showAis && <AisSheet onClose={() => setShowAis(false)} />}
-      {showEnc && <EncSheet onClose={() => setShowEnc(false)} />}
+      {showEnc && <EncSheet onClose={() => setShowEnc(false)} onShow={(b) => mapRef.current?.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 40, duration: 0 })} />}
       {showFleet && fleetRows && <FleetRoutesSheet rows={fleetRows.rows} skipped={fleetRows.skipped} onClose={() => setShowFleet(false)} />}
       {encQuery && (
         <div className="legend" role="dialog" aria-label="Chart objects" style={{ position: 'absolute', right: 10, top: 90, maxWidth: 260, maxHeight: 260, overflow: 'auto', pointerEvents: 'auto', zIndex: 5 }}>
@@ -1996,6 +2006,7 @@ function addEmptyLayers(map: maplibregl.Map) {
   add('enc')
   map.addLayer({ id: 'enc-area', type: 'fill', source: 'enc', filter: ['==', ['get', 'layer'], 'area'], paint: { 'fill-color': ['get', 'color'] as never, 'fill-opacity': 0.85 } })
   map.addLayer({ id: 'enc-line', type: 'line', source: 'enc', filter: ['==', ['get', 'layer'], 'line'], paint: { 'line-color': ['get', 'color'] as never, 'line-width': ['get', 'width'] as never } })
+  map.addLayer({ id: 'enc-bounds', type: 'line', source: 'enc', filter: ['==', ['get', 'layer'], 'bounds'], paint: { 'line-color': '#7f9bb3', 'line-width': 1, 'line-dasharray': [3, 3], 'line-opacity': 0.6 } })
   map.addLayer({
     id: 'enc-symbol',
     type: 'symbol',
@@ -2375,8 +2386,24 @@ export function sensitivityFC(route: RouteResult, bandMin = 10): FC {
 }
 
 /** Open S-57 cells, see what each holds, and set the safety depth they are drawn against. */
-function EncSheet({ onClose }: { onClose: () => void }) {
+function EncSheet({ onClose, onShow }: { onClose: () => void; onShow: (b: EncBounds) => void }) {
   const cells = useCharts((s) => s.cells)
+  const [busy, setBusy] = useState<string | null>(null)
+  const install = async (input: HTMLInputElement) => {
+    const files = [...(input.files ?? [])]
+    input.value = ''
+    if (!files.length) return
+    setError(null)
+    setBusy(`Installing ${files.length} file${files.length === 1 ? '' : 's'}…`)
+    try {
+      const got = await Promise.all(files.map(async (f) => ({ name: f.webkitRelativePath || f.name, bytes: new Uint8Array(await f.arrayBuffer()) })))
+      const r = await installChartFiles(got)
+      if (r.errors.length) setError(r.errors.join('; '))
+      else if (!r.installed.length) setError('No chart cells there: a cell is a .000 file, with updates .001 on.')
+    } finally {
+      setBusy(null)
+    }
+  }
   const safety = useCharts((s) => s.safetyDepthM)
   const display = useCharts((s) => s.display)
   const setDisplay = useCharts((s) => s.setDisplay)
@@ -2385,36 +2412,23 @@ function EncSheet({ onClose }: { onClose: () => void }) {
     <div className="sheet" role="dialog" aria-label="Electronic charts">
       <div className="sheet__grip" onClick={onClose} />
       <h2>Electronic charts</h2>
-      <p className="note">NOAA ENC cells (.000), drawn in a simplified S-52 style under the course. Not for navigation.</p>
+      <p className="note">S-57 ENC cells, such as NOAA's, drawn in a simplified S-52 style under the course. Not for navigation.</p>
       <div className="actions" style={{ background: 'none', border: 'none', padding: '0 0 8px' }}>
         <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
           OPEN CELLS
-          <input
-            type="file"
-            multiple
-            accept=".000"
-            aria-label="Chart cells to open"
-            style={{ display: 'none' }}
-            onChange={async (e) => {
-              const files = [...(e.target.files ?? [])]
-              e.target.value = ''
-              setError(null)
-              for (const f of files) {
-                try {
-                  useCharts.getState().add(await openEncCell(await f.arrayBuffer()))
-                } catch (err) {
-                  setError(`${f.name}: ${err instanceof Error ? err.message : String(err)}`)
-                }
-              }
-            }}
-          />
+          <input type="file" multiple aria-label="Chart cells to open" style={{ display: 'none' }} onChange={(e) => void install(e.target)} />
+        </label>
+        <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+          OPEN FOLDER
+          <input type="file" multiple aria-label="Chart folder to open" style={{ display: 'none' }} {...{ webkitdirectory: '' }} onChange={(e) => void install(e.target)} />
         </label>
         {cells.length > 0 && (
-          <button className="btn btn--sm btn--ghost" onClick={() => useCharts.getState().clear()}>
-            CLEAR
+          <button className="btn btn--sm btn--ghost" onClick={() => void uninstallAllCells()}>
+            REMOVE ALL
           </button>
         )}
       </div>
+      {busy && <p className="note">{busy}</p>}
       {error && <p className="warnbox">{error}</p>}
       <div className="field">
         <label htmlFor="enc-safety">
@@ -2459,18 +2473,46 @@ function EncSheet({ onClose }: { onClose: () => void }) {
           <input type="checkbox" checked={display.night} onChange={(e) => setDisplay({ night: e.target.checked })} /> Night palette
         </label>
       </div>
-      {cells.map((c) => (
-        <p key={c.name} className="note" aria-label={`Cell ${c.name}`}>
-          <b>{c.name}</b> edition {c.edition}, update {c.update}: {c.features.length} features
-          {Object.keys(c.counts).length
-            ? ` (${Object.entries(c.counts)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 6)
-                .map(([k, v]) => `${v} ${k}`)
-                .join(', ')})`
-            : ''}
-        </p>
-      ))}
+      {cells.length > 0 && (
+        <table className="targets" aria-label="Installed cells" style={{ width: '100%' }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left' }}>Cell</th>
+              <th>Edition</th>
+              <th>Scale</th>
+              <th>Objects</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {[...cells]
+              .sort((a, b) => cellKey(a.name).localeCompare(cellKey(b.name)))
+              .map((c) => (
+                <tr key={c.name} aria-label={`Cell ${cellKey(c.name)}`}>
+                  <td title={c.warnings.join('\n') || undefined}>
+                    {cellKey(c.name)}
+                    {c.warnings.length > 0 && <span className="note"> ⚠ {c.warnings.length}</span>}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    {c.edition}
+                    {Number(c.update) > 0 ? `.${c.update}` : ''}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>{c.scale ? `1:${c.scale.toLocaleString('en-US')}` : '—'}</td>
+                  <td style={{ textAlign: 'center' }}>{c.features.length}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="btn btn--sm btn--ghost" disabled={!c.bounds} onClick={() => c.bounds && onShow(c.bounds)} aria-label={`Show ${cellKey(c.name)}`}>
+                      SHOW
+                    </button>
+                    <button className="btn btn--sm btn--ghost" onClick={() => void uninstallCell(c.name)} aria-label={`Remove ${cellKey(c.name)}`}>
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      )}
+      <p className="note">Open base cells (.000) with their updates (.001 on), a folder of them, or NOAA's zipped cells. They stay installed; open a cell's new updates to bring it up to date.</p>
       <button className="btn btn--sm" onClick={onClose}>
         Done
       </button>

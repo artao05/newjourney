@@ -159,8 +159,9 @@ import { openWeatherFiles, useChartImages, useWeatherFiles } from '@/state/weath
 import { DEFAULT_CONTOURS } from '@/state/store'
 import { useAis } from '@/state/ais'
 import { useTracking } from '@/state/tracking'
-import { useCharts } from '@/state/charts'
-import { cell as encCell } from '@/lib/charts/fixtures/cell'
+import { uninstallAllCells, useCharts } from '@/state/charts'
+import { cellStore } from '@/lib/charts/library'
+import { cell as encCell, update3 as encUpdate3 } from '@/lib/charts/fixtures/cell'
 import { useEnsembleView } from '@/state/ensembleView'
 import { RouteScreen, exploredFC, isochroneFC, keptFC, sensitivityFC } from './RouteScreen'
 import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
@@ -895,7 +896,7 @@ describe('a route can start anywhere, not only at the boat', () => {
     }
   })
 
-  it('opens an ENC cell and draws it under the course against the safety depth', async () => {
+  it('installs an ENC cell with its update and draws it under the course against the safety depth', async () => {
     try {
       render(<RouteScreen />)
       act(() => {
@@ -903,20 +904,31 @@ describe('a route can start anywhere, not only at the boat', () => {
       })
       fireEvent.click(screen.getByRole('button', { name: 'ENC' }))
       await act(async () => {
-        fireEvent.change(screen.getByLabelText('Chart cells to open'), { target: { files: [new File([encCell() as Uint8Array<ArrayBuffer>], 'US5ME11M.000')] } })
+        fireEvent.change(screen.getByLabelText('Chart cells to open'), {
+          target: { files: [new File([encCell() as Uint8Array<ArrayBuffer>], 'US5ME11M.000'), new File([encUpdate3() as Uint8Array<ArrayBuffer>], 'US5ME11M.003')] },
+        })
         await new Promise((r) => setTimeout(r, 30))
       })
-      expect(screen.getByLabelText('Cell US5ME11M.000').textContent).toMatch(/5 features/)
+      // Edition 7 at update 3, 1:20,000; update 3 takes one feature out and puts a buoy in.
+      const row = screen.getByRole('row', { name: 'Cell US5ME11M' })
+      expect([...row.querySelectorAll('td')].slice(0, 4).map((td) => td.textContent)).toEqual(['US5ME11M', '7.3', '1:20,000', '5'])
+      expect((await cellStore().list()).map((c) => [c.name, c.updates.map((u) => u.n)])).toEqual([['US5ME11M', [3]]])
+      const fc = mapInstances[0].data.get('enc') as GeoJSON.FeatureCollection
+      expect(fc.features.filter((f) => f.properties!.layer === 'bounds')).toHaveLength(1)
       const shallow = () => ((mapInstances[0].data.get('enc') as GeoJSON.FeatureCollection).features.filter((f) => f.properties!.layer === 'sounding' && f.properties!.shallow)).length
       expect(shallow()).toBe(0)
       fireEvent.change(screen.getByLabelText(/Safety depth/), { target: { value: '5' } })
       expect(shallow()).toBe(1)
       expect(screen.getByRole('button', { name: 'ENC · 1' })).toBeTruthy()
-    } finally {
-      act(() => {
-        useCharts.getState().clear()
-        useCharts.getState().setSafetyDepth(3)
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Remove US5ME11M' }))
+        await new Promise((r) => setTimeout(r, 10))
       })
+      expect(screen.queryByRole('table', { name: 'Installed cells' })).toBeNull()
+      expect(await cellStore().list()).toEqual([])
+    } finally {
+      await uninstallAllCells()
+      act(() => useCharts.getState().setSafetyDepth(3))
     }
   })
 

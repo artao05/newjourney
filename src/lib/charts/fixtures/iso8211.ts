@@ -50,6 +50,9 @@ export function s57Ddr(): number[] {
     ['FOID', ddrField('1600;&   ', 'Feature object identifier field', 'AGEN!FIDN!FIDS', '(b12,b14,b12)')],
     ['ATTF', ddrField('2600;&   ', 'Feature record attribute field', '*ATTL!ATVL', '(b12,A)')],
     ['FSPT', ddrField('2600;&   ', 'Feature record to spatial record pointer field', '*NAME!ORNT!USAG!MASK', '(B(40),3b11)')],
+    ['FSPC', ddrField('1600;&   ', 'Feature record to spatial record pointer control field', 'FSUI!FSIX!NSPT', '(b11,2b12)')],
+    ['VRPC', ddrField('1600;&   ', 'Vector record pointer control field', 'VPUI!VPIX!NVPT', '(b11,2b12)')],
+    ['SGCC', ddrField('1600;&   ', 'Coordinate control field', 'CCUI!CCIX!CCNC', '(b11,2b12)')],
   ])
 }
 

@@ -5,7 +5,7 @@ import { cell } from './fixtures/cell'
 
 const area = (d1: number) => ({ objl: 42, cls: 'DEPARE', prim: 3, attrs: { DRVAL1: String(d1) }, geometry: { type: 'Polygon' as const, coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]] as Array<[number, number]>] } })
 const contour = (v: number) => ({ objl: 43, cls: 'DEPCNT', prim: 2, attrs: { VALDCO: String(v) }, geometry: { type: 'LineString' as const, coordinates: [[0, 0], [1, 1]] as Array<[number, number]> } })
-const made = (features: EncCell['features']): EncCell => ({ name: 'T', edition: '1', update: '0', comf: 1e7, somf: 10, features, counts: {}, warnings: [] })
+const made = (features: EncCell['features']): EncCell => ({ name: 'T', edition: '1', update: '0', comf: 1e7, somf: 10, scale: 0, bounds: null, features, counts: {}, warnings: [] })
 
 describe('ENC display', () => {
   it('shades depth areas against the safety depth, and draws the safety contour bold', () => {

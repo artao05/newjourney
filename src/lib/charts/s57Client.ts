@@ -1,14 +1,18 @@
-/** Decodes an S-57 cell in a worker, or on this thread where there are no workers. */
+/**
+ * Decodes an S-57 cell and its updates in a worker, or on this thread where
+ * there are no workers. The buffers are handed to the worker: pass copies of
+ * any you keep.
+ */
 import { decodeS57, type EncCell } from './s57'
 
 let worker: Worker | null = null
 let nextId = 1
 const pending = new Map<number, { resolve: (c: EncCell) => void; reject: (e: Error) => void }>()
 
-export function openEncCell(buf: ArrayBuffer): Promise<EncCell> {
+export function openEncCell(buf: ArrayBuffer, updates: ArrayBuffer[] = []): Promise<EncCell> {
   if (typeof Worker === 'undefined') {
     try {
-      return Promise.resolve(decodeS57(buf))
+      return Promise.resolve(decodeS57(buf, updates))
     } catch (e) {
       return Promise.reject(e instanceof Error ? e : new Error(String(e)))
     }
@@ -32,6 +36,6 @@ export function openEncCell(buf: ArrayBuffer): Promise<EncCell> {
   const id = nextId++
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject })
-    worker!.postMessage({ id, buf }, [buf])
+    worker!.postMessage({ id, buf, updates }, [buf, ...updates])
   })
 }
