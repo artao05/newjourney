@@ -673,3 +673,109 @@ export async function fetchPointForecast(opts: {
 
   return { t, twd, tws, gust, model: MODELS.find((m) => m.id === model)?.label ?? model }
 }
+
+// ------------------------------------------------------------------ ensembles
+
+const ENSEMBLE_URL = 'https://ensemble-api.open-meteo.com/v1/ensemble'
+
+export interface FetchEnsembleOptions {
+  bbox: BBox
+  /** An Open-Meteo ensemble model, e.g. `gfs_seamless` (31 members) or `icon_seamless`. */
+  model?: string
+  hours?: number
+  /** At most this many members, control first. Routing each costs a solve. */
+  members?: number
+  stepDeg?: number
+  signal?: AbortSignal
+}
+
+/** The member suffixes a response carries: '' for the control, then `_member01`… */
+export function ensembleMembers(hourly: Record<string, unknown> | undefined, name = 'wind_speed_10m'): string[] {
+  if (!hourly) return []
+  const out: string[] = []
+  if (Array.isArray(hourly[name])) out.push('')
+  for (const k of Object.keys(hourly).sort()) {
+    const m = /_member(\d+)$/.exec(k)
+    if (m && k.startsWith(`${name}_member`)) out.push(`_member${m[1]}`)
+  }
+  return out
+}
+
+/**
+ * Ensemble responses, one per batch of grid points, into one wind cube per
+ * member. Exported so it can be tested without the network.
+ */
+export function ensembleCubesFrom(
+  responses: OmLocation[][],
+  batchSize: number,
+  grid: { bbox: BBox; nx: number; ny: number; dx: number; dy: number },
+  model: string,
+  maxMembers: number,
+): WeatherCube[] {
+  const axis = firstTimeAxis(responses)
+  if (!axis) throw new Error('Open-Meteo returned no time axis for the ensemble')
+  const nt = axis.length
+  const timeIndex = new Map<number, number>()
+  for (let i = 0; i < nt; i++) timeIndex.set(axis[i], i)
+  const first = responses.flat()[0]
+  const members = ensembleMembers(first?.hourly as Record<string, unknown> | undefined).slice(0, maxMembers)
+  return members.map((suffix) => {
+    const cube: WeatherCube = {
+      model: `${model} ${suffix ? `member ${Number(suffix.replace('_member', ''))}` : 'control'}`,
+      run: new Date().toISOString(),
+      bbox: grid.bbox,
+      nx: grid.nx,
+      ny: grid.ny,
+      dx: grid.dx,
+      dy: grid.dy,
+      t0: axis[0] * 1000,
+      dtMs: nt > 1 ? (axis[1] - axis[0]) * 1000 : HOUR_MS,
+      nt,
+      params: ['u10', 'v10'],
+      data: emptyCubeData(['u10', 'v10'], nt, grid.ny, grid.nx),
+    }
+    for (let b = 0; b < responses.length; b++) {
+      for (let p = 0; p < responses[b].length; p++) {
+        const loc = responses[b][p]
+        const flat = b * batchSize + p
+        const ix = flat % grid.nx
+        const iy = Math.floor(flat / grid.nx)
+        const map = alignTimes(loc.hourly?.time, timeIndex)
+        if (!map) continue
+        const speed = loc.hourly?.[`wind_speed_10m${suffix}`] as Series | undefined
+        const dir = loc.hourly?.[`wind_direction_10m${suffix}`] as Series | undefined
+        const unit = unitFor(loc, `wind_speed_10m${suffix}`) ?? unitFor(loc, 'wind_speed_10m') ?? 'kn'
+        for (let i = 0; i < map.length; i++) {
+          const it = map[i]
+          if (it < 0) continue
+          const s = speed?.[i]
+          const d = dir?.[i]
+          if (typeof s !== 'number' || typeof d !== 'number') continue
+          const kn = toKnots(s, unit)
+          if (kn === null) continue
+          const uv = uvFromWind(kn, d)
+          const cell = cubeIndex(cube, ix, iy, it)
+          cube.data.u10[cell] = uv.u
+          cube.data.v10[cell] = uv.v
+        }
+      }
+    }
+    return cube
+  })
+}
+
+/** An ensemble forecast as one cube per member, control first. */
+export async function fetchEnsembleCubes(opts: FetchEnsembleOptions): Promise<WeatherCube[]> {
+  const model = opts.model ?? 'gfs_seamless'
+  const stepDeg = opts.stepDeg ?? 0.1
+  const hours = clamp(Math.round(opts.hours ?? DEFAULT_HOURS), 1, 384)
+  const grid = planGrid(opts.bbox, stepDeg)
+  const points = gridPoints(opts.bbox, grid)
+  const batches = chunk(points, MAX_POINTS_PER_REQUEST)
+  const params = `hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn&timeformat=unixtime&forecast_hours=${hours}&models=${model}`
+  const responses = await mapLimit(batches, MAX_CONCURRENCY, async (batch) =>
+    asLocations(await getJson(`${ENSEMBLE_URL}?${pointsQuery(batch)}&${params}`, opts.signal)),
+  )
+  const bbox = { west: opts.bbox.west, south: opts.bbox.south, east: opts.bbox.west + (grid.nx - 1) * grid.dx, north: opts.bbox.south + (grid.ny - 1) * grid.dy }
+  return ensembleCubesFrom(responses, MAX_POINTS_PER_REQUEST, { bbox, nx: grid.nx, ny: grid.ny, dx: grid.dx, dy: grid.dy }, model, opts.members ?? 10)
+}

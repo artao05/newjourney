@@ -221,7 +221,7 @@ leaves something tested and working.
 - [x] **9.9b The grid in the app:** choose it in Route SETTINGS and run it in the worker. *Accept:* a screen test.
 - [x] **9.10 Globally optimal multi-mark routing.** *Accept:* a test where leg-by-leg
       routing loses.
-- [ ] **9.11 Ensemble routing.** *Accept:* tests.
+- [x] **9.11 Ensemble routing.** *Accept:* tests.
 - [ ] **9.12 Fleet routing:** every boat with its own polar (after 13.4). *Accept:*
       tests.
 - [ ] **9.13 World land avoidance** from a tiled OSM land pack. *Accept:* a route

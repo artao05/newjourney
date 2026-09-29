@@ -10,7 +10,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearWeatherCache, cubeNotes, fetchWindCube } from './openmeteo'
+import { clearWeatherCache, cubeNotes, ensembleCubesFrom, ensembleMembers, fetchWindCube } from './openmeteo'
 import { cubeCoverage, cubeIndex, currentFromUv, windFromUv } from './cube'
 import type { BBox } from '../types'
 
@@ -251,5 +251,38 @@ describe('holes and alignment', () => {
     const cube = await fetchWindCube({ bbox: BOX, ...base })
     expect(() => new Date(cube.run).toISOString()).not.toThrow()
     expect(cube.model).toBeTruthy()
+  })
+})
+
+describe('ensembles', () => {
+  const t0 = 1_790_000_000
+  const loc = (speeds: Record<string, number[]>, dirs: Record<string, number[]>) => ({
+    hourly: {
+      time: [t0, t0 + 3600],
+      ...Object.fromEntries(Object.entries(speeds).map(([k, v]) => [`wind_speed_10m${k}`, v])),
+      ...Object.fromEntries(Object.entries(dirs).map(([k, v]) => [`wind_direction_10m${k}`, v])),
+    },
+    hourly_units: { wind_speed_10m: 'kn' },
+  })
+
+  it('names the members a response carries, control first', () => {
+    expect(ensembleMembers({ wind_speed_10m: [1], wind_speed_10m_member02: [1], wind_speed_10m_member01: [1], other_member01: [1] })).toEqual(['', '_member01', '_member02'])
+    expect(ensembleMembers(undefined)).toEqual([])
+  })
+
+  it('makes one cube per member, capped, each with its own wind', () => {
+    const grid = { bbox: { west: -70.3, south: 43.6, east: -70.2, north: 43.6 }, nx: 2, ny: 1, dx: 0.1, dy: 0.1 }
+    const responses = [[
+      loc({ '': [10, 11], _member01: [14, 15], _member02: [6, 7] }, { '': [0, 0], _member01: [90, 90], _member02: [180, 180] }),
+      loc({ '': [10, 11], _member01: [14, 15], _member02: [6, 7] }, { '': [0, 0], _member01: [90, 90], _member02: [180, 180] }),
+    ]]
+    const cubes = ensembleCubesFrom(responses as never, 400, grid, 'gfs_seamless', 2)
+    expect(cubes.map((c) => c.model)).toEqual(['gfs_seamless control', 'gfs_seamless member 1'])
+    const at = (c: (typeof cubes)[number]) => windFromUv(c.data.u10[cubeIndex(c, 1, 0, 0)], c.data.v10[cubeIndex(c, 1, 0, 0)])
+    expect(at(cubes[0]).speed).toBeCloseTo(10, 6)
+    expect(at(cubes[0]).dir % 360).toBeCloseTo(0, 6)
+    expect(at(cubes[1]).speed).toBeCloseTo(14, 6)
+    expect(at(cubes[1]).dir).toBeCloseTo(90, 6)
+    expect(cubes[1].t0).toBe(t0 * 1000)
   })
 })

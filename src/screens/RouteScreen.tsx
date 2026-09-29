@@ -8,6 +8,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RouteMeteogram } from '@/components/RouteMeteogram'
+import { memberRoute, summariseEnsemble, type MemberRoute } from '@/lib/routing/ensemble'
+import { fetchEnsembleCubes } from '@/lib/weather/openmeteo'
 import { turningPoints, windAlongRouteFC } from '@/lib/routing/results'
 import { sailAt } from '@/lib/sailchart'
 import maplibregl from 'maplibre-gl'
@@ -511,6 +513,14 @@ export function RouteScreen() {
     setSource(map, 'explored', routeSettings.showExplored ? exploredFC(route.explored) : emptyFC())
   }, [ready, route, routeSettings.isoEveryMin, routeSettings.bandMin, routeSettings.showExplored])
 
+  // The ensemble members' routes.
+  const ensembleRoutes = useStore((s) => s.ensembleRoutes)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setSource(map, 'ensemble', keptFC((ensembleRoutes ?? []).filter((m) => m.ok).map((m) => ({ id: m.member, track: m.track }))))
+  }, [ready, ensembleRoutes])
+
   // Earlier routes, for comparison: their own source, so a new route does not refit for them.
   useEffect(() => {
     const map = mapRef.current
@@ -656,6 +666,30 @@ export function RouteScreen() {
   )
 
   /** Route the course, or, given marks, those instead: to or via the pointer. */
+  /** The course through each member of an ensemble forecast, one after another in the worker. */
+  const runEnsemble = useCallback(async () => {
+    if (!origin || !polar || course.marks.length === 0 || !cube) return
+    setBusy('Ensemble: downloading members…')
+    setRouteError(null)
+    try {
+      const members = await fetchEnsembleCubes({ bbox: cube.bbox, hours: Math.max(6, Math.round(((cube.nt - 1) * cube.dtMs) / 3_600_000)), members: 10 })
+      const req = buildRequest(Date.now(), false)
+      if (!req) return
+      clientRef.current ??= new RoutingClient()
+      const out: MemberRoute[] = []
+      for (const [i, m] of members.entries()) {
+        setBusy(`Ensemble: member ${i + 1} of ${members.length}…`)
+        const r = await clientRef.current.route(req, { cube: m, polar, polarPort, landRaster: landPayload() })
+        out.push(memberRoute(m.model, r))
+      }
+      useStore.getState().setEnsembleRoutes(out)
+    } catch (e) {
+      setRouteError(`Ensemble unavailable: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBusy(null)
+    }
+  }, [origin, polar, polarPort, course.marks, cube, buildRequest, landPayload, setRouteError])
+
   const run = useCallback(async (leaveAt?: Millis, marksOverride?: LatLon[]) => {
     if (!origin || !polar || (marksOverride?.length ?? course.marks.length) === 0) return
     const thisRun = ++runIdRef.current
@@ -1134,6 +1168,8 @@ export function RouteScreen() {
           depth={depth}
           levels={levels}
           onClose={() => setShowResults(false)}
+          onEnsemble={() => void runEnsemble()}
+          busy={busy != null}
         />
       )}
 
@@ -1378,6 +1414,36 @@ function DepthPanel({
   )
 }
 
+/** The course through each ensemble member: the spread of arrivals is the ETA's error bar. */
+function EnsembleSection({ onRun, busy }: { onRun?: () => void; busy: boolean }) {
+  const members = useStore((s) => s.ensembleRoutes)
+  const summary = members ? summariseEnsemble(members) : null
+  return (
+    <section aria-label="Ensemble" style={{ marginBottom: 12 }}>
+      <h2>Ensemble</h2>
+      {summary ? (
+        <div className="rows" aria-label="Ensemble spread">
+          <div className="row"><span>Members routed</span><span>{summary.count}{summary.failed ? ` (${summary.failed} failed)` : ''}</span></div>
+          <div className="row"><span>Earliest</span><span>{fmtDuration(summary.minS)}</span></div>
+          <div className="row"><span>Mean</span><span>{fmtDuration(summary.meanS)}</span></div>
+          <div className="row"><span>Latest</span><span>{fmtDuration(summary.maxS)}</span></div>
+          <div className="row"><span>Spread (1 SD)</span><span>±{fmtDuration(summary.sdS)}</span></div>
+          <div className="row"><span>Nearest the mean</span><span>{summary.typical}</span></div>
+        </div>
+      ) : members ? (
+        <p className="note">No member could be routed.</p>
+      ) : (
+        <p className="note">Route the course through each member of an ensemble forecast, up to ten, to see how sure the ETA is.</p>
+      )}
+      {onRun && (
+        <button className="btn btn--sm btn--ghost" disabled={busy} onClick={onRun}>
+          RUN ENSEMBLE
+        </button>
+      )}
+    </section>
+  )
+}
+
 /** The earlier routes against this one: how much longer or shorter, and what was different. */
 function CompareRoutes({ route }: { route: RouteResult }) {
   const kept = useStore((s) => s.keptRoutes)
@@ -1419,11 +1485,15 @@ function ResultsSheet({
   depth,
   levels,
   onClose,
+  onEnsemble,
+  busy,
 }: {
   route: RouteResult
   depth: DepthAdvisory | null
   levels: WaterLevelPrediction | null
   onClose: () => void
+  onEnsemble?: () => void
+  busy?: boolean
 }) {
   const step = Math.max(1, Math.floor(route.legs.length / 40))
   const rows = route.legs.filter((_, i) => i % step === 0)
@@ -1491,6 +1561,7 @@ function ResultsSheet({
       {savedMarks && <p className="note" role="status">{savedMarks}</p>}
 
       <CompareRoutes route={route} />
+      <EnsembleSection onRun={onEnsemble} busy={busy ?? false} />
 
       {route.diagnostics.warnings.map((w) => (
         <div className="warnbox" key={w}>
@@ -1679,7 +1750,7 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
-  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure'].forEach(add)
+  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
   // plain notes grey, so the colour says what the router will do with each.
@@ -1790,6 +1861,13 @@ function addEmptyLayers(map: maplibregl.Map) {
       'line-opacity': 0.6,
       'line-dasharray': [3, 2],
     },
+  })
+  // Each ensemble member's route, faint, so their spread reads as a band.
+  map.addLayer({
+    id: 'ensemble-line',
+    type: 'line',
+    source: 'ensemble',
+    paint: { 'line-color': '#b388ff', 'line-width': 1.2, 'line-opacity': 0.5 },
   })
   // Every path the search kept, faintest of all, when asked for.
   map.addLayer({

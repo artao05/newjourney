@@ -128,7 +128,7 @@ vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}))
 // The forecast client, passed through untouched — straight into the disabled
 // network — unless a test hands it a cube to return instead.
 const { stubForecast } = vi.hoisted(() => ({
-  stubForecast: { cube: null as WeatherCube | null },
+  stubForecast: { cube: null as WeatherCube | null, ensemble: null as WeatherCube[] | null },
 }))
 vi.mock('@/lib/weather/openmeteo', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/lib/weather/openmeteo')>()
@@ -136,6 +136,8 @@ vi.mock('@/lib/weather/openmeteo', async (importOriginal) => {
     ...real,
     fetchWindCube: (...args: Parameters<typeof real.fetchWindCube>) =>
       stubForecast.cube ? Promise.resolve(stubForecast.cube) : real.fetchWindCube(...args),
+    fetchEnsembleCubes: (...args: Parameters<typeof real.fetchEnsembleCubes>) =>
+      stubForecast.ensemble ? Promise.resolve(stubForecast.ensemble) : real.fetchEnsembleCubes(...args),
   }
 })
 
@@ -208,6 +210,7 @@ function emptyStore() {
     phoneOrientation: null,
     instrumentStatus: { status: 'off', detail: null, lastAt: null },
     playback: null,
+    ensembleRoutes: null,
     strip: { panes: ['bsp', 'tws', 'twd', 'sog'], spanMin: 15 },
     events: [],
     sailTests: [],
@@ -258,6 +261,7 @@ beforeEach(() => {
   ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = NoopResizeObserver
   mapInstances.length = 0
   stubForecast.cube = null
+  stubForecast.ensemble = null
   // No forecast fetches from a screen test.
   globalThis.fetch = (() =>
     Promise.reject(new Error('network disabled in screen tests'))) as unknown as typeof fetch
@@ -645,6 +649,47 @@ describe('a route can start anywhere, not only at the boat', () => {
     expect(sent[1].marks).toEqual([here, ...course.slice(useStore.getState().activeMarkIndex)])
     spy.mockRestore()
     stubForecast.cube = null
+  })
+
+  it('routes the course through each ensemble member and shows the spread', async () => {
+    const HOUR_MS = 3_600_000
+    const b = PILOT_VENUE.bbox
+    const cubeOf = (name: string, dir: number): WeatherCube => {
+      const w = uvFromWind(12, dir)
+      return {
+        model: name, run: 'test-run', bbox: b, nx: 2, ny: 2, dx: b.east - b.west, dy: b.north - b.south,
+        t0: Date.now() - HOUR_MS, dtMs: HOUR_MS, nt: 3, params: ['u10', 'v10'],
+        data: { u10: new Float32Array(12).fill(w.u), v10: new Float32Array(12).fill(w.v) },
+      }
+    }
+    stubForecast.cube = cubeOf('test', 90)
+    stubForecast.ensemble = [cubeOf('gfs control', 90), cubeOf('gfs member 1', 80), cubeOf('gfs member 2', 100)]
+    const times: Record<string, number> = { 'gfs control': 3600, 'gfs member 1': 3000, 'gfs member 2': 4200 }
+    const spy = vi.spyOn(RoutingClient.prototype, 'route').mockImplementation(async (_req, payload) => {
+      const e = times[payload.cube.model] ?? 3600
+      const leg = { t: Date.now(), position: PILOT_VENUE.waterStart, twd: 90, tws: 12, twa: 90, bsp: 6, heading: 0, isBeating: false, tack: 'starboard' as const, currentSet: null, currentDrift: null, distanceNm: 1 }
+      return { ok: true, legs: [leg, { ...leg, t: leg.t + e * 1000, position: { lat: leg.position.lat + 0.02, lon: leg.position.lon } }], etaMs: Date.now() + e * 1000, elapsedS: e, directTimeS: e, isochrones: [], reverseIsochrones: [], sensitivity: null, diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: true, warnings: [] } }
+    })
+    populatedStore()
+    useStore.setState({ ensembleRoutes: null })
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'ROUTE' }))
+    await waitFor(() => expect(useStore.getState().route?.ok).toBe(true))
+    fireEvent.click(screen.getByRole('button', { name: 'RESULTS' }))
+    fireEvent.click(screen.getByRole('button', { name: 'RUN ENSEMBLE' }))
+    await waitFor(() => expect(useStore.getState().ensembleRoutes).toHaveLength(3))
+    const spread = screen.getByLabelText('Ensemble spread').textContent!
+    expect(spread).toMatch(/Members routed3/)
+    expect(spread).toMatch(/Earliest50m/)
+    expect(spread).toMatch(/Latest1h 10m/)
+    expect(spread).toMatch(/Nearest the meangfs control/)
+    expect((mapInstances[0].data.get('ensemble') as GeoJSON.FeatureCollection).features).toHaveLength(3)
+    spy.mockRestore()
+    stubForecast.cube = null
+    stubForecast.ensemble = null
   })
 
   it('ignores chart taps unless a start is being picked', () => {

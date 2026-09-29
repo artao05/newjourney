@@ -32,6 +32,7 @@ import { DEFAULT_PIPELINE, type Derived, type PipelineSettings } from '@/lib/ins
 import { NO_CALIBRATION, type Calibration } from '@/lib/instruments/calibration'
 import type { PhoneOrientation } from '@/lib/instruments/orientation'
 import type { AlarmRule, AlarmState } from '@/lib/alarms/engine'
+import type { MemberRoute } from '@/lib/routing/ensemble'
 
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'strip' | 'setup'
 /** The nav station's two tab sets: panels on the left, charts in the middle. */
@@ -420,6 +421,9 @@ interface AppState {
   routeSettingsAtLastRoute: RouteSettings | null
 
   route: RouteResult | null
+  /** The course routed through each member of an ensemble forecast. Not persisted. */
+  ensembleRoutes: MemberRoute[] | null
+  setEnsembleRoutes(r: MemberRoute[] | null): void
   /** Earlier optimised routes, newest first: the first is "the previous one". */
   keptRoutes: KeptRoute[]
   clearKeptRoutes(): void
@@ -531,6 +535,7 @@ const COURSE_CHANGED = {
   routeError: null,
   xteOrigin: null,
   keptRoutes: [] as KeptRoute[],
+  ensembleRoutes: null,
 } satisfies Partial<AppState>
 
 export const useStore = create<AppState>()(
@@ -973,6 +978,8 @@ export const useStore = create<AppState>()(
       },
       keptRoutes: [],
       clearKeptRoutes: () => set({ keptRoutes: [] }),
+      ensembleRoutes: null,
+      setEnsembleRoutes: (r) => set({ ensembleRoutes: r }),
       routeSettingsAtLastRoute: null,
       setRouting: (b) => set({ routing: b }),
       setRouteError: (e) => set({ routeError: e }),
