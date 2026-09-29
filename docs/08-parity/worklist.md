@@ -234,9 +234,14 @@ leaves something tested and working.
 
 ## M10 — Weather
 
-- [ ] **10.1 GRIB2 decoder** in a worker, starting with simple and complex packing
+- [x] **10.1 GRIB2 decoder** in a worker, starting with simple and complex packing
       with spatial differencing, which covers GFS. *Accept:* fixture tests on a real
       GFS subset.
+- [ ] **10.1b Check the GRIB2 decoder on a real GFS file.** 10.1 is tested on messages
+      built byte by byte to the WMO layout, because there is no GRIB file here. `blocked: D8`:
+      may I download a small GFS subset from the NOMADS filter (one run, 10 m wind and
+      MSLP, a 5° box, about 20 KB) and commit it as a test fixture? Or drop one in
+      `src/lib/weather/fixtures/`.
 - [ ] **10.2 GRIB2 JPEG 2000 and PNG packing**, then **GRIB1**. *Accept:* fixture
       tests.
 - [ ] **10.3 Open GRIB files** by picker or drag-drop, several at once, with a

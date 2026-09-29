@@ -23,6 +23,7 @@ recomputed in each [report](reports/).
 | D5 | **Commercial or not.** | Open-Meteo's hosted API is free only for non-commercial use. RainViewer, aisstream.io and OpenSeaMap tiles have similar limits ([licensing-matrix.md](../02-data-sources/licensing-matrix.md)). | Stay non-commercial for now. If that changes, budget for an Open-Meteo API plan or self-host it (AGPL), and move to self-hosted tiles. |
 | D6 | **ORC polar data.** | The polar library is generated, not measured. [licensing-matrix.md](../02-data-sources/licensing-matrix.md) §4 leaves ORC unresolved. | Keep ORC as a user-initiated import until someone asks ORC. |
 | D7 | **Access to Expedition itself.** | "1:1" can only be proven side by side: the same GRIB, polar and marks giving the same route, the same start numbers, and files that round-trip. | Get a licence (€1,250 per [sales page](https://www.expeditionmarine.com/sales.html)), or time on a navigator's licensed copy, plus a set of real files it wrote (see §5). |
+| D8 | **Real GRIB files as test fixtures.** | The GRIB decoder is tested on messages built to the WMO layout, which proves it reads the layout as I understand it, not as NCEP's encoder writes it. | Let the loop download one small GFS subset from the NOMADS filter (10 m wind and MSLP, a 5° box, about 20 KB, public domain) and commit it, or drop any real `.grb2` into `src/lib/weather/fixtures/`. |
 
 ## 2. Licences, subscriptions and agreements
 
