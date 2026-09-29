@@ -51,12 +51,16 @@ const { FakeMap, FakeLngLatBounds, mapInstances } = vi.hoisted(() => {
     constructor(public opts: unknown) {
       mapInstances.push(this)
     }
-    on(ev: string, fn: (e: unknown) => void) {
-      const list = this.handlers.get(ev) ?? []
+    /** `on(ev, fn)`, or MapLibre's layer-scoped `on(ev, layerId, fn)`, kept as "ev@layer". */
+    on(ev: string, a: string | ((e: unknown) => void), b?: (e: unknown) => void) {
+      const key = typeof a === 'string' ? `${ev}@${a}` : ev
+      const fn = typeof a === 'string' ? b! : a
+      const list = this.handlers.get(key) ?? []
       list.push(fn)
-      this.handlers.set(ev, list)
+      this.handlers.set(key, list)
       return this
     }
+    dragPan = { enabled: true, enable: () => (this.dragPan.enabled = true), disable: () => (this.dragPan.enabled = false) }
     off() {
       return this
     }
@@ -98,8 +102,9 @@ const { FakeMap, FakeLngLatBounds, mapInstances } = vi.hoisted(() => {
         getNorth: () => 43.9,
       }
     }
+    canvas = { style: {} as Record<string, string> }
     getCanvas() {
-      return { style: {} }
+      return this.canvas
     }
     remove() {
       this.removed = true
@@ -923,6 +928,45 @@ describe('marks can be edited, and placed on the chart', () => {
     expect(marks).toHaveLength(n + 1)
     expect(marks.at(-1)!.position).toEqual({ lat: 43.61, lon: -70.15 })
     expect(useStore.getState().routeStart).toBeNull()
+  })
+})
+
+describe('a mark can be dragged on the Route chart', () => {
+  function drag(map: InstanceType<typeof FakeMap>, id: string, path: Array<[number, number]>) {
+    const call = (key: string, e: unknown) => {
+      for (const fn of map.handlers.get(key) ?? []) fn(e)
+    }
+    act(() => {
+      call('mousedown@marks-pt', { features: [{ properties: { id } }], preventDefault() {} })
+      for (const [lat, lng] of path) call('mousemove', { lngLat: { lat, lng } })
+      const [lat, lng] = path.at(-1) ?? [0, 0]
+      call('mouseup', { lngLat: { lat, lng } })
+    })
+  }
+
+  it('moves the mark where it is let go, and holds the map still meanwhile', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const map = mapInstances[0]
+    const w = useStore.getState().course.marks[0]
+    let panWhileHeld: boolean | null = null
+    act(() => {
+      for (const fn of map.handlers.get('mousedown@marks-pt') ?? []) {
+        fn({ features: [{ properties: { id: w.id } }], preventDefault() {} })
+      }
+      panWhileHeld = map.dragPan.enabled
+      for (const fn of map.handlers.get('mouseup') ?? []) fn({ lngLat: { lat: 0, lng: 0 } })
+    })
+    expect(panWhileHeld).toBe(false)
+    // A press with no movement is a tap: nothing moved.
+    expect(useStore.getState().course.marks[0].position).toEqual(w.position)
+
+    drag(map, w.id, [[43.70, -70.10], [43.71, -70.11]])
+    expect(useStore.getState().course.marks[0].position).toEqual({ lat: 43.71, lon: -70.11 })
+    expect(map.dragPan.enabled).toBe(true)
   })
 })
 

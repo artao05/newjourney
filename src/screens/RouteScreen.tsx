@@ -154,6 +154,47 @@ export function RouteScreen() {
       addEmptyLayers(map)
       setReady(true)
     })
+
+    /*
+     * Drag a mark: press its symbol, move, let go. The map stops panning while a
+     * mark is held, only the drawing follows the pointer, and the store changes
+     * once, on release. A press that never moves is a tap, and moves nothing, so
+     * tapping a mark does not throw away the route.
+     */
+    let held: string | null = null
+    let moved = false
+    const at = (e: { lngLat: maplibregl.LngLat }) => ({ lat: e.lngLat.lat, lon: e.lngLat.lng })
+    const onDown = (e: maplibregl.MapLayerMouseEvent | maplibregl.MapLayerTouchEvent) => {
+      const id = e.features?.[0]?.properties?.id
+      if (typeof id !== 'string' || pickingRef.current) return
+      if ('points' in e && e.points.length !== 1) return
+      e.preventDefault()
+      held = id
+      moved = false
+      map.dragPan.disable()
+      map.getCanvas().style.cursor = 'grabbing'
+    }
+    const onMove = (e: maplibregl.MapMouseEvent | maplibregl.MapTouchEvent) => {
+      if (!held) return
+      moved = true
+      const marks = useStore
+        .getState()
+        .course.marks.map((m) => (m.id === held ? { ...m, position: at(e) } : m))
+      setSource(map, 'marks', marksFC(marks))
+    }
+    const onUp = (e: maplibregl.MapMouseEvent | maplibregl.MapTouchEvent) => {
+      if (!held) return
+      if (moved) useStore.getState().updateMark(held, { position: at(e) })
+      held = null
+      map.dragPan.enable()
+      map.getCanvas().style.cursor = ''
+    }
+    map.on('mousedown', 'marks-pt', onDown)
+    map.on('touchstart', 'marks-pt', onDown)
+    map.on('mousemove', onMove)
+    map.on('touchmove', onMove)
+    map.on('mouseup', onUp)
+    map.on('touchend', onUp)
     // One tap after "pick start" or "+ mark" places it. Read through refs and
     // getState, because this handler outlives every render.
     map.on('click', (e: maplibregl.MapMouseEvent) => {
@@ -247,18 +288,7 @@ export function RouteScreen() {
     const map = mapRef.current
     if (!map || !ready) return
     setSource(map, 'boat', state ? pointFC(state.position.lon, state.position.lat) : emptyFC())
-    setSource(
-      map,
-      'marks',
-      {
-        type: 'FeatureCollection',
-        features: course.marks.map((m, i) => ({
-          type: 'Feature' as const,
-          properties: { name: `${i + 1}` },
-          geometry: { type: 'Point' as const, coordinates: [m.position.lon, m.position.lat] },
-        })),
-      },
-    )
+    setSource(map, 'marks', marksFC(course.marks))
   }, [ready, state, course.marks])
 
   useEffect(() => {
@@ -1169,6 +1199,18 @@ const pointFC = (lon: number, lat: number): FC => ({
   type: 'FeatureCollection',
   features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lon, lat] } }],
 })
+
+/** The course marks, numbered in order, carrying their ids for dragging. */
+function marksFC(marks: Array<{ id: string; position: { lat: number; lon: number } }>): FC {
+  return {
+    type: 'FeatureCollection',
+    features: marks.map((m, i) => ({
+      type: 'Feature' as const,
+      properties: { name: `${i + 1}`, id: m.id },
+      geometry: { type: 'Point' as const, coordinates: [m.position.lon, m.position.lat] },
+    })),
+  }
+}
 
 /** Forward or reverse isochrones as lines, one feature per curve. */
 function isochroneFC(isochrones: Isochrone[]): FC {

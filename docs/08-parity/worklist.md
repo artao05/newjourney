@@ -80,10 +80,11 @@ leaves something tested and working.
       name, rounding side and order. Place marks by tapping the chart. *Accept:*
       store, parser and screen tests. *Split:* the marks library and dragging went
       to 3.1b, so each commit stays one thing.
-- [ ] **3.1b A marks library, and dragging on the chart.** A library of named marks,
-      in folders, separate from the course, which routes are built from, plus
-      draggable mark symbols. *Accept:* store and screen tests, and a browser check
-      of a drag.
+- [x] **3.1b Drag marks on the chart.** *Accept:* a screen test, and a browser check
+      of a pointer drag.
+- [ ] **3.1c A marks library.** A library of named marks, in folders and separate
+      from the course, which routes are built from. GPX import goes to it.
+      *Accept:* store and screen tests.
 - [ ] **3.2 Marks import and export:** GPX and Expedition-style CSV. *Accept:*
       round-trip tests.
 - [ ] **3.3 Named routes.** Build from marks or by tapping the chart; insert,
