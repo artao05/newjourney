@@ -3,6 +3,8 @@
  * 0–8, templates 3.0, 4.0, 5.0, 5.2, 5.3 and 5.41), the way NCEP's encoder packs them.
  */
 import { encodePng } from './png'
+import { aecEncode } from './aec'
+import { AEC_DATA_MSB, AEC_DATA_PREPROCESS } from '../aec'
 
 const u16 = (x: number) => [(x >> 8) & 255, x & 255]
 const u32 = (x: number) => [(x >>> 24) & 255, (x >>> 16) & 255, (x >>> 8) & 255, x & 255]
@@ -67,7 +69,7 @@ export interface Field {
   grid: Grid
   /** In scan order; NaN is a point the bitmap leaves out. */
   values: number[]
-  packing: 'simple' | 'complex' | 'sd1' | 'sd2' | 'png'
+  packing: 'simple' | 'complex' | 'sd1' | 'sd2' | 'png' | 'ccsds'
   D?: number
   gridTemplate?: number
   dataTemplate?: number
@@ -112,7 +114,13 @@ export function message(f: Field): number[] {
 
   let s5: number[]
   let s7: number[]
-  if (f.packing === 'png') {
+  if (f.packing === 'ccsds') {
+    // As ECMWF packs its open data: preprocessed, J = 32, r = 128.
+    const bits = Math.max(1, bitsFor(z.reduce((a, b) => Math.max(a, b), 0)))
+    const flags = AEC_DATA_MSB | AEC_DATA_PREPROCESS
+    s5 = section(5, [...u32(z.length), ...u16(42), ...f32(R), ...s16(0), ...s16(D), bits, 0, flags, 32, ...u16(128)])
+    s7 = section(7, [...aecEncode(z, { bitsPerSample: bits, blockSize: 32, rsi: 128, flags })])
+  } else if (f.packing === 'png') {
     // NCEP's encoder rounds the width up to whole octets and makes an image one row per grid row.
     const need = bitsFor(z.reduce((a, b) => Math.max(a, b), 0))
     const bits = need <= 8 ? 8 : need <= 16 ? 16 : need <= 24 ? 24 : 32

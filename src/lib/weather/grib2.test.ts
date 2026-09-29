@@ -30,7 +30,7 @@ describe('GRIB2 decoder', () => {
     for (let i = 0; i < values.length; i++) expect(m.values[i]).toBeCloseTo(Math.round(values[i] * 100) / 100, 4)
   })
 
-  it.each(['complex', 'sd1', 'sd2', 'png'] as const)('reads %s packing to the packed precision', (packing) => {
+  it.each(['complex', 'sd1', 'sd2', 'png', 'ccsds'] as const)('reads %s packing to the packed precision', (packing) => {
     const g = gfsGrid(50, 280, 23, 17, 0.5)
     const values = over(g, smooth)
     const { messages, skipped } = decodeGrib2(file(message({ category: 3, number: 1, levelType: 101, grid: g, values, packing, D: 1 })))
@@ -54,7 +54,7 @@ describe('GRIB2 decoder', () => {
   it('leaves the points the bitmap marks out as NaN, and the rest in place', () => {
     const g = gfsGrid(44, 290, 5, 4, 0.5)
     const values = over(g, (lat, lon) => (lon > 291 && lat < 43 ? NaN : 1.5 + lat - 40 + (lon - 290) / 4))
-    for (const packing of ['simple', 'sd2'] as const) {
+    for (const packing of ['simple', 'sd2', 'ccsds'] as const) {
       const m = decodeGrib2(file(message({ discipline: 10, category: 0, number: 3, grid: g, values, packing, D: 2 }))).messages[0]
       expect(m.name).toBe('HTSGW')
       for (let i = 0; i < values.length; i++) {

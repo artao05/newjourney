@@ -10,17 +10,17 @@
  *   4 product        template 4.0 (and 4.8, accumulations), parameter, level, forecast time
  *   5 representation template 5.0 simple packing, 5.2 complex packing,
  *                    5.3 complex packing with spatial differencing (what GFS uses),
- *                    and 5.41 PNG
+ *                    5.41 PNG, and 5.42 CCSDS (what ECMWF's open data uses)
  *   6 bitmap         none, or one that marks the points with data
  *   7 data
  *
- * Edition 1 messages go to grib1.ts. JPEG 2000 and CCSDS packing (5.40, 5.42)
- * are not read yet. A message this
+ * Edition 1 messages go to grib1.ts. JPEG 2000 packing (5.40) is not read yet. A message this
  * cannot read is skipped with a reason, never guessed at.
  */
 
 import type { BBox, WeatherCube } from '../types'
 import { decodePng } from './png'
+import { aecDecode } from './aec'
 import { BitReader } from './bits'
 import { readGrib1Message } from './grib1'
 
@@ -126,6 +126,8 @@ interface Packing {
   E: number
   D: number
   bits: number
+  /** CCSDS packing only. */
+  aec?: { flags: number; blockSize: number; rsi: number }
   /** Complex packing only. */
   complex?: {
     missing: number
@@ -145,6 +147,7 @@ function readPacking(r: Reader, o: number): Packing | string {
   const template = r.u16(o + 9)
   const base = { template, count: r.u32(o + 5), R: r.f32(o + 11), E: r.s16(o + 15), D: r.s16(o + 17), bits: r.u8(o + 19) }
   if (template === 0 || template === 41) return base
+  if (template === 42) return { ...base, aec: { flags: r.u8(o + 21), blockSize: r.u8(o + 22), rsi: r.u16(o + 23) } }
   if (template === 2 || template === 3) {
     return {
       ...base,
@@ -167,6 +170,14 @@ function readPacking(r: Reader, o: number): Packing | string {
 
 /** The packed integers of section 7, before scaling. */
 function unpack(p: Packing, data: Uint8Array): Float64Array | string {
+  if (p.aec) {
+    if (p.bits === 0) return new Float64Array(p.count)
+    try {
+      return aecDecode(data, p.count, { bitsPerSample: p.bits, ...p.aec })
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }
   if (!p.complex) {
     const out = new Float64Array(p.count)
     if (p.bits === 0) return out

@@ -248,9 +248,9 @@ leaves something tested and working.
       parameter catalogue. *Accept:* tests and a browser check.
 - [x] **10.4 Merge sources** in production: StackedField, best resolution first, per
       parameter. *Accept:* tests.
-- [ ] **10.2b GRIB2 JPEG 2000 and CCSDS packing** (5.40, used by NAM and Canada's GEM;
-      5.42, used by ECMWF open data and DWD). Each needs a decoder of its own, a few
-      hundred lines for CCSDS and more for JPEG 2000. *Accept:* fixture tests. *Moved after 10.4, so the files people open are used first.*
+- [x] **10.2b GRIB2 CCSDS packing** (5.42, used by ECMWF open data and DWD). *Accept:*
+      fixture tests. *A CCSDS 121.0-B decoder of our own (src/lib/weather/aec.ts), with a
+      test encoder, round trips over every option and flag, and one stream built by hand.*
 - [ ] **10.5 Pick the model for routing.** *Accept:* a test that the request uses the
       chosen model.
 - [ ] **10.6 Display parity:** a display mode per parameter, contours with step and a
@@ -266,6 +266,9 @@ leaves something tested and working.
       times, with a Saildocs `mailto:` and a size estimate. *Accept:* tests.
 - [ ] **10.12 NOMADS and ECMWF open-data download.** `blocked: D1`, which needs the
       proxy.
+- [ ] **10.2c GRIB2 JPEG 2000 packing** (5.40, used by NAM and Canada's GEM). A decoder
+      of its own: codestream, tier-2 packets, the MQ coder and EBCOT, and the 5/3 and 9/7
+      wavelets. Last in M10 because GFS, HRRR and ECMWF don't need it. *Accept:* fixture tests.
 
 ## M11 — Tides and currents
 
