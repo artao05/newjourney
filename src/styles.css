@@ -698,6 +698,34 @@ button {
   font-weight: 600;
 }
 
+/* A legend stacked in a column of overlay notes rather than pinned to a corner. */
+.legend--inline {
+  position: static;
+  width: fit-content;
+  margin-top: 6px;
+}
+
+/* A legend row that is also a switch: same type as the rows around it. */
+.legend__toggle {
+  /* .legend lets taps through to the map; a switch has to take them. */
+  pointer-events: auto;
+  display: block;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+}
+
+.legend__toggle[aria-pressed='true'] {
+  color: var(--ink);
+}
+
+.legend__note {
+  max-width: 230px;
+  margin-top: 4px;
+  color: var(--ink-faint);
+}
+
 .swatch {
   display: inline-block;
   width: 11px;

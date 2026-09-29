@@ -21,7 +21,7 @@ import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tide
 import { PORTLAND_DATUM, datumNote } from '@/lib/tides/datum'
 import { bboxOf, distance, lonSpan } from '@/lib/geo'
 import { fmtDeg, wrap180 } from '@/lib/angles'
-import type { Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
+import type { Isochrone, Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
 import { fmtDuration } from '@/components/Tile'
 import { DepartureChart } from '@/components/DepartureChart'
 import { PILOT_VENUE } from '@/data/venues'
@@ -102,6 +102,12 @@ export function RouteScreen() {
   const [sweep, setSweep] = useState<DepartureSweep | null>(null)
   const [showDepart, setShowDepart] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  /**
+   * Reverse isochrones: lines of equal time *to the finish*, from the backward
+   * pass. Off by default, because two sets of curves on a phone screen are one too
+   * many until someone asks.
+   */
+  const [showReverse, setShowReverse] = useState(false)
   /** Departure the drawn route was solved for. Null means "now". */
   const [departAt, setDepartAt] = useState<Millis | null>(null)
   const [depthGrid, setDepthGrid] = useState<LoadedDepthGrid | null>(null)
@@ -234,6 +240,7 @@ export function RouteScreen() {
       setSource(map, 'route', emptyFC())
       setSource(map, 'route-beat', emptyFC())
       setSource(map, 'iso', emptyFC())
+      setSource(map, 'riso', emptyFC())
       setSource(map, 'sens', emptyFC())
       return
     }
@@ -254,17 +261,7 @@ export function RouteScreen() {
         geometry: { type: 'LineString' as const, coordinates: c },
       })),
     })
-    setSource(map, 'iso', {
-      type: 'FeatureCollection',
-      features: route.isochrones.map((iso) => ({
-        type: 'Feature' as const,
-        properties: {},
-        geometry: {
-          type: 'LineString' as const,
-          coordinates: iso.points.map((p) => [p.lon, p.lat] as [number, number]),
-        },
-      })),
-    })
+    setSource(map, 'iso', isochroneFC(route.isochrones))
     setSource(map, 'sens', sensitivityFC(route))
 
     if (coords.length > 1) {
@@ -273,6 +270,17 @@ export function RouteScreen() {
       map.fitBounds(b, { padding: 56, maxZoom: 12, duration: 600 })
     }
   }, [ready, route])
+
+  // Its own effect, so the toggle redraws one layer without refitting the map.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setSource(
+      map,
+      'riso',
+      showReverse && route?.ok ? isochroneFC(route.reverseIsochrones) : emptyFC(),
+    )
+  }, [ready, route, showReverse])
 
   /*
    * The arrows describe the route that is drawn: the wind it leaves into, or the
@@ -646,7 +654,9 @@ export function RouteScreen() {
             ))}
             {routeError && <div className="errbox">{routeError}</div>}
             {route?.ok && route.legs.length > 0 && (
-              <div className="legend">
+              // In flow under the forecast notes, not absolute over them: a long
+              // note used to sit on top of the legend and swallow its toggle.
+              <div className="legend legend--inline">
                 <div>
                   <span className="swatch" style={{ background: '#ff3ea5' }} />
                   <b>optimal route</b>
@@ -663,6 +673,23 @@ export function RouteScreen() {
                   <span className="swatch" style={{ background: 'rgba(255,213,74,.35)' }} />
                   within 10 min of optimal
                 </div>
+                {route.reverseIsochrones.length > 0 && (
+                  <button
+                    className="legend__toggle"
+                    aria-pressed={showReverse}
+                    onClick={() => setShowReverse((v) => !v)}
+                  >
+                    <span className="swatch" style={{ background: '#ffb74d' }} />
+                    reverse isochrones {showReverse ? 'on' : 'off'}
+                  </button>
+                )}
+                {showReverse && route.reverseIsochrones.length > 0 && (
+                  <div className="legend__note">
+                    Amber: equal time <b>to</b> the finish. Parallel to the blue over a long
+                    stretch, the exact route matters little. Touching only briefly, it matters
+                    a lot.
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1082,6 +1109,21 @@ const pointFC = (lon: number, lat: number): FC => ({
   features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lon, lat] } }],
 })
 
+/** Forward or reverse isochrones as lines, one feature per curve. */
+function isochroneFC(isochrones: Isochrone[]): FC {
+  return {
+    type: 'FeatureCollection',
+    features: isochrones.map((iso) => ({
+      type: 'Feature' as const,
+      properties: { t: iso.t },
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: iso.points.map((p) => [p.lon, p.lat] as [number, number]),
+      },
+    })),
+  }
+}
+
 function setSource(map: maplibregl.Map, id: string, data: FC) {
   const src = map.getSource(id) as maplibregl.GeoJSONSource | undefined
   if (src) src.setData(data)
@@ -1089,7 +1131,7 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
-  ;['sens', 'wind', 'iso', 'route', 'route-beat', 'marks', 'boat'].forEach(add)
+  ;['sens', 'wind', 'iso', 'riso', 'route', 'route-beat', 'marks', 'boat'].forEach(add)
 
   map.addLayer({
     id: 'sens-fill',
@@ -1137,6 +1179,17 @@ function addEmptyLayers(map: maplibregl.Map) {
     type: 'line',
     source: 'iso',
     paint: { 'line-color': '#4fc3f7', 'line-width': 1, 'line-opacity': 0.5 },
+  })
+  map.addLayer({
+    id: 'riso-line',
+    type: 'line',
+    source: 'riso',
+    paint: {
+      'line-color': '#ffb74d',
+      'line-width': 1,
+      'line-opacity': 0.6,
+      'line-dasharray': [3, 2],
+    },
   })
   map.addLayer({
     id: 'route-line',

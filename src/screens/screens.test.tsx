@@ -370,6 +370,63 @@ describe('mast height scales the forecast when, and only when, the polar needs i
   })
 })
 
+describe('the Route chart can draw the reverse isochrones', () => {
+  /*
+   * The backward pass has always computed them, and nothing drew them. They are
+   * the manual's way of reading how much the exact route matters.
+   */
+  function routeWithReverse(): RouteResult {
+    const p = PILOT_VENUE.waterStart
+    const leg = (dLat: number) => ({
+      t: Date.now(),
+      position: { lat: p.lat + dLat, lon: p.lon },
+      twd: 90, tws: 12, twa: 90, bsp: 6, heading: 0,
+      isBeating: false, tack: 'starboard' as const,
+      currentSet: null, currentDrift: null, distanceNm: 0.6,
+    })
+    const curve = (t: number, dLat: number) => ({
+      t,
+      points: [
+        { lat: p.lat + dLat, lon: p.lon - 0.01 },
+        { lat: p.lat + dLat, lon: p.lon + 0.01 },
+      ],
+    })
+    return {
+      ok: true,
+      legs: [leg(0), leg(0.01)],
+      etaMs: Date.now() + 360_000,
+      elapsedS: 360,
+      directTimeS: 360,
+      isochrones: [curve(1, 0.004)],
+      reverseIsochrones: [curve(2, 0.006), curve(3, 0.008)],
+      sensitivity: null,
+      diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: true, warnings: [] },
+    }
+  }
+
+  it('adds a layer for them, empty until the legend toggle turns it on', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const map = mapInstances[0]
+    expect(map.layers.some((l) => l.id === 'riso-line')).toBe(true)
+    const drawn = () =>
+      ((map.data.get('riso') as GeoJSON.FeatureCollection | undefined)?.features ?? []).length
+
+    act(() => useStore.getState().setRoute(routeWithReverse()))
+    expect(drawn(), 'off by default').toBe(0)
+
+    fireEvent.click(screen.getByRole('button', { name: /reverse isochrones off/ }))
+    expect(drawn(), 'one line per reverse isochrone').toBe(2)
+    expect(screen.getByText(/equal time/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /reverse isochrones on/ }))
+    expect(drawn()).toBe(0)
+  })
+})
+
 describe('the Route screen reaches every routing setting', () => {
   it('opens the settings, keeps what is typed, and names it on the map', () => {
     render(<RouteScreen />)

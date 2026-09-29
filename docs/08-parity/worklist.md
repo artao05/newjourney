@@ -39,7 +39,7 @@ leaves something tested and working.
       *Done, corrected:* the forecast is itself 10 m wind, so a 10 m polar needs no
       correction. The lift applies to a **masthead** polar. Setup now says which
       case the loaded polar is.
-- [ ] **1.3 Draw reverse isochrones.** They are computed and never drawn. *Accept:* a
+- [x] **1.3 Draw reverse isochrones.** They are computed and never drawn. *Accept:* a
       toggle draws them beside the forward isochrones, and a screen test finds the
       layer.
 - [ ] **1.4 An imported polar survives reload.** *Accept:* the table persists, and a
