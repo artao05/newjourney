@@ -391,12 +391,12 @@ M0–M14 ran out with parity at 24 %: the list never held every Build row of the
 matrix, and "perfect" is every row Done or Blocked (README). These milestones take
 the Build rows still Missing, cheapest and most used first. Each item names its rows.
 
-- [ ] **15.0 Reconcile the matrix with the code.** Rows marked Missing or Partial that
+- [x] **15.0 Reconcile the matrix with the code.** Rows marked Missing or Partial that
       earlier ticks closed (GRIB opening and drop, JPEG 2000 GRIB, ENC exchange sets and
       folders, heading-up, fleet on the chart, AIS targets, and others) get Done with
       the file and test that show it. *Accept:* each changed row names its evidence.
-      *Two passes in tick 6: 17 rows to Done and 31 to Partial, each with its evidence. Still to
-      audit: the Missing rows in Charts, AIS, fleet, networking and satcom, and every Partial row.*
+      *Four passes (ticks 6 and 7): every Missing and Partial Build row audited against the code;
+      33 rows to Done, 48 to Partial and 35 Partial notes corrected, each with its evidence.*
 - [x] **15.1 Marks by hand:** undo and redo, lock and unlock, a mark at range and
       bearing from the boat or a mark, insert into the nearest leg, add as a gate, go
       to the pointer, a mark from a chart object (P1-121, P1-123, P2-105, P1-128,
