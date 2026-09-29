@@ -508,7 +508,8 @@ export function RouteScreen() {
     if (!map || !ready || !route?.ok) return
     setSource(map, 'iso', isochroneFC(route.isochrones, routeSettings.isoEveryMin))
     setSource(map, 'sens', sensitivityFC(route, routeSettings.bandMin))
-  }, [ready, route, routeSettings.isoEveryMin, routeSettings.bandMin])
+    setSource(map, 'explored', routeSettings.showExplored ? exploredFC(route.explored) : emptyFC())
+  }, [ready, route, routeSettings.isoEveryMin, routeSettings.bandMin, routeSettings.showExplored])
 
   // Earlier routes, for comparison: their own source, so a new route does not refit for them.
   useEffect(() => {
@@ -616,6 +617,7 @@ export function RouteScreen() {
         // Race notes steer the route: keep-out areas and slow areas.
         constraints: { ...parts.constraints, ...zonesFromNotes(raceNotes) },
         computeSensitivity,
+        returnExplored: routeSettings.showExplored,
       }
     },
     [origin, course.marks, landPack, boat, routeSettings, polar?.reference, raceNotes],
@@ -1603,6 +1605,22 @@ export function isochroneFC(isochrones: Isochrone[], everyMin = 0): FC {
   }
 }
 
+/** The explored tree as one multi-line: a feature per segment would be tens of thousands. */
+export function exploredFC(flat: Float32Array | undefined): FC {
+  if (!flat || flat.length < 4) return emptyFC()
+  const lines: Array<Array<[number, number]>> = []
+  for (let i = 0; i + 3 < flat.length; i += 4) {
+    lines.push([
+      [flat[i + 1], flat[i]],
+      [flat[i + 3], flat[i + 2]],
+    ])
+  }
+  return {
+    type: 'FeatureCollection',
+    features: [{ type: 'Feature', properties: {}, geometry: { type: 'MultiLineString', coordinates: lines } }],
+  }
+}
+
 /** Kept routes as lines, the newest marked as the previous one. */
 export function keptFC(kept: ReadonlyArray<{ id: string; track: Array<{ lat: number; lon: number }> }>): FC {
   return {
@@ -1624,7 +1642,7 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
-  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'iso', 'riso', 'kept', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure'].forEach(add)
+  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
   // plain notes grey, so the colour says what the router will do with each.
@@ -1735,6 +1753,13 @@ function addEmptyLayers(map: maplibregl.Map) {
       'line-opacity': 0.6,
       'line-dasharray': [3, 2],
     },
+  })
+  // Every path the search kept, faintest of all, when asked for.
+  map.addLayer({
+    id: 'explored-line',
+    type: 'line',
+    source: 'explored',
+    paint: { 'line-color': '#6ea8d6', 'line-width': 0.6, 'line-opacity': 0.35 },
   })
   // Earlier routes under the current one: the previous dashed and bright, older faint.
   map.addLayer({

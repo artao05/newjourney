@@ -25,7 +25,7 @@ import type {
   Targets,
   WeatherField,
 } from '../types'
-import { defaultConstraints, defaultScalings, isNight, routeIsochrone } from './isochrone'
+import { defaultConstraints, defaultScalings, isNight, routeIsochrone, MAX_EXPLORED_SEGMENTS } from './isochrone'
 import { PolygonLandMask, buildLandMask, extractPolygons } from './land'
 import type { RouteWorkerResponse } from './worker'
 
@@ -799,6 +799,25 @@ describe('isochrone routing kernel', () => {
     expect(hours).toBeLessThan(1.15)
     const sail = routeIsochrone(request({ start, marks: [finish], resolution: 'balanced' }), { field: calm, lattice: LATTICE })
     expect(!sail.ok || sail.elapsedS! > motor.elapsedS! * 2).toBe(true)
+  })
+
+  it('returns every path the search kept, when asked, and none when not', () => {
+    const start = { lat: 40, lon: -70 }
+    const field = makeField({ twd: 90, tws: 12 })
+    const plain = routeIsochrone(request({ start, marks: [north(start, 4)], resolution: 'fast' }), { field, lattice: LATTICE })
+    expect(plain.explored).toBeUndefined()
+    const res = routeIsochrone(request({ start, marks: [north(start, 4)], resolution: 'fast', returnExplored: true }), { field, lattice: LATTICE })
+    expect(res.ok, res.error).toBe(true)
+    const e = res.explored!
+    const segments = e.length / 4
+    note(`9.5 explored: ${segments} segments kept for drawing`)
+    expect(segments).toBeGreaterThan(res.legs.length)
+    expect(segments).toBeLessThanOrEqual(MAX_EXPLORED_SEGMENTS)
+    expect(Array.from(e).every(Number.isFinite)).toBe(true)
+    // Some segment starts at the start: the tree's root.
+    let fromRoot = false
+    for (let i = 0; i < e.length; i += 4) if (Math.abs(e[i] - 40) < 1e-4 && Math.abs(e[i + 1] + 70) < 1e-4) fromRoot = true
+    expect(fromRoot).toBe(true)
   })
 
   it('an impassable band returns a clean failure, not a throw', () => {

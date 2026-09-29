@@ -144,7 +144,7 @@ import { RaceScreen } from './RaceScreen'
 import { SetupScreen, tideStationLabel } from './SetupScreen'
 import { StripchartScreen } from './StripchartScreen'
 import { WeatherScreen } from './WeatherScreen'
-import { RouteScreen, isochroneFC, keptFC, sensitivityFC } from './RouteScreen'
+import { RouteScreen, exploredFC, isochroneFC, keptFC, sensitivityFC } from './RouteScreen'
 import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
 import { alternatingIndex } from '@/components/NumberBoxes'
 import { findPolar } from '@/data/polars'
@@ -567,6 +567,13 @@ describe('earlier routes, kept to compare', () => {
     fireEvent.change(screen.getByLabelText('Draw an isochrone every'), { target: { value: '60' } })
     expect(useStore.getState().routeSettings).toMatchObject({ bandMin: 20, isoEveryMin: 60 })
     expect(screen.getByText(/within 20 min of optimal/)).toBeTruthy()
+  })
+
+  it('draws the explored tree as one multi-line, and nothing without it', () => {
+    const fc = exploredFC(Float32Array.from([43, -70, 43.01, -70, 43.01, -70, 43.02, -70.01]))
+    expect(fc.features).toHaveLength(1)
+    expect((fc.features[0].geometry as GeoJSON.MultiLineString).coordinates).toHaveLength(2)
+    expect(exploredFC(undefined).features).toEqual([])
   })
 
   it('makes one line a kept route, and skips a route with no length', () => {

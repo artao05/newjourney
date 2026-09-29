@@ -208,7 +208,7 @@ leaves something tested and working.
       tests.
 - [x] **9.4 Adjustable sensitivity band and isochrone drawing interval.** *Accept:*
       tests.
-- [ ] **9.5 Draw every explored path.** *Accept:* tests.
+- [x] **9.5 Draw every explored path.** *Accept:* tests.
 - [ ] **9.6 Decaying wind correction:** a now-correction blended back to the forecast
       over N minutes. *Accept:* field tests.
 - [ ] **9.7 Wave correction**, with swell priority, coefficients and crossed sea, and

@@ -141,6 +141,16 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
         </select>
       </div>
 
+      <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          type="checkbox"
+          checked={s.showExplored}
+          aria-label="Draw every explored path"
+          onChange={(e) => update({ showExplored: e.target.checked })}
+        />
+        <span>Draw every path the search kept, not only the best. On from the next route.</span>
+      </label>
+
       <h2>Motor</h2>
       {limit('motorBelowKn', 'Motor when sailing is slower than', 'kn')}
       {limit('motorSpeedKn', 'Motoring speed', 'kn')}

@@ -1604,6 +1604,36 @@ function directTimeS(
 // -------------------------------------------------------------- the entry
 
 /** Sensible defaults — handy for tests and for the UI's initial state. */
+/** The most explored segments a result carries: enough to see the search, not to swamp the map. */
+export const MAX_EXPLORED_SEGMENTS = 40_000
+
+/** Every kept node's link to its parent, thinned evenly to at most `max`. */
+function harvestExplored(
+  P: { n: number; lat: ArrayLike<number>; lon: ArrayLike<number>; parent: ArrayLike<number> },
+  max: number,
+): Float32Array {
+  const linked: number[] = []
+  for (let i = 0; i < P.n; i++) if (P.parent[i] >= 0) linked.push(i)
+  const step = Math.max(1, linked.length / Math.max(1, Math.floor(max)))
+  const out: number[] = []
+  for (let k = 0; k < linked.length; k += step) {
+    const i = linked[Math.floor(k)]
+    const p = P.parent[i]
+    out.push(P.lat[p], P.lon[p], P.lat[i], P.lon[i])
+  }
+  return Float32Array.from(out)
+}
+
+function concatF32(parts: Float32Array[]): Float32Array {
+  const out = new Float32Array(parts.reduce((a, p) => a + p.length, 0))
+  let o = 0
+  for (const p of parts) {
+    out.set(p, o)
+    o += p.length
+  }
+  return out
+}
+
 export function defaultConstraints(): RouteConstraints {
   return { avoidLand: true, tackPenaltyS: 0, gybePenaltyS: 0 }
 }
@@ -1778,6 +1808,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
     let clock = req.startTime
     let from = req.start
     const passCount = req.marks.length * (req.computeSensitivity ? 2 : 1)
+    const explored: Float32Array[] = []
     let passIndex = 0
     let prevTack = 0
     let prevTwa = 0
@@ -1813,6 +1844,8 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       // Already capped at MAX_ISOCHRONES per pass; a multi-leg course gets that
       // many per leg, which is what the UI wants to draw.
       for (const iso of out.isochrones) isochrones.push(iso)
+      // The search tree, before the next leg's pass reuses the pool.
+      if (req.returnExplored) explored.push(harvestExplored(search.pool, MAX_EXPLORED_SEGMENTS / req.marks.length))
       if (!out.reached) {
         return failed(
           `leg ${li + 1} of ${req.marks.length}: ${out.stopped ?? 'no route found'}`,
@@ -1917,6 +1950,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       ),
       isochrones,
       reverseIsochrones,
+      ...(req.returnExplored ? { explored: concatF32(explored) } : {}),
       sensitivity,
       diagnostics: {
         nodesExplored: evaluated,

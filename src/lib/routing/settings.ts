@@ -55,6 +55,8 @@ export interface RouteSettings {
   bandMin: number
   /** Display only: draw an isochrone every this many minutes; 0 draws every step. */
   isoEveryMin: number
+  /** Draw every path the search kept, not only the best. */
+  showExplored: boolean
 }
 
 export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
@@ -73,6 +75,7 @@ export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
   motorBelowKn: null,
   bandMin: 10,
   isoEveryMin: 0,
+  showExplored: false,
 }
 
 /**

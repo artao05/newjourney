@@ -395,6 +395,8 @@ export interface RouteRequest {
   scalings: RouteScalings
   resolution: RouteResolution
   computeSensitivity: boolean
+  /** Also return every path the search kept, to draw: slower to draw, not to compute. */
+  returnExplored?: boolean
 }
 
 export interface RouteLeg {
@@ -446,6 +448,11 @@ export interface RouteResult {
   directTimeS: Seconds | null
   isochrones: Isochrone[]
   reverseIsochrones: Isochrone[]
+  /**
+   * Every path the forward search kept, when asked for: segments from a node's
+   * parent to the node, flat as lat0, lon0, lat1, lon1. Capped, evenly.
+   */
+  explored?: Float32Array
   sensitivity: SensitivityField | null
   diagnostics: {
     nodesExplored: number
