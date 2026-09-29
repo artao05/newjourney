@@ -286,8 +286,10 @@ leaves something tested and working.
 
 ## M11 — Tides and currents
 
-- [ ] **11.1 Harmonic tide engine** from NOAA constituents. *Accept:* agreement with
-      NOAA predictions to within a stated tolerance.
+- [x] **11.1 Harmonic tide engine** from NOAA constituents. *Accept:* agreement with
+      NOAA predictions to within a stated tolerance. *2–4 mm RMS, under 7 mm worst, against NOAA's
+      hourly predictions for Portland over weeks in 2026 and 2027 (checked live); a committed
+      regression fixture of NOAA's numbers waits on D8.*
 - [ ] **11.2 Tide stations:** nearest-station lookup, an offline constituent pack, the
       tide curve, and tide channels. *Accept:* tests.
 - [ ] **11.3 Harmonic tidal currents** and tidal diamonds on the chart. *Accept:*
@@ -296,6 +298,7 @@ leaves something tested and working.
       *Accept:* kernel tests.
 - [ ] **11.5 Position-aware magnetic variation** (WMM). *Accept:* tests against NOAA
       calculator values.
+      `blocked: D8`: may I download NOAA's WMM-2025 coefficient file (WMM.COF, public domain)?
 
 ## M12 — AIS, boats and race tracking
 
