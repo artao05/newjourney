@@ -110,7 +110,7 @@ leaves something tested and working.
 - [x] **4.3 Targets table, and logged points drawn on the polar.** *Accept:* tests.
       *Done: the targets table, and wind-speed sets for the plot.* Logged points need
       logged BSP and TWS, so they move to 7.1b.
-- [ ] **4.4 Sails and the sail chart.** A sail list, a TWA × TWS chart with
+- [x] **4.4 Sails and the sail chart.** A sail list, a TWA × TWS chart with
       tab-separated import/export, the live point, sail channels and a sail per
       route leg. *Accept:* parser, lookup and screen tests.
 - [ ] **4.5 Asymmetric port and starboard polars.** *Accept:* the kernel uses the

@@ -23,6 +23,7 @@ import type {
   WindSource,
 } from '@/lib/types'
 import { DEFAULT_ROUTE_SETTINGS, type RouteSettings } from '@/lib/routing/settings'
+import type { SailChart } from '@/lib/sailchart'
 
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
 /** The nav station's two tab sets: panels on the left, charts in the middle. */
@@ -131,6 +132,9 @@ interface AppState {
    */
   polarRoles: { performance: string; start: string }
   setPolarRole(role: 'performance' | 'start', id: string): void
+  /** Which sail at which TWA and TWS (src/lib/sailchart.ts). */
+  sailChart: SailChart | null
+  setSailChart(chart: SailChart | null): void
 
   course: Course
   setStartEnd(which: 'port' | 'starboard', at: LatLon | null): void
@@ -349,6 +353,8 @@ export const useStore = create<AppState>()(
       setPolar: (id, p) => set({ polarId: id, polar: p }),
       polarRoles: { performance: 'navigation', start: 'navigation' },
       setPolarRole: (role, id) => set({ polarRoles: { ...get().polarRoles, [role]: id } }),
+      sailChart: null,
+      setSailChart: (chart) => set({ sailChart: chart }),
 
       course: EMPTY_COURSE,
       setStartEnd: (which, at) =>
@@ -676,6 +682,7 @@ export const useStore = create<AppState>()(
          */
         polar: s.polarId === 'custom' ? s.polar : null,
         polarRoles: s.polarRoles,
+        sailChart: s.sailChart,
         course: s.course,
         manualWind: s.manualWind,
         manualWindSetAt: s.manualWindSetAt,

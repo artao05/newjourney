@@ -13,6 +13,8 @@ import { buildLattice, parsePolar, serialiseExpeditionPolar, validatePolar } fro
 import { PolarPlot } from '@/components/PolarPlot'
 import { PolarEditor } from '@/components/PolarEditor'
 import { TargetsTable } from '@/components/TargetsTable'
+import { SailChartView } from '@/components/SailChartView'
+import { twaFrom } from '@/lib/angles'
 
 /** The wind speeds the polar plot can draw at once: light, the usual spread, heavy. */
 const PLOT_SETS: number[][] = [
@@ -58,6 +60,11 @@ export function SetupScreen() {
   const polar = useStore((s) => s.polar)
   const polarRoles = useStore((s) => s.polarRoles)
   const [editingPolar, setEditingPolar] = useState(false)
+  const liveWind = useStore((s) => s.wind)
+  const liveState = useStore((s) => s.state)
+  const liveCourse = liveState ? liveState.heading ?? liveState.cog : null
+  const liveTwa =
+    liveWind && liveCourse != null && Number.isFinite(liveCourse) ? twaFrom(liveCourse, liveWind.twd) : null
   const [plotSpeeds, setPlotSpeeds] = useState<number[]>(PLOT_SETS[1])
   const setPolarRole = useStore((s) => s.setPolarRole)
   const setPolar = useStore((s) => s.setPolar)
@@ -373,6 +380,8 @@ export function SetupScreen() {
           EDIT POLAR
         </button>
         {editingPolar && <PolarEditor onClose={() => setEditingPolar(false)} />}
+
+        <SailChartView twa={liveTwa} tws={liveWind?.tws ?? null} />
 
         <h2>Polar roles</h2>
         {(['performance', 'start'] as const).map((role) => (

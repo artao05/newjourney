@@ -12,6 +12,7 @@ import type { Boat, LatLon, PolarLattice, WindEstimate } from '@/lib/types'
 import { bearing, distance } from '@/lib/geo'
 import { angsep } from '@/lib/angles'
 import { markTime } from '@/lib/tactics'
+import { sailAt, type SailChart } from '@/lib/sailchart'
 
 export interface LegRow {
   from: string
@@ -24,6 +25,8 @@ export interface LegRow {
   timeS: number | null
   /** Time from the first leg's start to the end of this one. */
   elapsedS: number | null
+  /** The sail chart's sail for the leg, when there is a chart and a wind. */
+  sail: string | null
 }
 
 export function courseLegs(o: {
@@ -32,6 +35,7 @@ export function courseLegs(o: {
   wind: Pick<WindEstimate, 'twd' | 'tws'> | null
   lattice: PolarLattice | null
   boat: Boat
+  sailChart?: SailChart | null
 }): LegRow[] {
   const points = o.start ? [o.start, ...o.marks] : o.marks
   const rows: LegRow[] = []
@@ -51,7 +55,8 @@ export function courseLegs(o: {
       }
     }
     elapsed = elapsed != null && t != null ? elapsed + t : null
-    rows.push({ from: a.name, to: b.name, bearing: brg, distanceNm: nm, offWindDeg: offWind, timeS: t, elapsedS: elapsed })
+    const sail = o.wind && offWind != null ? sailAt(o.sailChart ?? null, offWind, o.wind.tws) : null
+    rows.push({ from: a.name, to: b.name, bearing: brg, distanceNm: nm, offWindDeg: offWind, timeS: t, elapsedS: elapsed, sail })
   }
   return rows
 }

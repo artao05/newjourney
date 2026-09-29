@@ -18,7 +18,8 @@ import { useLayout } from '@/hooks/useWide'
 import { usePolarLattices } from '@/hooks/usePolars'
 import { Tile, fmtClock } from '@/components/Tile'
 import { computeTactics } from '@/lib/tactics'
-import { fmtDeg, fmtShift, wrap360 } from '@/lib/angles'
+import { angsep, fmtDeg, fmtShift, wrap360 } from '@/lib/angles'
+import { sailAt } from '@/lib/sailchart'
 import { distance, bearing } from '@/lib/geo'
 import { makeWLCourse } from '@/lib/sim'
 import type { TacticalNumbers, WindEstimate } from '@/lib/types'
@@ -34,6 +35,7 @@ export function RaceScreen() {
   const activeMarkIndex = useStore((s) => s.activeMarkIndex)
   const xteOrigin = useStore((s) => s.xteOrigin)
   const layout = useLayout()
+  const sailChart = useStore((s) => s.sailChart)
   const resetXte = useStore((s) => s.resetXte)
   const setActiveMark = useStore((s) => s.setActiveMark)
   const addMark = useStore((s) => s.addMark)
@@ -165,6 +167,21 @@ export function RaceScreen() {
           sub="the polar at this angle" />
         <Tile label="VMG %" value={t?.vmgPct ?? null} unit="%" dp={0} small
           sub="of target VMG" />
+        <Tile
+          label="sail"
+          value={t?.twa != null && t.tws != null ? sailAt(sailChart, t.twa, t.tws) : null}
+          small
+          sub={sailChart ? 'from the sail chart' : 'no sail chart loaded'}
+        />
+        <Tile
+          label="sail next leg"
+          value={
+            t?.nextMarkBearing != null && t.tws != null && t.twd != null
+              ? sailAt(sailChart, angsep(t.nextMarkBearing, t.twd), t.tws)
+              : null
+          }
+          small
+        />
       </div>
 
       <h2 className="panel" style={{ paddingBottom: 0 }}>

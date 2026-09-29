@@ -27,6 +27,7 @@ export function CourseLegs({ lattice }: { lattice: PolarLattice | null }) {
   const deleteRoute = useStore((s) => s.deleteRoute)
   const reverseCourse = useStore((s) => s.reverseCourse)
   const [name, setName] = useState('')
+  const sailChart = useStore((s) => s.sailChart)
 
   const start = routeStart
     ? { name: 'Start', position: routeStart }
@@ -34,11 +35,12 @@ export function CourseLegs({ lattice }: { lattice: PolarLattice | null }) {
       ? { name: 'Boat', position: state.position }
       : null
   const legs = useMemo(
-    () => courseLegs({ start, marks: course.marks, wind, lattice, boat }),
+    () => courseLegs({ start, marks: course.marks, wind, lattice, boat, sailChart }),
     // The boat's position changes every fix; a leg table re-sorting its numbers
     // each second is noise, so it follows the fix rounded to a few metres.
     [
       course.marks,
+      sailChart,
       wind?.twd,
       wind?.tws,
       lattice,
@@ -67,6 +69,7 @@ export function CourseLegs({ lattice }: { lattice: PolarLattice | null }) {
                 {fmtDeg(l.bearing)}° · {l.distanceNm.toFixed(2)} nm
                 {l.offWindDeg != null && ` · ${Math.round(l.offWindDeg)}° off`}
                 {l.timeS != null && ` · ${fmtDuration(l.timeS)}`}
+                {l.sail && ` · ${l.sail}`}
               </span>
             </div>
           ))}

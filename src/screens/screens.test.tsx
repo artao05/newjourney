@@ -150,6 +150,7 @@ import { angdiff, wrap360 } from '@/lib/angles'
 import { uvFromWind } from '@/lib/weather/cube'
 import { DEFAULT_ROUTE_SETTINGS } from '@/lib/routing/settings'
 import * as polarLib from '@/lib/polar'
+import * as sailLib from '@/lib/sailchart'
 
 // ------------------------------------------------------------------ fixtures
 
@@ -184,6 +185,7 @@ function emptyStore() {
     routes: [],
     raceNotes: [],
     polarRoles: { performance: 'navigation', start: 'navigation' },
+    sailChart: null,
   })
 }
 
@@ -1204,6 +1206,34 @@ describe('the targets table', () => {
     const t = deriveTargets(polar, polar.tws[2])
     expect(rows[3].textContent).toContain((t.upBsp * 0.9).toFixed(2))
     useStore.getState().updateBoat({ polarPct: 100 })
+  })
+})
+
+describe('the sail chart', () => {
+  const CHART = ['TWS\\TWA\t40\t90\t150', '8\tJ1\tC0\tA2', '14\tJ2\tC0\tA4'].join('\n')
+
+  it('loads in Setup, shows each sail by colour, and marks the wind now', async () => {
+    populatedStore()
+    render(<SetupScreen />)
+    const file = new File([CHART], 'sails.txt', { type: 'text/plain' })
+    fireEvent.change(screen.getByLabelText('Load a sail chart'), { target: { files: [file] } })
+    await waitFor(() => expect(useStore.getState().sailChart).not.toBeNull())
+    const table = screen.getByRole('table', { name: 'Sails by TWA and TWS' })
+    expect(within(table).getAllByRole('row')).toHaveLength(3)
+    // The populated boat heads 042° with the wind from 220°: a dead run in 12 kn,
+    // nearest the 150° and 14 kn cell, so the A4.
+    expect(table.querySelector('[aria-current="true"]')?.textContent).toBe('A4')
+  })
+
+  it('gives Race a sail tile and each leg its sail', () => {
+    populatedStore()
+    const { parseSailChart } = sailLib
+    useStore.getState().setSailChart(parseSailChart(CHART))
+    render(<RaceScreen />)
+    const tile = [...document.querySelectorAll('.tile')].find((el) => el.querySelector('.tile__label')?.textContent === 'sail')!
+    expect(tile.querySelector('.tile__value')!.textContent).toBe('A4')
+    const legs = within(screen.getByRole('table', { name: 'Legs' })).getAllByRole('row')
+    expect(legs[0].textContent).toMatch(/· (J1|J2|C0|A2|A4)$/)
   })
 })
 
