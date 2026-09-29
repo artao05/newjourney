@@ -86,12 +86,15 @@ describe('the live channel snapshot', () => {
     // Layline distance and time are for the layline this tack is heading for, so
     // port and starboard can never both be filled at once. Across both tacks,
     // every channel must be.
-    // Gate channels need the active mark to be a gate; give the beat one.
+    // Gate channels need the active mark to be a gate; give the beat one. Race-note channels
+    // need a race note on the way; put the boat inside an area, so any course meets its edge.
     const withGate = (i: SnapshotInputs): SnapshotInputs => {
       const w = i.course.marks[0].position
+      const p = i.state!.position
       return {
         ...i,
         gate: gateNumbers({ from: i.state!.position, ...gateAround(w, 200, 80), wind: i.wind, lattice: null }),
+        raceNotes: [{ kind: 'area', points: [{ lat: p.lat - 0.05, lon: p.lon - 0.05 }, { lat: p.lat - 0.05, lon: p.lon + 0.05 }, { lat: p.lat + 0.05, lon: p.lon + 0.05 }, { lat: p.lat + 0.05, lon: p.lon - 0.05 }] }],
       }
     }
     const tacks = [

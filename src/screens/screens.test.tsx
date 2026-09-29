@@ -1879,6 +1879,26 @@ describe('number boxes show any channel, alternate, and persist', () => {
     expect(alternatingIndex(1, 123_456)).toBe(0)
   })
 
+  it('damps a box, with the raw value beside it, sets its decimals, and picks by situation', () => {
+    populatedStore()
+    act(() => useStore.setState({ numberBoxes: [{ id: 'b1', channels: ['sog'], size: 'md' }] }))
+    render(<RaceScreen />)
+    fireEvent.click(screen.getByRole('listitem', { name: /^SOG/i }))
+    fireEvent.change(screen.getByLabelText('Damping'), { target: { value: '10' } })
+    fireEvent.change(screen.getByLabelText('Decimals'), { target: { value: '3' } })
+    expect(useStore.getState().numberBoxes[0]).toMatchObject({ dampS: 10, decimals: 3 })
+    fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
+    const box = screen.getAllByRole('listitem')[0]
+    const main = box.querySelector('[data-damped]') as HTMLElement
+    expect(main.style.fontStyle).toBe('italic')
+    // Three decimals, damped and raw alike.
+    expect(main.textContent).toMatch(/^\d+\.\d{3}/)
+    expect(within(box).getByLabelText('raw').textContent).toMatch(/^\d+\.\d{3}$/)
+    // By situation: upwind, reaching, downwind; the populated store is beating.
+    act(() => useStore.getState().updateNumberBox('b1', { channels: ['vmg', 'bsp', 'sog'], situation: true, dampS: 0, decimals: null }))
+    expect(screen.getAllByRole('listitem')[0].textContent).toMatch(/upwind/)
+  })
+
   it('adds and removes boxes', () => {
     render(<RaceScreen />)
     const before = useStore.getState().numberBoxes.length

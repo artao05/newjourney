@@ -45,12 +45,28 @@ function speedLike(v: number): string {
   return fmtFixed(v, Math.abs(v) < 10 ? 2 : 1)
 }
 
+/** Units whose value is a plain number, where a box can set the decimals. */
+const DECIMAL_UNITS = new Set(['deg', 'deg/s', 'kn', 'nm', 'm', 'pct', 'degC', 'hPa', 'kPa', 'kg/m3', 'V', 'A', 'rpm', 'load'])
+
+/**
+ * A channel's value as a box shows it. `decimals`, where a box sets it, is
+ * how many places a plain number gets; times, positions and dates keep their
+ * own form.
+ */
 export function formatChannel(
   def: Pick<ChannelDef, 'id' | 'unit'>,
   value: number | null | undefined,
   units: Units = 'metric',
+  decimals: number | null = null,
 ): FormattedValue | null {
   if (value == null || !Number.isFinite(value)) return null
+  if (decimals != null && def.unit && DECIMAL_UNITS.has(def.unit)) {
+    const base = formatChannel(def, value, units)
+    if (!base) return null
+    const v = def.unit === 'm' ? toLength(value, units) : def.unit === 'deg' && !isSignedAngle(def.id) ? ((value % 360) + 360) % 360 : value
+    const text = fmtFixed(v, decimals)
+    return { text: def.unit === 'deg' && isSignedAngle(def.id) && v > 0 ? `+${text}` : text, unit: base.unit }
+  }
   switch (def.unit) {
     case 'deg': {
       if (isSignedAngle(def.id)) {

@@ -419,9 +419,11 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       P2-008, P2-010, P2-009, P1-309). *Accept:* tests and a browser check.
       *All but the important-text group (clearances, not drawn yet). Checked in the browser on a
       built cell with a two-sector light.*
-- [ ] **15.5 Number boxes:** damped or raw values, per-channel precision, time to a race
+- [x] **15.5 Number boxes:** damped or raw values, per-channel precision, time to a race
       note, alternating numbers by situation, the reaching band (P1-079, P4-182, P4-183,
       P1-159, P4-172, P4-174). *Accept:* tests.
+      *Situation boxes cover upwind, reaching, downwind and prestart; MOB, timer and tack are
+      still to do in P4-172.*
 - [ ] **15.6 Log analysis:** tack and gybe analysis, the performance report, the best
       24-hour run, a track point to the stripchart (P1-153, P1-152, P1-239, P1-272).
       *Accept:* tests against a logged session.

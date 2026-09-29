@@ -22,6 +22,7 @@ import type {
   TacticalNumbers,
   WindEstimate,
 } from '@/lib/types'
+import { reachRaceNote } from '@/lib/raceNoteReach'
 import { CHANNELS } from './catalogue'
 import type { GateNumbers } from '@/lib/gates'
 import type { Reading } from '@/lib/instruments/nmea0183'
@@ -44,6 +45,8 @@ export interface SnapshotInputs {
   instruments?: Reading | null
   /** The same after the pipeline: damped, heel-corrected, true and ground wind worked out. */
   derived?: Derived | null
+  /** Race notes, for the time and distance to the nearest one along the COG. */
+  raceNotes?: ReadonlyArray<{ kind: string; points: Array<{ lat: number; lon: number }> }>
 }
 
 /** Channel id → value in the catalogue's unit, or null when there is none. */
@@ -132,6 +135,13 @@ export const PRODUCERS: Readonly<Record<string, Producer>> = {
   'gate-bias-length': (i) => i.gate?.biasLengthM,
   // start
   'start-time-to-gun': (i) => i.start?.timeToGunS,
+  // Along the COG to the nearest race-note line or area edge, and how long at the SOG.
+  'race-note-gps-reach-distance-to': (i) => (i.state && i.raceNotes?.length ? reachRaceNote(i.state.position, i.state.cog, i.raceNotes) : null),
+  'race-note-gps-reach-time-to': (i) => {
+    if (!i.state || !i.raceNotes?.length || !(i.state.sog > 0.2)) return null
+    const nm = reachRaceNote(i.state.position, i.state.cog, i.raceNotes)
+    return nm == null ? null : (nm / i.state.sog) * 3600
+  },
   'start-time-to-line': (i) => i.start?.timeToLineS,
   'start-time-to-burn': (i) => i.start?.timeToBurnS,
   'start-distance-below-line': (i) => i.start?.distanceBelowLineM,

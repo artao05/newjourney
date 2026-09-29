@@ -55,6 +55,17 @@ export interface NumberBox {
   /** Channel ids from src/lib/channels/catalogue.ts. The first is shown alone. */
   channels: string[]
   size: 'sm' | 'md' | 'lg'
+  /** Seconds to damp over (a mean, circular for angles); 0 or absent shows the value as it comes. */
+  dampS?: number
+  /** Decimal places for a plain number; absent for the channel's own. */
+  decimals?: number | null
+  /**
+   * By situation: channels are then upwind, reaching, downwind and (if a fourth)
+   * before the start, the one shown picked from the point of sail.
+   */
+  situation?: boolean
+  /** Degrees past the target TWA at which the reaching channel takes over. */
+  reachBandDeg?: number
 }
 
 /**

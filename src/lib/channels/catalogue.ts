@@ -174,8 +174,8 @@ export const CHANNELS: readonly ChannelDef[] = [
   c('next-mark-twa', "Next mark twa", 'marks', 'deg', 'computed'),
   c('opposite-track', "Opposite track", 'marks', 'deg', 'computed'),
   c('opposite-track-cog', "Opposite track cog", 'marks', 'deg', 'computed'),
-  c('race-note-gps-reach-distance-to', "Race note GPS reach distance to", 'marks', 'nm', 'computed'),
-  c('race-note-gps-reach-time-to', "Race note GPS reach time to", 'marks', 's', 'computed'),
+  c('race-note-gps-reach-distance-to', "Race note GPS reach distance to", 'marks', 'nm', 'computed', true),
+  c('race-note-gps-reach-time-to', "Race note GPS reach time to", 'marks', 's', 'computed', true),
   c('turn-to-mark', "Turn to mark", 'marks', 'deg', 'computed'),
   // laylines
   c('layline-bearing', "Layline bearing", 'laylines', 'deg', 'computed'),
