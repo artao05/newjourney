@@ -215,7 +215,7 @@ leaves something tested and working.
 - [ ] **9.7 Wave correction**, with swell priority, coefficients and crossed sea, and
       **air-density correction**. These need swell and wind-sea as separate layers, and
       pressure and temperature, which the field does not carry yet (M10). *Accept:* kernel tests.
-- [ ] **9.8 Route to and via the pointer.** *Accept:* tests.
+- [x] **9.8 Route to and via the pointer.** *Accept:* tests.
 - [ ] **9.9 Grid algorithm**, with an optional great-circle track. *Accept:* analytic
       tests, and agreement with the isochrone solver on open water.
 - [ ] **9.10 Globally optimal multi-mark routing.** *Accept:* a test where leg-by-leg

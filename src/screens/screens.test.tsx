@@ -153,6 +153,8 @@ import { distance } from '@/lib/geo'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
 import { angdiff, wrap360 } from '@/lib/angles'
 import { uvFromWind } from '@/lib/weather/cube'
+import { RoutingClient } from '@/lib/routing/client'
+import type { RouteRequest } from '@/lib/types'
 import { DEFAULT_ROUTE_SETTINGS } from '@/lib/routing/settings'
 import * as polarLib from '@/lib/polar'
 import * as sailLib from '@/lib/sailchart'
@@ -609,6 +611,40 @@ describe('a route can start anywhere, not only at the boat', () => {
     fireEvent.click(screen.getByRole('button', { name: /from planned start/ }))
     expect(useStore.getState().routeStart).toBeNull()
     expect(routeBtn().disabled).toBe(true)
+  })
+
+  it('routes to the pointer, or through it and on round the course', async () => {
+    const HOUR_MS = 3_600_000
+    const b = PILOT_VENUE.bbox
+    const w = uvFromWind(12, 90)
+    stubForecast.cube = {
+      model: 'test', run: 'test-run', bbox: b, nx: 2, ny: 2, dx: b.east - b.west, dy: b.north - b.south,
+      t0: Date.now() - HOUR_MS, dtMs: HOUR_MS, nt: 3, params: ['u10', 'v10'],
+      data: { u10: new Float32Array(12).fill(w.u), v10: new Float32Array(12).fill(w.v) },
+    }
+    const sent: RouteRequest[] = []
+    const spy = vi.spyOn(RoutingClient.prototype, 'route').mockImplementation(async (req) => {
+      sent.push(req)
+      return { ok: false, error: 'stub', legs: [], etaMs: null, elapsedS: null, directTimeS: null, isochrones: [], reverseIsochrones: [], sensitivity: null, diagnostics: { nodesExplored: 0, timeStepS: 60, computeMs: 0, landAvoided: true, warnings: [] } }
+    })
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const here = { lat: 43.63, lon: -70.2 }
+    act(() => {
+      for (const fn of mapInstances[0].handlers.get('click') ?? []) fn({ lngLat: { lat: here.lat, lng: here.lon } })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'route here' }))
+    await waitFor(() => expect(sent).toHaveLength(1))
+    expect(sent[0].marks).toEqual([here])
+    fireEvent.click(screen.getByRole('button', { name: 'route via here' }))
+    await waitFor(() => expect(sent).toHaveLength(2))
+    const course = useStore.getState().course.marks.map((m) => m.position)
+    expect(sent[1].marks).toEqual([here, ...course.slice(useStore.getState().activeMarkIndex)])
+    spy.mockRestore()
+    stubForecast.cube = null
   })
 
   it('ignores chart taps unless a start is being picked', () => {

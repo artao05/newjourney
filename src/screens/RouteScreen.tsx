@@ -602,8 +602,9 @@ export function RouteScreen() {
    */
   const liveWind = useStore((s) => s.wind)
   const buildRequest = useCallback(
-    (startTime: Millis, computeSensitivity: boolean): RouteRequest | null => {
-      if (!origin || course.marks.length === 0) return null
+    (startTime: Millis, computeSensitivity: boolean, marksOverride?: LatLon[]): RouteRequest | null => {
+      const marks = marksOverride ?? course.marks.map((m) => m.position)
+      if (!origin || marks.length === 0) return null
       const parts = requestParts(
         routeSettings,
         boat,
@@ -613,7 +614,7 @@ export function RouteScreen() {
       return {
         start: origin,
         startTime,
-        marks: course.marks.map((m) => m.position),
+        marks,
         ...parts,
         // Race notes steer the route: keep-out areas and slow areas.
         constraints: { ...parts.constraints, ...zonesFromNotes(raceNotes) },
@@ -651,8 +652,9 @@ export function RouteScreen() {
     [landPack],
   )
 
-  const run = useCallback(async (leaveAt?: Millis) => {
-    if (!origin || !polar || course.marks.length === 0) return
+  /** Route the course, or, given marks, those instead: to or via the pointer. */
+  const run = useCallback(async (leaveAt?: Millis, marksOverride?: LatLon[]) => {
+    if (!origin || !polar || (marksOverride?.length ?? course.marks.length) === 0) return
     const thisRun = ++runIdRef.current
     let workingCube = cube
     if (!workingCube) {
@@ -669,7 +671,7 @@ export function RouteScreen() {
     try {
       clientRef.current ??= new RoutingClient()
       const startTime = leaveAt ?? Date.now()
-      const req = buildRequest(startTime, true)
+      const req = buildRequest(startTime, true, marksOverride)
       if (!req) return
       const result = await clientRef.current.route(
         req,
@@ -882,6 +884,22 @@ export function RouteScreen() {
               {toPointer && ` · ${toPointer.distanceNm.toFixed(2)} nm ${fmtDeg(toPointer.bearing)}°T`}
               {toPointer?.timeS != null && ` · ${fmtDuration(toPointer.timeS)}`}
             </span>
+          )}
+          {pointer && origin && polar && picking == null && (
+            <>
+              <button className="chip" onClick={() => void run(undefined, [pointer])} title="Optimal route from the boat to this point">
+                route here
+              </button>
+              {course.marks.length > 0 && (
+                <button
+                  className="chip"
+                  onClick={() => void run(undefined, [pointer, ...course.marks.slice(activeMarkIndex).map((m) => m.position)])}
+                  title="Optimal route through this point, then on round the course from the active mark"
+                >
+                  route via here
+                </button>
+              )}
+            </>
           )}
           {picking === 'note' ? (
             <>
