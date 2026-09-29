@@ -1,5 +1,6 @@
 /**
- * Edit one mark: name, position, rounding side, order, delete.
+ * Edit one mark: name, position, rounding side, order, lock, delete, and a new
+ * mark at a range and bearing from it.
  *
  * The position field takes whatever the sailing instructions say, in any of the
  * formats parseLatLon reads. It shows the mark's position as a chart plotter
@@ -11,6 +12,7 @@ import { useState } from 'react'
 import { useStore } from '@/state/store'
 import { parseLatLon } from '@/lib/latlon'
 import { fmtDmm } from '@/lib/channels/format'
+import { destination } from '@/lib/geo'
 import type { Mark, RoundingSide } from '@/lib/types'
 
 export function fmtPosition(p: { lat: number; lon: number }): string {
@@ -26,8 +28,15 @@ export function MarkSheet({ mark, index, count, onClose }: {
   const updateMark = useStore((s) => s.updateMark)
   const moveMark = useStore((s) => s.moveMark)
   const removeMark = useStore((s) => s.removeMark)
+  const addMark = useStore((s) => s.addMark)
   const [posText, setPosText] = useState(fmtPosition(mark.position))
   const parsed = parseLatLon(posText)
+  const [rangeNm, setRangeNm] = useState('')
+  const [bearingT, setBearingT] = useState('')
+  const r = Number(rangeNm)
+  const b = Number(bearingT)
+  const rbOk = rangeNm.trim() !== '' && bearingT.trim() !== '' && r > 0 && b >= 0 && b <= 360
+  const locked = !!mark.locked
 
   return (
     <div className="sheet" role="dialog" aria-label={`Edit mark ${mark.name}`}>
@@ -44,6 +53,7 @@ export function MarkSheet({ mark, index, count, onClose }: {
         <label htmlFor="mark-pos">Position</label>
         <input
           id="mark-pos"
+          disabled={locked}
           value={posText}
           onChange={(e) => {
             setPosText(e.target.value)
@@ -79,9 +89,33 @@ export function MarkSheet({ mark, index, count, onClose }: {
           ▼ LATER
         </button>
       </div>
-      <div className="actions">
+      <h2>New mark from here</h2>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label>
+          <input aria-label="Range from this mark" inputMode="decimal" value={rangeNm} onChange={(e) => setRangeNm(e.target.value)} style={{ width: 64 }} /> nm
+        </label>
+        <label>
+          at <input aria-label="Bearing from this mark" inputMode="decimal" value={bearingT} onChange={(e) => setBearingT(e.target.value)} style={{ width: 56 }} /> °T
+        </label>
         <button
           className="btn btn--sm btn--ghost"
+          disabled={!rbOk}
+          onClick={() => {
+            addMark(`${mark.name} ${r} nm ${Math.round(b)}°`, destination(mark.position, b, r))
+            setRangeNm('')
+            setBearingT('')
+          }}
+        >
+          ADD MARK
+        </button>
+      </div>
+      <div className="actions">
+        <button className="btn btn--sm btn--ghost" aria-pressed={locked} onClick={() => updateMark(mark.id, { locked: !locked })} title="A locked mark cannot be moved or deleted">
+          {locked ? '🔒 LOCKED' : 'LOCK'}
+        </button>
+        <button
+          className="btn btn--sm btn--ghost"
+          disabled={locked}
           onClick={() => {
             removeMark(mark.id)
             onClose()

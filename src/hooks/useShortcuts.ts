@@ -8,6 +8,7 @@
 import { useEffect, useRef } from 'react'
 import { useStore, type PanelTab } from '@/state/store'
 import { shortcutFor } from '@/lib/shortcuts'
+import { redoMarks, undoMarks } from '@/state/markHistory'
 
 /**
  * Full screen for the chart when there is one to isolate, else the whole app.
@@ -62,6 +63,12 @@ export function useShortcuts(wide: boolean): void {
           break
         case 'fullscreen':
           toggleFullscreen(wideRef.current)
+          break
+        case 'undoMarks':
+          undoMarks()
+          break
+        case 'redoMarks':
+          redoMarks()
           break
       }
       e.preventDefault()

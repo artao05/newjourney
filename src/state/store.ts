@@ -276,8 +276,10 @@ interface AppState {
   /** Replace marks without resetting a previously pinged start line. */
   replaceMarks(marks: Array<Pick<Mark, 'name' | 'position'> & Partial<Pick<Mark, 'roundTo' | 'gate'>>>): void
   removeMark(id: string): void
-  /** Rename, move, or change the rounding side of one mark. */
-  updateMark(id: string, patch: Partial<Pick<Mark, 'name' | 'position' | 'roundTo'>>): void
+  /** Rename, move, lock, or change the rounding side of one mark. A locked mark does not move. */
+  updateMark(id: string, patch: Partial<Pick<Mark, 'name' | 'position' | 'roundTo' | 'locked'>>): void
+  /** Put the marks back as they were (undo and redo). */
+  restoreMarks(marks: Mark[], activeMarkIndex: number): void
   /** Move a mark one place earlier (-1) or later (+1) in the course. */
   moveMark(id: string, by: -1 | 1): void
   /**
@@ -671,7 +673,7 @@ export const useStore = create<AppState>()(
       removeMark: (id) => {
         const { course, activeMarkIndex } = get()
         const at = course.marks.findIndex((m) => m.id === id)
-        if (at < 0) return
+        if (at < 0 || course.marks[at].locked) return
         const marks = course.marks.filter((m) => m.id !== id)
         const shifted = at < activeMarkIndex ? activeMarkIndex - 1 : activeMarkIndex
         set({
@@ -682,6 +684,13 @@ export const useStore = create<AppState>()(
       },
       updateMark: (id, patch) => {
         const { course } = get()
+        const m = course.marks.find((x) => x.id === id)
+        // A locked mark stays put until it is unlocked.
+        if (m?.locked && patch.position && patch.locked !== false) {
+          const { position: _, ...rest } = patch
+          patch = rest
+          if (!Object.keys(patch).length) return
+        }
         set({
           // A mark that moved is a different course; a rename is not.
           ...(patch.position ? COURSE_CHANGED : {}),
@@ -691,6 +700,12 @@ export const useStore = create<AppState>()(
           },
         })
       },
+      restoreMarks: (marks, active) =>
+        set({
+          ...COURSE_CHANGED,
+          course: { ...get().course, marks },
+          activeMarkIndex: marks.length ? Math.min(Math.max(0, active), marks.length - 1) : 0,
+        }),
       moveMark: (id, by) => {
         const { course, activeMarkIndex } = get()
         const at = course.marks.findIndex((m) => m.id === id)

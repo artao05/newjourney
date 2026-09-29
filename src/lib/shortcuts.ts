@@ -19,6 +19,8 @@ export type ShortcutAction =
   | 'fullscreen'
   | 'nextMark'
   | 'prevMark'
+  | 'undoMarks'
+  | 'redoMarks'
 
 export interface KeyLike {
   key: string
@@ -37,6 +39,8 @@ export function shortcutFor(e: KeyLike, targetTag?: string | null): ShortcutActi
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key
   if (e.key === 'F2') return 'mob'
   if (cmd && e.shiftKey && k === 'f') return 'fullscreen'
+  if (cmd && !e.altKey && (k === 'y' || (e.shiftKey && k === 'z'))) return 'redoMarks'
+  if (cmd && !e.altKey && !e.shiftKey && k === 'z') return 'undoMarks'
   if (cmd && !e.shiftKey && !e.altKey) {
     if (k === 's') return 'settings'
     if (k === 'm') return 'marks'
@@ -61,4 +65,5 @@ export const SHORTCUT_HELP: Array<[keys: string, does: string]> = [
   ['↑ ↓', 'Step the forecast time (Weather)'],
   ['Space', 'Play or pause the forecast (Weather)'],
   ['Ctrl-Shift-F', 'Full-screen chart'],
+  ['Ctrl-Z, Ctrl-Y', 'Undo and redo a change to the marks'],
 ]

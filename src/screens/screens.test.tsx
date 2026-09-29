@@ -179,6 +179,7 @@ import { useAis } from '@/state/ais'
 import { useTracking } from '@/state/tracking'
 import { uninstallAllCells, useCharts } from '@/state/charts'
 import { useChannelsOutStatus } from '@/components/ChannelsOutBridge'
+import { resetMarkHistory, startMarkHistory } from '@/state/markHistory'
 import { cellStore } from '@/lib/charts/library'
 import { cell as encCell, update3 as encUpdate3 } from '@/lib/charts/fixtures/cell'
 import { useEnsembleView } from '@/state/ensembleView'
@@ -2043,6 +2044,37 @@ describe('marks can be edited, and placed on the chart', () => {
     expect(w.position.lon).toBeCloseTo(-(70 + 10 / 60), 9)
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Windward' } })
     expect(useStore.getState().course.marks[0].name).toBe('Windward')
+  })
+
+  it('adds a mark at a range and bearing from one, locks one, and undoes', () => {
+    populatedStore()
+    startMarkHistory()
+    resetMarkHistory()
+    const n = useStore.getState().course.marks.length
+    const w = useStore.getState().course.marks[0]
+    render(<RaceScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit mark W' }))
+    fireEvent.change(screen.getByLabelText('Range from this mark'), { target: { value: '0.5' } })
+    fireEvent.change(screen.getByLabelText('Bearing from this mark'), { target: { value: '90' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ADD MARK' }))
+    const added = useStore.getState().course.marks.at(-1)!
+    expect(useStore.getState().course.marks).toHaveLength(n + 1)
+    expect(added.name).toBe('W 0.5 nm 90°')
+    expect(distance(w.position, added.position)).toBeCloseTo(0.5, 6)
+    // Locked, it cannot be deleted, and says so in the list.
+    fireEvent.click(screen.getByRole('button', { name: 'LOCK' }))
+    expect(useStore.getState().course.marks[0].locked).toBe(true)
+    expect((screen.getByRole('button', { name: 'DELETE MARK' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Position') as HTMLInputElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
+    expect(screen.getByLabelText('locked')).toBeTruthy()
+    // Undo takes the lock back, then the new mark.
+    fireEvent.click(screen.getByRole('button', { name: 'Undo marks' }))
+    expect(useStore.getState().course.marks[0].locked).toBeFalsy()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo marks' }))
+    expect(useStore.getState().course.marks).toHaveLength(n)
+    fireEvent.click(screen.getByRole('button', { name: 'Redo marks' }))
+    expect(useStore.getState().course.marks).toHaveLength(n + 1)
   })
 
   it('leaves the mark where it was when the position cannot be read, and says so', () => {

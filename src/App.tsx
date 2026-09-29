@@ -24,6 +24,7 @@ import { useTrackPersistence } from '@/state/trackPersistence'
 import { WindSheet, windChip } from '@/components/WindSheet'
 import { ChannelLogRecorder } from '@/components/ChannelLogRecorder'
 import { ChannelsOutBridge } from '@/components/ChannelsOutBridge'
+import { startMarkHistory } from '@/state/markHistory'
 import { PlaybackBar } from '@/components/PlaybackBar'
 import { AlarmBanner, AlarmWatcher } from '@/components/Alarms'
 import { usePlayback } from '@/hooks/usePlayback'
@@ -36,6 +37,9 @@ import { fetchPointForecast } from '@/lib/weather/openmeteo'
 import { PILOT_VENUE } from '@/data/venues'
 import { beepsBetween, rollGun } from '@/lib/timer'
 import { beep } from '@/lib/beep'
+
+// Undo and redo for the marks record from the first change on.
+startMarkHistory()
 
 const FORECAST_REFRESH_MS = 15 * 60_000
 

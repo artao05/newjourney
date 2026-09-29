@@ -207,6 +207,8 @@ export interface Mark {
   mobAt?: Millis
   /** A gate: its two buoys. `position` is then the middle of the gate. */
   gate?: { widthM: number; left: LatLon; right: LatLon }
+  /** Locked: it cannot be moved or deleted until unlocked. */
+  locked?: boolean
 }
 
 export interface StartLine {

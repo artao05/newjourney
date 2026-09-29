@@ -6,6 +6,7 @@
  * exposes. Every one is computable from a phone GPS, a forecast and a polar.
  */
 
+import { redoMarks, undoMarks, useMarkHistory } from '@/state/markHistory'
 import { useMemo, useState } from 'react'
 import { BoatsDatabase } from '@/components/Boats'
 import { useStore } from '@/state/store'
@@ -50,6 +51,7 @@ export function RaceScreen() {
   const clearMarks = useStore((s) => s.clearMarks)
 
   const [editingMark, setEditingMark] = useState<string | null>(null)
+  const { canUndo, canRedo } = useMarkHistory()
   const whatIf = useStore((s) => s.whatIf)
   const setWhatIf = useStore((s) => s.setWhatIf)
   const whatIfShift = whatIf.shiftDeg
@@ -549,7 +551,15 @@ export function RaceScreen() {
           </p>
         )}
 
-        <h2>Marks</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <h2 style={{ flex: 1 }}>Marks</h2>
+          <button className="btn btn--sm btn--ghost" onClick={() => undoMarks()} disabled={!canUndo} aria-label="Undo marks" title="Undo the last change to the marks (Ctrl-Z)">
+            ↶ UNDO
+          </button>
+          <button className="btn btn--sm btn--ghost" onClick={() => redoMarks()} disabled={!canRedo} aria-label="Redo marks" title="Redo (Ctrl-Y)">
+            ↷ REDO
+          </button>
+        </div>
         {marks.length === 0 && (
           <p className="note">
             No marks yet. Sail to a mark and press <strong>Drop mark</strong>, or
@@ -568,6 +578,7 @@ export function RaceScreen() {
           >
             <label style={{ color: i === activeMarkIndex ? 'var(--accent)' : undefined }}>
               {i + 1}. {m.name}
+              {m.locked && <span aria-label="locked"> 🔒</span>}
             </label>
             <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>
               {state
