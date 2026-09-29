@@ -424,6 +424,29 @@ describe('StartCanvas', () => {
     expect(r2).toBeGreaterThan(0)
   })
 
+  it('draws a turn circle either side of the bow, the same size', () => {
+    const state = stateOf()
+    render(
+      <StartCanvas line={LINE} state={state} wind={WIND} numbers={numbersFor(LINE, state, WIND)}
+        boat={BOAT} track={[]} secondsSinceGun={null} />,
+    )
+    const i = ctx.styles.indexOf('rgba(255,77,77,0.35)')
+    expect(i).toBeGreaterThanOrEqual(0)
+    expect(ctx.styles[i + 1]).toBe('rgba(53,208,127,0.35)')
+    const arcs = ctx.calls.filter((c) => c.op === 'arc').map((c) => c.args)
+    const pair = arcs.findIndex((a, k) => arcs[k + 1] && a[2] === arcs[k + 1][2] && a[0] !== arcs[k + 1][0])
+    expect(pair).toBeGreaterThanOrEqual(0)
+  })
+
+  it('draws no turn circles for a boat with no way on', () => {
+    const state = stateOf({ sog: 0, bsp: 0 })
+    render(
+      <StartCanvas line={LINE} state={state} wind={WIND} numbers={numbersFor(LINE, state, WIND)}
+        boat={BOAT} track={[]} secondsSinceGun={null} />,
+    )
+    expect(ctx.styles).not.toContain('rgba(255,77,77,0.35)')
+  })
+
   it('draws no heading line without a compass: COG alone is not a heading', () => {
     const state = stateOf({ heading: null })
     render(

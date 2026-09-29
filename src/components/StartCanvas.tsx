@@ -12,6 +12,7 @@ import { useEffect, useRef } from 'react'
 import { LocalFrame, fromPolar, nmToM, mToNm } from '@/lib/geo'
 import { courseFor, fmtDeg, wrap360 } from '@/lib/angles'
 import { fmtClock } from '@/components/Tile'
+import { turnRadiusM } from '@/lib/startline'
 import type {
   Boat,
   BoatState,
@@ -479,6 +480,23 @@ function render(
       for (const n of [2, 4, 6]) {
         ctx.beginPath()
         ctx.arc(s.px, s.py, n * blPx, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+    }
+
+    // Turn circles either side of the bow at the present speed: the tightest
+    // path onto the line, a layline or away from a boat to leeward.
+    const speed = state.bsp ?? state.sog
+    const radiusM = known && !declutter && speed >= 0.5 ? turnRadiusM(speed) : null
+    if (radiusM != null) {
+      const rNm = mToNm(radiusM)
+      ctx.lineWidth = 1
+      for (const [side, colour] of [[-90, 'rgba(255,77,77,0.35)'], [90, 'rgba(53,208,127,0.35)']] as const) {
+        const c = rot(fromPolar(wrap360(hdg + side), rNm))
+        const cp = S({ x: boatXY.x + c.x, y: boatXY.y + c.y })
+        ctx.strokeStyle = colour
+        ctx.beginPath()
+        ctx.arc(cp.px, cp.py, rNm * scale, 0, Math.PI * 2)
         ctx.stroke()
       }
     }

@@ -152,6 +152,16 @@ export const DEFAULT_TURN_MODEL: TurnModel = {
   },
 }
 
+/**
+ * The radius the boat turns on at `bsp`, from the rate of turn: speed over
+ * angular rate. About 20 m at 6 kn with the default model. Null when stopped.
+ */
+export function turnRadiusM(bsp: Knots, model: TurnModel = DEFAULT_TURN_MODEL): number | null {
+  if (!(bsp > 0)) return null
+  const omega = model.rotDegPerSec(bsp) * DEG
+  return omega > 0 ? (bsp * 1852) / 3600 / omega : null
+}
+
 /** Fraction of speed lost per degree of turn, before any manoeuvre penalty. */
 const TURN_LOSS_PER_DEG = 0.0015
 /** Extra fractional loss for passing the bow (tack) or the stern (gybe) through the wind. */

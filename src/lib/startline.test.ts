@@ -19,6 +19,7 @@ import {
   pingPosition,
   positionAtGun,
   spareTimeS,
+  turnRadiusM,
   timeToPoint,
 } from './startline'
 import type {
@@ -184,6 +185,20 @@ describe('line geometry and bias', () => {
     expect(short.biasLengthM).toBeCloseTo(8.7156, 3)
     expect(long.biasLengthM).toBeCloseTo(87.156, 2)
     expect(short.biasAngleDeg).toBeCloseTo(long.biasAngleDeg!, 6)
+  })
+})
+
+describe('the turning radius', () => {
+  it('is speed over the rate of turn', () => {
+    // 6 kn is 3.087 m/s; the default model turns at 9.06°/s there: 19.5 m.
+    expect(turnRadiusM(6)).toBeCloseTo((6 * 1852) / 3600 / (DEFAULT_TURN_MODEL.rotDegPerSec(6) * (Math.PI / 180)), 9)
+    expect(turnRadiusM(6)).toBeGreaterThan(19)
+    expect(turnRadiusM(6)).toBeLessThan(20)
+    expect(turnRadiusM(0)).toBeNull()
+  })
+
+  it('grows with speed, since the rate of turn saturates', () => {
+    expect(turnRadiusM(8)!).toBeGreaterThan(turnRadiusM(4)!)
   })
 })
 
