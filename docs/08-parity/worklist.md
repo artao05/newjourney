@@ -299,6 +299,7 @@ leaves something tested and working.
 
 ## M12 — AIS, boats and race tracking
 
+      `blocked: D8`: may I download NOAA's WMM-2025 coefficient file (WMM.COF, public domain)?
 - [ ] **12.1 AIS decoder:** AIVDM/AIVDO types 1–5, 9, 14, 18, 19, 21, 24 and 27, with
       multipart messages. *Accept:* fixture tests.
 - [ ] **12.2 AIS targets:** list, chart symbols, CPA/TCPA, filters, alarms (the CPA alarm from 8.2), and
