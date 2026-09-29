@@ -8,6 +8,7 @@ import type { EncCell } from '@/lib/charts/s57'
 import type { DisplayCategory } from '@/lib/charts/s52'
 import { cellStore, groupCellFiles, mergeCell, type StoredCell } from '@/lib/charts/library'
 import { openEncCell } from '@/lib/charts/s57Client'
+import { openRasterChart, type OpenedRaster } from '@/lib/charts/bsbOpen'
 
 export interface EncDisplay {
   category: DisplayCategory
@@ -17,8 +18,26 @@ export interface EncDisplay {
   night: boolean
 }
 
+/** A raster chart (BSB/KAP) on the Route chart: its picture as an image URL and where its corners go. */
+export interface RasterChart {
+  id: string
+  name: string
+  number: string
+  scale: number
+  url: string
+  corners: OpenedRaster['corners']
+  opacity: number
+  on: boolean
+  warnings: string[]
+}
+
 interface ChartsState {
   cells: EncCell[]
+  /** Raster charts opened this session (not kept yet). */
+  rasters: RasterChart[]
+  addRaster(r: RasterChart): void
+  updateRaster(id: string, patch: Partial<Pick<RasterChart, 'on' | 'opacity'>>): void
+  removeRaster(id: string): void
   safetyDepthM: number
   /** S-52 starts on Standard; soundings matter inshore, so this starts on All. */
   display: EncDisplay
@@ -37,6 +56,15 @@ export const cellKey = (name: string) => name.replace(/\.\d{3}$/, '').toUpperCas
 
 export const useCharts = create<ChartsState>()((set) => ({
   cells: [],
+  rasters: [],
+  addRaster: (r) => set((s) => ({ rasters: [...s.rasters, r] })),
+  updateRaster: (id, patch) => set((s) => ({ rasters: s.rasters.map((r) => (r.id === id ? { ...r, ...patch } : r)) })),
+  removeRaster: (id) =>
+    set((s) => {
+      const gone = s.rasters.find((r) => r.id === id)
+      if (gone) URL.revokeObjectURL(gone.url)
+      return { rasters: s.rasters.filter((r) => r.id !== id) }
+    }),
   safetyDepthM: 3,
   display: DEFAULT_ENC_DISPLAY,
   // A cell opened again (same name) replaces the one held.
@@ -129,4 +157,32 @@ export function restoreCharts(): Promise<void> {
 /** For tests: forget that the cells were restored. */
 export function resetChartRestore() {
   restoring = null
+}
+
+let rasterSeq = 0
+
+/** Open a BSB/KAP raster chart and put it on the Route chart, under the ENC cells. */
+export async function openRasterFile(name: string, bytes: Uint8Array, palette = 'RGB'): Promise<RasterChart> {
+  const r = await openRasterChart(bytes.slice().buffer, palette)
+  const canvas = document.createElement('canvas')
+  canvas.width = r.width
+  canvas.height = r.height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('this browser cannot draw the chart picture')
+  ctx.putImageData(new ImageData(new Uint8ClampedArray(r.rgba), r.width, r.height), 0, 0)
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+  if (!blob) throw new Error('this browser cannot draw the chart picture')
+  const chart: RasterChart = {
+    id: `rnc-${Date.now().toString(36)}-${rasterSeq++}`,
+    name: r.name || name,
+    number: r.number,
+    scale: r.scale,
+    url: URL.createObjectURL(blob),
+    corners: r.corners,
+    opacity: 1,
+    on: true,
+    warnings: r.warnings,
+  }
+  useCharts.getState().addRaster(chart)
+  return chart
 }

@@ -357,7 +357,12 @@ leaves something tested and working.
       *Accept:* a browser check.
       *North, course and head up; free, follow, look ahead, and boat + mark (lib/chartView.ts).
       Checked in the browser with the simulator: bearing, framing and a reload.*
-- [ ] **13.8 BSB/KAP raster charts.** *Accept:* it decodes a NOAA RNC fixture.
+- [x] **13.8 BSB/KAP raster charts.** *Accept:* it decodes a NOAA RNC fixture.
+      *Decoder, georeferencing and display on the Route chart, on charts built to the layout
+      (lib/charts/fixtures/bsb.ts); the real-chart check is 13.8b.*
+- [ ] **13.8b Check the raster reader on a real BSB/KAP chart.** `blocked: D8`: NOAA has withdrawn
+      its RNCs; may I download one archived NOAA KAP (public domain), or will you drop any real
+      `.kap` into `src/lib/charts/fixtures/`?
 - [ ] **13.9 Georeferenced custom images, and GPS chart offset.** *Accept:* tests.
 - [ ] **13.10 Safe route check and safety-depth routing** against ENC. *Accept:*
       kernel tests.

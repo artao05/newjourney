@@ -20,7 +20,7 @@ import { sampleCube } from '@/lib/weather/cube'
 import { gribDrop, useWeatherFiles } from '@/state/weatherFiles'
 import { useAis } from '@/state/ais'
 import { useTracking } from '@/state/tracking'
-import { cellKey, installChartFiles, restoreCharts, uninstallAllCells, uninstallCell, useCharts } from '@/state/charts'
+import { cellKey, installChartFiles, openRasterFile, restoreCharts, uninstallAllCells, uninstallCell, useCharts } from '@/state/charts'
 import type { EncBounds } from '@/lib/charts/s57'
 import { fleetPositions, fleetRouteJobs, fleetRouteRow, rankFleet, type FleetRouteRow } from '@/lib/routing/fleetRoute'
 import { fleetPolar } from '@/lib/fleet'
@@ -618,6 +618,31 @@ export function RouteScreen() {
 
   // ENC cells the user opened, drawn against the safety depth.
   const encCells = useCharts((s) => s.cells)
+  const rasters = useCharts((s) => s.rasters)
+  // Raster charts: an image source each, under the ENC cells and everything else.
+  const shownRasters = useRef(new Map<string, number>())
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const shown = shownRasters.current
+    for (const [id] of [...shown]) {
+      if (rasters.some((r) => r.id === id && r.on)) continue
+      if (map.getLayer(id)) map.removeLayer(id)
+      if (map.getSource(id)) map.removeSource(id)
+      shown.delete(id)
+    }
+    for (const r of rasters) {
+      if (!r.on) continue
+      if (!shown.has(r.id)) {
+        map.addSource(r.id, { type: 'image', url: r.url, coordinates: r.corners })
+        map.addLayer({ id: r.id, type: 'raster', source: r.id, paint: { 'raster-opacity': r.opacity } }, 'enc-area')
+        shown.set(r.id, r.opacity)
+      } else if (shown.get(r.id) !== r.opacity) {
+        map.setPaintProperty(r.id, 'raster-opacity', r.opacity)
+        shown.set(r.id, r.opacity)
+      }
+    }
+  }, [ready, rasters])
   // Installed cells come back once a session.
   useEffect(() => {
     void restoreCharts()
@@ -2459,6 +2484,7 @@ export function sensitivityFC(route: RouteResult, bandMin = 10): FC {
 /** Open S-57 cells, see what each holds, and set the safety depth they are drawn against. */
 function EncSheet({ onClose, onShow }: { onClose: () => void; onShow: (b: EncBounds) => void }) {
   const cells = useCharts((s) => s.cells)
+  const rasters = useCharts((s) => s.rasters)
   const [busy, setBusy] = useState<string | null>(null)
   const install = async (input: HTMLInputElement) => {
     const files = [...(input.files ?? [])]
@@ -2492,6 +2518,30 @@ function EncSheet({ onClose, onShow }: { onClose: () => void; onShow: (b: EncBou
         <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
           OPEN FOLDER
           <input type="file" multiple aria-label="Chart folder to open" style={{ display: 'none' }} {...{ webkitdirectory: '' }} onChange={(e) => void install(e.target)} />
+        </label>
+        <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+          OPEN RASTER
+          <input
+            type="file"
+            multiple
+            accept=".kap,.KAP"
+            aria-label="Raster charts to open"
+            style={{ display: 'none' }}
+            onChange={async (e) => {
+              const files = [...(e.target.files ?? [])]
+              e.target.value = ''
+              setError(null)
+              for (const f of files) {
+                setBusy(`Opening ${f.name}…`)
+                try {
+                  await openRasterFile(f.name, new Uint8Array(await f.arrayBuffer()), display.night ? 'NGT' : 'RGB')
+                } catch (err) {
+                  setError(`${f.name}: ${err instanceof Error ? err.message : String(err)}`)
+                }
+              }
+              setBusy(null)
+            }}
+          />
         </label>
         {cells.length > 0 && (
           <button className="btn btn--sm btn--ghost" onClick={() => void uninstallAllCells()}>
@@ -2583,6 +2633,21 @@ function EncSheet({ onClose, onShow }: { onClose: () => void; onShow: (b: EncBou
           </tbody>
         </table>
       )}
+      {rasters.map((r) => (
+        <div key={r.id} className="note" aria-label={`Raster ${r.name}`} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label>
+            <input type="checkbox" checked={r.on} onChange={(e) => useCharts.getState().updateRaster(r.id, { on: e.target.checked })} /> <b>{r.name}</b>
+          </label>
+          <span>
+            {r.number && `${r.number} · `}
+            {r.scale ? `1:${r.scale.toLocaleString('en-US')}` : ''}
+            {r.warnings.length > 0 && ` · ⚠ ${r.warnings.join('; ')}`}
+          </span>
+          <button className="btn btn--sm btn--ghost" onClick={() => useCharts.getState().removeRaster(r.id)} aria-label={`Remove ${r.name}`}>
+            ✕
+          </button>
+        </div>
+      ))}
       <p className="note">Open base cells (.000) with their updates (.001 on), a folder of them, or NOAA's zipped cells. They stay installed; open a cell's new updates to bring it up to date.</p>
       <button className="btn btn--sm" onClick={onClose}>
         Done
