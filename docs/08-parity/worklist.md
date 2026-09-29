@@ -324,10 +324,15 @@ leaves something tested and working.
       Ahead-of, and a leaderboard. *Accept:* tests.
 - [ ] **12.7 Wind shadow channels** (from 5.10): Shadow and Shadow opposite gybe, from
       the tracked or AIS boats and the wind. *Accept:* geometry tests.
+      `blocked: D7`: the catalogue has Shadow and Shadow opposite gybe in degrees, but not what
+      they measure (a direction our dirty air goes, or where another boat's lies?).
 
 ## M13 — Charts
 
-- [ ] **13.1 ISO 8211 reader.** *Accept:* it parses a NOAA ENC cell fixture.
+- [x] **13.1 ISO 8211 reader.** *Accept:* it parses a NOAA ENC cell fixture. *Tested on records built to
+      the ISO 8211 layout with S-57-shaped fields; a real cell is 13.1b.*
+- [ ] **13.1b Check the reader on a real NOAA ENC cell.** `blocked: D8`: may I download one small
+      public-domain cell for the venue (US5ME11M or similar, a few hundred KB) as a fixture?
 - [ ] **13.2 S-57 decoder** to features in a worker. *Accept:* feature counts match
       GDAL's on the same cell.
 - [ ] **13.3 S-52-style display:** depth areas, contours, soundings, land, lights,
