@@ -262,8 +262,12 @@ leaves something tested and working.
       modes, and a line width. *Accept:* tests and a browser check.
 - [x] **10.7 Meteogram** at the boat or any point, and a time step setting. *Accept:*
       tests.
-- [ ] **10.8 Observations:** NDBC, METAR and NOS PORTS on the chart, with history.
-      *Accept:* parser tests.
+- [x] **10.8a Observation parsers:** NDBC realtime2 text, raw METARs and NOS CO-OPS wind and
+      pressure JSON, in knots, hPa and °C, null for anything not reported. *Accept:* parser
+      tests. *(src/lib/weather/observations.ts)*
+- [ ] **10.8b Observations on the chart, with history:** the stations near the venue drawn
+      with their latest wind, and a station's recent reports against the forecast there.
+      *Accept:* tests and a browser check.
 - [ ] **10.9 Radar, satellite and weather-chart overlays.** *Accept:* a browser check.
 - [ ] **10.10 Ensemble display:** members, and mean ± SD. *Accept:* tests.
 - [ ] **10.11 A GRIB request builder:** area on the chart, model, parameters and
