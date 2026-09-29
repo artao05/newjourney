@@ -221,6 +221,20 @@ describe('speed to the ends, targets and the simple times', () => {
     expect(r.speedOnStarboardKn).toBeCloseTo(kn, 3)
   })
 
+  it('reports the reaching approach on the present heading, counted or not', () => {
+    // Heading 045 from 50 m below the middle: 70.7 m to the line; 60 s to go.
+    const state = stateOf({ heading: 45, cog: 45 })
+    const r = computeStart({
+      line: lineOf(100), state, wind: windOf(0), boat: boatOf(), lattice: fakeLattice(), now: NOW,
+      approaches: { ends: true, gps: true, reach: false, port: true, starboard: true },
+    })
+    expect(r.reachDistanceM).toBeCloseTo(Math.hypot(50, 50), 1)
+    expect(r.reachSpeedKn).toBeCloseTo((Math.hypot(50, 50) / 1852) * 60, 2)
+    expect(r.reachTimeS).toBeGreaterThan(0)
+    const away = computeStart({ line: lineOf(100), state: stateOf({ heading: 180, cog: 180 }), wind: windOf(0), boat: boatOf(), now: NOW })
+    expect(away.reachDistanceM).toBeNull()
+  })
+
   it('reads the upwind targets from the start polar', () => {
     const r = computeStart({ line: lineOf(100), state: stateOf(), wind: windOf(0), boat: boatOf(), lattice: fakeLattice(), now: NOW })
     expect(r.targetBsp).toBe(6)

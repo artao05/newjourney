@@ -460,6 +460,9 @@ function emptyStart(): StartNumbers {
     speedToStarboardEndKn: null,
     speedOnPortKn: null,
     speedOnStarboardKn: null,
+    reachDistanceM: null,
+    reachTimeS: null,
+    reachSpeedKn: null,
     targetBsp: null,
     targetTwa: null,
     ocs: false,
@@ -606,12 +609,17 @@ export function computeStart(i: StartInputs): StartNumbers {
   }
 
   // Reaching: hold the present heading at start-polar speed until the line.
-  if (approaches.reach) {
+  // Its numbers are reported whether or not it counts toward time to line.
+  {
     const hdg = state.heading ?? state.cog
     const cross = crossingPoint(bowXY, hdg, pxy, lineDir, frame)
     if (cross) {
       const t = timeToPointOverGround(bow, cross, ctx)
-      if (t !== null) candidates.push(t)
+      const dNm = distance(bow, cross)
+      out.reachDistanceM = finite(nmToM(dNm))
+      out.reachTimeS = t
+      if (out.timeToGunS !== null && out.timeToGunS > 0) out.reachSpeedKn = finite(dNm / (out.timeToGunS / 3600))
+      if (approaches.reach && t !== null) candidates.push(t)
     }
   }
 

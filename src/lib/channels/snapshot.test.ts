@@ -25,9 +25,10 @@ const BOAT: Boat = {
 
 /**
  * A simulated boat mid-beat, two marks upwind, a pinged line and a gun to come.
- * `twa` picks the tack: +45 is starboard, -45 port.
+ * `twa` picks the tack: +45 is starboard, -45 port. `lineAhead` puts the line
+ * upwind of her instead of behind.
  */
-function simulated(twa = 45): SnapshotInputs {
+function simulated(twa = 45, lineAhead = false): SnapshotInputs {
   const lattice = buildLattice(findPolar('j70')!.polar)
   const start = { lat: 43.65, lon: -70.2 }
   const current = { set: 45, drift: 0.6, source: 'sim' }
@@ -36,7 +37,9 @@ function simulated(twa = 45): SnapshotInputs {
   sim.setAutopilot({ mode: 'twa', twa })
   let state = sim.step(1)
   for (let k = 0; k < 300; k++) state = sim.step(1)
-  const line = makeStartLine(destination(start, 20, 0.05), 200)
+  // Behind the boat by default, which has beaten away from it; ahead of her when
+  // asked, for the approaches that need the line in front: the reach.
+  const line = makeStartLine(destination(lineAhead ? state.position : start, lineAhead ? 200 : 20, 0.05), 200)
   const course: Course = {
     id: 'c',
     name: 'c',
@@ -80,7 +83,11 @@ describe('the live channel snapshot', () => {
         gate: gateNumbers({ from: i.state!.position, ...gateAround(w, 200, 80), wind: i.wind, lattice: null }),
       }
     }
-    const tacks = [buildSnapshot(withGate(simulated(45))), buildSnapshot(withGate(simulated(-45)))]
+    const tacks = [
+      buildSnapshot(withGate(simulated(45))),
+      buildSnapshot(withGate(simulated(-45))),
+      buildSnapshot(withGate(simulated(45, true))),
+    ]
     const missing = CHANNELS.filter((c) => c.today && tacks.every((snap) => snap[c.id] == null)).map(
       (c) => c.id,
     )

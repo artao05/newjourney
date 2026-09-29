@@ -307,6 +307,13 @@ export interface StartNumbers {
   /** The speed that reaches the line at the gun on each tack, close-hauled (or running). */
   speedOnPortKn: Knots | null
   speedOnStarboardKn: Knots | null
+  /**
+   * The reaching approach, holding the present heading to the line: how far,
+   * how long at start-polar speed, and the speed that gets there at the gun.
+   */
+  reachDistanceM: Metres | null
+  reachTimeS: Seconds | null
+  reachSpeedKn: Knots | null
   /** Upwind targets from the start polar at the present wind. */
   targetBsp: Knots | null
   targetTwa: Degrees | null

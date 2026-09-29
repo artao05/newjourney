@@ -138,8 +138,9 @@ leaves something tested and working.
 - [x] **5.7a Gun distance and stern below the line** (from 5.7): both start channels, from the bow dead-reckoned to the gun and the stern one hull length back. *Done.*
 - [x] **5.7b Speed to the ends, start targets and the simple times** (from 5.7). *Done.*
 - [x] **5.7c Speed on each tack** (from 5.7), bearing away when over the line early. *Done.*
-- [ ] **5.7 The remaining start channels:** time to layline P and S,
-      the pinch times, the reach channels, boat to pin, and gun speed as % of target.
+- [x] **5.7d The reach channels** (from 5.7): distance, time and speed to the line on the present heading. *Done.*
+- [ ] **5.7 The remaining start channels:** time to layline P and S, the pinch times,
+      boat to pin, and gun speed as % of target.
       *Accept:* start-math tests.
 - [x] **5.8 Handicap calculator:** TCF time-on-time and time-on-distance, with
       elapsed, corrected and owed times. *Accept:* tests against hand-worked
