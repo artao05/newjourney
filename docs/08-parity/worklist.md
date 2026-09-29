@@ -258,7 +258,7 @@ leaves something tested and working.
       tests and a browser check.
 - [x] **10.6b Contours** with a step and a bold level: isobars, isotachs, rain. *Accept:*
       tests and a browser check.
-- [ ] **10.6c A display mode per parameter:** Beaufort, spectrum, greyscale and single-colour
+- [x] **10.6c A display mode per parameter:** Beaufort, spectrum, greyscale and single-colour
       modes, and a line width. *Accept:* tests and a browser check.
 - [ ] **10.7 Meteogram** at the boat or any point, and a time step setting. *Accept:*
       tests.

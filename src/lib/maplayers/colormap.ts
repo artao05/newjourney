@@ -587,6 +587,54 @@ export function layersFor(params: readonly string[] | null | undefined, more: bo
   return [...LAYER_ORDER, ...extra]
 }
 
+/** How a layer is coloured, as Expedition offers it per parameter. */
+export type ColourMode = 'default' | 'beaufort' | 'spectrum' | 'greyscale' | 'single'
+
+export const COLOUR_MODES: Array<{ id: ColourMode; label: string }> = [
+  { id: 'default', label: 'Default colours' },
+  { id: 'beaufort', label: 'Beaufort' },
+  { id: 'spectrum', label: 'Blue to red' },
+  { id: 'greyscale', label: 'Greyscale' },
+  { id: 'single', label: 'Single colour' },
+]
+
+/** The modes a layer can take: Beaufort only for a wind speed. */
+export function modesFor(layer: LayerSpec): ColourMode[] {
+  const wind = layer.unit === 'kn' && (layer.id === 'wind' || layer.id === 'gust')
+  return COLOUR_MODES.map((m) => m.id).filter((m) => m !== 'beaufort' || wind)
+}
+
+/** The ramp for a layer in a colour mode, spread over the layer's own domain. */
+export function rampForMode(layer: LayerSpec, mode: ColourMode = 'default', colour = '#ffd54f'): ColorRamp {
+  const [lo, hi] = layer.domain
+  const at = (f: number) => lo + (hi - lo) * f
+  if (!modesFor(layer).includes(mode)) return rampFor(layer)
+  switch (mode) {
+    case 'beaufort':
+      return BEAUFORT
+    case 'spectrum':
+      return defineRamp('spectrum', layer.label, layer.unit, [
+        [at(0), '#2b58c7'],
+        [at(0.25), '#27b5d9'],
+        [at(0.5), '#4cc36a'],
+        [at(0.75), '#f2d34a'],
+        [at(1), '#d7372e'],
+      ])
+    case 'greyscale':
+      return defineRamp('greyscale', layer.label, layer.unit, [
+        [at(0), '#1a1a1a'],
+        [at(1), '#f5f5f5'],
+      ])
+    case 'single':
+      return defineRamp('single', layer.label, layer.unit, [
+        [at(0), colour],
+        [at(1), colour],
+      ])
+    default:
+      return rampFor(layer)
+  }
+}
+
 /** A layer by id, standard or extra. */
 export function layerById(id: string): LayerSpec | undefined {
   return LAYERS[id] ?? EXTRA_LAYERS[id]

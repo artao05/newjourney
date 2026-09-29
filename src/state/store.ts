@@ -5,6 +5,7 @@
  */
 
 import { create } from 'zustand'
+import type { ColourMode } from '@/lib/maplayers/colormap'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type {
   Boat,
@@ -186,6 +187,8 @@ export interface ContourSetting {
   on: boolean
   step: number
   bold: number | null
+  /** Line width in pixels; the bold level is drawn at twice this. */
+  width?: number
 }
 export type ContourKind = 'isobar' | 'isotach' | 'rain'
 
@@ -198,6 +201,8 @@ export const DEFAULT_CONTOURS: Record<ContourKind, ContourSetting> = {
 export interface Settings {
   /** Contour lines on the Weather chart. */
   contours: Record<ContourKind, ContourSetting>
+  /** How each Weather layer is coloured, by layer id. Absent is the default ramp. */
+  displayModes: Record<string, { mode: ColourMode; colour: string }>
   /** Display units for lengths (depth, draft, line). Speeds stay in knots. */
   units: 'metric' | 'imperial'
   northRef: 'true' | 'magnetic'
@@ -471,6 +476,7 @@ export const MAX_TRACK_POINTS = 20_000
 
 export const DEFAULT_SETTINGS: Settings = {
   contours: DEFAULT_CONTOURS,
+  displayModes: {},
   units: 'metric',
   northRef: 'true',
   simulate: false,

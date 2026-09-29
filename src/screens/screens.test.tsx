@@ -893,7 +893,7 @@ describe('the Weather screen states its provenance', () => {
     try {
       render(<WeatherScreen />)
       expect(screen.getByRole('button', { name: 'GRIB files (1)' })).toBeTruthy()
-      expect(document.querySelector('select')!.disabled).toBe(true)
+      expect((screen.getByLabelText('Forecast model') as HTMLSelectElement).disabled).toBe(true)
       expect(document.body.textContent).toContain('saildocs.grb2')
       fireEvent.click(screen.getByRole('button', { name: 'GRIB files (1)' }))
       expect(screen.getByRole('dialog', { name: 'Weather files' }).textContent).toContain('UGRD')
@@ -969,6 +969,23 @@ describe('the Weather screen states its provenance', () => {
         useStore.getState().updateSettings({ contours: DEFAULT_CONTOURS })
       })
     }
+  })
+
+  it('colours each layer its own way, kept per layer', () => {
+    render(<WeatherScreen />)
+    const pick = () => screen.getByLabelText('Colours') as HTMLSelectElement
+    expect([...pick().options].map((o) => o.value)).toEqual(['default', 'beaufort', 'spectrum', 'greyscale', 'single'])
+    fireEvent.change(pick(), { target: { value: 'beaufort' } })
+    expect(useStore.getState().settings.displayModes.wind).toMatchObject({ mode: 'beaufort' })
+    // Current has no Beaufort, and its own mode.
+    fireEvent.click(screen.getByRole('button', { name: 'Current' }))
+    expect([...pick().options].map((o) => o.value)).not.toContain('beaufort')
+    expect(pick().value).toBe('default')
+    fireEvent.change(pick(), { target: { value: 'single' } })
+    fireEvent.change(screen.getByLabelText('Layer colour'), { target: { value: '#00ff88' } })
+    expect(useStore.getState().settings.displayModes.current).toEqual({ mode: 'single', colour: '#00ff88' })
+    expect(useStore.getState().settings.displayModes.wind.mode).toBe('beaufort')
+    act(() => useStore.getState().updateSettings({ displayModes: {} }))
   })
 
   it('shows no legend at all rather than an unattributed one', () => {

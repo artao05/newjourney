@@ -17,6 +17,8 @@ import {
   LAYER_ORDER,
   layerById,
   layersFor,
+  modesFor,
+  rampForMode,
   RAMPS,
   beaufortForce,
   makeSampler,
@@ -392,5 +394,28 @@ describe('the extra layers, behind More', () => {
       expect(layerById(id)).toBe(l)
     }
     expect(layerById('wind')).toBe(LAYERS.wind)
+  })
+})
+
+describe('a colour mode per layer', () => {
+  it('offers Beaufort for wind speeds only', () => {
+    expect(modesFor(LAYERS.wind)).toContain('beaufort')
+    expect(modesFor(EXTRA_LAYERS.gust)).toContain('beaufort')
+    expect(modesFor(EXTRA_LAYERS.pressure)).not.toContain('beaufort')
+    expect(modesFor(LAYERS.current)).toEqual(['default', 'spectrum', 'greyscale', 'single'])
+  })
+
+  it("spreads each mode over the layer's own domain", () => {
+    const p = EXTRA_LAYERS.pressure
+    const spec = rampForMode(p, 'spectrum')
+    expect(spec.stops.map((s) => s.value)).toEqual([980, 995, 1010, 1025, 1040])
+    expect(spec.stops[0].rgb).toEqual([0x2b, 0x58, 0xc7])
+    expect(rampForMode(p, 'greyscale').stops.map((s) => s.rgb)).toEqual([[26, 26, 26], [245, 245, 245]])
+    const one = rampForMode(p, 'single', '#ff0000')
+    expect(one.stops.every((s) => s.rgb.join() === '255,0,0')).toBe(true)
+    expect(rampForMode(LAYERS.wind, 'beaufort')).toBe(RAMPS.beaufort)
+    // A mode the layer does not take falls back to its own ramp.
+    expect(rampForMode(p, 'beaufort')).toBe(RAMPS.pressure)
+    expect(rampForMode(p)).toBe(RAMPS.pressure)
   })
 })

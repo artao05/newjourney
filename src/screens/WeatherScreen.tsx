@@ -42,8 +42,11 @@ import {
   LAYERS,
   layerById,
   layersFor,
-  rampFor,
+  COLOUR_MODES,
+  modesFor,
+  rampForMode,
   rampToLUT,
+  type ColourMode,
   rampToMapLibreExpression,
 } from '@/lib/maplayers/colormap'
 import {
@@ -149,7 +152,15 @@ function WeatherOverlay() {
   const available = useMemo(() => layersFor(cube?.params, moreLayers), [cube, moreLayers])
   // A layer whose parameter the forecast on the chart no longer has falls back to wind.
   const layer: LayerSpec = (available.includes(layerId) ? layerById(layerId) : undefined) ?? LAYERS.wind
-  const ramp = useMemo(() => rampFor(layer), [layer])
+  const displayModes = useStore((s) => s.settings.displayModes) ?? {}
+  const shown = displayModes[layer.id]
+  const ramp = useMemo(() => rampForMode(layer, shown?.mode, shown?.colour), [layer, shown])
+  const windShown = displayModes.wind
+  const setDisplayMode = (patch: Partial<{ mode: ColourMode; colour: string }>) => {
+    const cur = useStore.getState().settings.displayModes ?? {}
+    const was = cur[layer.id] ?? { mode: 'default' as ColourMode, colour: '#ffd54f' }
+    updateSettings({ displayModes: { ...cur, [layer.id]: { ...was, ...patch } } })
+  }
   const isVector = layer.kind === 'vector'
   const isDepth = layer.id === 'depth'
   /** Wind streamlines can sit on top of any scalar field, which is the useful combo. */
@@ -181,7 +192,7 @@ function WeatherOverlay() {
         source: 'wx-contours',
         paint: {
           'line-color': ['match', ['get', 'field'], 'isotach', '#9fe3c4', 'rain', '#7fd4ff', '#f2f2f2'] as never,
-          'line-width': ['case', ['get', 'bold'], 2.6, 1.1] as never,
+          'line-width': ['case', ['get', 'bold'], ['*', ['get', 'width'], 2], ['get', 'width']] as never,
           'line-opacity': 0.85,
         },
       },
@@ -398,7 +409,12 @@ function WeatherOverlay() {
     const features = cube
       ? contourChoices
           .filter((c) => contourSettings[c.id]?.on)
-          .flatMap((c) => contourFeatures(cube, c.field, t, contourSettings[c.id], c.id, c.decimals))
+          .flatMap((c) =>
+            contourFeatures(cube, c.field, t, contourSettings[c.id], c.id, c.decimals).map((f) => ({
+              ...f,
+              properties: { ...f.properties, width: contourSettings[c.id].width ?? 1.2 },
+            })),
+          )
       : []
     src.setData({ type: 'FeatureCollection', features } as GeoJSON.FeatureCollection)
   }, [map, ready, cube, t, contourChoices, contourSettings])
@@ -440,13 +456,13 @@ function WeatherOverlay() {
         opacity: isVector ? 0.9 : 0.55,
         count: isVector ? 9000 : 5000,
       })
-      particles.setColorRamp(particleRampLUT(speedLayer), speedLayer.domain[1])
+      particles.setColorRamp(particleRampLUT(speedLayer, speedLayer.id === layer.id ? shown : windShown), speedLayer.domain[1])
       particles.setData(cube, t)
       particles.setVisible(true)
     } else {
       particles.setVisible(false)
     }
-  }, [ready, particles, cube, t, layer, isVector, showParticles, particleParams])
+  }, [ready, particles, cube, t, layer, isVector, showParticles, particleParams, shown, windShown])
 
   /*
    * Station current prediction, fetched only when the Current layer is open.
@@ -717,6 +733,29 @@ function WeatherOverlay() {
           )}
           <select
             className="chip"
+            aria-label="Colours"
+            value={shown?.mode ?? 'default'}
+            onChange={(e) => setDisplayMode({ mode: e.target.value as ColourMode })}
+            style={{ maxWidth: 150 }}
+          >
+            {COLOUR_MODES.filter((m) => modesFor(layer).includes(m.id)).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          {shown?.mode === 'single' && (
+            <input
+              type="color"
+              aria-label="Layer colour"
+              value={shown.colour}
+              onChange={(e) => setDisplayMode({ colour: e.target.value })}
+              style={{ width: 34, height: 28, padding: 0, border: 'none', background: 'none' }}
+            />
+          )}
+          <select
+            className="chip"
+            aria-label="Forecast model"
             value={model}
             onChange={(e) => setModel(e.target.value as ModelId)}
             style={{ maxWidth: 190 }}
@@ -945,6 +984,24 @@ function WeatherOverlay() {
                   />
                 </div>
                 <div className="field">
+                  <label htmlFor={`ct-${c.id}-width`}>
+                    Line width <span className="note">px</span>
+                  </label>
+                  <input
+                    id={`ct-${c.id}-width`}
+                    type="number"
+                    min="0.5"
+                    max="6"
+                    step="0.5"
+                    inputMode="decimal"
+                    value={cs.width ?? 1.2}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value)
+                      if (v > 0) setContour(c.id, { width: Math.min(6, v) })
+                    }}
+                  />
+                </div>
+                <div className="field">
                   <label htmlFor={`ct-${c.id}-bold`}>
                     Bold at <span className="note">{c.unit}, blank for none</span>
                   </label>
@@ -1006,6 +1063,6 @@ function readVector(
  * LUT is exactly the right bytes — 256 * 4 == 16 * 16 * 4 — and needs no
  * rearranging, only reinterpreting.
  */
-function particleRampLUT(spec: LayerSpec): Uint8Array {
-  return rampToLUT(rampFor(spec), spec.domain, 256)
+function particleRampLUT(spec: LayerSpec, how?: { mode: ColourMode; colour: string }): Uint8Array {
+  return rampToLUT(rampForMode(spec, how?.mode, how?.colour), spec.domain, 256)
 }
