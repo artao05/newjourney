@@ -93,7 +93,7 @@ leaves something tested and working.
 - [x] **3.4 Range and bearing tools.** Measure between points, EBL/VRM from the boat,
       and a cursor readout with polar time to the cursor. *Accept:* geometry tests
       and a browser check.
-- [ ] **3.5 Race notes.** Points, lines and polygons with text, drawn on the chart.
+- [x] **3.5 Race notes.** Points, lines and polygons with text, drawn on the chart.
       *Accept:* store and screen tests.
 - [ ] **3.6 Race notes steer the router.** Exclusion zones, and polygons that slow the
       boat by a percentage. *Accept:* analytic kernel tests for both.

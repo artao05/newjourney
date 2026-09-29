@@ -52,6 +52,26 @@ export interface LibraryMark {
   folder: string
 }
 
+/**
+ * A race note: text pinned to the chart as a point, a line or an area, as
+ * Expedition's race notes are. An area can also be something the router must
+ * avoid (a traffic scheme, a no-go zone in the sailing instructions), or water
+ * where the boat is slower by a percentage (weed, a known foul tide).
+ */
+export interface RaceNote {
+  id: string
+  kind: 'point' | 'line' | 'area'
+  points: LatLon[]
+  text: string
+  /** Areas only: routes must not enter it. */
+  avoid: boolean
+  /** Areas only: boat speed inside it, as a percentage of the polar. Null = unchanged. */
+  speedPct: number | null
+}
+
+/** The fewest taps each kind of note needs. */
+export const NOTE_MIN_POINTS: Record<RaceNote['kind'], number> = { point: 1, line: 2, area: 3 }
+
 /** A course kept by name, to sail again: Expedition's route database. */
 export interface SavedRoute {
   id: string
@@ -182,6 +202,12 @@ interface AppState {
    */
   routeStart: LatLon | null
   setRouteStart(at: LatLon | null): void
+
+  raceNotes: RaceNote[]
+  /** Adds a note and returns its id, so the caller can open it for editing. */
+  addRaceNote(note: Omit<RaceNote, 'id'>): string
+  updateRaceNote(id: string, patch: Partial<Omit<RaceNote, 'id'>>): void
+  removeRaceNote(id: string): void
 
   routes: SavedRoute[]
   saveRoute(name: string): void
@@ -496,6 +522,24 @@ export const useStore = create<AppState>()(
       },
       clearTrack: () => set({ track: [] }),
 
+      raceNotes: [],
+      addRaceNote: (note) => {
+        const id = `note-${Date.now()}-${++markSeq}`
+        // A note that can change a route drops the one computed without it.
+        const steers = note.kind === 'area' && (note.avoid || note.speedPct != null)
+        set({ ...(steers ? COURSE_CHANGED : {}), raceNotes: [...get().raceNotes, { ...note, id }] })
+        return id
+      },
+      updateRaceNote: (id, patch) => {
+        const steers = 'avoid' in patch || 'speedPct' in patch || 'points' in patch
+        set({
+          ...(steers ? COURSE_CHANGED : {}),
+          raceNotes: get().raceNotes.map((n) => (n.id === id ? { ...n, ...patch } : n)),
+        })
+      },
+      removeRaceNote: (id) =>
+        set({ ...COURSE_CHANGED, raceNotes: get().raceNotes.filter((n) => n.id !== id) }),
+
       routes: [],
       saveRoute: (name) =>
         set({
@@ -630,6 +674,7 @@ export const useStore = create<AppState>()(
         numberBoxes: s.numberBoxes,
         library: s.library,
         routes: s.routes,
+        raceNotes: s.raceNotes,
         navPanel: s.navPanel,
         navChart: s.navChart,
         activeMarkIndex: s.activeMarkIndex,

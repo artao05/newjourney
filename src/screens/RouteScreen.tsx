@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { useStore } from '@/state/store'
+import { NOTE_MIN_POINTS, useStore, type RaceNote } from '@/state/store'
 import { cubeNotes, fetchWindCube } from '@/lib/weather/openmeteo'
 import { sampleCube } from '@/lib/weather/cube'
 import { RoutingClient } from '@/lib/routing/client'
@@ -19,6 +19,7 @@ import { nonDefaultLabels, requestParts, windHeightFactor } from '@/lib/routing/
 import { courseLegs } from '@/lib/legs'
 import { buildLattice } from '@/lib/polar'
 import { fmtPosition } from '@/components/MarkSheet'
+import { RaceNoteSheet } from '@/components/RaceNotes'
 import { fmtLength } from '@/lib/units'
 import { RouteSettingsSheet } from '@/components/RouteSettingsSheet'
 import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tides/coops'
@@ -140,9 +141,13 @@ export function RouteScreen() {
    * Waiting for a tap on the chart: to become the planned start, or a new mark at
    * the end of the course.
    */
-  const [picking, setPicking] = useState<'start' | 'mark' | 'measure' | null>(null)
-  const pickingRef = useRef<'start' | 'mark' | 'measure' | null>(null)
+  const [picking, setPicking] = useState<'start' | 'mark' | 'measure' | 'note' | null>(null)
+  const pickingRef = useRef<'start' | 'mark' | 'measure' | 'note' | null>(null)
   pickingRef.current = picking
+  /** A race note being drawn: its kind, and the points tapped so far. */
+  const [draft, setDraft] = useState<{ kind: RaceNote['kind']; points: LatLon[] }>({ kind: 'area', points: [] })
+  const [editingNote, setEditingNote] = useState<string | null>(null)
+  const raceNotes = useStore((s) => s.raceNotes)
   /** Dividers: two tapped points, and the range and bearing between them. */
   const [measure, setMeasure] = useState<{ a: LatLon; b: LatLon | null } | null>(null)
   const measureRef = useRef(measure)
@@ -226,6 +231,10 @@ export function RouteScreen() {
       if (mode === 'measure') {
         const m = measureRef.current
         setMeasure(!m || m.b ? { a: at, b: null } : { a: m.a, b: at })
+        return
+      }
+      if (mode === 'note') {
+        setDraft((d) => ({ ...d, points: d.kind === 'point' ? [at] : [...d.points, at] }))
         return
       }
       const s = useStore.getState()
@@ -370,6 +379,36 @@ export function RouteScreen() {
       ],
     })
   }, [ready, measure])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setSource(map, 'notes', notesFC(raceNotes))
+  }, [ready, raceNotes])
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const n = draft.points.length
+    // Drawn as far as it has got: a point, then a line, then an area.
+    const kind: RaceNote['kind'] =
+      draft.kind === 'area' && n >= 3 ? 'area' : draft.kind !== 'point' && n >= 2 ? 'line' : 'point'
+    setSource(
+      map,
+      'draft',
+      picking === 'note' && n > 0
+        ? notesFC([{ id: 'draft', kind, points: draft.points, text: '', avoid: false, speedPct: null }])
+        : emptyFC(),
+    )
+  }, [ready, picking, draft])
+  const finishNote = () => {
+    if (draft.points.length < NOTE_MIN_POINTS[draft.kind]) return
+    const id = useStore
+      .getState()
+      .addRaceNote({ kind: draft.kind, points: draft.points, text: '', avoid: false, speedPct: null })
+    setDraft({ kind: draft.kind, points: [] })
+    setPicking(null)
+    setEditingNote(id)
+  }
 
   /** From the boat (or planned start) to the pointer: range, bearing, polar time. */
   const toPointer = pointer && origin ? courseLegs({
@@ -765,6 +804,44 @@ export function RouteScreen() {
               {toPointer?.timeS != null && ` · ${fmtDuration(toPointer.timeS)}`}
             </span>
           )}
+          {picking === 'note' ? (
+            <>
+              {(['area', 'line', 'point'] as const).map((k) => (
+                <button
+                  key={k}
+                  className={'chip' + (draft.kind === k ? ' chip--good' : '')}
+                  aria-pressed={draft.kind === k}
+                  onClick={() => setDraft({ kind: k, points: k === 'point' ? draft.points.slice(0, 1) : draft.points })}
+                >
+                  {k}
+                </button>
+              ))}
+              <button
+                className="chip chip--warn"
+                disabled={draft.points.length < NOTE_MIN_POINTS[draft.kind]}
+                onClick={finishNote}
+              >
+                {draft.points.length < NOTE_MIN_POINTS[draft.kind]
+                  ? 'tap ' + (NOTE_MIN_POINTS[draft.kind] - draft.points.length) + ' more'
+                  : 'finish (' + draft.points.length + ')'}
+              </button>
+              <button
+                className="chip"
+                onClick={() => {
+                  setPicking(null)
+                  setDraft({ kind: draft.kind, points: [] })
+                }}
+              >
+                cancel
+              </button>
+            </>
+          ) : (
+            !picking && (
+              <button className="chip" onClick={() => setPicking('note')} title="Draw a race note: a point, line or area">
+                + note
+              </button>
+            )
+          )}
           {picking === 'measure' ? (
             <button
               className="chip chip--warn"
@@ -945,6 +1022,9 @@ export function RouteScreen() {
       )}
 
       {showSettings && <RouteSettingsSheet onClose={() => setShowSettings(false)} />}
+      {editingNote && raceNotes.some((n) => n.id === editingNote) && (
+        <RaceNoteSheet note={raceNotes.find((n) => n.id === editingNote)!} onClose={() => setEditingNote(null)} />
+      )}
 
       {showDepart && sweep && (
         <DepartureSheet
@@ -1315,6 +1395,28 @@ const pointFC = (lon: number, lat: number): FC => ({
   features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lon, lat] } }],
 })
 
+/** Race notes as GeoJSON: an area is a closed polygon, a line a line, a point a point. */
+function notesFC(notes: RaceNote[]): FC {
+  return {
+    type: 'FeatureCollection',
+    features: notes.map((n) => {
+      const c = n.points.map((p) => [p.lon, p.lat] as [number, number])
+      const properties = {
+        text: n.text,
+        avoid: n.kind === 'area' && n.avoid,
+        slow: n.kind === 'area' && !n.avoid && n.speedPct != null,
+      }
+      if (n.kind === 'area' && c.length >= 3) {
+        return { type: 'Feature' as const, properties, geometry: { type: 'Polygon' as const, coordinates: [[...c, c[0]]] } }
+      }
+      if (n.kind !== 'point' && c.length >= 2) {
+        return { type: 'Feature' as const, properties, geometry: { type: 'LineString' as const, coordinates: c } }
+      }
+      return { type: 'Feature' as const, properties, geometry: { type: 'Point' as const, coordinates: c[0] ?? [0, 0] } }
+    }),
+  }
+}
+
 /** The course marks, numbered in order, carrying their ids for dragging. */
 function marksFC(marks: Array<{ id: string; position: { lat: number; lon: number } }>): FC {
   return {
@@ -1349,7 +1451,48 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
-  ;['sens', 'wind', 'iso', 'riso', 'route', 'route-beat', 'marks', 'boat', 'start', 'measure'].forEach(add)
+  ;['notes', 'draft', 'sens', 'wind', 'iso', 'riso', 'route', 'route-beat', 'marks', 'boat', 'start', 'measure'].forEach(add)
+
+  // Race notes under everything else. Keep-out areas are red, slow areas amber,
+  // plain notes grey, so the colour says what the router will do with each.
+  const noteColor: maplibregl.ExpressionSpecification = [
+    'case',
+    ['get', 'avoid'],
+    '#ff4d4d',
+    ['get', 'slow'],
+    '#ffb020',
+    '#8ba7c2',
+  ]
+  for (const src of ['notes', 'draft']) {
+    map.addLayer({
+      id: src + '-fill',
+      type: 'fill',
+      source: src,
+      filter: ['==', ['geometry-type'], 'Polygon'],
+      paint: { 'fill-color': noteColor, 'fill-opacity': 0.18 },
+    })
+    map.addLayer({
+      id: src + '-line',
+      type: 'line',
+      source: src,
+      filter: ['!=', ['geometry-type'], 'Point'],
+      paint: { 'line-color': noteColor, 'line-width': 1.5 },
+    })
+    map.addLayer({
+      id: src + '-pt',
+      type: 'circle',
+      source: src,
+      filter: ['==', ['geometry-type'], 'Point'],
+      paint: { 'circle-radius': 4, 'circle-color': noteColor },
+    })
+  }
+  map.addLayer({
+    id: 'notes-label',
+    type: 'symbol',
+    source: 'notes',
+    layout: { 'text-field': ['get', 'text'], 'text-size': 11, 'text-offset': [0, 1.2] },
+    paint: { 'text-color': '#eaf2fa', 'text-halo-color': '#0a1a2a', 'text-halo-width': 1.4 },
+  })
 
   map.addLayer({
     id: 'sens-fill',

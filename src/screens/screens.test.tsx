@@ -181,6 +181,7 @@ function emptyStore() {
     numberBoxes: DEFAULT_NUMBER_BOXES.map((b) => ({ ...b, channels: [...b.channels] })),
     library: [],
     routes: [],
+    raceNotes: [],
   })
 }
 
@@ -1006,6 +1007,64 @@ describe('the marks library', () => {
     expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.library).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'DELETE FOLDER' }))
     expect(useStore.getState().library).toHaveLength(0)
+  })
+})
+
+describe('race notes are drawn on the chart and edited', () => {
+  const tap = (lat: number, lng: number) =>
+    act(() => {
+      for (const fn of mapInstances[0].handlers.get('click') ?? []) fn({ lngLat: { lat, lng } })
+    })
+
+  it('draws an area in three taps, then opens it for its text and routing effect', () => {
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    fireEvent.click(screen.getByRole('button', { name: '+ note' }))
+    tap(43.6, -70.2)
+    tap(43.61, -70.2)
+    expect(screen.getByText('tap 1 more')).toBeTruthy()
+    tap(43.61, -70.19)
+    fireEvent.click(screen.getByText('finish (3)'))
+    const [note] = useStore.getState().raceNotes
+    expect(note).toMatchObject({ kind: 'area', text: '', avoid: false, speedPct: null })
+    expect(note.points).toHaveLength(3)
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'TSS' } })
+    fireEvent.click(screen.getByLabelText('Routes keep out of this area'))
+    expect(useStore.getState().raceNotes[0]).toMatchObject({ text: 'TSS', avoid: true })
+    const drawn = mapInstances[0].data.get('notes') as GeoJSON.FeatureCollection
+    expect(drawn.features[0].geometry.type).toBe('Polygon')
+    expect(drawn.features[0].properties).toMatchObject({ text: 'TSS', avoid: true })
+  })
+
+  it('draws a point note in one tap', () => {
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    fireEvent.click(screen.getByRole('button', { name: '+ note' }))
+    fireEvent.click(screen.getByRole('button', { name: 'point' }))
+    tap(43.6, -70.2)
+    fireEvent.click(screen.getByText('finish (1)'))
+    expect(useStore.getState().raceNotes[0]).toMatchObject({ kind: 'point', points: [{ lat: 43.6, lon: -70.2 }] })
+  })
+
+  it('lists notes on Race, says what each does, and deletes them', () => {
+    useStore.getState().addRaceNote({
+      kind: 'area',
+      points: [{ lat: 43.6, lon: -70.2 }, { lat: 43.61, lon: -70.2 }, { lat: 43.61, lon: -70.19 }],
+      text: 'Weed',
+      avoid: false,
+      speedPct: 80,
+    })
+    render(<RaceScreen />)
+    const section = screen.getByRole('region', { name: 'Race notes' })
+    expect(section.textContent).toContain('Weed')
+    expect(section.textContent).toContain('80% speed')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit note Weed' }))
+    fireEvent.click(screen.getByRole('button', { name: 'DELETE NOTE' }))
+    expect(useStore.getState().raceNotes).toHaveLength(0)
   })
 })
 
