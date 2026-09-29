@@ -1025,6 +1025,30 @@ describe('the Weather screen states its provenance', () => {
     }
   })
 
+  it('marks the tide station with its latest wind, and lists its reports', async () => {
+    const now = new Date(Date.now() - 12 * 60_000)
+    const stamp = now.toISOString().slice(0, 16).replace('T', ' ')
+    globalThis.fetch = (async (url: string) => {
+      if (!String(url).includes('tidesandcurrents')) throw new Error('network disabled in screen tests')
+      const body = String(url).includes('product=wind') ? { data: [{ t: stamp, s: '9.7', d: '210', g: '12.6' }] } : { data: [{ t: stamp, v: '1015.9' }] }
+      return new Response(JSON.stringify(body), { status: 200 })
+    }) as unknown as typeof fetch
+    render(<WeatherScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Observations' }))
+    const marks = () => ((mapInstances[0].data.get('wx-obs') as GeoJSON.FeatureCollection | undefined)?.features ?? []).map((f) => f.properties!.label)
+    await waitFor(() => expect(marks()).toHaveLength(1))
+    expect(marks()[0]).toMatch(/^210° 10 kn · 1[23] min ago$/)
+    fireEvent.click(screen.getByRole('button', { name: 'Reports…' }))
+    const sheet = screen.getByRole('dialog', { name: 'Observations' })
+    expect(within(sheet).getByRole('region', { name: 'Station 8418150' }).textContent).toContain('210° 9.7 kn, gust 12.6 kn, 1015.9 hPa')
+    // Off again takes the markers away.
+    fireEvent.click(screen.getByRole('button', { name: 'Observations' }))
+    await waitFor(() => expect(marks()).toHaveLength(0))
+  })
+
   it('shows no legend at all rather than an unattributed one', () => {
     /*
      * The legend renders "source unknown" in the warning colour when it has no

@@ -73,9 +73,17 @@ import { useStore } from '@/state/store'
 import { fmtLength } from '@/lib/units'
 import { WeatherFilesSheet } from '@/components/WeatherFiles'
 import { PointMeteogram } from '@/components/PointMeteogram'
+import { ObservationsSheet, type ObsStation } from '@/components/ObservationsSheet'
+import { fetchCoopsObservations, type Observation } from '@/lib/weather/observations'
 import { contourFeatures, type ContourField } from '@/lib/maplayers/contours'
 import { DEFAULT_CONTOURS, type ContourKind } from '@/state/store'
 import { useWeatherFiles } from '@/state/weatherFiles'
+
+/** The venue's observing stations: NOS stations answer a browser, buoys wait for the proxy. */
+const OBS_STATIONS: ObsStation[] = [
+  ...PILOT_VENUE.tideStations.map((s) => ({ ...s, kind: 'coops' as const })),
+  ...PILOT_VENUE.observationStations.map((s) => ({ ...s, kind: 'ndbc' as const })),
+]
 
 /** The contours the Weather chart can draw, and what each needs in the forecast. */
 const CONTOURS: Array<{ id: ContourKind; label: string; field: ContourField; needs: string[]; unit: string; decimals: number }> = [
@@ -105,6 +113,8 @@ const MODES: Array<{ id: VectorMode; label: string }> = [
  * to remove a source that a layer still references.
  */
 const OWNED_LAYERS = [
+  'wx-obs-pt',
+  'wx-obs-label',
   'wx-contour-line',
   'wx-contour-label',
   'wx-barbs',
@@ -113,7 +123,7 @@ const OWNED_LAYERS = [
   'wx-station-pt',
   'wx-station-label',
 ]
-const OWNED_SOURCES = ['wx-symbols', 'wx-station', 'wx-contours']
+const OWNED_SOURCES = ['wx-symbols', 'wx-station', 'wx-contours', 'wx-obs']
 
 export function WeatherScreen() {
   return (
@@ -142,6 +152,10 @@ function WeatherOverlay() {
 
   const [moreLayers, setMoreLayers] = useState(false)
   const [meteo, setMeteo] = useState<'point' | 'boat' | null>(null)
+  const [obsOn, setObsOn] = useState(false)
+  const [showObsSheet, setShowObsSheet] = useState(false)
+  const [obs, setObs] = useState<Record<string, Observation[]>>({})
+  const [obsErrors, setObsErrors] = useState<Record<string, string>>({})
   const boatNow = useStore((s) => s.state)
   const [showContourSheet, setShowContourSheet] = useState(false)
   const contourSettings = useStore((s) => s.settings.contours) ?? DEFAULT_CONTOURS
@@ -214,6 +228,34 @@ function WeatherOverlay() {
           'symbol-spacing': 220,
         },
         paint: { 'text-color': '#eaf2fa', 'text-halo-color': '#04101c', 'text-halo-width': 1.4 },
+      },
+      BOAT_LAYER_ID,
+    )
+
+    // Observing stations with their latest wind.
+    map.addSource('wx-obs', { type: 'geojson', data: emptyFC() })
+    map.addLayer(
+      {
+        id: 'wx-obs-pt',
+        type: 'circle',
+        source: 'wx-obs',
+        paint: { 'circle-radius': 5, 'circle-color': '#ffd54f', 'circle-stroke-color': '#04101c', 'circle-stroke-width': 1.5 },
+      },
+      BOAT_LAYER_ID,
+    )
+    map.addLayer(
+      {
+        id: 'wx-obs-label',
+        type: 'symbol',
+        source: 'wx-obs',
+        layout: {
+          'text-field': ['get', 'label'] as never,
+          'text-font': ['Open Sans Regular'],
+          'text-size': 11,
+          'text-offset': [0, 1.2],
+          'text-anchor': 'top',
+        },
+        paint: { 'text-color': '#ffe9a8', 'text-halo-color': '#04101c', 'text-halo-width': 1.4 },
       },
       BOAT_LAYER_ID,
     )
@@ -403,6 +445,42 @@ function WeatherOverlay() {
       cancelled = true
     }
   }, [])
+
+  // Observations: fetched when switched on, and every ten minutes after.
+  useEffect(() => {
+    if (!obsOn) return
+    let cancelled = false
+    const load = () => {
+      for (const s of OBS_STATIONS) {
+        if (s.kind !== 'coops') continue
+        fetchCoopsObservations(s.id)
+          .then((o) => !cancelled && setObs((m) => ({ ...m, [s.id]: o })))
+          .catch((e) => !cancelled && setObsErrors((m) => ({ ...m, [s.id]: e instanceof Error ? e.message : String(e) })))
+      }
+    }
+    load()
+    const id = window.setInterval(load, 10 * 60_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [obsOn])
+
+  useEffect(() => {
+    if (!map || !ready) return
+    const src = map.getSource('wx-obs') as maplibregl.GeoJSONSource | undefined
+    if (!src) return
+    const features = obsOn
+      ? OBS_STATIONS.flatMap((s) => {
+          const last = obs[s.id]?.[obs[s.id].length - 1]
+          if (!last) return []
+          const mins = Math.round((Date.now() - last.t) / 60_000)
+          const wind = last.tws == null ? '—' : `${last.twd == null ? 'calm' : `${Math.round(last.twd)}°`} ${last.tws.toFixed(0)} kn`
+          return [{ type: 'Feature' as const, properties: { id: s.id, label: `${wind} · ${mins} min ago` }, geometry: { type: 'Point' as const, coordinates: [s.position.lon, s.position.lat] } }]
+        })
+      : []
+    src.setData({ type: 'FeatureCollection', features } as GeoJSON.FeatureCollection)
+  }, [map, ready, obs, obsOn])
 
   // Contours of whatever is switched on and in the forecast, at the displayed time.
   useEffect(() => {
@@ -772,6 +850,19 @@ function WeatherOverlay() {
             ))}
           </select>
           <button
+            className={`chip${obsOn ? ' chip--good' : ''}`}
+            aria-pressed={obsOn}
+            onClick={() => setObsOn((v) => !v)}
+            title="What the venue's stations are reporting"
+          >
+            Observations
+          </button>
+          {obsOn && (
+            <button className="chip" onClick={() => setShowObsSheet(true)}>
+              Reports…
+            </button>
+          )}
+          <button
             className="chip"
             disabled={!cube || (!boatNow && !probe)}
             onClick={() => setMeteo(boatNow ? 'boat' : 'point')}
@@ -1063,6 +1154,9 @@ function WeatherOverlay() {
             Done
           </button>
         </div>
+      )}
+      {showObsSheet && (
+        <ObservationsSheet stations={OBS_STATIONS} obs={obs} errors={obsErrors} cube={cube} onClose={() => setShowObsSheet(false)} />
       )}
       {showFiles && <WeatherFilesSheet onClose={() => setShowFiles(false)} />}
     </>

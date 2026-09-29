@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseCoops, parseMetar, parseMetars, parseNdbc } from './observations'
+import { fetchCoopsObservations, parseCoops, parseMetar, parseMetars, parseNdbc } from './observations'
 
 const KN = 1.9438445
 
@@ -69,5 +69,27 @@ describe('CO-OPS stations', () => {
     expect(o[0]).toMatchObject({ source: 'coops', station: '8418150', t: Date.UTC(2026, 8, 29, 14, 54), tws: 10.5, twd: 200, gust: 14, pres: 1016.3 })
     expect(o[1]).toMatchObject({ tws: 0, twd: null, gust: null, pres: null })
     expect(parseCoops('x', { error: { message: 'No data was found' } })).toEqual([])
+  })
+})
+
+describe('fetching a CO-OPS station', () => {
+  it('asks for wind in knots and pressure in hPa, and merges them', async () => {
+    const urls: string[] = []
+    const fake = (async (url: string) => {
+      urls.push(url)
+      const body = url.includes('product=wind')
+        ? { metadata: { id: '8418150' }, data: [{ t: '2026-09-29 14:54', s: '9.7', d: '210', g: '12.6' }] }
+        : { data: [{ t: '2026-09-29 14:54', v: '1015.9' }] }
+      return new Response(JSON.stringify(body), { status: 200 })
+    }) as unknown as typeof fetch
+    const o = await fetchCoopsObservations('8418150', 12, fake)
+    expect(o).toEqual([expect.objectContaining({ tws: 9.7, twd: 210, gust: 12.6, pres: 1015.9 })])
+    expect(urls[0]).toMatch(/product=wind&station=8418150&range=12&units=english&time_zone=gmt/)
+    expect(urls[1]).toMatch(/product=air_pressure&.*units=metric/)
+  })
+
+  it('says why when the station sends nothing', async () => {
+    const fake = (async () => new Response(JSON.stringify({ error: { message: 'No data was found.' } }), { status: 200 })) as unknown as typeof fetch
+    await expect(fetchCoopsObservations('8418150', 12, fake)).rejects.toThrow(/No data was found/)
   })
 })

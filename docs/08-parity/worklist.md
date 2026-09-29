@@ -265,9 +265,11 @@ leaves something tested and working.
 - [x] **10.8a Observation parsers:** NDBC realtime2 text, raw METARs and NOS CO-OPS wind and
       pressure JSON, in knots, hPa and °C, null for anything not reported. *Accept:* parser
       tests. *(src/lib/weather/observations.ts)*
-- [ ] **10.8b Observations on the chart, with history:** the stations near the venue drawn
+- [x] **10.8b Observations on the chart, with history:** the stations near the venue drawn
       with their latest wind, and a station's recent reports against the forecast there.
       *Accept:* tests and a browser check.
+- [ ] **10.8c Buoys and METARs on the chart.** Parsed already; a browser can't fetch them
+      (NDBC and aviationweather.gov send no CORS headers). `blocked: D1`: they need the proxy.
 - [ ] **10.9 Radar, satellite and weather-chart overlays.** *Accept:* a browser check.
 - [ ] **10.10 Ensemble display:** members, and mean ± SD. *Accept:* tests.
 - [ ] **10.11 A GRIB request builder:** area on the chart, model, parameters and

@@ -215,3 +215,27 @@ export function parseCoops(station: string, wind: unknown, pressure?: unknown): 
   }
   return [...byT.values()].sort((a, b) => a.t - b.t)
 }
+
+// ---------------------------------------------------------------- fetching
+
+const COOPS = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter'
+
+/**
+ * A CO-OPS station's wind and pressure over the last `hours`. CO-OPS answers a
+ * browser directly; NDBC and aviationweather.gov do not, so buoys and METARs
+ * wait for the proxy (D1).
+ */
+export async function fetchCoopsObservations(station: string, hours = 24, fetcher: typeof fetch = fetch): Promise<Observation[]> {
+  const q = (product: string, units: string) =>
+    `${COOPS}?product=${product}&station=${encodeURIComponent(station)}&range=${hours}&units=${units}&time_zone=gmt&format=json&application=newjourney`
+  const [w, p] = await Promise.all([
+    fetcher(q('wind', 'english')).then((r) => (r.ok ? r.json() : null)),
+    fetcher(q('air_pressure', 'metric')).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+  ])
+  const obs = parseCoops(station, w, p)
+  if (!obs.length) {
+    const msg = (w as { error?: { message?: string } } | null)?.error?.message
+    throw new Error(msg ? `CO-OPS ${station}: ${msg}` : `CO-OPS ${station} sent no observations`)
+  }
+  return obs
+}
