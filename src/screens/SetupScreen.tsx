@@ -28,6 +28,7 @@ import { PORTLAND_DATUM } from '@/lib/tides/datum'
 import { windHeightFactor } from '@/lib/routing/settings'
 import { SHORTCUT_HELP } from '@/lib/shortcuts'
 import { ConfigError, exportConfig, parseConfig } from '@/lib/config'
+import { InstrumentsSection } from '@/components/InstrumentsSection'
 
 /**
  * How to name the tide station on the venue panel.
@@ -434,15 +435,17 @@ export function SetupScreen() {
           format. An imported polar is kept on this device until you pick another.
         </p>
 
+        <InstrumentsSection />
+
         <h2>Wind</h2>
         <div className="seg" style={{ marginBottom: 10 }}>
-          {(['manual', 'forecast'] as const).map((m) => (
+          {(['manual', 'forecast', 'instrument'] as const).map((m) => (
             <button
               key={m}
               aria-pressed={windMode === m}
               onClick={() => setWindMode(m)}
             >
-              {m === 'manual' ? 'Manual' : 'Forecast'}
+              {m === 'manual' ? 'Manual' : m === 'forecast' ? 'Forecast' : 'Instruments'}
             </button>
           ))}
         </div>

@@ -13,6 +13,7 @@ import { LayoutContext, useWide } from '@/hooks/useWide'
 import { toggleFullscreen, useShortcuts } from '@/hooks/useShortcuts'
 import { NumberBoxes } from '@/components/NumberBoxes'
 import { useGeolocation, useSimulation, useWakeLock, useTick } from '@/hooks/useSensors'
+import { useInstruments } from '@/hooks/useInstruments'
 import { StartScreen } from '@/screens/StartScreen'
 import { RaceScreen } from '@/screens/RaceScreen'
 import { SetupScreen } from '@/screens/SetupScreen'
@@ -91,7 +92,10 @@ export function App() {
   const forecastLat = Math.round((state?.position.lat ?? PILOT_VENUE.center.lat) * 100) / 100
   const forecastLon = Math.round((state?.position.lon ?? PILOT_VENUE.center.lon) * 100) / 100
 
-  useGeolocation(!settings.simulate)
+  const instruments = useStore((s) => s.instruments)
+  const signalK = instruments.signalKOn && !settings.simulate
+  useGeolocation(!settings.simulate && !signalK)
+  useInstruments(signalK, instruments.signalKUrl)
   // Start the simulated boat afloat, not on the island the map centre sits on.
   useSimulation(settings.simulate, PILOT_VENUE.waterStart)
   useWakeLock(settings.keepAwake)
@@ -154,6 +158,16 @@ export function App() {
     setWindError(null)
     pushWind({ t: now, twd: w.twd, tws: w.tws })
   }, [manualWind.twd, manualWind.tws, manualWindSetAt, now, windMode, setWind, setWindError, pushWind])
+
+  // Instrument wind comes from useInstruments. With nothing from them for ten
+  // seconds there is no wind, said so, rather than one left over from another source.
+  useEffect(() => {
+    if (windMode !== 'instrument') return
+    const w = useStore.getState().wind
+    if (w && w.source === 'instrument' && now - w.t <= 10_000) return
+    setWind(null)
+    setWindError('No wind from the instruments. Connect Signal K in Setup.')
+  }, [windMode, now, setWind, setWindError])
 
   // A point forecast is useful for tactics but never substitutes for the route's
   // gridded field. Refresh deliberately and retain the previous estimate if the

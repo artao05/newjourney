@@ -26,6 +26,8 @@ import { DEFAULT_ROUTE_SETTINGS, type RouteSettings } from '@/lib/routing/settin
 import type { SailChart } from '@/lib/sailchart'
 import { NO_WHAT_IF, type WhatIf } from '@/lib/whatif'
 import type { HandicapSystem } from '@/lib/handicap'
+import type { Reading } from '@/lib/instruments/nmea0183'
+import { DEFAULT_SIGNALK_URL, type SignalKStatus } from '@/lib/instruments/signalk'
 
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
 /** The nav station's two tab sets: panels on the left, charts in the middle. */
@@ -278,6 +280,15 @@ interface AppState {
   deleteRoute(id: string): void
   /** Sail the course the other way round: marks reversed, sides of rounding kept. */
   reverseCourse(): void
+
+  /** Where the instruments come from. Off, the phone's GPS is the source. */
+  instruments: { signalKUrl: string; signalKOn: boolean }
+  setInstruments(patch: Partial<{ signalKUrl: string; signalKOn: boolean }>): void
+  /** The latest instrument values, whatever sent them. Not persisted. */
+  instrumentReading: Reading | null
+  setInstrumentReading(r: Reading | null): void
+  instrumentStatus: { status: SignalKStatus; detail: string | null; lastAt: Millis | null }
+  setInstrumentStatus(s: Partial<{ status: SignalKStatus; detail: string | null; lastAt: Millis | null }>): void
 
   fleet: FleetBoat[]
   addFleetBoat(name: string, rating: number): void
@@ -673,6 +684,13 @@ export const useStore = create<AppState>()(
         set({ ...COURSE_CHANGED, course: { ...course, marks: [...course.marks].reverse() }, activeMarkIndex: 0 })
       },
 
+      instruments: { signalKUrl: DEFAULT_SIGNALK_URL, signalKOn: false },
+      setInstruments: (patch) => set({ instruments: { ...get().instruments, ...patch } }),
+      instrumentReading: null,
+      setInstrumentReading: (r) => set({ instrumentReading: r }),
+      instrumentStatus: { status: 'off', detail: null, lastAt: null },
+      setInstrumentStatus: (s) => set({ instrumentStatus: { ...get().instrumentStatus, ...s } }),
+
       fleet: [],
       addFleetBoat: (name, rating) => {
         const fleet = get().fleet
@@ -810,6 +828,7 @@ export const useStore = create<AppState>()(
         library: s.library,
         fleet: s.fleet,
         handicap: s.handicap,
+        instruments: s.instruments,
         routes: s.routes,
         raceNotes: s.raceNotes,
         navPanel: s.navPanel,

@@ -52,8 +52,10 @@ describe("the channel catalogue is Expedition's Appendix A", () => {
   it('marks what newjourney already computes, and nothing it cannot', () => {
     const today = CHANNELS.filter((c) => c.today)
     expect(today.length).toBeGreaterThanOrEqual(50)
-    // Rig loads, engines, radar and other boats need hardware or a fleet feed
-    // that does not exist yet. None of them can be "today".
-    expect(today.filter((c) => ['rig', 'engine', 'fleet', 'sails', 'user'].includes(c.group))).toEqual([])
+    // Engines, radar and other boats need hardware or a fleet feed that does not
+    // exist yet. None of them can be "today". A rig channel can be, but only as
+    // an instrument sends it over Signal K: the app computes none of them.
+    expect(today.filter((c) => ['engine', 'fleet', 'sails', 'user'].includes(c.group))).toEqual([])
+    expect(today.filter((c) => c.group === 'rig' && c.source !== 'instrument')).toEqual([])
   })
 })

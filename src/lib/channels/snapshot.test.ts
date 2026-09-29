@@ -62,6 +62,11 @@ function simulated(twa = 45, lineAhead = false): SnapshotInputs {
     course,
     activeMarkIndex: 0,
     variationDeg: -14.5,
+    // A Signal K feed's worth of instrument values, as the decoder hands them on.
+    instruments: {
+      awa: 32, aws: 15.1, hdop: 0.9, depthM: 12.4, waterTempC: 17.5, airTempC: 21, baroHpa: 1013.2,
+      humidityPct: 64, pitch: 1.5, rudder: -3, logNm: 1234.5, tripNm: 12.3,
+    },
   }
 }
 
@@ -95,9 +100,10 @@ describe('the live channel snapshot', () => {
   })
 
   it('has a slot for every catalogued channel, null where nothing produces it', () => {
-    const snap = buildSnapshot(simulated())
+    const snap = buildSnapshot({ ...simulated(), instruments: null })
     expect(Object.keys(snap)).toHaveLength(CHANNELS.length)
     expect(snap['backstay']).toBeNull()
+    // No instruments connected: no apparent wind, rather than a made-up one.
     expect(snap['awa']).toBeNull()
   })
 

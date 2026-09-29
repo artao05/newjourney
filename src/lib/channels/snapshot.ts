@@ -24,6 +24,7 @@ import type {
 } from '@/lib/types'
 import { CHANNELS } from './catalogue'
 import type { GateNumbers } from '@/lib/gates'
+import type { Reading } from '@/lib/instruments/nmea0183'
 
 export interface SnapshotInputs {
   now: Millis
@@ -38,6 +39,8 @@ export interface SnapshotInputs {
   variationDeg: number | null
   /** The active mark's gate numbers, when the active mark is a gate. */
   gate?: GateNumbers | null
+  /** What the instruments sent, as they sent it (Signal K or NMEA). */
+  instruments?: Reading | null
 }
 
 /** Channel id → value in the catalogue's unit, or null when there is none. */
@@ -65,6 +68,19 @@ export const PRODUCERS: Readonly<Record<string, Producer>> = {
   heading: (i) => i.state?.heading,
   bsp: (i) => i.state?.bsp,
   'heel-roll': (i) => i.state?.heelDeg,
+  'trim-pitch': (i) => i.instruments?.pitch,
+  'log-bsp': (i) => i.instruments?.logNm,
+  'instrument-trip-log': (i) => i.instruments?.tripNm,
+  // straight from the instruments
+  awa: (i) => i.instruments?.awa,
+  aws: (i) => i.instruments?.aws,
+  'gps-hdop': (i) => i.instruments?.hdop,
+  depth: (i) => i.instruments?.depthM,
+  'sea-temperature': (i) => i.instruments?.waterTempC,
+  'air-temperature': (i) => i.instruments?.airTempC,
+  barometer: (i) => i.instruments?.baroHpa,
+  'relative-humidity': (i) => i.instruments?.humidityPct,
+  rudder: (i) => i.instruments?.rudder,
   // current
   'current-set': (i) => i.current?.set,
   'current-drift': (i) => i.current?.drift,

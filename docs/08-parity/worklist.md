@@ -154,7 +154,7 @@ leaves something tested and working.
 - [x] **6.1 NMEA 0183 parser.** Checksum, plus RMC, GGA, GLL, VTG, HDG/HDM/HDT, MWV,
       MWD, VHW, VLW, DPT/DBT, MTW, MDA, XDR, RSA, ROT, ZDA, RMB, APB and XTE.
       *Accept:* fixture tests.
-- [ ] **6.2 Signal K client.** WebSocket delta stream into boat state and channels,
+- [x] **6.2 Signal K client.** WebSocket delta stream into boat state and channels,
       with a connection UI and a mixed-content warning. *Accept:* tests against a
       recorded delta stream. Live use is `Hardware`.
 - [ ] **6.3 Web Serial source** for NMEA 0183 on desktop Chromium. *Accept:* a test

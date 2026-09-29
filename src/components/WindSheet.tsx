@@ -63,7 +63,9 @@ export function WindSheet({ onClose }: { onClose: () => void }) {
       <p className="note">
         {windMode === 'forecast'
           ? 'In use: the Open-Meteo forecast at your position. Setting it here switches to manual.'
-          : setAt == null
+          : windMode === 'instrument'
+            ? 'In use: the true wind from the instruments. Setting it here switches to manual.'
+            : setAt == null
             ? 'Not set yet. Luff head to wind, read your heading, and set it here.'
             : 'In use: the wind you set by hand.'}
       </p>
