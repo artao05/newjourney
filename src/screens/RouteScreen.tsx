@@ -7,6 +7,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { RouteMeteogram } from '@/components/RouteMeteogram'
+import { turningPoints, windAlongRouteFC } from '@/lib/routing/results'
+import { sailAt } from '@/lib/sailchart'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { NOTE_MIN_POINTS, useStore, type RaceNote } from '@/state/store'
@@ -466,6 +469,7 @@ export function RouteScreen() {
     if (!route || !route.ok || route.legs.length === 0) {
       setSource(map, 'route', emptyFC())
       setSource(map, 'route-beat', emptyFC())
+      setSource(map, 'route-wind', emptyFC())
       setSource(map, 'iso', emptyFC())
       setSource(map, 'riso', emptyFC())
       setSource(map, 'sens', emptyFC())
@@ -490,6 +494,7 @@ export function RouteScreen() {
     })
     setSource(map, 'iso', isochroneFC(route.isochrones))
     setSource(map, 'sens', sensitivityFC(route))
+    setSource(map, 'route-wind', windAlongRouteFC(route.legs))
 
     if (coords.length > 1) {
       const b = new maplibregl.LngLatBounds(coords[0], coords[0])
@@ -1376,6 +1381,9 @@ function ResultsSheet({
 }) {
   const step = Math.max(1, Math.floor(route.legs.length / 40))
   const rows = route.legs.filter((_, i) => i % step === 0)
+  const sailChart = useStore((s) => s.sailChart)
+  const addToLibrary = useStore((s) => s.addToLibrary)
+  const [savedMarks, setSavedMarks] = useState<string | null>(null)
   const saved =
     route.directTimeS != null && route.elapsedS != null
       ? route.directTimeS - route.elapsedS
@@ -1420,6 +1428,22 @@ function ResultsSheet({
 
       {depth?.shallowest && <DepthPanel depth={depth} levels={levels} />}
 
+      <RouteMeteogram legs={route.legs} />
+      <div className="actions" style={{ background: 'none', border: 'none', padding: '0 0 10px' }}>
+        <button
+          className="btn btn--sm btn--ghost"
+          onClick={() => {
+            const pts = turningPoints(route.legs)
+            const folder = `Route ${new Date(route.legs[0].t).toISOString().slice(0, 16).replace('T', ' ')}`
+            addToLibrary(folder, pts.map((l, i) => ({ name: i === 0 ? 'Start' : i === pts.length - 1 ? 'Finish' : `R${i}`, position: l.position })))
+            setSavedMarks(`${pts.length} turning points filed in the marks library as "${folder}".`)
+          }}
+        >
+          SAVE AS MARKS
+        </button>
+      </div>
+      {savedMarks && <p className="note" role="status">{savedMarks}</p>}
+
       <CompareRoutes route={route} />
 
       {route.diagnostics.warnings.map((w) => (
@@ -1437,6 +1461,8 @@ function ResultsSheet({
             <th>twa</th>
             <th>bsp</th>
             <th>hdg</th>
+            <th>current</th>
+            <th>sail</th>
           </tr>
         </thead>
         <tbody>
@@ -1452,6 +1478,8 @@ function ResultsSheet({
               </td>
               <td>{l.bsp.toFixed(2)}</td>
               <td>{fmtDeg(l.heading)}</td>
+              <td>{l.currentSet != null && l.currentDrift != null ? `${fmtDeg(l.currentSet)} ${l.currentDrift.toFixed(1)}` : '—'}</td>
+              <td>{sailAt(sailChart, Math.abs(l.twa), l.tws) ?? '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -1576,7 +1604,7 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
-  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'iso', 'riso', 'kept', 'route', 'route-beat', 'marks', 'boat', 'start', 'measure'].forEach(add)
+  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'iso', 'riso', 'kept', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
   // plain notes grey, so the colour says what the router will do with each.
@@ -1715,6 +1743,20 @@ function addEmptyLayers(map: maplibregl.Map) {
     type: 'line',
     source: 'route-beat',
     paint: { 'line-color': '#ff9ad2', 'line-width': 3.5, 'line-dasharray': [1.6, 1.4] },
+  })
+  // The wind at each leg, at the time the boat is there: a line downwind and the speed.
+  map.addLayer({
+    id: 'route-wind-line',
+    type: 'line',
+    source: 'route-wind',
+    paint: { 'line-color': '#4fc3f7', 'line-width': 1.6, 'line-opacity': 0.85 },
+  })
+  map.addLayer({
+    id: 'route-wind-label',
+    type: 'symbol',
+    source: 'route-wind',
+    layout: { 'text-field': ['get', 'label'], 'text-size': 10, 'text-offset': [0, -0.9], 'symbol-placement': 'point' },
+    paint: { 'text-color': '#4fc3f7', 'text-halo-color': '#0a1a2a', 'text-halo-width': 1.2 },
   })
   map.addLayer({
     id: 'marks-pt',

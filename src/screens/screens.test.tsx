@@ -522,6 +522,27 @@ describe('earlier routes, kept to compare', () => {
     expect(useStore.getState().keptRoutes).toEqual([])
   })
 
+  it('shows current and sail columns, the weather along the route, and files its turns as marks', () => {
+    populatedStore()
+    useStore.setState({ library: [] })
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const r = route(3600)
+    r.legs = r.legs.map((l, i) => ({ ...l, t: Date.now() + i * 1800_000, currentSet: 45, currentDrift: 0.6, heading: i * 90 }))
+    act(() => useStore.getState().setRoute(r))
+    expect(((mapInstances[0].data.get('route-wind') as GeoJSON.FeatureCollection).features).length).toBe(2)
+    fireEvent.click(screen.getByRole('button', { name: 'RESULTS' }))
+    const table = document.querySelector('table.results:last-of-type') as HTMLTableElement
+    expect(table.textContent).toMatch(/current/)
+    expect(table.textContent).toMatch(/45° 0\.6|45 0\.6/)
+    expect(screen.getByRole('img', { name: 'Wind and boat speed along the route' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'SAVE AS MARKS' }))
+    expect(useStore.getState().library.map((m) => m.name)).toEqual(['Start', 'Finish'])
+    expect(screen.getByRole('status').textContent).toMatch(/2 turning points filed/)
+  })
+
   it('makes one line a kept route, and skips a route with no length', () => {
     expect(keptFC([{ id: 'a', track: [{ lat: 1, lon: 2 }, { lat: 1.1, lon: 2 }] }, { id: 'b', track: [{ lat: 1, lon: 2 }] }]).features).toHaveLength(1)
   })

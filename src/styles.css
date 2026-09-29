@@ -1160,3 +1160,12 @@ table.results tr.beating td {
 @media (prefers-reduced-motion: reduce) {
   .alarmbar--loud { animation: none; }
 }
+
+.meteogram__arrow {
+  position: absolute;
+  top: 0;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--ink);
+  pointer-events: none;
+}
