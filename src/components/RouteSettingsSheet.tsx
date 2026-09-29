@@ -216,6 +216,31 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
         A line of wave angles to the boat (0 head seas, 180 following), then a line per wave height in metres
         with the percentage of polar speed at each angle.
       </p>
+      {num('swellPct', 'Slower in swell', '% at the reference height', '1')}
+      {num('windWavePct', 'Slower in wind sea', '% at the reference height; the polar usually has it already', '1')}
+      {num('waveRefHeightM', 'Reference height', 'm, full effect here and above', '0.5')}
+      {num('crossedSeaPct', 'Slower in a crossed sea', '% more where swell and wind sea cross near 90°', '1')}
+      {s.crossedSeaPct > 0 && (
+        <>
+          {num('crossedMinM', 'Crossed sea: each train above', 'm', '0.1')}
+          {num('crossedTotalM', 'Crossed sea: together above', 'm', '0.1')}
+          {num('crossedMarginDeg', 'Crossed sea: within', '° of 90°', '5')}
+        </>
+      )}
+      <p className="note">
+        The swell is the forecast's swell where it gives one, else its main sea. With no sea state in the forecast these
+        change nothing, and the route says so.
+      </p>
+
+      <h2>Air</h2>
+      <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+        <input type="checkbox" checked={s.airDensity} onChange={(e) => update({ airDensity: e.target.checked })} />
+        Correct the wind for air density
+      </label>
+      <p className="note">
+        Denser air pushes harder: the polar reads the wind as √(ρ/ρ₀) times it, against 1013 hPa, 15 °C and 80 % humidity,
+        from the forecast's pressure, air temperature and humidity.
+      </p>
 
       <h2>Display</h2>
       <div className="field">

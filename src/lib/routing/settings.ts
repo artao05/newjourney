@@ -75,6 +75,17 @@ export interface RouteSettings {
   nowDecayMin: number
   /** Speed in waves as a percentage of the polar, by height and angle to the boat; null for none. */
   waveTable: { heights: number[]; angles: number[]; pct: number[][] } | null
+  /** % off the polar in swell, and in wind sea, in full at `waveRefHeightM` and above. */
+  swellPct: number
+  windWavePct: number
+  waveRefHeightM: Metres
+  /** % more off where swell and wind sea cross within `crossedMarginDeg` of 90°. */
+  crossedSeaPct: number
+  crossedMinM: Metres
+  crossedTotalM: Metres
+  crossedMarginDeg: number
+  /** Scale the wind the polar reads for the air's density. */
+  airDensity: boolean
   /** Which router: the isochrones, or the grid for a second opinion. */
   algorithm: 'isochrone' | 'grid'
   /** For the grid: along the great circle rather than the rhumb line. */
@@ -102,6 +113,15 @@ export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
   showExplored: false,
   nowDecayMin: 0,
   waveTable: null,
+  swellPct: 0,
+  // Off by default: a polar measured at sea already has the wind sea in it.
+  windWavePct: 0,
+  waveRefHeightM: 2,
+  crossedSeaPct: 0,
+  crossedMinM: 0.5,
+  crossedTotalM: 1.5,
+  crossedMarginDeg: 30,
+  airDensity: false,
   algorithm: 'isochrone',
   greatCircle: false,
 }
@@ -161,6 +181,20 @@ export function requestParts(
       windTimeShiftS: settings.windTimeShiftMin * 60,
       currentScalePct: settings.currentScalePct,
       ...(settings.waveTable ? { waveTable: settings.waveTable } : {}),
+      ...((settings.swellPct ?? 0) > 0 || (settings.windWavePct ?? 0) > 0 || (settings.crossedSeaPct ?? 0) > 0
+        ? {
+            seaPenalty: {
+              swellPct: settings.swellPct ?? 0,
+              windWavePct: settings.windWavePct ?? 0,
+              refHeightM: settings.waveRefHeightM ?? 2,
+              crossedPct: settings.crossedSeaPct ?? 0,
+              crossedMinM: settings.crossedMinM ?? 0.5,
+              crossedTotalM: settings.crossedTotalM ?? 1.5,
+              crossedMarginDeg: settings.crossedMarginDeg ?? 30,
+            },
+          }
+        : {}),
+      ...(settings.airDensity ? { airDensity: true } : {}),
     },
     resolution: settings.resolution,
   }
@@ -206,6 +240,10 @@ export function nonDefaultLabels(s: RouteSettings): string[] {
   if (s.motorSpeedKn != null && s.motorBelowKn != null) out.push(`motor ${s.motorSpeedKn} kn below ${s.motorBelowKn} kn`)
   if (s.nowDecayMin > 0) out.push(`wind now over ${s.nowDecayMin} min`)
   if (s.waveTable) out.push('wave table')
+  if ((s.swellPct ?? 0) > 0) out.push(`swell −${s.swellPct}%`)
+  if ((s.windWavePct ?? 0) > 0) out.push(`wind sea −${s.windWavePct}%`)
+  if ((s.crossedSeaPct ?? 0) > 0) out.push(`crossed sea −${s.crossedSeaPct}%`)
+  if (s.airDensity) out.push('air density')
   if (s.algorithm === 'grid') out.push(s.greatCircle ? 'grid, great circle' : 'grid')
   return out
 }

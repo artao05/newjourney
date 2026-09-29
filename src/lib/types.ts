@@ -131,6 +131,18 @@ export interface WaveState {
   periodS: Seconds
 }
 
+/**
+ * The sea as a router penalises it: swell and wind sea apart, each a height and
+ * the direction it comes from (NaN where unknown). Null heights are "not known",
+ * never a flat sea.
+ */
+export interface SeaState {
+  swellH: Metres | null
+  swellFrom: Degrees
+  windWaveH: Metres | null
+  windWaveFrom: Degrees
+}
+
 export interface WindSample extends UV {
   source: string
 }
@@ -145,6 +157,10 @@ export interface WeatherField {
   gust(lat: number, lon: number, t: Millis): Knots | null
   current(lat: number, lon: number, t: Millis): WindSample | null
   waves(lat: number, lon: number, t: Millis): WaveState | null
+  /** Swell and wind sea apart, where the field knows them. Optional: most fields don't. */
+  seaState?(lat: number, lon: number, t: Millis): SeaState | null
+  /** Air density, kg/m³, from pressure and temperature (and humidity if known). */
+  airDensity?(lat: number, lon: number, t: Millis): number | null
   coverage(): { bbox: BBox; t0: Millis; t1: Millis }
   /**
    * The field's own time cadence in milliseconds, when it has a regular one.
@@ -418,6 +434,25 @@ export interface RouteScalings {
    * 180° following. Interpolated, and held beyond the edges.
    */
   waveTable?: { heights: number[]; angles: number[]; pct: number[][] }
+  /**
+   * Swell and wind-sea penalties: the polar is cut by `swellPct` (and
+   * `windWavePct`) in full at `refHeightM` of that sea and above, in proportion
+   * below; and by `crossedPct` more where swell and wind sea cross within
+   * `crossedMarginDeg` of 90°, both above `crossedMinM` and together above
+   * `crossedTotalM`. The swell is the swell partition where there is one, else
+   * the primary or mean sea.
+   */
+  seaPenalty?: {
+    swellPct: number
+    windWavePct: number
+    refHeightM: Metres
+    crossedPct: number
+    crossedMinM: Metres
+    crossedTotalM: Metres
+    crossedMarginDeg: Degrees
+  }
+  /** Scale the wind the polar reads by √(ρ/ρref) for the air's density. */
+  airDensity?: boolean
 }
 
 export type RouteResolution = 'fast' | 'balanced' | 'best'

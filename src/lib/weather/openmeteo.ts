@@ -115,7 +115,8 @@ const DEFAULT_STEP_DEG = 0.25
 const DEFAULT_HOURS = 48
 const HOUR_MS = 3600_000
 
-const WIND_VARS = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'pressure_msl']
+// Air temperature and humidity ride along for the air-density correction and the air layer.
+const WIND_VARS = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'pressure_msl', 'temperature_2m', 'relative_humidity_2m']
 const WAVE_VARS = [
   'wave_height',
   'wave_direction',
@@ -123,6 +124,9 @@ const WAVE_VARS = [
   'swell_wave_height',
   'swell_wave_direction',
   'swell_wave_period',
+  'wind_wave_height',
+  'wind_wave_direction',
+  'wind_wave_period',
 ]
 const CURRENT_VARS = ['ocean_current_velocity', 'ocean_current_direction']
 
@@ -419,8 +423,9 @@ async function buildCube(opts: Required<Omit<FetchWindCubeOptions, 'signal'>> & 
   const timeIndex = new Map<number, number>()
   for (let i = 0; i < nt; i++) timeIndex.set(axis[i], i)
 
-  const params = ['u10', 'v10', 'gust', 'prmsl']
-  if (includeWaves) params.push('hs', 'wdir', 'wper')
+  const params = ['u10', 'v10', 'gust', 'prmsl', 't2m', 'rh']
+  // The combined sea, and swell and wind sea apart for the router's penalties.
+  if (includeWaves) params.push('hs', 'wdir', 'wper', 'swh', 'swd', 'swp', 'wwh', 'wwd', 'wwp')
   if (includeCurrent) params.push('uo', 'vo')
 
   const cube: FetchedCube = {
@@ -455,7 +460,7 @@ async function buildCube(opts: Required<Omit<FetchWindCubeOptions, 'signal'>> & 
       // Partial failure is expected inshore, where marine models have no
       // coverage. Never throw away good wind because the wave server said no.
       notes.push(`marine data unavailable (${err instanceof Error ? err.message : String(err)}); wind only`)
-      for (const p of ['hs', 'wdir', 'wper', 'uo', 'vo']) {
+      for (const p of ['hs', 'wdir', 'wper', 'swh', 'swd', 'swp', 'wwh', 'wwd', 'wwp', 'uo', 'vo']) {
         const i = cube.params.indexOf(p)
         if (i >= 0) {
           cube.params.splice(i, 1)
@@ -496,6 +501,8 @@ function fillWind(
   const v10 = cube.data.v10
   const gust = cube.data.gust
   const prmsl = cube.data.prmsl
+  const t2m = cube.data.t2m
+  const rh = cube.data.rh
 
   for (let b = 0; b < responses.length; b++) {
     const offset = b * MAX_POINTS_PER_REQUEST
@@ -512,6 +519,8 @@ function fillWind(
       const dir = pickSeries(loc.hourly, 'wind_direction_10m')
       const gusts = pickSeries(loc.hourly, 'wind_gusts_10m')
       const press = pickSeries(loc.hourly, 'pressure_msl')
+      const temps = pickSeries(loc.hourly, 'temperature_2m')
+      const hums = pickSeries(loc.hourly, 'relative_humidity_2m')
       // wind_speed_unit=kn was requested, but trust the response over the request.
       const speedUnit = unitFor(loc, 'wind_speed_10m') ?? 'kn'
 
@@ -538,6 +547,10 @@ function fillWind(
         }
         const pr = press?.[i]
         if (typeof pr === 'number') prmsl[cell] = pr
+        const ta = temps?.[i]
+        if (typeof ta === 'number' && t2m) t2m[cell] = ta
+        const hu = hums?.[i]
+        if (typeof hu === 'number' && rh) rh[cell] = hu
       }
     }
   }
@@ -571,6 +584,9 @@ function fillMarine(
       const swh = pickSeries(loc.hourly, 'swell_wave_height')
       const swdir = pickSeries(loc.hourly, 'swell_wave_direction')
       const swper = pickSeries(loc.hourly, 'swell_wave_period')
+      const wwh = pickSeries(loc.hourly, 'wind_wave_height')
+      const wwdir = pickSeries(loc.hourly, 'wind_wave_direction')
+      const wwper = pickSeries(loc.hourly, 'wind_wave_period')
       const cvel = pickSeries(loc.hourly, 'ocean_current_velocity')
       const cdir = pickSeries(loc.hourly, 'ocean_current_direction')
       const velUnit = unitFor(loc, 'ocean_current_velocity')
@@ -592,6 +608,17 @@ function fillMarine(
           if (typeof h === 'number') cube.data.hs[cell] = h
           if (typeof d === 'number') cube.data.wdir[cell] = d
           if (typeof t === 'number') cube.data.wper[cell] = t
+          // The partitions as they are, where the model gives them.
+          const put = (p: string, series: Series | null) => {
+            const v = series?.[i]
+            if (typeof v === 'number' && cube.data[p]) cube.data[p][cell] = v
+          }
+          put('swh', swh)
+          put('swd', swdir)
+          put('swp', swper)
+          put('wwh', wwh)
+          put('wwd', wwdir)
+          put('wwp', wwper)
         }
 
         if (includeCurrent) {

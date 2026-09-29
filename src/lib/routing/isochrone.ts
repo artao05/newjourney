@@ -65,10 +65,12 @@ import type {
   RouteResolution,
   RouteResult,
   RouteScalings,
+  SeaState,
   SensitivityField,
   WeatherField,
 } from '../types'
 import { NULL_LAND_MASK, PolygonLandMask, combineMasks, type LandMask } from './land'
+import { densityWindFactor } from '../weather/airDensity'
 
 // ------------------------------------------------------------------ context
 
@@ -177,7 +179,11 @@ const P_CV = 5
 /** The direction the waves come from, as a unit vector, so it interpolates. */
 const P_WDX = 6
 const P_WDY = 7
-const P_COUNT = 8
+/** The sea-state factor on the polar, 1 for no penalty. */
+const P_SEAF = 8
+/** The air-density factor on the wind the polar reads, 1 in reference air. */
+const P_RHOF = 9
+const P_COUNT = 10
 
 class DenseField {
   readonly lon0: number
@@ -197,9 +203,13 @@ class DenseField {
   readonly cv: Float32Array
   readonly wdx: Float32Array
   readonly wdy: Float32Array
+  readonly seaF: Float32Array
+  readonly rhoF: Float32Array
   hasGust = false
   hasCurrent = false
   hasWaves = false
+  hasSea = false
+  hasRho = false
 
   constructor(bbox: BBox, nx: number, ny: number, nt: number, t0: Millis, dtMs: number) {
     this.nx = nx
@@ -220,6 +230,8 @@ class DenseField {
     this.cv = new Float32Array(n)
     this.wdx = new Float32Array(n)
     this.wdy = new Float32Array(n)
+    this.seaF = new Float32Array(n).fill(1)
+    this.rhoF = new Float32Array(n).fill(1)
   }
 
   /**
@@ -266,7 +278,35 @@ class DenseField {
       out[P_WDX] = a * bi(this.wdx, b0, sx, sy, w00, w10, w01, w11) + gt * bi(this.wdx, b1, sx, sy, w00, w10, w01, w11)
       out[P_WDY] = a * bi(this.wdy, b0, sx, sy, w00, w10, w01, w11) + gt * bi(this.wdy, b1, sx, sy, w00, w10, w01, w11)
     }
+    out[P_SEAF] = this.hasSea ? a * bi(this.seaF, b0, sx, sy, w00, w10, w01, w11) + gt * bi(this.seaF, b1, sx, sy, w00, w10, w01, w11) : 1
+    out[P_RHOF] = this.hasRho ? a * bi(this.rhoF, b0, sx, sy, w00, w10, w01, w11) + gt * bi(this.rhoF, b1, sx, sy, w00, w10, w01, w11) : 1
   }
+}
+
+/**
+ * The polar's factor for the sea: the swell and wind-sea penalties in full at
+ * the reference height and in proportion below it, times the crossed-sea
+ * penalty where the two trains cross near a right angle. Never below 5 %: a
+ * penalty that stops the boat dead is a setting typed wrong.
+ */
+export function seaFactor(sea: SeaState, p: NonNullable<RouteScalings['seaPenalty']>): number {
+  const part = (h: number | null, pct: number) =>
+    h == null || !(pct > 0) || !(p.refHeightM > 0) ? 1 : 1 - (pct / 100) * Math.min(1, Math.max(0, h) / p.refHeightM)
+  let f = part(sea.swellH, p.swellPct) * part(sea.windWaveH, p.windWavePct)
+  if (
+    p.crossedPct > 0 &&
+    sea.swellH != null &&
+    sea.windWaveH != null &&
+    sea.swellH > p.crossedMinM &&
+    sea.windWaveH > p.crossedMinM &&
+    Math.hypot(sea.swellH, sea.windWaveH) > p.crossedTotalM &&
+    Number.isFinite(sea.swellFrom) &&
+    Number.isFinite(sea.windWaveFrom) &&
+    Math.abs(Math.abs(angdiff(sea.swellFrom, sea.windWaveFrom)) - 90) <= p.crossedMarginDeg
+  ) {
+    f *= 1 - p.crossedPct / 100
+  }
+  return Math.max(0.05, f)
 }
 
 function bi(
@@ -406,6 +446,10 @@ function hydrate(
   let anyGust = false
   let anyCurrent = false
   let anyWaves = false
+  let anySea = false
+  let anyRho = false
+  const seaP = scalings.seaPenalty
+  const seaOn = !!seaP && (seaP.swellPct > 0 || seaP.windWavePct > 0 || seaP.crossedPct > 0)
   const probes: Array<[number, number]> = [
     [(bbox.north + bbox.south) / 2, (bbox.east + bbox.west) / 2],
     [bbox.south, bbox.west],
@@ -418,6 +462,8 @@ function hydrate(
       if (src.gust(la, lo, probeT) != null) anyGust = true
       if (src.current(la, lo, probeT) != null) anyCurrent = true
       if (src.waves(la, lo, probeT) != null) anyWaves = true
+      if (seaOn && src.seaState?.(la, lo, probeT)) anySea = true
+      if (scalings.airDensity && src.airDensity?.(la, lo, probeT) != null) anyRho = true
     } catch {
       /* a provider that throws is treated as absent */
     }
@@ -425,6 +471,10 @@ function hydrate(
   out.hasGust = anyGust
   out.hasCurrent = anyCurrent
   out.hasWaves = anyWaves
+  out.hasSea = anySea
+  out.hasRho = anyRho
+  if (seaOn && !anySea) warnings.push('Swell and wind-sea penalties are set, but the forecast has no sea state here; none applied.')
+  if (scalings.airDensity && !anyRho) warnings.push('The air-density correction is on, but the forecast has no air temperature and pressure here; none applied.')
 
   const plane = nx * ny
   for (let k = 0; k < nt; k++) {
@@ -482,6 +532,14 @@ function hydrate(
             out.cv[idx] = c.v * curScale
           }
         }
+        if (anySea && seaP) {
+          const sea = src.seaState?.(latq, lonq, tNoShift)
+          if (sea) out.seaF[idx] = seaFactor(sea, seaP)
+        }
+        if (anyRho) {
+          const rho = src.airDensity?.(latq, lonq, tNoShift)
+          if (rho != null) out.rhoF[idx] = densityWindFactor(rho)
+        }
         if (anyWaves) {
           const wv = src.waves(latq, lonq, tNoShift)
           if (wv != null) {
@@ -528,7 +586,7 @@ function fillGaps(f: DenseField, valid: Uint8Array): void {
   const { nx, ny, nt } = f
   const plane = nx * ny
   const total = plane * nt
-  const arrays = [f.u, f.v, f.gust, f.wave, f.cu, f.cv]
+  const arrays = [f.u, f.v, f.gust, f.wave, f.cu, f.cv, f.seaF, f.rhoF]
   const next = new Uint8Array(valid)
   for (let pass = 0; pass < 96; pass++) {
     let filled = 0
@@ -852,6 +910,8 @@ class Search {
   private readonly minTws: number
   private readonly waveTable: RouteScalings['waveTable'] | null
   /** The wave height and direction at the node being expanded. */
+  /** The node's wind as it is, for the point-of-sail limits, when the polar reads it scaled. */
+  private nodeTws = 0
   private nodeWaveH = 0
   private nodeWaveFrom = NaN
   private readonly maxTwsUp: number
@@ -1232,7 +1292,7 @@ class Search {
       const twa = angdiff(twd, hdg)
       const twaAbs = twa < 0 ? -twa : twa
       this.effective(tws, twaAbs, tb, twa < 0)
-      bsp = this.limited(this.effBsp * polarF * this.waveFactor(this.nodeWaveH, this.nodeWaveFrom, hdg), tws, twaAbs)
+      bsp = this.limited(this.effBsp * polarF * this.waveFactor(this.nodeWaveH, this.nodeWaveFrom, hdg), this.nodeTws, twaAbs)
       if (bsp <= 1e-9) return false
       if (it === 3) break
       const need = (-dir * cPerp) / bsp
@@ -1387,11 +1447,17 @@ class Search {
         const twd = wrap360(Math.atan2(-u, -v) * RAD)
         const cu = s[P_CU]
         const cv = s[P_CV]
-        const tb = this.targetBucket(tws)
+        // The polar reads the wind as the reference air would push it; the
+        // point-of-sail limits keep the wind as it is.
+        const twsP = s[P_RHOF] === 1 ? tws : tws * s[P_RHOF]
+        const tb = this.targetBucket(twsP)
         const polarF =
           (this.polarNight !== this.polarDay && isNight(plat, plon, sampleT)
             ? this.polarNight
-            : this.polarDay) * (this.slow.length ? this.slowAt(plat, plon) : 1)
+            : this.polarDay) *
+          (this.slow.length ? this.slowAt(plat, plon) : 1) *
+          s[P_SEAF]
+        this.nodeTws = tws
 
         pa.lat = plat
         pa.lon = plon
@@ -1404,7 +1470,7 @@ class Search {
         // ---- can we finish from here inside this step? (§2, "record a finish
         // candidate")
         const dGoal = distance(pa, goal)
-        if (dGoal > 1e-12 && this.goalHop(tws, tb, twd, goalBrg, cu, cv, polarF, dir)) {
+        if (dGoal > 1e-12 && this.goalHop(twsP, tb, twd, goalBrg, cu, cv, polarF, dir)) {
           const hours = dGoal / this.hopClosing
           if (hours <= dtH && (land === null || !land.crosses(pa, goal))) {
             // Apply tack/gybe penalty if the finish hop changes tack, mirroring
@@ -1462,7 +1528,7 @@ class Search {
           evaluated++
           const twa = angdiff(twd, this.fanHdg[j])
           const twaAbs = twa < 0 ? -twa : twa
-          this.effective(tws, twaAbs, tb, twa < 0)
+          this.effective(twsP, twaAbs, tb, twa < 0)
           const bsp = this.limited(
             this.effBsp * polarF * this.waveFactor(this.nodeWaveH, this.nodeWaveFrom, this.fanHdg[j]),
             tws,

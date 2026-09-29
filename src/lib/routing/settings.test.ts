@@ -124,3 +124,20 @@ describe('the weather a route was sailed on is named with it', () => {
     expect(nonDefaultLabels({ ...DEFAULT_ROUTE_SETTINGS, source: 'files' })).toEqual(['GRIB files only'])
   })
 })
+
+describe('sea-state penalties and air density reach the kernel', () => {
+  const boat = { polarPct: 100, polarPctNight: 100, tackPenaltyS: 0, gybePenaltyS: 0 }
+  it('sends nothing at the defaults', () => {
+    const { scalings } = requestParts(DEFAULT_ROUTE_SETTINGS, boat, true)
+    expect(scalings.seaPenalty).toBeUndefined()
+    expect(scalings.airDensity).toBeUndefined()
+  })
+
+  it('sends the penalties once any is set, and names them with the route', () => {
+    const s = { ...DEFAULT_ROUTE_SETTINGS, swellPct: 15, crossedSeaPct: 10, airDensity: true }
+    const { scalings } = requestParts(s, boat, true)
+    expect(scalings.seaPenalty).toEqual({ swellPct: 15, windWavePct: 0, refHeightM: 2, crossedPct: 10, crossedMinM: 0.5, crossedTotalM: 1.5, crossedMarginDeg: 30 })
+    expect(scalings.airDensity).toBe(true)
+    expect(nonDefaultLabels(s)).toEqual(['swell −15%', 'crossed sea −10%', 'air density'])
+  })
+})

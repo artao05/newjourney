@@ -613,7 +613,7 @@ describe('fetchWindCube ingest', () => {
     expect(cube.nt).toBe(2)
     expect(cube.dtMs).toBe(HOUR)
     expect(cube.t0).toBe(T0)
-    expect(cube.params).toEqual(['u10', 'v10', 'gust', 'prmsl'])
+    expect(cube.params).toEqual(['u10', 'v10', 'gust', 'prmsl', 't2m', 'rh'])
 
     // Points go out y-outer/x-inner, so point index = iy*nx + ix must come back
     // in that cell. An index transpose here would be invisible on a wind map.
@@ -643,7 +643,7 @@ describe('fetchWindCube ingest', () => {
       includeCurrent: true,
     })
 
-    expect(cube.params).toEqual(['u10', 'v10', 'gust', 'prmsl'])
+    expect(cube.params).toEqual(['u10', 'v10', 'gust', 'prmsl', 't2m', 'rh'])
     expect(cube.data.hs).toBeUndefined()
     expect(cube.data.uo).toBeUndefined()
     expect(new CubeField(cube).wind(41.1, -70.4, T0)).not.toBeNull()
@@ -703,3 +703,34 @@ describe('merging several forecasts', () => {
     expect(stackSources([gfs])).toBeInstanceOf(CubeField)
   })
 })
+
+describe('the sea state and the air, from a cube', () => {
+  const T = Date.UTC(2026, 8, 29, 12)
+  const cube = (fill: Record<string, number>): WeatherCube => {
+    const data: Record<string, Float32Array> = {}
+    for (const [k, v] of Object.entries(fill)) data[k] = new Float32Array(8).fill(v)
+    return { model: 'm', run: '', bbox: { west: -71, south: 43, east: -70, north: 44 }, nx: 2, ny: 2, dx: 1, dy: 1, t0: T, dtMs: 3_600_000, nt: 2, params: Object.keys(data), data }
+  }
+
+  it('takes the swell partition first, then the main sea as swell, and the wind sea only from its own', () => {
+    const both = new CubeField(cube({ u10: 1, v10: 0, hs: 2, wdir: 100, wper: 8, swh: 1.4, swd: 200, wwh: 0.8, wwd: 20 }))
+    expect(both.seaState(43.5, -70.5, T)).toEqual({ swellH: expect.closeTo(1.4, 5), swellFrom: expect.closeTo(200, 3), windWaveH: expect.closeTo(0.8, 5), windWaveFrom: expect.closeTo(20, 3) })
+    const main = new CubeField(cube({ u10: 1, v10: 0, hs: 2, wdir: 100, wper: 8 }))
+    expect(main.seaState(43.5, -70.5, T)).toMatchObject({ swellH: expect.closeTo(2, 5), swellFrom: expect.closeTo(100, 3), windWaveH: null })
+    // A swell partition with a hole here falls back to the main sea.
+    const holed = new CubeField(cube({ u10: 1, v10: 0, hs: 2, wdir: 100, wper: 8, swh: NaN, swd: NaN }))
+    expect(holed.seaState(43.5, -70.5, T)).toMatchObject({ swellH: expect.closeTo(2, 5) })
+    expect(new CubeField(cube({ u10: 1, v10: 0 })).seaState(43.5, -70.5, T)).toBeNull()
+    expect(main.seaState(60, -70.5, T)).toBeNull()
+  })
+
+  it('works out the air density from pressure, temperature and humidity, and none without them', () => {
+    const c = new CubeField(cube({ u10: 1, v10: 0, prmsl: 1013.25, t2m: 15, rh: 80 }))
+    expect(c.airDensity(43.5, -70.5, T)).toBeCloseTo(1.219, 3)
+    expect(new CubeField(cube({ u10: 1, v10: 0, prmsl: 1013.25 })).airDensity(43.5, -70.5, T)).toBeNull()
+    const stack = new StackedField([new CubeField(cube({ u10: 1, v10: 0 })), c])
+    expect(stack.airDensity(43.5, -70.5, T)).toBeCloseTo(1.219, 3)
+    expect(stack.seaState(43.5, -70.5, T)).toBeNull()
+  })
+})
+

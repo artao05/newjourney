@@ -20,6 +20,7 @@ import type {
   Degrees,
   Knots,
   Millis,
+  SeaState,
   WaveState,
   WeatherCube,
   WeatherField,
@@ -33,6 +34,7 @@ import {
   uvFromWind,
   windFromUv,
 } from './cube'
+import { airDensity } from './airDensity'
 
 /** A field backed by one decoded cube. The normal case. */
 export class CubeField implements WeatherField {
@@ -76,6 +78,37 @@ export class CubeField implements WeatherField {
     // and the wave polar correction would happily use it.
     if (per === null) return null
     return { heightM: h, directionDeg: dir, periodS: per }
+  }
+
+  /**
+   * Swell by priority: the swell partition, else the combined sea with its
+   * primary (or mean) direction. Wind sea only from its own partition.
+   */
+  seaState(lat: number, lon: number, t: Millis): SeaState | null {
+    const has = (p: string) => this.cube.data[p] != null
+    let swellH: number | null = null
+    let swellFrom = NaN
+    if (has('swh') && has('swd')) {
+      swellH = sampleCube(this.cube, 'swh', lat, lon, t)
+      swellFrom = sampleCubeDirection(this.cube, 'swd', lat, lon, t) ?? NaN
+    }
+    if (swellH == null && has('hs') && has('wdir')) {
+      swellH = sampleCube(this.cube, 'hs', lat, lon, t)
+      swellFrom = sampleCubeDirection(this.cube, 'wdir', lat, lon, t) ?? NaN
+    }
+    const windWaveH = has('wwh') ? sampleCube(this.cube, 'wwh', lat, lon, t) : null
+    const windWaveFrom = has('wwd') ? (sampleCubeDirection(this.cube, 'wwd', lat, lon, t) ?? NaN) : NaN
+    if (swellH == null && windWaveH == null) return null
+    return { swellH, swellFrom, windWaveH, windWaveFrom }
+  }
+
+  airDensity(lat: number, lon: number, t: Millis): number | null {
+    if (!this.cube.data.prmsl || !this.cube.data.t2m) return null
+    const p = sampleCube(this.cube, 'prmsl', lat, lon, t)
+    const tc = sampleCube(this.cube, 't2m', lat, lon, t)
+    if (p == null || tc == null) return null
+    const rh = this.cube.data.rh ? sampleCube(this.cube, 'rh', lat, lon, t) : null
+    return airDensity(p, tc, rh)
   }
 
   coverage(): { bbox: BBox; t0: Millis; t1: Millis } {
@@ -135,6 +168,22 @@ export class StackedField implements WeatherField {
     for (const p of this.providers) {
       const w = p.waves(lat, lon, t)
       if (w) return w
+    }
+    return null
+  }
+
+  seaState(lat: number, lon: number, t: Millis): SeaState | null {
+    for (const p of this.providers) {
+      const s = p.seaState?.(lat, lon, t)
+      if (s) return s
+    }
+    return null
+  }
+
+  airDensity(lat: number, lon: number, t: Millis): number | null {
+    for (const p of this.providers) {
+      const r = p.airDensity?.(lat, lon, t)
+      if (r != null) return r
     }
     return null
   }
@@ -349,6 +398,14 @@ export class ScaledField implements WeatherField {
 
   waves(lat: number, lon: number, t: Millis): WaveState | null {
     return this.inner.waves(lat, lon, t)
+  }
+
+  seaState(lat: number, lon: number, t: Millis): SeaState | null {
+    return this.inner.seaState?.(lat, lon, t) ?? null
+  }
+
+  airDensity(lat: number, lon: number, t: Millis): number | null {
+    return this.inner.airDensity?.(lat, lon, t - this.shiftMs) ?? null
   }
 
   coverage(): { bbox: BBox; t0: Millis; t1: Millis } {

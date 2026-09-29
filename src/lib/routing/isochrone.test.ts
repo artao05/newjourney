@@ -22,10 +22,12 @@ import type {
   PolarTable,
   RouteRequest,
   RouteResult,
+  SeaState,
   Targets,
   WeatherField,
 } from '../types'
-import { defaultConstraints, defaultScalings, isNight, lookupPct, mixedVmg, routeIsochrone, MAX_EXPLORED_SEGMENTS } from './isochrone'
+import { defaultConstraints, defaultScalings, isNight, lookupPct, mixedVmg, routeIsochrone, seaFactor, MAX_EXPLORED_SEGMENTS } from './isochrone'
+import { RHO_REF } from '../weather/airDensity'
 import { PolygonLandMask, buildLandMask, extractPolygons } from './land'
 import type { RouteWorkerResponse } from './worker'
 
@@ -875,6 +877,63 @@ describe('isochrone routing kernel', () => {
     expect(up).toBeGreaterThan(1.8)
     expect(up).toBeLessThan(2.2)
     expect(down).toBeCloseTo(1, 1)
+  })
+
+  it('slows the boat by the swell and wind-sea penalties, and more in a crossed sea', () => {
+    const start = { lat: 40, lon: -70 }
+    const to = destination(start, 90, 5)
+    const withSea = (sea: SeaState): WeatherField => ({ ...makeField({ twd: 0, tws: 12 }), seaState: () => sea })
+    const penalty = { swellPct: 20, windWavePct: 10, refHeightM: 2, crossedPct: 15, crossedMinM: 0.5, crossedTotalM: 1.5, crossedMarginDeg: 30 }
+    const time = (field: WeatherField, on: boolean) =>
+      routeIsochrone(request({ start, marks: [to], resolution: 'balanced', scalings: { ...defaultScalings(), ...(on ? { seaPenalty: penalty } : {}) } }), { field, lattice: LATTICE })
+    // 3 m of swell (full effect) and 1 m of wind sea (half), crossing at 80°.
+    const crossed = withSea({ swellH: 3, swellFrom: 0, windWaveH: 1, windWaveFrom: 80 })
+    const parallel = withSea({ swellH: 3, swellFrom: 0, windWaveH: 1, windWaveFrom: 10 })
+    const base = time(crossed, false).elapsedS!
+    const par = time(parallel, true).elapsedS! / base
+    const cross = time(crossed, true).elapsedS! / base
+    note(`9.7 swell −20% in full, wind sea −10% at half: ${par.toFixed(3)}×; crossed at 80° as well: ${cross.toFixed(3)}×`)
+    expect(par).toBeCloseTo(1 / (0.8 * 0.95), 1)
+    expect(cross).toBeCloseTo(1 / (0.8 * 0.95 * 0.85), 1)
+    // A forecast with no sea state changes nothing, and the route says so.
+    const none = time(makeField({ twd: 0, tws: 12 }), true)
+    expect(none.elapsedS! / base).toBeCloseTo(1, 3)
+    expect(none.diagnostics.warnings.some((w) => /no sea state/.test(w))).toBe(true)
+  })
+
+  it('works out the sea factor by the rules, before the kernel uses it', () => {
+    const p = { swellPct: 20, windWavePct: 0, refHeightM: 2, crossedPct: 10, crossedMinM: 0.5, crossedTotalM: 1.5, crossedMarginDeg: 30 }
+    expect(seaFactor({ swellH: 1, swellFrom: 0, windWaveH: null, windWaveFrom: NaN }, p)).toBeCloseTo(0.9, 9)
+    expect(seaFactor({ swellH: 4, swellFrom: 0, windWaveH: null, windWaveFrom: NaN }, p)).toBeCloseTo(0.8, 9)
+    // Crossed at 120° (inside 90 ± 30), both above 0.5 m, together above 1.5 m.
+    expect(seaFactor({ swellH: 1.2, swellFrom: 350, windWaveH: 1.2, windWaveFrom: 110 }, p)).toBeCloseTo(0.88 * 0.9, 9)
+    // Too small a wind sea, or too near parallel, is no crossed sea.
+    expect(seaFactor({ swellH: 1.2, swellFrom: 350, windWaveH: 0.4, windWaveFrom: 80 }, p)).toBeCloseTo(0.88, 9)
+    expect(seaFactor({ swellH: 1.2, swellFrom: 350, windWaveH: 1.2, windWaveFrom: 40 }, p)).toBeCloseTo(0.88, 9)
+    expect(seaFactor({ swellH: 50, swellFrom: 0, windWaveH: 50, windWaveFrom: 90 }, { ...p, swellPct: 99, windWavePct: 99, crossedPct: 99 })).toBe(0.05)
+  })
+
+  it('reads the polar at the wind the air would push with, and keeps the real wind for the limits', () => {
+    const start = { lat: 40, lon: -70 }
+    const to = destination(start, 90, 5)
+    // Warm, humid, low pressure: thin air. And cold, high pressure: thick air.
+    const air = (rho: number): WeatherField => ({ ...makeField({ twd: 0, tws: 6 }), airDensity: () => rho })
+    const time = (field: WeatherField, on: boolean, extra: Partial<RouteRequest['constraints']> = {}) =>
+      routeIsochrone(
+        request({ start, marks: [to], resolution: 'balanced', constraints: { ...defaultConstraints(), ...extra }, scalings: { ...defaultScalings(), ...(on ? { airDensity: true } : {}) } }),
+        { field, lattice: LATTICE },
+      )
+    const base = time(air(RHO_REF), false).elapsedS!
+    expect(time(air(RHO_REF), true).elapsedS! / base).toBeCloseTo(1, 3)
+    const thin = time(air(1.12), true).elapsedS! / base
+    const thick = time(air(1.32), true).elapsedS! / base
+    note(`9.7 air density: thin air 1.12 kg/m³ ${thin.toFixed(3)}×, thick 1.32 kg/m³ ${thick.toFixed(3)}×`)
+    expect(thin).toBeGreaterThan(1.01)
+    expect(thick).toBeLessThan(0.99)
+    // Denser air does not lift the real 6 kn over a 6.2 kn limit.
+    expect(time(air(1.32), true, { maxTws: 6.2 }).ok).toBe(true)
+    const noAir = time(makeField({ twd: 0, tws: 6 }), true)
+    expect(noAir.diagnostics.warnings.some((w) => /no air temperature/.test(w))).toBe(true)
   })
 
   it('reads a wave table between its points, and holds its edges', () => {
