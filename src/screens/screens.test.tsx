@@ -149,6 +149,7 @@ import { PORTLAND_DATUM } from '@/lib/tides/datum'
 import { angdiff, wrap360 } from '@/lib/angles'
 import { uvFromWind } from '@/lib/weather/cube'
 import { DEFAULT_ROUTE_SETTINGS } from '@/lib/routing/settings'
+import * as polarLib from '@/lib/polar'
 
 // ------------------------------------------------------------------ fixtures
 
@@ -1168,10 +1169,10 @@ describe('the polar editor', () => {
     useStore.getState().setPolar('j70', findPolar('j70')!.polar)
     render(<SetupScreen />)
     fireEvent.click(screen.getByRole('button', { name: 'EDIT POLAR' }))
-    const before = screen.getByLabelText('Targets').textContent
+    const before = screen.getByLabelText('Row targets').textContent
     const first = screen.getAllByLabelText(/^BSP at /)[0] as HTMLInputElement
     fireEvent.change(first, { target: { value: String(Number(first.value) + 1.5) } })
-    expect(screen.getByLabelText('Targets').textContent).not.toBe(before)
+    expect(screen.getByLabelText('Row targets').textContent).not.toBe(before)
     fireEvent.click(screen.getByRole('button', { name: 'SAVE AS MY POLAR' }))
     const { polarId, polar } = useStore.getState()
     expect(polarId).toBe('custom')
@@ -1188,6 +1189,21 @@ describe('the polar editor', () => {
     fireEvent.change(screen.getAllByLabelText(/^BSP at /)[0], { target: { value: '-3' } })
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'SAVE AS MY POLAR' }).disabled).toBe(true)
     expect(document.querySelector('.sheet .errbox')).not.toBeNull()
+  })
+})
+
+describe('the targets table', () => {
+  it("lists a target for every wind speed in the polar, at the boat's polar %", () => {
+    const polar = findPolar('j70')!.polar
+    useStore.getState().setPolar('j70', polar)
+    useStore.getState().updateBoat({ polarPct: 90 })
+    render(<SetupScreen />)
+    const rows = within(screen.getByRole('table', { name: 'Targets' })).getAllByRole('row')
+    expect(rows).toHaveLength(polar.tws.length + 1)
+    const { deriveTargets } = polarLib
+    const t = deriveTargets(polar, polar.tws[2])
+    expect(rows[3].textContent).toContain((t.upBsp * 0.9).toFixed(2))
+    useStore.getState().updateBoat({ polarPct: 100 })
   })
 })
 

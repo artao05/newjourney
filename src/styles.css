@@ -938,6 +938,34 @@ button {
 }
 
 /* For a sheet that is a whole editor rather than a detail. */
+.tablewrap {
+  overflow-x: auto;
+  margin-top: 8px;
+}
+
+.targets {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.targets th,
+.targets td {
+  padding: 4px 6px;
+  text-align: right;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.targets th {
+  color: var(--ink-faint);
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 .sheet--tall {
   max-height: 92%;
 }

@@ -12,6 +12,14 @@ import { POLAR_LIBRARY, findPolar } from '@/data/polars'
 import { buildLattice, parsePolar, serialiseExpeditionPolar, validatePolar } from '@/lib/polar'
 import { PolarPlot } from '@/components/PolarPlot'
 import { PolarEditor } from '@/components/PolarEditor'
+import { TargetsTable } from '@/components/TargetsTable'
+
+/** The wind speeds the polar plot can draw at once: light, the usual spread, heavy. */
+const PLOT_SETS: number[][] = [
+  [2, 4, 6, 8],
+  [6, 10, 14, 20],
+  [16, 20, 25, 30],
+]
 import { NotForNavigationText } from '@/components/NotForNavigation'
 import { PILOT_VENUE } from '@/data/venues'
 import { PORTLAND_DATUM } from '@/lib/tides/datum'
@@ -50,6 +58,7 @@ export function SetupScreen() {
   const polar = useStore((s) => s.polar)
   const polarRoles = useStore((s) => s.polarRoles)
   const [editingPolar, setEditingPolar] = useState(false)
+  const [plotSpeeds, setPlotSpeeds] = useState<number[]>(PLOT_SETS[1])
   const setPolarRole = useStore((s) => s.setPolarRole)
   const setPolar = useStore((s) => s.setPolar)
   const settings = useStore((s) => s.settings)
@@ -319,7 +328,19 @@ export function SetupScreen() {
         <h2>Polar</h2>
         {polar ? (
           <>
-            <PolarPlot lattice={lattice} />
+            <div className="seg" role="group" aria-label="Plot wind speeds" style={{ marginBottom: 6 }}>
+              {PLOT_SETS.map((set) => (
+                <button
+                  key={set.join(',')}
+                  aria-pressed={plotSpeeds.join(',') === set.join(',')}
+                  onClick={() => setPlotSpeeds(set)}
+                >
+                  {set.join('/')} kn
+                </button>
+              ))}
+            </div>
+            <PolarPlot lattice={lattice} speeds={plotSpeeds} />
+            <TargetsTable polar={polar} polarPct={boat.polarPct} />
             <div className="rows" style={{ marginTop: 8 }}>
               <div className="row">
                 <span>Source</span>

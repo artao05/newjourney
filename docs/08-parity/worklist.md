@@ -107,7 +107,9 @@ leaves something tested and working.
 - [x] **4.2 Polar editor.** Table and drag editing, derived targets, save as
       Expedition text. *Accept:* editor and serialiser tests. *Done as a table
       editor.* Dragging points on the plot waits for a canvas hit-testing layer.
-- [ ] **4.3 Targets table, and logged points drawn on the polar.** *Accept:* tests.
+- [x] **4.3 Targets table, and logged points drawn on the polar.** *Accept:* tests.
+      *Done: the targets table, and wind-speed sets for the plot.* Logged points need
+      logged BSP and TWS, so they move to 7.1b.
 - [ ] **4.4 Sails and the sail chart.** A sail list, a TWA × TWS chart with
       tab-separated import/export, the live point, sail channels and a sail per
       route leg. *Accept:* parser, lookup and screen tests.
@@ -169,6 +171,8 @@ leaves something tested and working.
 
 - [ ] **7.1 Channel logger:** 1 Hz to IndexedDB, one log per day, a size cap, and CSV
       export. *Accept:* tests.
+- [ ] **7.1b Logged points on the polar**, coloured by tack and hollow when below the
+      polar's VMG, as Expedition draws them. *Accept:* tests.
 - [ ] **7.2 Log import:** CSV logs, NMEA recordings and GPX. *Accept:* fixture tests.
 - [ ] **7.3 LogPlayer:** replay into the live snapshot with play, pause, speed and
       seek. Every screen works during playback. *Accept:* tests and a browser check.

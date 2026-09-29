@@ -105,7 +105,7 @@ export function PolarEditor({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       {targets && (
-        <p className="note" aria-label="Targets">
+        <p className="note" aria-label="Row targets">
           Targets at {draft.tws[row]} kn: upwind {targets.upTwa.toFixed(1)}° at {targets.upBsp.toFixed(2)} kn
           (VMG {targets.upVmg.toFixed(2)}), downwind {targets.downTwa.toFixed(1)}° at{' '}
           {targets.downBsp.toFixed(2)} kn (VMG {Math.abs(targets.downVmg).toFixed(2)}).
