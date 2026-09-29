@@ -144,7 +144,7 @@ leaves something tested and working.
       examples.
 - [x] **5.9 Race timer:** multiple class starts, custom sequences, and sounds.
       *Accept:* timer tests.
-- [ ] **5.10 Wind shadow channels.** *Accept:* geometry tests.
+- *5.10 Wind shadow channels moved to 12.7: they need other boats' positions, from AIS or race tracking.*
 
 ## M6 — Instruments
 
@@ -276,6 +276,8 @@ leaves something tested and working.
       Vessel Finder formats, plus boat-id maps. *Accept:* parser tests.
 - [ ] **12.6 Tracking window:** positions interpolated to now, range and bearing,
       Ahead-of, and a leaderboard. *Accept:* tests.
+- [ ] **12.7 Wind shadow channels** (from 5.10): Shadow and Shadow opposite gybe, from
+      the tracked or AIS boats and the wind. *Accept:* geometry tests.
 
 ## M13 — Charts
 
