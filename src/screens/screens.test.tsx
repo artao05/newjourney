@@ -940,13 +940,22 @@ describe('the marks library', () => {
   it('files a GPX import under its own folder, not straight onto the course', async () => {
     render(<RaceScreen />)
     const file = new File([gpx], 'Casco Bay.gpx', { type: 'application/gpx+xml' })
-    fireEvent.change(screen.getByLabelText('Import GPX into the library'), { target: { files: [file] } })
+    fireEvent.change(screen.getByLabelText('Import marks into the library'), { target: { files: [file] } })
     await waitFor(() => expect(useStore.getState().library).toHaveLength(2))
     expect(useStore.getState().library.map((m) => [m.folder, m.name])).toEqual([
       ['Casco Bay', 'Bell 1'],
       ['Casco Bay', 'Can 3'],
     ])
     expect(useStore.getState().course.marks).toHaveLength(0)
+  })
+
+  it("files Expedition's marks CSV by its group column", async () => {
+    render(<RaceScreen />)
+    const csv = ['North Head,50 42.69n,01 35.52w,Solent', 'Bell 1,43.6,-70.2,Casco Bay'].join('\n')
+    const file = new File([csv], 'marks.csv', { type: 'text/csv' })
+    fireEvent.change(screen.getByLabelText('Import marks into the library'), { target: { files: [file] } })
+    await waitFor(() => expect(useStore.getState().library).toHaveLength(2))
+    expect(useStore.getState().library.map((m) => m.folder)).toEqual(['Solent', 'Casco Bay'])
   })
 
   it('builds the course from it, a mark at a time or a folder at once', () => {

@@ -26,20 +26,50 @@ export function MarksLibrary() {
     return [...by.entries()]
   }, [library])
 
-  const importGpx = async (file: File) => {
+  /** GPX, or Expedition's marks CSV, whose group column names the folders. */
+  const importFile = async (file: File) => {
+    const fallback = file.name.replace(/\.[^.]+$/, '') || 'Imported'
     try {
+      const text = await file.text()
+      if (/\.csv$/i.test(file.name)) {
+        const { parseMarksCsv } = await import('@/lib/marksCsv')
+        const { marks, skipped } = parseMarksCsv(text)
+        if (marks.length === 0) {
+          alert('No marks could be read from that CSV.')
+          return
+        }
+        const byFolder = new Map<string, typeof marks>()
+        for (const m of marks) {
+          const f = m.folder ?? fallback
+          byFolder.set(f, [...(byFolder.get(f) ?? []), m])
+        }
+        for (const [f, ms] of byFolder) addToLibrary(f, ms)
+        setOpen([...byFolder.keys()][0])
+        if (skipped > 0) alert(`${marks.length} marks filed; ${skipped} lines could not be read and were skipped.`)
+        return
+      }
       const { parseGpx } = await import('@/lib/gpx')
-      const parsed = parseGpx(await file.text())
+      const parsed = parseGpx(text)
       if (parsed.waypoints.length === 0) {
         alert('That GPX has no waypoints or route points to file.')
         return
       }
-      const folder = file.name.replace(/\.[^.]+$/, '') || 'Imported'
-      addToLibrary(folder, parsed.waypoints)
-      setOpen(folder)
+      addToLibrary(fallback, parsed.waypoints)
+      setOpen(fallback)
     } catch (err) {
-      alert(`Could not read that GPX: ${err instanceof Error ? err.message : err}`)
+      alert(`Could not read that file: ${err instanceof Error ? err.message : err}`)
     }
+  }
+
+  const exportFolder = async (folder: string, marks: LibraryMark[], as: 'csv' | 'gpx' | 'table') => {
+    const { downloadText, marksToGpx } = await import('@/lib/gpx')
+    const { marksToCsv, rangeBearingTable } = await import('@/lib/marksCsv')
+    const safe = folder.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'marks'
+    if (as === 'gpx') {
+      downloadText(`${safe}.gpx`, marksToGpx(marks.map((m) => ({ ...m, roundTo: 'port' as const })), folder))
+    }
+    else if (as === 'csv') downloadText(`${safe}.csv`, marksToCsv(marks), 'text/csv')
+    else downloadText(`${safe}-ranges.csv`, rangeBearingTable(marks), 'text/csv')
   }
 
   return (
@@ -89,21 +119,36 @@ export function MarksLibrary() {
                   DELETE FOLDER
                 </button>
               </div>
+              <div className="actions" style={{ background: 'none', border: 'none', padding: '0 0 6px' }}>
+                <button className="btn btn--sm btn--ghost" onClick={() => void exportFolder(folder, marks, 'csv')}>
+                  CSV
+                </button>
+                <button className="btn btn--sm btn--ghost" onClick={() => void exportFolder(folder, marks, 'gpx')}>
+                  GPX
+                </button>
+                <button
+                  className="btn btn--sm btn--ghost"
+                  onClick={() => void exportFolder(folder, marks, 'table')}
+                  title="Range and bearing between every pair of marks, as a CSV table"
+                >
+                  TABLE
+                </button>
+              </div>
             </>
           )}
         </div>
       ))}
       <div className="actions" style={{ background: 'none', border: 'none', padding: '8px 0' }}>
         <label className="btn btn--sm btn--ghost" style={{ display: 'block', textAlign: 'center' }}>
-          IMPORT GPX
+          IMPORT GPX / CSV
           <input
             type="file"
-            accept=".gpx,application/gpx+xml"
-            aria-label="Import GPX into the library"
+            accept=".gpx,.csv,application/gpx+xml,text/csv"
+            aria-label="Import marks into the library"
             style={{ display: 'none' }}
             onChange={(e) => {
               const f = e.target.files?.[0]
-              if (f) void importGpx(f)
+              if (f) void importFile(f)
               e.target.value = ''
             }}
           />

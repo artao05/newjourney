@@ -74,6 +74,19 @@ function halves(input: string): [string, string] | null {
   return null
 }
 
+/**
+ * One coordinate on its own, as a CSV column holds it: "50 42.69n", "01 35.52w",
+ * "-70.2051". A hemisphere letter must suit the axis, and the value its range.
+ */
+export function parseCoordinate(text: string, axis: 'lat' | 'lon'): number | null {
+  const p = parsePart(text)
+  if (!p) return null
+  const letters = axis === 'lat' ? ['N', 'S'] : ['E', 'W']
+  if (p.hemi && !letters.includes(p.hemi)) return null
+  const v = p.hemi === 'S' || p.hemi === 'W' ? -p.value : p.value
+  return Math.abs(v) <= (axis === 'lat' ? 90 : 180) ? v : null
+}
+
 export function parseLatLon(input: string): LatLon | null {
   const h = halves(input)
   if (!h) return null

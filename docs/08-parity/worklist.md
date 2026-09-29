@@ -85,7 +85,7 @@ leaves something tested and working.
 - [x] **3.1c A marks library.** A library of named marks, in folders and separate
       from the course, which routes are built from. GPX import goes to it.
       *Accept:* store and screen tests.
-- [ ] **3.2 Marks import and export:** GPX and Expedition-style CSV. *Accept:*
+- [x] **3.2 Marks import and export:** GPX and Expedition-style CSV. *Accept:*
       round-trip tests.
 - [ ] **3.3 Named routes.** Build from marks or by tapping the chart; insert,
       reorder, reverse and activate; next mark; a legs table with bearing, distance,
