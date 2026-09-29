@@ -313,6 +313,8 @@ export interface TacticalNumbers {
   distanceToFinishNm: NauticalMiles | null
   laylines: LaylineInfo | null
   nextMarkBearing: Degrees | null
+  /** Length of the leg after this one: active mark to the next mark. */
+  nextMarkRange: NauticalMiles | null
   /** Beat split: nm to sail on each tack to fetch the mark. */
   portTackDistanceNm: NauticalMiles | null
   starboardTackDistanceNm: NauticalMiles | null

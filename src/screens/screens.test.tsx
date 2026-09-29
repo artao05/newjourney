@@ -707,6 +707,27 @@ describe('a recorded track can be exported, and reads back', () => {
   })
 })
 
+describe('Race shows every number the tactics already compute', () => {
+  /*
+   * XTE, distance to finish, polar BSP, VMG %, VMC, the layline bearings and the
+   * next leg were all computed on every tick and shown nowhere.
+   */
+  it('gives each one a tile with a value, not a dash, on a populated course', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    const valueOf = (label: string) => {
+      const tile = [...document.querySelectorAll('.tile')].find(
+        (el) => el.querySelector('.tile__label')?.textContent === label,
+      )
+      expect(tile, label).toBeTruthy()
+      return tile!.querySelector('.tile__value')!.textContent
+    }
+    for (const label of ['polar bsp', 'VMG %', 'port layline', 'stbd layline', 'VMC', 'XTE', 'to finish', 'next leg']) {
+      expect(valueOf(label), label).not.toBe('—')
+    }
+  })
+})
+
 describe('the loaded polar can be saved in the format it was read in', () => {
   it('downloads an Expedition .txt that parses back to the same speeds', async () => {
     const polar = findPolar('j70')!.polar

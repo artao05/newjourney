@@ -137,6 +137,10 @@ export function RaceScreen() {
         />
         <Tile label="VMG" value={t?.vmg ?? null} unit="kn" dp={2} />
         <Tile label="target TWA" value={t?.targetTwa ?? null} unit="°" dp={0} />
+        <Tile label="polar bsp" value={t?.polarBsp ?? null} unit="kn" dp={2} small
+          sub="the polar at this angle" />
+        <Tile label="VMG %" value={t?.vmgPct ?? null} unit="%" dp={0} small
+          sub="of target VMG" />
       </div>
 
       <h2 className="panel" style={{ paddingBottom: 0 }}>
@@ -189,6 +193,22 @@ export function RaceScreen() {
           small
           sub="wind oscillation"
         />
+        <Tile
+          label="port layline"
+          value={t?.laylines ? fmtDeg(t.laylines.portBearing) : null}
+          unit="°"
+          tone="port"
+          small
+          sub="bearing to the mark"
+        />
+        <Tile
+          label="stbd layline"
+          value={t?.laylines ? fmtDeg(t.laylines.starboardBearing) : null}
+          unit="°"
+          tone="stbd"
+          small
+          sub="bearing to the mark"
+        />
       </div>
 
       <h2 className="panel" style={{ paddingBottom: 0 }}>
@@ -219,6 +239,31 @@ export function RaceScreen() {
           dp={2}
           tone="stbd"
           small
+        />
+        <Tile
+          label="VMC"
+          value={t?.vmc ?? null}
+          unit="kn"
+          dp={2}
+          small
+          sub={t?.vmcOptimum != null ? `best ${t.vmcOptimum.toFixed(2)} kn` : 'made good to the mark'}
+        />
+        <Tile
+          label="XTE"
+          value={t?.xteNm == null ? null : Math.abs(t.xteNm)}
+          unit="nm"
+          dp={2}
+          small
+          sub={t?.xteNm == null ? 'off the leg' : t.xteNm >= 0 ? 'right of the leg' : 'left of the leg'}
+        />
+        <Tile label="to finish" value={t?.distanceToFinishNm ?? null} unit="nm" dp={2} small
+          sub="through every mark" />
+        <Tile
+          label="next leg"
+          value={t?.nextMarkBearing != null ? fmtDeg(t.nextMarkBearing) : null}
+          unit="°"
+          small
+          sub={t?.nextMarkRange != null ? `${t.nextMarkRange.toFixed(2)} nm` : 'no next mark'}
         />
       </div>
 

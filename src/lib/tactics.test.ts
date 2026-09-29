@@ -417,6 +417,7 @@ describe('computeTactics', () => {
     // 1 / (6 cos40) h = 783.24 s, plus one tack penalty.
     expect(r.markTimeS).toBeCloseTo(3600 / (6 * COS40) + 10, 1)
     expectAngle(r.nextMarkBearing, 180, 3)
+    expect(r.nextMarkRange).toBeCloseTo(1.5, 4)
     expect(r.distanceToFinishNm).toBeCloseTo(2.5, 4)
     expect(r.laylines).not.toBeNull()
     expect(r.laylines!.distanceToPortLayline).toBeCloseTo(1 / (2 * COS40), 4)

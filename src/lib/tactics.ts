@@ -347,6 +347,7 @@ function emptyTactics(): TacticalNumbers {
     distanceToFinishNm: null,
     laylines: null,
     nextMarkBearing: null,
+    nextMarkRange: null,
     portTackDistanceNm: null,
     starboardTackDistanceNm: null,
   }
@@ -511,7 +512,10 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
     if (prev) out.xteNm = crossTrack(state.position, prev, mark.position)
 
     const next = marks[i.activeMarkIndex + 1]
-    if (next) out.nextMarkBearing = bearing(mark.position, next.position)
+    if (next) {
+      out.nextMarkBearing = bearing(mark.position, next.position)
+      out.nextMarkRange = distance(mark.position, next.position)
+    }
 
     if (out.markRange === null) return
     let toGo = out.markRange
