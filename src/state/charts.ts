@@ -16,6 +16,13 @@ export interface EncDisplay {
   deepM: number
   twoShades: boolean
   night: boolean
+  lightText: boolean
+  sectors: boolean
+  fullLegs: boolean
+  smallSectors: boolean
+  names: boolean
+  largeText: boolean
+  antiClutter: boolean
 }
 
 /** A raster chart (BSB/KAP) on the Route chart: its picture as an image URL and where its corners go. */
@@ -52,7 +59,10 @@ interface ChartsState {
   setDisplay(p: Partial<EncDisplay>): void
 }
 
-export const DEFAULT_ENC_DISPLAY: EncDisplay = { category: 'all', shallowM: 2, deepM: 10, twoShades: false, night: false }
+export const DEFAULT_ENC_DISPLAY: EncDisplay = {
+  category: 'all', shallowM: 2, deepM: 10, twoShades: false, night: false,
+  lightText: true, sectors: true, fullLegs: false, smallSectors: false, names: false, largeText: false, antiClutter: true,
+}
 
 /** A cell's name without its extension, upper case: the key it is installed under. */
 export const cellKey = (name: string) => name.replace(/\.\d{3}$/, '').toUpperCase()

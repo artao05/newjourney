@@ -5,7 +5,7 @@
  * it standing out, land, coastline, lights, buoys and dangers. A simplified
  * rendition, not the conformant PresLib: not for navigation.
  */
-import { distance } from '../geo'
+import { destination, distance } from '../geo'
 import type { EncCell, EncFeature, EncFeature as Feature } from './s57'
 import { symbolFor, symbolKey } from './symbols'
 
@@ -43,6 +43,81 @@ export interface EncStyleOptions {
   category?: DisplayCategory
   /** The night palette: dimmer everything, for dark adaptation. */
   night?: boolean
+  /** Light descriptions (Fl(2)G 5s 8m 5M) beside lights. */
+  lightText?: boolean
+  /** Sector arcs and their limit lines for sectored lights. */
+  sectors?: boolean
+  /** Sector limit lines out to the light's nominal range, not short stubs. */
+  fullLegs?: boolean
+  /** Arcs at 20 mm on screen rather than S-52's 25 mm. */
+  smallSectors?: boolean
+  /** Object names (OBJNAM) beside points. */
+  names?: boolean
+  /** Hide objects too detailed for the scale shown (SCAMIN). */
+  antiClutter?: boolean
+  /** The scale shown, 1:n, for anti-clutter and for sizing sector arcs on screen. */
+  scale?: number
+}
+
+/** S-57 LITCHR codes as charts write them. */
+const LITCHR: Record<string, string> = {
+  '1': 'F', '2': 'Fl', '3': 'LFl', '4': 'Q', '5': 'VQ', '6': 'UQ', '7': 'Iso', '8': 'Oc', '9': 'IQ', '10': 'IVQ', '11': 'IUQ', '12': 'Mo',
+  '13': 'FFl', '14': 'Fl+LFl', '15': 'Oc+Fl', '16': 'FLFl', '17': 'Al.Oc', '18': 'Al.LFl', '19': 'Al.Fl', '20': 'Al.Gr', '25': 'Q+LFl', '26': 'VQ+LFl', '27': 'UQ+LFl', '28': 'Al', '29': 'Al.FFl',
+}
+const LIGHT_COLOUR: Record<string, string> = { '1': 'W', '3': 'R', '4': 'G', '5': 'Bu', '6': 'Y', '11': 'Or', '13': 'Vi' }
+
+/**
+ * A light's description as a chart writes it: character, group, colours,
+ * period, height and range, such as "Fl(2)G 5s 8m 5M". Parts not given are
+ * left out.
+ */
+export function lightDescription(a: Record<string, string>): string {
+  const ch = LITCHR[(a.LITCHR ?? '').trim()] ?? ''
+  const grp = (a.SIGGRP ?? '').trim()
+  // A group of one, "(1)" or "()", is not written.
+  const group = grp && grp !== '()' && grp !== '(1)' ? (grp.startsWith('(') ? grp : `(${grp})`) : ''
+  const colours = (a.COLOUR ?? '').split(',').map((c) => LIGHT_COLOUR[c.trim()] ?? '').join('')
+  const num = (v: string | undefined) => (v != null && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : null)
+  const per = num(a.SIGPER)
+  const ht = num(a.HEIGHT)
+  const rng = num(a.VALNMR)
+  const head = `${ch}${group}${colours && ch ? (group ? '' : ' ') + colours : colours}`.trim()
+  return [head, per != null ? `${per}s` : '', ht != null ? `${Math.round(ht)}m` : '', rng != null ? `${rng}M` : ''].filter(Boolean).join(' ')
+}
+
+/** A light's sector: its arc and its two limit lines, as lines of [lon, lat], and its colour. */
+export function lightSector(f: { attrs: Record<string, string>; geometry: EncFeature['geometry'] }, o: Pick<EncStyleOptions, 'fullLegs' | 'smallSectors' | 'scale'>): { arc: number[][]; legs: number[][][]; colour: string } | null {
+  const g = f.geometry
+  if (!g || g.type !== 'Point') return null
+  const s1 = Number(f.attrs.SECTR1)
+  const s2 = Number(f.attrs.SECTR2)
+  if (!Number.isFinite(s1) || !Number.isFinite(s2) || f.attrs.SECTR1 === '' || f.attrs.SECTR2 === '') return null
+  const at = { lat: g.coordinates[1], lon: g.coordinates[0] }
+  // Sector bearings are from seaward toward the light; from the light they point the other way.
+  const from = (s1 + 180) % 360
+  let to = (s2 + 180) % 360
+  if (to <= from) to += 360
+  // S-52 draws the arc 25 mm out on screen (20 small): that many metres at the scale shown.
+  const radiusNm = (((o.smallSectors ? 20 : 25) / 1000) * (o.scale ?? 20000)) / 1852
+  const arc: number[][] = []
+  const n = Math.max(4, Math.ceil((to - from) / 5))
+  for (let i = 0; i <= n; i++) {
+    const p = destination(at, from + ((to - from) * i) / n, radiusNm)
+    arc.push([p.lon, p.lat])
+  }
+  const range = Number(f.attrs.VALNMR)
+  const legNm = o.fullLegs && Number.isFinite(range) && range > 0 ? range : radiusNm * 1.6
+  const legs = [from, to].map((b) => {
+    const p = destination(at, b, legNm)
+    return [g.coordinates, [p.lon, p.lat]]
+  })
+  const c = (f.attrs.COLOUR ?? '').split(',')[0]
+  return { arc, legs, colour: c === '3' ? '#ff5252' : c === '4' ? '#43a047' : '#fdd835' }
+}
+
+/** The chart scale 1:n shown at a MapLibre zoom (512-pixel tiles) and latitude, at 96 dpi. */
+export function scaleAtZoom(zoom: number, lat: number): number {
+  return (78271.51696 * Math.cos((lat * Math.PI) / 180) * 96) / 0.0254 / 2 ** zoom
 }
 
 export interface DrawFeature {
@@ -83,6 +158,11 @@ export function encDrawFeatures(cells: EncCell[], o: EncStyleOptions): DrawFeatu
       if (!f.geometry) continue
       // Anything not in the table counts as Other; Display Base is always drawn.
       if (RANK[CATEGORY[f.cls] ?? 'all'] > show) continue
+      // Anti-clutter: an object whose SCAMIN is smaller than the scale shown waits for a closer zoom.
+      if (o.antiClutter && o.scale && CATEGORY[f.cls] !== 'base') {
+        const scamin = Number(f.attrs.SCAMIN)
+        if (Number.isFinite(scamin) && scamin > 0 && o.scale > scamin) continue
+      }
       if (f.cls === 'SOUNDG' && f.geometry.type === 'MultiPoint') {
         for (const [lon, lat, d] of f.geometry.coordinates) {
           out.push({ type: 'Feature', properties: { layer: 'sounding', depth: Math.round(d * 10) / 10, label: d < 31 ? d.toFixed(1).replace(/\.0$/, '') : String(Math.round(d)), shallow: d < o.safetyDepthM }, geometry: { type: 'Point', coordinates: [lon, lat] } })
@@ -110,6 +190,16 @@ export function encDrawFeatures(cells: EncCell[], o: EncStyleOptions): DrawFeatu
           properties: { layer: 'point', cls: f.cls, color: f.cls === 'LIGHTS' ? '#e040fb' : danger ? '#ff5252' : colour, radius: f.cls === 'LIGHTS' ? 3.5 : 5, name, ...(sym ? { icon: symbolKey(sym) } : {}) },
           geometry: f.geometry,
         })
+        // Text: a light's description, and other objects' names, each group on its own switch.
+        const text = f.cls === 'LIGHTS' ? (o.lightText ? lightDescription(f.attrs) : '') : o.names ? name : ''
+        if (text) out.push({ type: 'Feature', properties: { layer: 'text', group: f.cls === 'LIGHTS' ? 'light' : 'name', label: text }, geometry: f.geometry })
+        if (f.cls === 'LIGHTS' && o.sectors) {
+          const sec = lightSector(f, o)
+          if (sec) {
+            out.push({ type: 'Feature', properties: { layer: 'sector', color: sec.colour, part: 'arc' }, geometry: { type: 'LineString', coordinates: sec.arc as Array<[number, number]> } })
+            for (const leg of sec.legs) out.push({ type: 'Feature', properties: { layer: 'sector', color: '#b0bec5', part: 'leg' }, geometry: { type: 'LineString', coordinates: leg as Array<[number, number]> } })
+          }
+        }
       }
     }
   }

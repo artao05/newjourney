@@ -25,7 +25,7 @@ import type { EncBounds } from '@/lib/charts/s57'
 import { fleetPositions, fleetRouteJobs, fleetRouteRow, rankFleet, type FleetRouteRow } from '@/lib/routing/fleetRoute'
 import { fleetPolar } from '@/lib/fleet'
 import { POLAR_LIBRARY } from '@/data/polars'
-import { encDrawFeatures, encObjectsAt } from '@/lib/charts/s52'
+import { encDrawFeatures, encObjectsAt, scaleAtZoom } from '@/lib/charts/s52'
 import { parseSymbolKey, rasterSymbol } from '@/lib/charts/symbols'
 import { offsetCorners, offsetFeatures } from '@/lib/charts/georef'
 import { checkRoute, withEncHazards } from '@/lib/charts/encRouting'
@@ -650,6 +650,18 @@ export function RouteScreen() {
 
   // ENC cells the user opened, drawn against the safety depth.
   const encCells = useCharts((s) => s.cells)
+  // The zoom to a whole level, so the chart is redrawn for its scale only when that changes.
+  const [encZoom, setEncZoom] = useState(12)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const on = () => setEncZoom(Math.round(map.getZoom()))
+    on()
+    map.on('zoomend', on)
+    return () => {
+      map.off('zoomend', on)
+    }
+  }, [ready])
   const rasters = useCharts((s) => s.rasters)
   const chartOffset = useStore((s) => s.settings.chartOffset)
   // Raster charts: an image source each, under the ENC cells and everything else.
@@ -697,9 +709,14 @@ export function RouteScreen() {
     )
     // Moved by the chart offset, at the charts' own latitude.
     const b = encCells.find((c) => c.bounds)?.bounds
-    const features = offsetFeatures([...encDrawFeatures(encCells, { safetyDepthM, ...encDisplay }), ...outlines] as Array<{ geometry: { type: string; coordinates: unknown } | null }>, chartOffset, b ? (b.south + b.north) / 2 : 45)
+    // The scale shown, for anti-clutter and for drawing sector arcs a set size on screen.
+    const scale = scaleAtZoom(encZoom, b ? (b.south + b.north) / 2 : 45)
+    const features = offsetFeatures([...encDrawFeatures(encCells, { safetyDepthM, ...encDisplay, scale }), ...outlines] as Array<{ geometry: { type: string; coordinates: unknown } | null }>, chartOffset, b ? (b.south + b.north) / 2 : 45)
     setSource(map, 'enc', { type: 'FeatureCollection', features } as unknown as FC)
-  }, [ready, encCells, safetyDepthM, encDisplay, chartOffset])
+    const big = encDisplay.largeText ? 1.4 : 1
+    map.setLayoutProperty('enc-sounding', 'text-size', 10 * big)
+    map.setLayoutProperty('enc-text', 'text-size', 10 * big)
+  }, [ready, encCells, safetyDepthM, encDisplay, chartOffset, encZoom])
 
   // The fleet's tracks from tracking files, in each boat's colour.
   const fleetTracks = useTracking((s) => s.tracks)
@@ -2241,6 +2258,16 @@ function addEmptyLayers(map: maplibregl.Map) {
     layout: { 'icon-image': ['get', 'icon'] as never, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
   })
   map.addLayer({ id: 'enc-point', type: 'circle', source: 'enc', filter: ['all', ['==', ['get', 'layer'], 'point'], ['!', ['has', 'icon']]], paint: { 'circle-color': ['get', 'color'] as never, 'circle-radius': ['get', 'radius'] as never, 'circle-stroke-color': '#04101c', 'circle-stroke-width': 1 } })
+  map.addLayer({ id: 'enc-sector-arc', type: 'line', source: 'enc', filter: ['all', ['==', ['get', 'layer'], 'sector'], ['==', ['get', 'part'], 'arc']], paint: { 'line-color': ['get', 'color'] as never, 'line-width': 3, 'line-opacity': 0.85 } })
+  map.addLayer({ id: 'enc-sector-leg', type: 'line', source: 'enc', filter: ['all', ['==', ['get', 'layer'], 'sector'], ['==', ['get', 'part'], 'leg']], paint: { 'line-color': ['get', 'color'] as never, 'line-width': 1, 'line-dasharray': [4, 3] } })
+  map.addLayer({
+    id: 'enc-text',
+    type: 'symbol',
+    source: 'enc',
+    filter: ['==', ['get', 'layer'], 'text'],
+    layout: { 'text-field': ['get', 'label'] as never, 'text-size': 10, 'text-offset': [0.8, -0.6], 'text-anchor': 'left', 'text-optional': true },
+    paint: { 'text-color': ['case', ['==', ['get', 'group'], 'light'], '#f8bbd0', '#cfd8dc'] as never, 'text-halo-color': '#04101c', 'text-halo-width': 1.2 },
+  })
   map.addLayer({
     id: 'enc-sounding',
     type: 'symbol',
@@ -2750,6 +2777,23 @@ function EncSheet({ onClose, onShow }: { onClose: () => void; onShow: (b: EncBou
         <label>
           <input type="checkbox" checked={display.night} onChange={(e) => setDisplay({ night: e.target.checked })} /> Night palette
         </label>
+      </div>
+      <div role="group" aria-label="Lights and text" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+        {(
+          [
+            ['lightText', 'Light descriptions'],
+            ['sectors', 'Light sectors'],
+            ['fullLegs', 'Sector legs to full range'],
+            ['smallSectors', 'Small sectors'],
+            ['names', 'Names'],
+            ['largeText', 'Large text'],
+            ['antiClutter', 'Hide detail for the scale'],
+          ] as const
+        ).map(([k, label]) => (
+          <label key={k}>
+            <input type="checkbox" checked={display[k]} onChange={(e) => setDisplay({ [k]: e.target.checked })} /> {label}
+          </label>
+        ))}
       </div>
       <label style={{ display: 'block', marginBottom: 8 }} title="The router keeps out of water shallower than the safety depth and 50 m clear of dangers shallower than it, on the cells open">
         <input type="checkbox" checked={routeBySafety} onChange={(e) => useCharts.getState().setRouteBySafety(e.target.checked)} /> Route by the safety depth

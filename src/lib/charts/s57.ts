@@ -26,7 +26,8 @@ export const OBJECT_CLASSES: Record<number, string> = {
 
 /** Attributes by code: the ones the display and the depth checks need. */
 export const ATTRIBUTES: Record<number, string> = {
-  2: 'BCNSHP', 4: 'BOYSHP', 13: 'CATCAM', 35: 'CATLMK', 36: 'CATLAM', 75: 'COLOUR', 76: 'COLPAT', 87: 'DRVAL1', 88: 'DRVAL2', 107: 'LITCHR', 116: 'OBJNAM', 141: 'SIGGRP', 142: 'SIGPER', 171: 'TOPSHP', 174: 'VALDCO', 179: 'VALSOU',
+  2: 'BCNSHP', 4: 'BOYSHP', 13: 'CATCAM', 35: 'CATLMK', 36: 'CATLAM', 37: 'CATLIT', 75: 'COLOUR', 76: 'COLPAT', 87: 'DRVAL1', 88: 'DRVAL2', 95: 'HEIGHT', 107: 'LITCHR', 108: 'LITVIS', 116: 'OBJNAM', 117: 'ORIENT', 133: 'SCAMIN',
+  136: 'SECTR1', 137: 'SECTR2', 141: 'SIGGRP', 142: 'SIGPER', 171: 'TOPSHP', 174: 'VALDCO', 178: 'VALNMR', 179: 'VALSOU',
 }
 
 export type Geometry =

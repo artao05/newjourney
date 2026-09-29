@@ -414,9 +414,11 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       P3-102). *Accept:* tests.
       *Labels are names only, the MOB PGN is transmitting (D3), and the raw log is kept in memory
       with an export rather than written to storage.*
-- [ ] **15.4 ENC lights and text:** light descriptions, sectors (full-length and
+- [x] **15.4 ENC lights and text:** light descriptions, sectors (full-length and
       small), text groups, large text, anti-clutter (P1-094, P1-095, P2-006, P2-007,
       P2-008, P2-010, P2-009, P1-309). *Accept:* tests and a browser check.
+      *All but the important-text group (clearances, not drawn yet). Checked in the browser on a
+      built cell with a two-sector light.*
 - [ ] **15.5 Number boxes:** damped or raw values, per-channel precision, time to a race
       note, alternating numbers by situation, the reaching band (P1-079, P4-182, P4-183,
       P1-159, P4-172, P4-174). *Accept:* tests.
