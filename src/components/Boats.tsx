@@ -3,7 +3,8 @@
  * what AIS and the trackers know her by.
  */
 import { POLAR_LIBRARY } from '@/data/polars'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { leaderboard } from '@/lib/tracking'
 import { useStore } from '@/state/store'
 import { importTrackingFiles, useTracking } from '@/state/tracking'
 
@@ -41,6 +42,53 @@ function ImportTracks() {
         {note ?? (tracks.length ? `${tracks.length} tracks held` : 'No tracks')}
       </span>
     </div>
+  )
+}
+
+/** The fleet now: where each tracked boat is, nearest the mark first, and how far ahead of us. */
+function FleetNow() {
+  const tracks = useTracking((s) => s.tracks)
+  const fleet = useStore((s) => s.fleet)
+  const own = useStore((s) => s.state?.position ?? null)
+  const mark = useStore((s) => s.course.marks[s.activeMarkIndex]?.position ?? null)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000)
+    return () => window.clearInterval(id)
+  }, [])
+  const rows = leaderboard(tracks, now, own, mark)
+  if (!rows.length) return null
+  const f = (v: number | null, dp: number) => (v == null ? '—' : v.toFixed(dp))
+  return (
+    <table className="targets" aria-label="Fleet now" style={{ width: '100%', marginTop: 8 }}>
+      <thead>
+        <tr>
+          <th style={{ textAlign: 'left' }}>Boat</th>
+          <th>To mark nm</th>
+          <th>Ahead nm</th>
+          <th>Range nm</th>
+          <th>Brg °</th>
+          <th>Fix</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => {
+          const b = fleet.find((x) => x.id === r.boatId)
+          return (
+            <tr key={r.key}>
+              <td style={{ color: b?.colour }}>{b?.name ?? r.key}</td>
+              <td style={{ textAlign: 'center' }}>{f(r.toMarkNm, 2)}</td>
+              <td style={{ textAlign: 'center' }}>{r.aheadNm == null ? '—' : `${r.aheadNm >= 0 ? '+' : ''}${r.aheadNm.toFixed(2)}`}</td>
+              <td style={{ textAlign: 'center' }}>{f(r.rangeNm, 2)}</td>
+              <td style={{ textAlign: 'center' }}>{f(r.bearing, 0)}</td>
+              <td style={{ textAlign: 'center' }}>
+                {Math.round(r.ageMin)} min{r.extrapolated ? ' · dead reckoned' : ''}
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }
 
@@ -103,6 +151,7 @@ export function BoatsDatabase() {
       </table>
       <p className="note">A polar lets a boat be routed and her targets worked out; the MMSI and tracker id match her to AIS and to tracking files.</p>
       <ImportTracks />
+      <FleetNow />
     </section>
   )
 }

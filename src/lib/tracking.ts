@@ -8,6 +8,7 @@
  * Vessel Finder files are not read yet (12.5b).
  */
 import { boatByTrackerName, type FleetIdentity } from './fleet'
+import { bearing, destination, distance } from './geo'
 import type { Millis } from './types'
 
 export interface FleetFix {
@@ -246,4 +247,78 @@ export function mergeTracks(held: FleetTrack[], add: FleetTrack[]): FleetTrack[]
     cur.boatId = cur.boatId ?? t.boatId
   }
   return [...out.values()]
+}
+
+// ------------------------------------------------------- the fleet now
+
+export interface FleetNow {
+  key: string
+  boatId?: string
+  position: { lat: number; lon: number }
+  /** Carried on from the last fix at its course and speed rather than between fixes. */
+  extrapolated: boolean
+  /** How old the fix behind this position is, minutes. */
+  ageMin: number
+}
+
+/**
+ * Where a boat is at `t`: between her fixes linearly, or after her last one
+ * at the course and speed of her last leg (or its own sog/cog), for up to
+ * `maxAheadH`; null before her first fix or beyond that.
+ */
+export function positionAt(track: FleetTrack, t: number, maxAheadH = 6): FleetNow | null {
+  const p = track.points
+  if (!p.length || t < p[0].t) return null
+  for (let i = 1; i < p.length; i++) {
+    if (t <= p[i].t) {
+      const a = p[i - 1]
+      const b = p[i]
+      const f = b.t > a.t ? (t - a.t) / (b.t - a.t) : 1
+      return { key: track.key, boatId: track.boatId, position: { lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f }, extrapolated: false, ageMin: (t - a.t) / 60_000 }
+    }
+  }
+  const last = p[p.length - 1]
+  const hours = (t - last.t) / 3_600_000
+  if (hours > maxAheadH) return null
+  let sog = last.sog
+  let cog = last.cog
+  if ((sog == null || cog == null) && p.length > 1) {
+    const prev = p[p.length - 2]
+    const dtH = (last.t - prev.t) / 3_600_000
+    if (dtH > 0) {
+      const nm = distance(prev, last)
+      sog = nm / dtH
+      cog = bearing(prev, last)
+    }
+  }
+  const position = sog && cog != null && hours > 0 ? destination(last, cog, sog * hours) : { lat: last.lat, lon: last.lon }
+  return { key: track.key, boatId: track.boatId, position, extrapolated: hours > 0, ageMin: hours * 60 }
+}
+
+export interface LeaderRow extends FleetNow {
+  rangeNm: number | null
+  bearing: number | null
+  /** Distance to the mark, nm. */
+  toMarkNm: number | null
+  /** How much nearer the mark she is than we are, nm: positive, she is ahead. */
+  aheadNm: number | null
+}
+
+/** The fleet at `t`, nearest the mark first, with range and bearing from us and how far each is ahead of us. */
+export function leaderboard(tracks: FleetTrack[], t: number, own: { lat: number; lon: number } | null, mark: { lat: number; lon: number } | null): LeaderRow[] {
+  const ours = own && mark ? distance(own, mark) : null
+  const rows: LeaderRow[] = []
+  for (const tr of tracks) {
+    const now = positionAt(tr, t)
+    if (!now) continue
+    const toMarkNm = mark ? distance(now.position, mark) : null
+    rows.push({
+      ...now,
+      rangeNm: own ? distance(own, now.position) : null,
+      bearing: own ? bearing(own, now.position) : null,
+      toMarkNm,
+      aheadNm: ours != null && toMarkNm != null ? ours - toMarkNm : null,
+    })
+  }
+  return rows.sort((a, b) => (a.toMarkNm ?? Infinity) - (b.toMarkNm ?? Infinity) || a.key.localeCompare(b.key))
 }

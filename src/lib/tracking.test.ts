@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest'
-import { matchTracks, mergeTracks, parseGpxFleet, parseTrackCsv, parseTrackingFile } from './tracking'
+import { leaderboard, matchTracks, mergeTracks, parseGpxFleet, parseTrackCsv, parseTrackingFile, positionAt } from './tracking'
 
 const GPX = `<?xml version="1.0"?>
 <gpx version="1.1" creator="tracker" xmlns="http://www.topografix.com/GPX/1/1">
@@ -41,5 +41,32 @@ describe('race tracking files', () => {
     const later = matchTracks(parseTrackingFile('boat,time,lat,lon\nUSA 50,2026-09-29T14:10:00Z,43.63,-70.17\nUSA 50,2026-09-29T14:05:00Z,43.61,-70.19'), fleet)
     const merged = mergeTracks(first, later)
     expect(merged.find((t) => t.key === 'USA 50')!.points.map((p) => p.t / 60_000 - Date.UTC(2026, 8, 29, 14) / 60_000)).toEqual([0, 5, 10])
+  })
+})
+
+describe('the fleet now', () => {
+  const T = Date.UTC(2026, 8, 29, 14)
+  const track = (key: string, pts: Array<[number, number, number]>) => ({ key, points: pts.map(([m, lat, lon]) => ({ t: T + m * 60_000, lat, lon })) })
+
+  it('places a boat between her fixes, carries her on after the last, and not before the first', () => {
+    const tr = track('A', [[0, 43.6, -70.2], [10, 43.61, -70.2]])
+    expect(positionAt(tr, T + 5 * 60_000)).toMatchObject({ position: { lat: expect.closeTo(43.605, 9), lon: -70.2 }, extrapolated: false })
+    const later = positionAt(tr, T + 20 * 60_000)!
+    expect(later.extrapolated).toBe(true)
+    expect(later.position.lat).toBeCloseTo(43.62, 5)
+    expect(later.ageMin).toBeCloseTo(10, 6)
+    expect(positionAt(tr, T - 1)).toBeNull()
+    expect(positionAt(tr, T + 7 * 3_600_000)).toBeNull()
+  })
+
+  it('ranks the fleet by distance to the mark, and says how far each is ahead of us', () => {
+    const mark = { lat: 43.7, lon: -70.2 }
+    const own = { lat: 43.6, lon: -70.2 }
+    const rows = leaderboard([track('Behind', [[0, 43.55, -70.2]]), track('Ahead', [[0, 43.65, -70.2]])], T, own, mark)
+    expect(rows.map((r) => r.key)).toEqual(['Ahead', 'Behind'])
+    expect(rows[0].aheadNm).toBeCloseTo(3, 1)
+    expect(rows[1].aheadNm).toBeCloseTo(-3, 1)
+    expect(rows[0].bearing).toBeCloseTo(0, 0)
+    expect(leaderboard([track('X', [[0, 43.6, -70.2]])], T, null, null)[0]).toMatchObject({ rangeNm: null, aheadNm: null })
   })
 })
