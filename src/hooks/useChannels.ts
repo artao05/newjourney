@@ -16,6 +16,7 @@ import { computeStart } from '@/lib/startline'
 import { declinationAt } from '@/lib/magnetic'
 import { PILOT_VENUE } from '@/data/venues'
 import { buildSnapshot, type ChannelValues } from '@/lib/channels/snapshot'
+import { gateNumbers } from '@/lib/gates'
 
 export function useChannelSnapshot(): ChannelValues {
   const now = useTick(1)
@@ -49,7 +50,13 @@ export function useChannelSnapshot(): ChannelValues {
         start = null
       }
     }
+    const mark = course.marks[activeMarkIndex]
+    const gate =
+      state && mark?.gate
+        ? gateNumbers({ from: state.position, left: mark.gate.left, right: mark.gate.right, wind, lattice })
+        : null
     return buildSnapshot({
+      gate,
       now,
       state,
       wind,

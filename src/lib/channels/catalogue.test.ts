@@ -54,6 +54,6 @@ describe("the channel catalogue is Expedition's Appendix A", () => {
     expect(today.length).toBeGreaterThanOrEqual(50)
     // Rig loads, engines, radar and other boats need hardware or a fleet feed
     // that does not exist yet. None of them can be "today".
-    expect(today.filter((c) => ['rig', 'engine', 'fleet', 'sails', 'gates', 'user'].includes(c.group))).toEqual([])
+    expect(today.filter((c) => ['rig', 'engine', 'fleet', 'sails', 'user'].includes(c.group))).toEqual([])
   })
 })

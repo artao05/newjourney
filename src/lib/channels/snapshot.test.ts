@@ -8,6 +8,7 @@ import { computeTactics } from '@/lib/tactics'
 import { computeStart } from '@/lib/startline'
 import { destination } from '@/lib/geo'
 import type { Boat, Course } from '@/lib/types'
+import { gateAround, gateNumbers } from '@/lib/gates'
 
 const BOAT: Boat = {
   id: 'me',
@@ -71,7 +72,15 @@ describe('the live channel snapshot', () => {
     // Layline distance and time are for the layline this tack is heading for, so
     // port and starboard can never both be filled at once. Across both tacks,
     // every channel must be.
-    const tacks = [buildSnapshot(simulated(45)), buildSnapshot(simulated(-45))]
+    // Gate channels need the active mark to be a gate; give the beat one.
+    const withGate = (i: SnapshotInputs): SnapshotInputs => {
+      const w = i.course.marks[0].position
+      return {
+        ...i,
+        gate: gateNumbers({ from: i.state!.position, ...gateAround(w, 200, 80), wind: i.wind, lattice: null }),
+      }
+    }
+    const tacks = [buildSnapshot(withGate(simulated(45))), buildSnapshot(withGate(simulated(-45)))]
     const missing = CHANNELS.filter((c) => c.today && tacks.every((snap) => snap[c.id] == null)).map(
       (c) => c.id,
     )

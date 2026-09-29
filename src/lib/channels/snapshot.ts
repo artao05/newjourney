@@ -23,6 +23,7 @@ import type {
   WindEstimate,
 } from '@/lib/types'
 import { CHANNELS } from './catalogue'
+import type { GateNumbers } from '@/lib/gates'
 
 export interface SnapshotInputs {
   now: Millis
@@ -35,6 +36,8 @@ export interface SnapshotInputs {
   activeMarkIndex: number
   /** Magnetic variation at the boat, degrees, east positive. */
   variationDeg: number | null
+  /** The active mark's gate numbers, when the active mark is a gate. */
+  gate?: GateNumbers | null
 }
 
 /** Channel id → value in the catalogue's unit, or null when there is none. */
@@ -93,6 +96,11 @@ export const PRODUCERS: Readonly<Record<string, Producer>> = {
   vmc: (i) => i.tactics?.vmc,
   'vmc-optimum': (i) => i.tactics?.vmcOptimum,
   'vmc-optimum-heading': (i) => i.tactics?.vmcOptimumHeading,
+  // gates
+  'gate-bearing': (i) => i.gate?.bearing,
+  'gate-range': (i) => i.gate?.rangeNm,
+  'gate-square-wind': (i) => i.gate?.squareWindDeg,
+  'gate-bias-length': (i) => i.gate?.biasLengthM,
   // start
   'start-time-to-gun': (i) => i.start?.timeToGunS,
   'start-time-to-line': (i) => i.start?.timeToLineS,

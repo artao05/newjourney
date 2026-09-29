@@ -122,7 +122,7 @@ leaves something tested and working.
       honoured. *Accept:* geometry tests. *Done, with laps; a separate finish mark
       is not built yet (P2-244).* The leeward sign now follows Expedition: positive
       means above the line.
-- [ ] **5.2 Gates:** bearing, range, lay distances and times, gate spot, bias and
+- [x] **5.2 Gates:** bearing, range, lay distances and times, gate spot, bias and
       square wind. *Accept:* tactics tests.
 - [ ] **5.3 Laylines on the chart**, with min/max bounds from wind oscillation, and
       tide-affected laylines. *Accept:* tests and a browser check.

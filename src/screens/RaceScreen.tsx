@@ -22,6 +22,7 @@ import { angsep, fmtDeg, fmtShift, wrap360 } from '@/lib/angles'
 import { sailAt } from '@/lib/sailchart'
 import { distance, bearing } from '@/lib/geo'
 import { buildWLCourse } from '@/lib/wlcourse'
+import { gateNumbers } from '@/lib/gates'
 import { declinationAt, magneticToTrue, trueToMagnetic } from '@/lib/magnetic'
 import { PILOT_VENUE } from '@/data/venues'
 import type { TacticalNumbers, WindEstimate } from '@/lib/types'
@@ -99,6 +100,13 @@ export function RaceScreen() {
 
   const marks = course.marks
   const active = marks[activeMarkIndex]
+  const gate = useMemo(
+    () =>
+      state && active?.gate
+        ? gateNumbers({ from: state.position, left: active.gate.left, right: active.gate.right, wind: effectiveWind, lattice })
+        : null,
+    [state, active, effectiveWind, lattice],
+  )
   const whatIfOn = whatIfShift !== 0 || whatIfSpeed !== 0
 
   return (
@@ -333,6 +341,35 @@ export function RaceScreen() {
           </button>
         )}
       </div>
+
+      {gate && (
+        <>
+          <h2 className="panel" style={{ paddingBottom: 0 }}>
+            Gate
+          </h2>
+          <div className="tiles">
+            <Tile
+              label="favoured buoy"
+              value={gate.favoured == null ? null : gate.favoured === 'even' ? 'even' : gate.favoured === 'left' ? 'LEFT' : 'RIGHT'}
+              small
+              sub={
+                gate.biasLengthM != null && gate.biasAngleDeg != null
+                  ? `${gate.biasLengthM.toFixed(0)} m · ${Math.abs(gate.biasAngleDeg).toFixed(0)}° · looking upwind`
+                  : 'needs a wind'
+              }
+            />
+            <Tile label="square wind" value={fmtDeg(gate.squareWindDeg)} unit="°" small sub={`gate ${gate.lengthM.toFixed(0)} m wide`} />
+            <Tile
+              label="gate spot"
+              value={gate.spotRangeNm}
+              unit="nm"
+              dp={2}
+              small
+              sub={gate.spotTimeS != null ? `${fmtClock(gate.spotTimeS)} at target` : 'where both laylines cross'}
+            />
+          </div>
+        </>
+      )}
 
       <div className="panel">
         <h2>What if?</h2>

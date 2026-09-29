@@ -971,6 +971,27 @@ describe("the W/L wizard builds Expedition's course", () => {
   })
 })
 
+describe('a gate as the active mark', () => {
+  it('shows the favoured buoy, the square wind and the gate spot on Race', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    fireEvent.change(screen.getByLabelText(/Leeward gate/), { target: { value: '80' } })
+    fireEvent.change(screen.getByLabelText('Laps'), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'BUILD COURSE' }))
+    act(() => useStore.getState().setActiveMark(1))
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('favoured buoy')
+    expect(text).toMatch(/gate 80 m wide/)
+    expect(text).toContain('gate spot')
+  })
+
+  it('has no gate section when the active mark is a plain mark', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    expect(screen.queryByText('favoured buoy')).toBeNull()
+  })
+})
+
 describe('the course as legs, and saved routes', () => {
   it('lists each leg from the boat with bearing, distance, angle off the wind and time', () => {
     populatedStore()
