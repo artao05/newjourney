@@ -150,6 +150,7 @@ import { StripchartScreen } from './StripchartScreen'
 import { WeatherScreen } from './WeatherScreen'
 import { file, gfsGrid, message, over } from '@/lib/weather/fixtures/grib2'
 import { openWeatherFiles, useWeatherFiles } from '@/state/weatherFiles'
+import { DEFAULT_CONTOURS } from '@/state/store'
 import { RouteScreen, exploredFC, isochroneFC, keptFC, sensitivityFC } from './RouteScreen'
 import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
 import { alternatingIndex } from '@/components/NumberBoxes'
@@ -924,6 +925,49 @@ describe('the Weather screen states its provenance', () => {
       expect(screen.queryByRole('button', { name: 'Air temp' })).toBeNull()
     } finally {
       act(() => useWeatherFiles.getState().clear())
+    }
+  })
+
+  it('draws isobars from the file, with the step and bold level set for them', async () => {
+    const g = gfsGrid(44, 289, 9, 9, 0.25)
+    const bytes = file(
+      message({ category: 2, number: 2, levelType: 103, levelValue: 10, grid: g, values: over(g, () => 6), packing: 'simple' }),
+      message({ category: 2, number: 3, levelType: 103, levelValue: 10, grid: g, values: over(g, () => -1), packing: 'simple' }),
+      // 1000 to 1016 hPa from south to north.
+      message({ category: 3, number: 1, levelType: 101, grid: g, values: over(g, (lat) => 100000 + (lat - 42) * 800), packing: 'simple' }),
+    )
+    await openWeatherFiles([new File([bytes], 'isobars.grb2')])
+    try {
+      render(<WeatherScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'More' }))
+      expect(screen.queryByRole('button', { name: 'Rain lines' })).toBeNull()
+      // Two taps in one go both count.
+      act(() => {
+        screen.getByRole('button', { name: 'Isobars' }).click()
+        screen.getByRole('button', { name: 'Isotachs' }).click()
+      })
+      expect(useStore.getState().settings.contours.isobar.on).toBe(true)
+      expect(useStore.getState().settings.contours.isotach.on).toBe(true)
+      fireEvent.click(screen.getByRole('button', { name: 'Isotachs' }))
+      const levels = () =>
+        ((mapInstances[0].data.get('wx-contours') as GeoJSON.FeatureCollection).features ?? []).map((f) => [f.properties!.level, f.properties!.bold])
+      await waitFor(() => expect(levels().length).toBeGreaterThan(0))
+      // 1000 is the file's south edge, which no cell crosses; 1016 lies along its north edge.
+      expect(levels()).toEqual([[1004, false], [1008, false], [1012, true], [1016, false]])
+      fireEvent.click(screen.getByRole('button', { name: 'Contour steps…' }))
+      const sheet = screen.getByRole('dialog', { name: 'Contours' })
+      fireEvent.change(within(sheet).getAllByLabelText(/Every/)[0], { target: { value: '2' } })
+      fireEvent.change(within(sheet).getAllByLabelText(/Bold at/)[0], { target: { value: '' } })
+      await waitFor(() => expect(levels()).toHaveLength(8))
+      expect(levels().every(([, bold]) => bold === false)).toBe(true)
+    } finally {
+      act(() => {
+        useWeatherFiles.getState().clear()
+        useStore.getState().updateSettings({ contours: DEFAULT_CONTOURS })
+      })
     }
   })
 

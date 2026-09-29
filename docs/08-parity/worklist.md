@@ -256,7 +256,7 @@ leaves something tested and working.
 - [x] **10.6a Display parity, the parameters:** gust, pressure, waves, SST, air temperature
       and rain as layers, offered behind More only when the forecast has them. *Accept:*
       tests and a browser check.
-- [ ] **10.6b Contours** with a step and a bold level: isobars, isotachs, rain. *Accept:*
+- [x] **10.6b Contours** with a step and a bold level: isobars, isotachs, rain. *Accept:*
       tests and a browser check.
 - [ ] **10.6c A display mode per parameter:** Beaufort, spectrum, greyscale and single-colour
       modes, and a line width. *Accept:* tests and a browser check.

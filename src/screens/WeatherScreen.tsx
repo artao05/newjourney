@@ -69,7 +69,16 @@ import type { WeatherCube } from '@/lib/types'
 import { useStore } from '@/state/store'
 import { fmtLength } from '@/lib/units'
 import { WeatherFilesSheet } from '@/components/WeatherFiles'
+import { contourFeatures, type ContourField } from '@/lib/maplayers/contours'
+import { DEFAULT_CONTOURS, type ContourKind } from '@/state/store'
 import { useWeatherFiles } from '@/state/weatherFiles'
+
+/** The contours the Weather chart can draw, and what each needs in the forecast. */
+const CONTOURS: Array<{ id: ContourKind; label: string; field: ContourField; needs: string[]; unit: string; decimals: number }> = [
+  { id: 'isobar', label: 'Isobars', field: { param: 'prmsl' }, needs: ['prmsl'], unit: 'hPa', decimals: 0 },
+  { id: 'isotach', label: 'Isotachs', field: { speedOf: ['u10', 'v10'] }, needs: ['u10', 'v10'], unit: 'kn', decimals: 0 },
+  { id: 'rain', label: 'Rain lines', field: { param: 'rain' }, needs: ['rain'], unit: 'mm/h', decimals: 1 },
+]
 
 /** Readout rows for the parameters only some forecasts have. */
 const EXTRA_READOUT = [
@@ -92,13 +101,15 @@ const MODES: Array<{ id: VectorMode; label: string }> = [
  * to remove a source that a layer still references.
  */
 const OWNED_LAYERS = [
+  'wx-contour-line',
+  'wx-contour-label',
   'wx-barbs',
   'wx-arrows',
   'wx-speed-labels',
   'wx-station-pt',
   'wx-station-label',
 ]
-const OWNED_SOURCES = ['wx-symbols', 'wx-station']
+const OWNED_SOURCES = ['wx-symbols', 'wx-station', 'wx-contours']
 
 export function WeatherScreen() {
   return (
@@ -126,6 +137,15 @@ function WeatherOverlay() {
   const [depthError, setDepthError] = useState<string | null>(null)
 
   const [moreLayers, setMoreLayers] = useState(false)
+  const [showContourSheet, setShowContourSheet] = useState(false)
+  const contourSettings = useStore((s) => s.settings.contours) ?? DEFAULT_CONTOURS
+  const updateSettings = useStore((s) => s.updateSettings)
+  const contourChoices = useMemo(() => CONTOURS.filter((c) => c.needs.every((p) => cube?.params.includes(p))), [cube])
+  // From the store as it is now, not as this render saw it, so two quick taps both count.
+  const setContour = (id: ContourKind, patch: Partial<(typeof DEFAULT_CONTOURS)[ContourKind]>) => {
+    const cur = useStore.getState().settings.contours ?? DEFAULT_CONTOURS
+    updateSettings({ contours: { ...cur, [id]: { ...(cur[id] ?? DEFAULT_CONTOURS[id]), ...patch } } })
+  }
   const available = useMemo(() => layersFor(cube?.params, moreLayers), [cube, moreLayers])
   // A layer whose parameter the forecast on the chart no longer has falls back to wind.
   const layer: LayerSpec = (available.includes(layerId) ? layerById(layerId) : undefined) ?? LAYERS.wind
@@ -151,6 +171,38 @@ function WeatherOverlay() {
   // -------------------------------------------------------- own map resources
   useEffect(() => {
     if (!map || !ready) return
+
+    // Contours under everything else of ours: a line with its level along it, the bold level heavier.
+    map.addSource('wx-contours', { type: 'geojson', data: emptyFC() })
+    map.addLayer(
+      {
+        id: 'wx-contour-line',
+        type: 'line',
+        source: 'wx-contours',
+        paint: {
+          'line-color': ['match', ['get', 'field'], 'isotach', '#9fe3c4', 'rain', '#7fd4ff', '#f2f2f2'] as never,
+          'line-width': ['case', ['get', 'bold'], 2.6, 1.1] as never,
+          'line-opacity': 0.85,
+        },
+      },
+      BOAT_LAYER_ID,
+    )
+    map.addLayer(
+      {
+        id: 'wx-contour-label',
+        type: 'symbol',
+        source: 'wx-contours',
+        layout: {
+          'symbol-placement': 'line',
+          'text-field': ['get', 'label'] as never,
+          'text-font': ['Open Sans Regular'],
+          'text-size': 11,
+          'symbol-spacing': 220,
+        },
+        paint: { 'text-color': '#eaf2fa', 'text-halo-color': '#04101c', 'text-halo-width': 1.4 },
+      },
+      BOAT_LAYER_ID,
+    )
 
     map.addSource('wx-symbols', { type: 'geojson', data: emptyFC() })
     map.addLayer(
@@ -337,6 +389,19 @@ function WeatherOverlay() {
       cancelled = true
     }
   }, [])
+
+  // Contours of whatever is switched on and in the forecast, at the displayed time.
+  useEffect(() => {
+    if (!map || !ready) return
+    const src = map.getSource('wx-contours') as maplibregl.GeoJSONSource | undefined
+    if (!src) return
+    const features = cube
+      ? contourChoices
+          .filter((c) => contourSettings[c.id]?.on)
+          .flatMap((c) => contourFeatures(cube, c.field, t, contourSettings[c.id], c.id, c.decimals))
+      : []
+    src.setData({ type: 'FeatureCollection', features } as GeoJSON.FeatureCollection)
+  }, [map, ready, cube, t, contourChoices, contourSettings])
 
   // --------------------------------------------------------- push data to GL
   /*
@@ -617,6 +682,21 @@ function WeatherOverlay() {
             {moreLayers ? 'Fewer' : 'More'}
           </button>
         </div>
+        {moreLayers && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }} aria-label="Contours">
+            {contourChoices.map((c) => {
+              const on = contourSettings[c.id]?.on ?? false
+              return (
+                <button key={c.id} className={`chip${on ? ' chip--good' : ''}`} aria-pressed={on} onClick={() => setContour(c.id, { on: !on })}>
+                  {c.label}
+                </button>
+              )
+            })}
+            <button className="chip" onClick={() => setShowContourSheet(true)}>
+              Contour steps…
+            </button>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>
           {isVector ? (
@@ -831,6 +911,61 @@ function WeatherOverlay() {
               </p>
             )}
           </div>
+        </div>
+      )}
+      {showContourSheet && (
+        <div className="sheet" role="dialog" aria-label="Contours">
+          <div className="sheet__grip" onClick={() => setShowContourSheet(false)} />
+          <h2>Contours</h2>
+          {CONTOURS.map((c) => {
+            const cs = contourSettings[c.id] ?? DEFAULT_CONTOURS[c.id]
+            const here = contourChoices.includes(c)
+            return (
+              <section key={c.id} aria-label={c.label} style={{ marginBottom: 10 }}>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="checkbox" checked={cs.on} onChange={(e) => setContour(c.id, { on: e.target.checked })} />
+                  <b>{c.label}</b>
+                  {!here && <span className="note">not in this forecast</span>}
+                </label>
+                <div className="field">
+                  <label htmlFor={`ct-${c.id}-step`}>
+                    Every <span className="note">{c.unit}</span>
+                  </label>
+                  <input
+                    id={`ct-${c.id}-step`}
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
+                    value={cs.step}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value)
+                      if (v > 0) setContour(c.id, { step: v })
+                    }}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor={`ct-${c.id}-bold`}>
+                    Bold at <span className="note">{c.unit}, blank for none</span>
+                  </label>
+                  <input
+                    id={`ct-${c.id}-bold`}
+                    type="number"
+                    step="any"
+                    inputMode="decimal"
+                    value={cs.bold ?? ''}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value)
+                      setContour(c.id, { bold: Number.isFinite(v) ? v : null })
+                    }}
+                  />
+                </div>
+              </section>
+            )
+          })}
+          <button className="btn btn--sm" onClick={() => setShowContourSheet(false)}>
+            Done
+          </button>
         </div>
       )}
       {showFiles && <WeatherFilesSheet onClose={() => setShowFiles(false)} />}

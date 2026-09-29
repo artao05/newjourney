@@ -181,7 +181,23 @@ export const DEFAULT_NUMBER_BOXES: NumberBox[] = [
   { id: 'nb-6', channels: ['magnetic-variation'], size: 'md' },
 ]
 
+/** One kind of contour on the Weather chart: whether it is drawn, its step and its bold level. */
+export interface ContourSetting {
+  on: boolean
+  step: number
+  bold: number | null
+}
+export type ContourKind = 'isobar' | 'isotach' | 'rain'
+
+export const DEFAULT_CONTOURS: Record<ContourKind, ContourSetting> = {
+  isobar: { on: false, step: 4, bold: 1012 },
+  isotach: { on: false, step: 5, bold: 20 },
+  rain: { on: false, step: 0.5, bold: null },
+}
+
 export interface Settings {
+  /** Contour lines on the Weather chart. */
+  contours: Record<ContourKind, ContourSetting>
   /** Display units for lengths (depth, draft, line). Speeds stay in knots. */
   units: 'metric' | 'imperial'
   northRef: 'true' | 'magnetic'
@@ -454,6 +470,7 @@ interface AppState {
 export const MAX_TRACK_POINTS = 20_000
 
 export const DEFAULT_SETTINGS: Settings = {
+  contours: DEFAULT_CONTOURS,
   units: 'metric',
   northRef: 'true',
   simulate: false,
@@ -476,7 +493,7 @@ export function mergePersistedState(
       ...p.course,
       startLine: { ...c.course.startLine, ...p.course?.startLine },
     },
-    settings: { ...c.settings, ...p.settings },
+    settings: { ...c.settings, ...p.settings, contours: { ...c.settings.contours, ...p.settings?.contours } },
     routeSettings: { ...c.routeSettings, ...p.routeSettings },
     // Kept field by field, so a setting added later gets its default on an older save.
     instruments: { ...c.instruments, ...p.instruments },
