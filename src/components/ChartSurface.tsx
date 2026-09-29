@@ -32,6 +32,7 @@ import { useStore } from '@/state/store'
 import { PILOT_VENUE } from '@/data/venues'
 import { MODELS, fetchWindCube, type ModelId } from '@/lib/weather/openmeteo'
 import { activeFileCube, gribDrop, useWeatherFiles } from '@/state/weatherFiles'
+import { ensembleCube, useEnsembleView } from '@/state/ensembleView'
 import { ParticleLayer } from '@/lib/maplayers/particleLayer'
 import { ScalarLayer } from '@/lib/maplayers/scalarLayer'
 import { barbToImageData, buildBarbSprites } from '@/lib/maplayers/barbs'
@@ -316,8 +317,13 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
   // A ticked GRIB file takes over from the download, as long as it is ticked.
   const files = useWeatherFiles((s) => s.files)
   const fromFile = useMemo(() => activeFileCube(files), [files])
-  const shown = fromFile?.cube ?? cube
-  const fileName = fromFile?.name ?? null
+  // An ensemble view, when one is loaded, over a file, over the download.
+  const ensMembers = useEnsembleView((s) => s.members)
+  const ensMean = useEnsembleView((s) => s.mean)
+  const ensView = useEnsembleView((s) => s.view)
+  const fromEnsemble = useMemo(() => ensembleCube({ members: ensMembers, mean: ensMean, view: ensView }), [ensMembers, ensMean, ensView])
+  const shown = fromEnsemble ?? fromFile?.cube ?? cube
+  const fileName = fromEnsemble ? fromEnsemble.model : (fromFile?.name ?? null)
   useEffect(() => {
     if (!fromFile) return
     const c = fromFile.cube

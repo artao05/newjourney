@@ -157,6 +157,7 @@ import { WeatherScreen } from './WeatherScreen'
 import { file, gfsGrid, message, over } from '@/lib/weather/fixtures/grib2'
 import { openWeatherFiles, useWeatherFiles } from '@/state/weatherFiles'
 import { DEFAULT_CONTOURS } from '@/state/store'
+import { useEnsembleView } from '@/state/ensembleView'
 import { RouteScreen, exploredFC, isochroneFC, keptFC, sensitivityFC } from './RouteScreen'
 import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
 import { alternatingIndex } from '@/components/NumberBoxes'
@@ -1075,6 +1076,37 @@ describe('the Weather screen states its provenance', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Satellite' }))
     expect(src('wx-radar')).toBeUndefined()
     expect(src('wx-sat')).toBeUndefined()
+  })
+
+  it('shows an ensemble as its mean, its spread, or any one member', async () => {
+    const b = PILOT_VENUE.bbox
+    const mk = (name: string, kn: number): WeatherCube => {
+      const w = uvFromWind(kn, 200)
+      return {
+        model: name, run: 'test-run', bbox: b, nx: 2, ny: 2, dx: b.east - b.west, dy: b.north - b.south,
+        t0: Date.now() - 3_600_000, dtMs: 3_600_000, nt: 3, params: ['u10', 'v10'],
+        data: { u10: new Float32Array(12).fill(w.u), v10: new Float32Array(12).fill(w.v) },
+      }
+    }
+    stubForecast.ensemble = [mk('gfs_seamless control', 10), mk('gfs_seamless member 1', 14), mk('gfs_seamless member 2', 12)]
+    try {
+      render(<WeatherScreen />)
+      fireEvent.click(screen.getByRole('button', { name: 'Ensemble' }))
+      const view = await screen.findByLabelText('Ensemble view')
+      expect([...(view as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['Mean of 3', 'gfs_seamless control', 'gfs_seamless member 1', 'gfs_seamless member 2'])
+      expect(document.body.textContent).toContain('gfs_seamless ensemble mean of 3')
+      fireEvent.click(screen.getByRole('button', { name: 'More' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Spread' }))
+      fireEvent.change(view, { target: { value: '2' } })
+      expect(document.body.textContent).toContain('gfs_seamless member 2')
+      // A member has no spread of its own, so the chart goes back to wind.
+      expect(screen.queryByRole('button', { name: 'Spread' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Ensemble' }))
+      expect(screen.queryByLabelText('Ensemble view')).toBeNull()
+    } finally {
+      stubForecast.ensemble = null
+      act(() => useEnsembleView.getState().clear())
+    }
   })
 
   it('shows no legend at all rather than an unattributed one', () => {

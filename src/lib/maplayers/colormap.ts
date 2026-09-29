@@ -576,9 +576,11 @@ export const EXTRA_LAYERS: Record<string, LayerSpec> = {
   sst: { id: 'sst', label: 'Sea temp', kind: 'scalar', params: ['sst'], ramp: 'sst', domain: [0, 30], unit: '°C' },
   airTemp: { id: 'airTemp', label: 'Air temp', kind: 'scalar', params: ['t2m'], ramp: 'temp', domain: [-20, 40], unit: '°C' },
   rain: { id: 'rain', label: 'Rain', kind: 'scalar', params: ['rain'], ramp: 'rain', domain: [0, 10], unit: 'mm/h' },
+  // An ensemble's spread: the standard deviation of its members' wind speeds.
+  spread: { id: 'spread', label: 'Spread', kind: 'scalar', params: ['tws_sd'], ramp: 'wind', domain: [0, 10], unit: 'kn' },
 }
 
-export const EXTRA_ORDER = ['gust', 'pressure', 'waveHeight', 'sst', 'airTemp', 'rain'] as const
+export const EXTRA_ORDER = ['gust', 'pressure', 'waveHeight', 'sst', 'airTemp', 'rain', 'spread'] as const
 
 /** The picker's layers: the standard three, then, with `more`, each extra the cube has. */
 export function layersFor(params: readonly string[] | null | undefined, more: boolean): string[] {

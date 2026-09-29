@@ -76,6 +76,7 @@ import { PointMeteogram } from '@/components/PointMeteogram'
 import { ObservationsSheet, type ObsStation } from '@/components/ObservationsSheet'
 import { fetchCoopsObservations, type Observation } from '@/lib/weather/observations'
 import { RADAR_INDEX, SAT_TILES, latestRadar } from '@/lib/weather/overlays'
+import { useEnsembleView } from '@/state/ensembleView'
 import { contourFeatures, type ContourField } from '@/lib/maplayers/contours'
 import { DEFAULT_CONTOURS, type ContourKind } from '@/state/store'
 import { useWeatherFiles } from '@/state/weatherFiles'
@@ -157,6 +158,7 @@ function WeatherOverlay() {
   const [meteo, setMeteo] = useState<'point' | 'boat' | null>(null)
   const [obsOn, setObsOn] = useState(false)
   const [radarOn, setRadarOn] = useState(false)
+  const ens = useEnsembleView()
   const [satOn, setSatOn] = useState(false)
   const [radar, setRadar] = useState<{ tiles: string; time: number } | null>(null)
   const [radarError, setRadarError] = useState<string | null>(null)
@@ -892,6 +894,35 @@ function WeatherOverlay() {
               </option>
             ))}
           </select>
+          <button
+            className={`chip${ens.members ? ' chip--good' : ''}`}
+            aria-pressed={ens.members != null}
+            disabled={ens.busy}
+            onClick={() => {
+              if (ens.members) return ens.clear()
+              const b = cube?.bbox ?? PILOT_VENUE.bbox
+              void ens.load(b, cube ? Math.max(6, Math.round(((cube.nt - 1) * cube.dtMs) / 3_600_000)) : 48)
+            }}
+            title="Ten members of the GFS ensemble: their mean, their spread, or any one of them"
+          >
+            {ens.busy ? 'Ensemble…' : 'Ensemble'}
+          </button>
+          {ens.members && (
+            <select
+              className="chip"
+              aria-label="Ensemble view"
+              value={String(ens.view)}
+              onChange={(e) => ens.setView(e.target.value === 'mean' ? 'mean' : Number(e.target.value))}
+              style={{ maxWidth: 170 }}
+            >
+              <option value="mean">Mean of {ens.members.length}</option>
+              {ens.members.map((m, i) => (
+                <option key={m.model} value={i}>
+                  {m.model}
+                </option>
+              ))}
+            </select>
+          )}
           <button className={`chip${radarOn ? ' chip--good' : ''}`} aria-pressed={radarOn} onClick={() => setRadarOn((v) => !v)}>
             Radar
           </button>
@@ -934,6 +965,11 @@ function WeatherOverlay() {
           )}
         </div>
 
+        {ens.error && (
+          <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
+            {ens.error}
+          </div>
+        )}
         {radarOn && radarError && (
           <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
             {radarError}
