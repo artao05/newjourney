@@ -10,17 +10,18 @@
  *   4 product        template 4.0 (and 4.8, accumulations), parameter, level, forecast time
  *   5 representation template 5.0 simple packing, 5.2 complex packing,
  *                    5.3 complex packing with spatial differencing (what GFS uses),
- *                    5.41 PNG, and 5.42 CCSDS (what ECMWF's open data uses)
+ *                    5.40 JPEG 2000, 5.41 PNG, and 5.42 CCSDS (what ECMWF's open data uses)
  *   6 bitmap         none, or one that marks the points with data
  *   7 data
  *
- * Edition 1 messages go to grib1.ts. JPEG 2000 packing (5.40) is not read yet. A message this
+ * Edition 1 messages go to grib1.ts. A message this
  * cannot read is skipped with a reason, never guessed at.
  */
 
 import type { BBox, WeatherCube } from '../types'
 import { decodePng } from './png'
 import { aecDecode } from './aec'
+import { decodeJpx } from './jpx'
 import { BitReader } from './bits'
 import { readGrib1Message } from './grib1'
 
@@ -156,7 +157,7 @@ interface Packing {
 function readPacking(r: Reader, o: number): Packing | string {
   const template = r.u16(o + 9)
   const base = { template, count: r.u32(o + 5), R: r.f32(o + 11), E: r.s16(o + 15), D: r.s16(o + 17), bits: r.u8(o + 19) }
-  if (template === 0 || template === 41) return base
+  if (template === 0 || template === 40 || template === 41) return base
   if (template === 42) return { ...base, aec: { flags: r.u8(o + 21), blockSize: r.u8(o + 22), rsi: r.u16(o + 23) } }
   if (template === 2 || template === 3) {
     return {
@@ -192,6 +193,16 @@ function unpack(p: Packing, data: Uint8Array): Float64Array | string {
     const out = new Float64Array(p.count)
     if (p.bits === 0) return out
     let src = data
+    if (p.template === 40) {
+      // The image's samples, row after row, are the packed integers themselves.
+      try {
+        const img = decodeJpx(data)
+        for (let i = 0; i < p.count; i++) out[i] = img.samples[i] ?? 0
+        return out
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e)
+      }
+    }
     if (p.template === 41) {
       // The image's pixels, row after row, are the packed integers.
       try {

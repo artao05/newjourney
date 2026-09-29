@@ -280,7 +280,7 @@ leaves something tested and working.
       times, with a Saildocs `mailto:` and a size estimate. *Accept:* tests.
 - [ ] **10.12 NOMADS and ECMWF open-data download.** `blocked: D1`, which needs the
       proxy.
-- [ ] **10.2c GRIB2 JPEG 2000 packing** (5.40, used by NAM and Canada's GEM). A decoder
+- [x] **10.2c GRIB2 JPEG 2000 packing** (5.40, used by NAM and Canada's GEM). A decoder
       of its own: codestream, tier-2 packets, the MQ coder and EBCOT, and the 5/3 and 9/7
       wavelets. Last in M10 because GFS, HRRR and ECMWF don't need it. *Accept:* fixture tests.
 

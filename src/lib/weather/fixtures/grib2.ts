@@ -69,7 +69,10 @@ export interface Field {
   grid: Grid
   /** In scan order; NaN is a point the bitmap leaves out. */
   values: number[]
-  packing: 'simple' | 'complex' | 'sd1' | 'sd2' | 'png' | 'ccsds'
+  packing: 'simple' | 'complex' | 'sd1' | 'sd2' | 'png' | 'ccsds' | 'jpeg2000'
+  /** For JPEG 2000: the codestream of the packed integers, and the reference it is relative to. */
+  j2k?: Uint8Array
+  R?: number
   D?: number
   gridTemplate?: number
   dataTemplate?: number
@@ -114,7 +117,11 @@ export function message(f: Field): number[] {
 
   let s5: number[]
   let s7: number[]
-  if (f.packing === 'ccsds') {
+  if (f.packing === 'jpeg2000') {
+    // A codestream made elsewhere (OpenJPEG) holds the packed integers; R places them.
+    s5 = section(5, [...u32(present.length), ...u16(40), ...f32(f.R ?? 0), ...s16(0), ...s16(D), 16, 0, 0, 255])
+    s7 = section(7, [...(f.j2k ?? [])])
+  } else if (f.packing === 'ccsds') {
     // As ECMWF packs its open data: preprocessed, J = 32, r = 128.
     const bits = Math.max(1, bitsFor(z.reduce((a, b) => Math.max(a, b), 0)))
     const flags = AEC_DATA_MSB | AEC_DATA_PREPROCESS

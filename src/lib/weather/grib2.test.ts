@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { decodeGrib2, gribToCube, openGribSync } from './grib2'
 import { sampleCube } from './cube'
@@ -92,7 +94,7 @@ describe('GRIB2 decoder', () => {
     const bytes = file(
       [0, 1, 2, 3],
       message({ category: 2, number: 2, levelType: 103, levelValue: 10, grid: g, values: v, packing: 'simple' }),
-      message({ category: 2, number: 3, levelType: 103, levelValue: 10, grid: g, values: v, packing: 'simple', dataTemplate: 40 }),
+      message({ category: 2, number: 3, levelType: 103, levelValue: 10, grid: g, values: v, packing: 'simple', dataTemplate: 50 }),
       [9, 9],
       message({ category: 2, number: 3, levelType: 103, levelValue: 10, grid: g, values: v, packing: 'simple', gridTemplate: 30 }),
       // A GRIB1 header: "GRIB", a 3-octet length of 12, edition 1.
@@ -103,7 +105,7 @@ describe('GRIB2 decoder', () => {
     expect(messages.map((m) => m.name)).toEqual(['UGRD', 'VGRD'])
     expect(messages[1].forecastMs).toBe(3 * 3_600_000)
     expect(skipped.map((s) => s.reason)).toEqual([
-      'data representation template 5.40 is not read yet',
+      'data representation template 5.50 is not read yet',
       'grid template 3.30 is not read yet',
       'a GRIB1 message is too short or runs past the end of the file',
     ])
@@ -281,6 +283,18 @@ describe('GRIB2 wave partitions', () => {
     expect(Object.fromEntries(['hs', 'wdir', 'wper', 'wwh', 'wwd', 'wwp', 'swh', 'swd', 'swp'].map((p) => [p, at(p)]))).toEqual({
       hs: 2.5, wdir: 120, wper: 10.5, wwh: 1.1, wwd: 200, wwp: 4.5, swh: 2.1, swd: 110, swp: 11,
     })
+  })
+})
+
+describe('GRIB2 JPEG 2000 packing (5.40)', () => {
+  it('reads the packed integers from an OpenJPEG codestream, scaled by R, E and D', () => {
+    const dir = join(__dirname, 'fixtures', 'j2k')
+    const j2k = new Uint8Array(readFileSync(join(dir, 'lossless-default.j2k')))
+    const raw = readFileSync(join(dir, 'lossless-default.raw'))
+    const g = gfsGrid(45, 290, 61, 43, 0.25)
+    const m = decodeGrib2(file(message({ category: 3, number: 1, levelType: 101, grid: g, values: new Array(61 * 43).fill(0), packing: 'jpeg2000', j2k, R: 95000, D: 1 }))).messages[0]
+    expect(m.values).toHaveLength(61 * 43)
+    for (const i of [0, 1, 60, 61, 1000, 61 * 43 - 1]) expect(m.values[i]).toBeCloseTo((95000 + (raw[2 * i] | (raw[2 * i + 1] << 8))) / 10, 2)
   })
 })
 

@@ -1,0 +1,142 @@
+[
+ {
+  "name": "lossless-default",
+  "width": 61,
+  "height": 43,
+  "lossless": true,
+  "bits": 16,
+  "bytes": 3331,
+  "pillowRoundTrip": true,
+  "expected": "source"
+ },
+ {
+  "name": "lossless-3res-cb16",
+  "width": 61,
+  "height": 43,
+  "lossless": true,
+  "bits": 16,
+  "bytes": 3391,
+  "pillowRoundTrip": true,
+  "expected": "source"
+ },
+ {
+  "name": "lossless-tiles",
+  "width": 70,
+  "height": 50,
+  "lossless": true,
+  "bits": 16,
+  "bytes": 4906,
+  "pillowRoundTrip": false,
+  "expected": "openjpeg"
+ },
+ {
+  "name": "lossless-offset",
+  "width": 45,
+  "height": 38,
+  "lossless": true,
+  "bits": 16,
+  "bytes": 3484,
+  "pillowRoundTrip": false,
+  "expected": "openjpeg"
+ },
+ {
+  "name": "lossless-rlcp",
+  "width": 50,
+  "height": 40,
+  "lossless": true,
+  "bits": 16,
+  "bytes": 2633,
+  "pillowRoundTrip": true,
+  "expected": "source"
+ },
+ {
+  "name": "lossless-rpcl-precincts",
+  "width": 80,
+  "height": 64,
+  "lossless": true,
+  "bits": 16,
+  "bytes": 6828,
+  "pillowRoundTrip": true,
+  "expected": "source"
+ },
+ {
+  "name": "lossless-pcrl-precincts",
+  "width": 80,
+  "height": 64,
+  "lossless": true,
+  "bits": 16,
+  "bytes": 6808,
+  "pillowRoundTrip": true,
+  "expected": "source"
+ },
+ {
+  "name": "lossless-cprl",
+  "width": 50,
+  "height": 40,
+  "lossless": true,
+  "bits": 16,
+  "bytes": 2639,
+  "pillowRoundTrip": true,
+  "expected": "source"
+ },
+ {
+  "name": "lossless-8bit",
+  "width": 40,
+  "height": 30,
+  "lossless": true,
+  "bits": 8,
+  "bytes": 1028,
+  "pillowRoundTrip": true,
+  "expected": "source"
+ },
+ {
+  "name": "lossless-constant",
+  "width": 20,
+  "height": 12,
+  "lossless": true,
+  "bits": 16,
+  "bytes": 149,
+  "pillowRoundTrip": true,
+  "expected": "source"
+ },
+ {
+  "name": "lossless-tiny",
+  "width": 3,
+  "height": 2,
+  "lossless": true,
+  "bits": 16,
+  "bytes": 134,
+  "pillowRoundTrip": true,
+  "expected": "source"
+ },
+ {
+  "name": "lossy-97",
+  "width": 64,
+  "height": 48,
+  "lossless": false,
+  "bits": 16,
+  "bytes": 779,
+  "pillowRoundTrip": false,
+  "expected": "openjpeg"
+ },
+ {
+  "name": "lossy-97-layers",
+  "width": 64,
+  "height": 48,
+  "lossless": false,
+  "bits": 16,
+  "bytes": 1513,
+  "pillowRoundTrip": false,
+  "expected": "openjpeg"
+ },
+ {
+  "name": "lossless-layers",
+  "width": 64,
+  "height": 48,
+  "lossless": true,
+  "bits": 16,
+  "bytes": 3960,
+  "pillowRoundTrip": true,
+  "expected": "source"
+ }
+]
