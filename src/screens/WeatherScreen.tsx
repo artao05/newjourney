@@ -40,7 +40,8 @@ import { MODELS, cubeNotes, type ModelId } from '@/lib/weather/openmeteo'
 import { sampleCube } from '@/lib/weather/cube'
 import {
   LAYERS,
-  LAYER_ORDER,
+  layerById,
+  layersFor,
   rampFor,
   rampToLUT,
   rampToMapLibreExpression,
@@ -69,6 +70,14 @@ import { useStore } from '@/state/store'
 import { fmtLength } from '@/lib/units'
 import { WeatherFilesSheet } from '@/components/WeatherFiles'
 import { useWeatherFiles } from '@/state/weatherFiles'
+
+/** Readout rows for the parameters only some forecasts have. */
+const EXTRA_READOUT = [
+  { param: 'hs', label: 'waves', unit: ' m', dp: 1 },
+  { param: 'sst', label: 'sea', unit: ' °C', dp: 1 },
+  { param: 't2m', label: 'air', unit: ' °C', dp: 1 },
+  { param: 'rain', label: 'rain', unit: ' mm/h', dp: 1 },
+]
 
 const MODES: Array<{ id: VectorMode; label: string }> = [
   { id: 'particles', label: 'Streamlines' },
@@ -116,7 +125,10 @@ function WeatherOverlay() {
   const [depthGrid, setDepthGrid] = useState<LoadedDepthGrid | null>(null)
   const [depthError, setDepthError] = useState<string | null>(null)
 
-  const layer: LayerSpec = LAYERS[layerId] ?? LAYERS.wind
+  const [moreLayers, setMoreLayers] = useState(false)
+  const available = useMemo(() => layersFor(cube?.params, moreLayers), [cube, moreLayers])
+  // A layer whose parameter the forecast on the chart no longer has falls back to wind.
+  const layer: LayerSpec = (available.includes(layerId) ? layerById(layerId) : undefined) ?? LAYERS.wind
   const ramp = useMemo(() => rampFor(layer), [layer])
   const isVector = layer.kind === 'vector'
   const isDepth = layer.id === 'depth'
@@ -504,6 +516,11 @@ function WeatherOverlay() {
        * falls outside its coverage. See `depthRenderCube`.
        */
       depth: depthGrid ? depthAt(depthGrid, probe.lat, probe.lon) : null,
+      // Only what the forecast carries: a row for a parameter it lacks would read as a gap.
+      extra: EXTRA_READOUT.filter((x) => cube?.params.includes(x.param)).map((x) => ({
+        ...x,
+        value: cube ? sampleCube(cube, x.param, probe.lat, probe.lon, t) : null,
+      })),
     }
   }, [cube, probe, t, depthGrid])
 
@@ -576,8 +593,8 @@ function WeatherOverlay() {
         }}
       >
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>
-          {LAYER_ORDER.map((id) => {
-            const l = LAYERS[id]
+          {available.map((id) => {
+            const l = layerById(id)
             if (!l) return null
             const active = id === layerId
             return (
@@ -591,6 +608,14 @@ function WeatherOverlay() {
               </button>
             )
           })}
+          <button
+            className={`chip${moreLayers ? ' chip--good' : ''}`}
+            aria-pressed={moreLayers}
+            onClick={() => setMoreLayers((v) => !v)}
+            title="Gust, pressure, waves, temperature and rain, where the forecast has them"
+          >
+            {moreLayers ? 'Fewer' : 'More'}
+          </button>
         </div>
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>
@@ -713,6 +738,11 @@ function WeatherOverlay() {
               : '—'}
           </div>
           <div>mslp {fmt(probeValues.prmsl, 0, ' hPa')}</div>
+          {probeValues.extra.map((x) => (
+            <div key={x.param}>
+              {x.label} {fmt(x.value, x.dp, x.unit)}
+            </div>
+          ))}
         </div>
       )}
 

@@ -11,8 +11,12 @@
 import { describe, expect, it } from 'vitest'
 import type { ColorRamp } from './types'
 import {
+  EXTRA_LAYERS,
+  EXTRA_ORDER,
   LAYERS,
   LAYER_ORDER,
+  layerById,
+  layersFor,
   RAMPS,
   beaufortForce,
   makeSampler,
@@ -366,5 +370,27 @@ describe('LAYERS', () => {
     expect(rampFor(LAYERS.depth)).toBe(RAMPS.depth)
     const bogus: ColorRamp = rampFor({ ...LAYERS.wind, ramp: 'nope' })
     expect(bogus).toBe(RAMPS.wind)
+  })
+})
+
+describe('the extra layers, behind More', () => {
+  it('offers each only when the forecast has its parameter, and only when asked', () => {
+    const params = ['u10', 'v10', 'gust', 'prmsl', 't2m', 'uo', 'vo']
+    expect(layersFor(params, false)).toEqual(['wind', 'depth', 'current'])
+    expect(layersFor(params, true)).toEqual(['wind', 'depth', 'current', 'gust', 'pressure', 'airTemp'])
+    expect(layersFor(['u10', 'v10', 'hs', 'sst', 'rain'], true)).toEqual(['wind', 'depth', 'current', 'waveHeight', 'sst', 'rain'])
+    expect(layersFor(null, true)).toEqual(['wind', 'depth', 'current'])
+  })
+
+  it('names a ramp that exists for every one, and never shadows a standard layer', () => {
+    for (const id of EXTRA_ORDER) {
+      const l = EXTRA_LAYERS[id]
+      expect(l.id).toBe(id)
+      expect(l.kind).toBe('scalar')
+      expect(RAMPS[l.ramp], `${id} ramp`).toBeDefined()
+      expect(LAYERS[id]).toBeUndefined()
+      expect(layerById(id)).toBe(l)
+    }
+    expect(layerById('wind')).toBe(LAYERS.wind)
   })
 })

@@ -71,7 +71,9 @@ export const NAMES: Record<string, string> = {
   '0.2.22': 'GUST',
   '0.3.0': 'PRES',
   '0.3.1': 'PRMSL',
+  '0.1.7': 'PRATE',
   '0.1.8': 'APCP',
+  '10.3.0': 'WTMP',
   '10.0.3': 'HTSGW',
   '10.0.4': 'WVDIR',
   '10.0.5': 'WVPER',
@@ -381,6 +383,10 @@ const CUBE_PARAMS: Array<{ name: string; param: string; level?: [number, number]
   { name: 'WVDIR', param: 'wdir', k: 1 },
   { name: 'WVPER', param: 'wper', k: 1 },
   { name: 'UOGRD', param: 'uo', k: MS_TO_KN },
+  // For display: air temperature at 2 m and sea temperature in °C, rain as mm/h.
+  { name: 'TMP', param: 't2m', level: [103, 2], k: 1, add: -273.15 },
+  { name: 'WTMP', param: 'sst', k: 1, add: -273.15 },
+  { name: 'PRATE', param: 'rain', k: 3600 },
   { name: 'VOGRD', param: 'vo', k: MS_TO_KN },
 ]
 
@@ -402,10 +408,10 @@ export function gribToCube(
   opts: { bbox?: BBox; model?: string } = {},
 ): { cube: WeatherCube | null; warnings: string[] } {
   const warnings: string[] = []
-  const picked: Array<{ m: GribMessage; param: string; k: number }> = []
+  const picked: Array<{ m: GribMessage; param: string; k: number; add: number }> = []
   for (const m of messages) {
     const spec = CUBE_PARAMS.find((p) => p.name === m.name && (!p.level || (p.level[0] === m.levelType && p.level[1] === m.levelValue)))
-    if (spec) picked.push({ m, param: spec.param, k: spec.k })
+    if (spec) picked.push({ m, param: spec.param, k: spec.k, add: spec.add ?? 0 })
   }
   if (!picked.length) return { cube: null, warnings: ['no wind, pressure, wave or current fields in the file'] }
   const grid = (picked.find((p) => p.param === 'u10') ?? picked[0]).m.grid
@@ -466,7 +472,7 @@ export function gribToCube(
     const n = Math.round((south - gSouth) / dj) + r
     rowIndex[r] = northward ? n : nj - 1 - n
   }
-  for (const { m, param, k } of onGrid) {
+  for (const { m, param, k, add } of onGrid) {
     const it = Math.round((m.validTime - times[0]) / dtMs)
     const out = data[param]
     const base = it * ny * nx
@@ -475,7 +481,7 @@ export function gribToCube(
       for (let c = 0; c < nx; c++) {
         const i = colIndex[c]
         const v = m.values[colMajor ? i * nj + j : j * ni + i]
-        out[base + r * nx + c] = v * k
+        out[base + r * nx + c] = v * k + add
       }
     }
   }

@@ -253,9 +253,13 @@ leaves something tested and working.
       test encoder, round trips over every option and flag, and one stream built by hand.*
 - [x] **10.5 Pick the model for routing.** *Accept:* a test that the request uses the
       chosen model.
-- [ ] **10.6 Display parity:** a display mode per parameter, contours with step and a
-      bold level, Beaufort and other colour modes, isobars, gust, rain, waves, SST and
-      air temperature. *Accept:* tests and a browser check.
+- [x] **10.6a Display parity, the parameters:** gust, pressure, waves, SST, air temperature
+      and rain as layers, offered behind More only when the forecast has them. *Accept:*
+      tests and a browser check.
+- [ ] **10.6b Contours** with a step and a bold level: isobars, isotachs, rain. *Accept:*
+      tests and a browser check.
+- [ ] **10.6c A display mode per parameter:** Beaufort, spectrum, greyscale and single-colour
+      modes, and a line width. *Accept:* tests and a browser check.
 - [ ] **10.7 Meteogram** at the boat or any point, and a time step setting. *Accept:*
       tests.
 - [ ] **10.8 Observations:** NDBC, METAR and NOS PORTS on the chart, with history.

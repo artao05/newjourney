@@ -34,14 +34,15 @@ describe('opened weather files', () => {
     const out = await openWeatherFiles([good, temps, junk])
     expect(out.map((f) => [f.name, f.enabled, f.error ?? null])).toEqual([
       ['gfs.grb2', true, null],
-      ['t2m.grb2', false, null],
+      ['t2m.grb2', true, null],
       ['notes.grb', false, 'no GRIB messages in this file'],
     ])
     const files = useWeatherFiles.getState().files
     expect(files).toHaveLength(3)
     expect(files[0].cube!.params.sort()).toEqual(['prmsl', 'u10', 'v10'])
     expect(files[0].cube!.nt).toBe(2)
-    expect(files[1].cube).toBeNull()
+    // Air temperature alone is still something to show.
+    expect(files[1].cube!.params).toEqual(['t2m'])
     expect(files[1].catalogue[0].name).toBe('TMP')
   })
 

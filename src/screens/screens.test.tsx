@@ -901,6 +901,32 @@ describe('the Weather screen states its provenance', () => {
     }
   })
 
+  it("offers the file's other parameters behind More, and only those it has", async () => {
+    const g = gfsGrid(44, 289, 5, 4, 0.5)
+    const bytes = file(
+      message({ category: 2, number: 2, levelType: 103, levelValue: 10, grid: g, values: over(g, () => 6), packing: 'simple' }),
+      message({ category: 2, number: 3, levelType: 103, levelValue: 10, grid: g, values: over(g, () => -1), packing: 'simple' }),
+      message({ category: 2, number: 22, levelType: 1, grid: g, values: over(g, () => 9), packing: 'simple' }),
+      message({ category: 0, number: 0, levelType: 103, levelValue: 2, grid: g, values: over(g, () => 290), packing: 'simple' }),
+    )
+    await openWeatherFiles([new File([bytes], 'extra.grb2')])
+    try {
+      render(<WeatherScreen />)
+      expect(screen.queryByRole('button', { name: 'Air temp' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'More' }))
+      expect(screen.getByRole('button', { name: 'Gust' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Sea temp' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Pressure' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Air temp' }))
+      expect(document.body.textContent).toContain('°C')
+      // Going back to the file-less forecast drops the chip and falls back to wind.
+      act(() => useWeatherFiles.getState().clear())
+      expect(screen.queryByRole('button', { name: 'Air temp' })).toBeNull()
+    } finally {
+      act(() => useWeatherFiles.getState().clear())
+    }
+  })
+
   it('shows no legend at all rather than an unattributed one', () => {
     /*
      * The legend renders "source unknown" in the warning colour when it has no

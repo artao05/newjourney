@@ -294,6 +294,18 @@ const CURRENT = defineRamp('current', 'Current', 'kn', [
  * full-screen MSLP field is not something an inshore racer sails on. Kept, like
  * `SST`, so the ramp is ready if a synoptic view ever earns its place.
  */
+/** Air temperature, °C: blue below freezing, through white near 15 °C, to red. */
+const TEMP = defineRamp('temp', 'Air temperature', '°C', [
+  [-20, '#3b4cc0'],
+  [-5, '#6788ee'],
+  [0, '#9abbff'],
+  [8, '#c9d7f0'],
+  [15, '#edd1c2'],
+  [22, '#f7a889'],
+  [30, '#e26952'],
+  [40, '#b40426'],
+])
+
 const PRESSURE = defineRamp('pressure', 'Pressure', 'hPa', [
   [980, '#e05cc0'],
   [995, '#f0879f'],
@@ -313,6 +325,7 @@ export const RAMPS: Record<string, ColorRamp> = {
   rain: RAIN,
   current: CURRENT,
   pressure: PRESSURE,
+  temp: TEMP,
 }
 
 /**
@@ -548,6 +561,36 @@ export const LAYERS: Record<string, LayerSpec> = {
  * so a stale id here would make a chip disappear without any error.
  */
 export const LAYER_ORDER = ['wind', 'depth', 'current'] as const
+
+/**
+ * Layers for every other parameter a forecast can carry, as Expedition draws
+ * them: gust, pressure, waves, sea and air temperature, rain. Kept out of the
+ * default picker for the reasons above, and offered behind "More" only when the
+ * forecast on the chart actually has the parameter, usually from a GRIB file,
+ * so no chip ever opens an empty field.
+ */
+export const EXTRA_LAYERS: Record<string, LayerSpec> = {
+  gust: { id: 'gust', label: 'Gust', kind: 'scalar', params: ['gust'], ramp: 'wind', domain: [0, 40], unit: 'kn' },
+  pressure: { id: 'pressure', label: 'Pressure', kind: 'scalar', params: ['prmsl'], ramp: 'pressure', domain: [980, 1040], unit: 'hPa' },
+  waveHeight: { id: 'waveHeight', label: 'Waves', kind: 'scalar', params: ['hs'], ramp: 'wave', domain: [0, 8], unit: 'm' },
+  sst: { id: 'sst', label: 'Sea temp', kind: 'scalar', params: ['sst'], ramp: 'sst', domain: [0, 30], unit: '°C' },
+  airTemp: { id: 'airTemp', label: 'Air temp', kind: 'scalar', params: ['t2m'], ramp: 'temp', domain: [-20, 40], unit: '°C' },
+  rain: { id: 'rain', label: 'Rain', kind: 'scalar', params: ['rain'], ramp: 'rain', domain: [0, 10], unit: 'mm/h' },
+}
+
+export const EXTRA_ORDER = ['gust', 'pressure', 'waveHeight', 'sst', 'airTemp', 'rain'] as const
+
+/** The picker's layers: the standard three, then, with `more`, each extra the cube has. */
+export function layersFor(params: readonly string[] | null | undefined, more: boolean): string[] {
+  const have = new Set(params ?? [])
+  const extra = more ? EXTRA_ORDER.filter((id) => EXTRA_LAYERS[id].params.every((p) => have.has(p))) : []
+  return [...LAYER_ORDER, ...extra]
+}
+
+/** A layer by id, standard or extra. */
+export function layerById(id: string): LayerSpec | undefined {
+  return LAYERS[id] ?? EXTRA_LAYERS[id]
+}
 
 /** The ramp a layer names, or the wind ramp if it names one we do not have. */
 export function rampFor(layer: LayerSpec): ColorRamp {

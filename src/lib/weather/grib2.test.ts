@@ -248,3 +248,24 @@ describe('GRIB off the main thread', () => {
     expect(out.cube!.params).toEqual(['u10'])
   })
 })
+
+describe('GRIB display parameters', () => {
+  it('reads air and sea temperature in °C and rain rate in mm/h', () => {
+    const g = gfsGrid(44, 290, 3, 2, 1)
+    const { messages } = decodeGrib2(
+      file(
+        message({ category: 0, number: 0, levelType: 103, levelValue: 2, grid: g, values: over(g, () => 288.15), packing: 'simple', D: 2 }),
+        message({ discipline: 10, category: 3, number: 0, levelType: 1, grid: g, values: over(g, () => 285.65), packing: 'simple', D: 2 }),
+        message({ category: 1, number: 7, levelType: 1, grid: g, values: over(g, () => 0.0005), packing: 'simple', D: 6 }),
+        // Temperature aloft is not the air on deck.
+        message({ category: 0, number: 0, levelType: 100, levelValue: 85000, grid: g, values: over(g, () => 270), packing: 'simple' }),
+      ),
+    )
+    expect(messages.map((m) => m.name)).toEqual(['TMP', 'WTMP', 'PRATE', 'TMP'])
+    const c = gribToCube(messages).cube!
+    expect(c.params).toEqual(['t2m', 'sst', 'rain'])
+    expect(c.data.t2m[0]).toBeCloseTo(15, 3)
+    expect(c.data.sst[0]).toBeCloseTo(12.5, 3)
+    expect(c.data.rain[0]).toBeCloseTo(1.8, 3)
+  })
+})
