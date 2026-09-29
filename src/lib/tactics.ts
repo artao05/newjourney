@@ -55,6 +55,12 @@ export interface TacticalInputs {
   /** Recent TWD samples for the oscillation band. */
   windHistory?: Array<{ t: number; twd: number; tws: number }>
   /**
+   * Expedition's performance polar: Polar BSP, Polar BSP %, the targets and VMG %
+   * come from it. Everything navigational (laylines, mark times) stays on
+   * `lattice`, the navigation polar. Absent, both are the navigation polar.
+   */
+  performanceLattice?: PolarLattice | null
+  /**
    * Where Reset XTE was pressed. Set, it replaces the start of the leg as the far
    * end of the cross-track line, as Expedition's reset does.
    */
@@ -412,14 +418,15 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
   })
 
   attempt(() => {
-    if (!wind || !lattice || out.twa === null) return
+    const perf = i.performanceLattice ?? lattice
+    if (!wind || !perf || out.twa === null) return
     const pct = boat.polarPct / 100
     const bsp = waterSpeed(state)
-    const targets = lattice.targetsAt(wind.tws)
+    const targets = perf.targetsAt(wind.tws)
     const upwind = Math.abs(out.twa) < 90
     out.targetTwa = Math.abs(upwind ? targets.upTwa : targets.downTwa)
     out.targetBsp = (upwind ? targets.upBsp : targets.downBsp) * pct
-    out.polarBsp = lattice.speed(wind.tws, out.twa) * pct
+    out.polarBsp = perf.speed(wind.tws, out.twa) * pct
     if (out.polarBsp > 0) out.polarBspPct = (100 * bsp) / out.polarBsp
     // Signed: positive upwind, negative downwind, so that dividing by the
     // (equally signed) target VMG gives a sane percentage on both.

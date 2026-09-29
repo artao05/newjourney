@@ -100,8 +100,10 @@ leaves something tested and working.
 
 ## M4 — Polars and sails
 
-- [ ] **4.1 Polar roles:** performance, navigation, start and heel, each chosen
+- [x] **4.1 Polar roles:** performance, navigation, start and heel, each chosen
       separately. *Accept:* store tests, and each consumer reads its own role.
+      *Done for performance and start.* The heel polar waits for heel data (6.6),
+      because there is nothing to compare it against until then.
 - [ ] **4.2 Polar editor.** Table and drag editing, derived targets, save as
       Expedition text. *Accept:* editor and serialiser tests.
 - [ ] **4.3 Targets table, and logged points drawn on the polar.** *Accept:* tests.

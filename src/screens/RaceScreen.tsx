@@ -15,13 +15,13 @@ import { MarksLibrary } from '@/components/MarksLibrary'
 import { CourseLegs } from '@/components/CourseLegs'
 import { RaceNotesList } from '@/components/RaceNotes'
 import { useLayout } from '@/hooks/useWide'
+import { usePolarLattices } from '@/hooks/usePolars'
 import { Tile, fmtClock } from '@/components/Tile'
 import { computeTactics } from '@/lib/tactics'
-import { buildLattice } from '@/lib/polar'
 import { fmtDeg, fmtShift, wrap360 } from '@/lib/angles'
 import { distance, bearing } from '@/lib/geo'
 import { makeWLCourse } from '@/lib/sim'
-import type { PolarLattice, TacticalNumbers, WindEstimate } from '@/lib/types'
+import type { TacticalNumbers, WindEstimate } from '@/lib/types'
 
 export function RaceScreen() {
   const now = useTick(1)
@@ -30,7 +30,6 @@ export function RaceScreen() {
   const course = useStore((s) => s.course)
   const wind = useStore((s) => s.wind)
   const current = useStore((s) => s.current)
-  const polar = useStore((s) => s.polar)
   const windHistory = useStore((s) => s.windHistory)
   const activeMarkIndex = useStore((s) => s.activeMarkIndex)
   const xteOrigin = useStore((s) => s.xteOrigin)
@@ -55,14 +54,8 @@ export function RaceScreen() {
     return { lat: (port.lat + starboard.lat) / 2, lon: (port.lon + starboard.lon) / 2 }
   }, [course.startLine])
 
-  const lattice = useMemo<PolarLattice | null>(() => {
-    if (!polar) return null
-    try {
-      return buildLattice(polar)
-    } catch {
-      return null
-    }
-  }, [polar])
+  const polars = usePolarLattices()
+  const lattice = polars.navigation
 
   /** What-if is just a decorated wind estimate — the same trick Expedition uses. */
   const effectiveWind: WindEstimate | null = useMemo(() => {
@@ -88,11 +81,12 @@ export function RaceScreen() {
         activeMarkIndex,
         windHistory,
         xteOrigin,
+        performanceLattice: polars.performance,
       })
     } catch {
       return null
     }
-  }, [state, effectiveWind, current, boat, lattice, course, activeMarkIndex, windHistory, xteOrigin])
+  }, [state, effectiveWind, current, boat, lattice, course, activeMarkIndex, windHistory, xteOrigin, polars.performance])
 
   const marks = course.marks
   const active = marks[activeMarkIndex]

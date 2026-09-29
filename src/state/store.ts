@@ -123,6 +123,14 @@ interface AppState {
   polarId: string
   polar: PolarTable | null
   setPolar(id: string, p: PolarTable | null): void
+  /**
+   * Expedition's other polar roles. 'navigation' means the same table as the
+   * navigation polar (`polar`), and anything else is a class id from the library.
+   * The performance polar gives Polar BSP, Polar % and the targets. The start
+   * polar drives the start numbers, and can be a de-powered one for downwind starts.
+   */
+  polarRoles: { performance: string; start: string }
+  setPolarRole(role: 'performance' | 'start', id: string): void
 
   course: Course
   setStartEnd(which: 'port' | 'starboard', at: LatLon | null): void
@@ -247,7 +255,7 @@ interface AppState {
    * Anything the file changes about the course drops the route.
    */
   applyConfig(cfg: Partial<Pick<AppState,
-    'boat' | 'polarId' | 'polar' | 'course' | 'settings' | 'routeSettings' |
+    'boat' | 'polarId' | 'polar' | 'polarRoles' | 'course' | 'settings' | 'routeSettings' |
     'numberBoxes' | 'manualWind' | 'navPanel' | 'navChart'>>): void
 }
 
@@ -339,6 +347,8 @@ export const useStore = create<AppState>()(
       polarId: 'j70',
       polar: null,
       setPolar: (id, p) => set({ polarId: id, polar: p }),
+      polarRoles: { performance: 'navigation', start: 'navigation' },
+      setPolarRole: (role, id) => set({ polarRoles: { ...get().polarRoles, [role]: id } }),
 
       course: EMPTY_COURSE,
       setStartEnd: (which, at) =>
@@ -642,6 +652,7 @@ export const useStore = create<AppState>()(
           routeSettings: merged.routeSettings,
           ...(cfg.polarId != null ? { polarId: cfg.polarId, polar: cfg.polar ?? null } : {}),
           ...(cfg.numberBoxes ? { numberBoxes: cfg.numberBoxes } : {}),
+          ...(cfg.polarRoles ? { polarRoles: { ...get().polarRoles, ...cfg.polarRoles } } : {}),
           ...(cfg.manualWind ? { manualWind: cfg.manualWind, manualWindSetAt: Date.now() } : {}),
           ...(cfg.navPanel ? { navPanel: cfg.navPanel } : {}),
           ...(cfg.navChart ? { navChart: cfg.navChart } : {}),
@@ -664,6 +675,7 @@ export const useStore = create<AppState>()(
          * `polarId: 'custom'` with no table, and App quietly swapped in the J/70.
          */
         polar: s.polarId === 'custom' ? s.polar : null,
+        polarRoles: s.polarRoles,
         course: s.course,
         manualWind: s.manualWind,
         manualWindSetAt: s.manualWindSetAt,

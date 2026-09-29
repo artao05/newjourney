@@ -11,8 +11,8 @@ import { useTick } from '@/hooks/useSensors'
 import { StartCanvas } from '@/components/StartCanvas'
 import { Tile, fmtAgo, fmtClock, fmtSigned } from '@/components/Tile'
 import { COG_TRUSTED_KN, computeStart, fixQuality, pingPosition, spareTimeS } from '@/lib/startline'
-import { buildLattice } from '@/lib/polar'
-import type { PolarLattice, StartNumbers } from '@/lib/types'
+import { usePolarLattices } from '@/hooks/usePolars'
+import type { StartNumbers } from '@/lib/types'
 import { fmtLength, lengthUnit, toLength } from '@/lib/units'
 
 const ROLL_OPTIONS = [5, 4, 3, 1]
@@ -54,7 +54,6 @@ export function StartScreen() {
   const course = useStore((s) => s.course)
   const wind = useStore((s) => s.wind)
   const current = useStore((s) => s.current)
-  const polar = useStore((s) => s.polar)
   const track = useStore((s) => s.track)
   const setStartEnd = useStore((s) => s.setStartEnd)
   const setGunTime = useStore((s) => s.setGunTime)
@@ -64,14 +63,8 @@ export function StartScreen() {
   const [showDetail, setShowDetail] = useState(false)
   const [pingNote, setPingNote] = useState<{ which: 'port' | 'starboard'; t: number } | null>(null)
 
-  const lattice = useMemo<PolarLattice | null>(() => {
-    if (!polar) return null
-    try {
-      return buildLattice(polar)
-    } catch {
-      return null
-    }
-  }, [polar])
+  // Expedition's start polar: the start numbers can run on a de-powered one.
+  const lattice = usePolarLattices().start
 
   /*
    * `computeStart` requires a fix. Before the first one lands — which is the

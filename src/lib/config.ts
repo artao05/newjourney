@@ -24,6 +24,7 @@ export interface ConfigFile {
   polarId: string
   /** Only for an imported polar: a built-in one reloads from the library by id. */
   polar: PolarTable | null
+  polarRoles: { performance: string; start: string }
   course: Course
   settings: Settings
   routeSettings: RouteSettings
@@ -43,6 +44,7 @@ export function exportConfig(s: ConfigSource, now = new Date()): ConfigFile {
     boat: s.boat,
     polarId: s.polarId,
     polar: s.polarId === 'custom' ? s.polar : null,
+    polarRoles: s.polarRoles,
     course: s.course,
     settings: s.settings,
     routeSettings: s.routeSettings,
@@ -76,6 +78,7 @@ export function parseConfig(text: string): Partial<ConfigSource> {
   if (obj('boat')) out.boat = o.boat as Boat
   if (typeof o.polarId === 'string') out.polarId = o.polarId
   if (o.polar === null || obj('polar')) out.polar = (o.polar as PolarTable | null) ?? null
+  if (obj('polarRoles')) out.polarRoles = o.polarRoles as ConfigSource['polarRoles']
   if (obj('course')) out.course = o.course as Course
   if (obj('settings')) out.settings = o.settings as Settings
   if (obj('routeSettings')) out.routeSettings = o.routeSettings as RouteSettings

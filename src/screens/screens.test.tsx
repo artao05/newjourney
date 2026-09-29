@@ -182,6 +182,7 @@ function emptyStore() {
     library: [],
     routes: [],
     raceNotes: [],
+    polarRoles: { performance: 'navigation', start: 'navigation' },
   })
 }
 
@@ -1159,6 +1160,29 @@ describe('man overboard', () => {
     expect(mob.mobAt).toBeTypeOf('number')
     const alert = screen.getByRole('alert')
     expect(alert.textContent).toMatch(/MAN OVERBOARD · 0:0\d ago/)
+  })
+})
+
+describe('polar roles', () => {
+  const targetBsp = () =>
+    [...document.querySelectorAll('.tile')]
+      .find((el) => el.querySelector('.tile__label')?.textContent === 'target bsp')!
+      .querySelector('.tile__value')!.textContent
+
+  it('lets Race take its targets from a separate performance polar, chosen in Setup', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    const onNavigation = targetBsp()
+    cleanup()
+    render(<SetupScreen />)
+    fireEvent.change(screen.getByLabelText('Performance polar'), { target: { value: 'j105' } })
+    expect(useStore.getState().polarRoles.performance).toBe('j105')
+    expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.polarRoles.performance).toBe('j105')
+    cleanup()
+    render(<RaceScreen />)
+    expect(targetBsp()).not.toBe(onNavigation)
+    // The navigation polar itself is untouched: routing still uses the J/70.
+    expect(useStore.getState().polarId).toBe('j70')
   })
 })
 

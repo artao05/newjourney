@@ -10,13 +10,12 @@
 import { useMemo } from 'react'
 import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
-import { buildLattice } from '@/lib/polar'
+import { usePolarLattices } from '@/hooks/usePolars'
 import { computeTactics } from '@/lib/tactics'
 import { computeStart } from '@/lib/startline'
 import { declinationAt } from '@/lib/magnetic'
 import { PILOT_VENUE } from '@/data/venues'
 import { buildSnapshot, type ChannelValues } from '@/lib/channels/snapshot'
-import type { PolarLattice } from '@/lib/types'
 
 export function useChannelSnapshot(): ChannelValues {
   const now = useTick(1)
@@ -24,20 +23,13 @@ export function useChannelSnapshot(): ChannelValues {
   const wind = useStore((s) => s.wind)
   const current = useStore((s) => s.current)
   const boat = useStore((s) => s.boat)
-  const polar = useStore((s) => s.polar)
   const course = useStore((s) => s.course)
   const activeMarkIndex = useStore((s) => s.activeMarkIndex)
   const windHistory = useStore((s) => s.windHistory)
   const xteOrigin = useStore((s) => s.xteOrigin)
 
-  const lattice = useMemo<PolarLattice | null>(() => {
-    if (!polar) return null
-    try {
-      return buildLattice(polar)
-    } catch {
-      return null
-    }
-  }, [polar])
+  const polars = usePolarLattices()
+  const lattice = polars.navigation
 
   return useMemo(() => {
     let tactics = null
@@ -46,12 +38,13 @@ export function useChannelSnapshot(): ChannelValues {
       try {
         tactics = computeTactics({
           state, wind, current, boat, lattice, course, activeMarkIndex, windHistory, xteOrigin,
+          performanceLattice: polars.performance,
         })
       } catch {
         tactics = null
       }
       try {
-        start = computeStart({ line: course.startLine, state, wind, current, boat, lattice, now })
+        start = computeStart({ line: course.startLine, state, wind, current, boat, lattice: polars.start, now })
       } catch {
         start = null
       }
@@ -67,5 +60,5 @@ export function useChannelSnapshot(): ChannelValues {
       activeMarkIndex,
       variationDeg: declinationAt(PILOT_VENUE.declination, now),
     })
-  }, [now, state, wind, current, boat, lattice, course, activeMarkIndex, windHistory, xteOrigin])
+  }, [now, state, wind, current, boat, lattice, polars.performance, polars.start, course, activeMarkIndex, windHistory, xteOrigin])
 }

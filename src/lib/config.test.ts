@@ -36,6 +36,7 @@ describe('the user configuration file', () => {
     s.updateRouteSettings({ windRotateDeg: 8, maxGust: 30 })
     s.updateNumberBox('nb-1', { channels: ['vmg', 'tws'] })
     s.setNav({ navPanel: 'setup', navChart: 'weather' })
+    s.setPolarRole('start', 'j105')
     const text = JSON.stringify(exportConfig(useStore.getState()))
 
     // Somebody else's boat in between.
@@ -45,6 +46,7 @@ describe('the user configuration file', () => {
     s.updateSettings({ units: 'metric' })
     s.updateRouteSettings({ ...DEFAULT_ROUTE_SETTINGS })
     s.setNav({ navPanel: 'race', navChart: 'route' })
+    s.setPolarRole('start', 'navigation')
 
     s.applyConfig(parseConfig(text))
     const back = useStore.getState()
@@ -56,6 +58,7 @@ describe('the user configuration file', () => {
     expect(back.routeSettings).toMatchObject({ windRotateDeg: 8, maxGust: 30 })
     expect(back.numberBoxes[0].channels).toEqual(['vmg', 'tws'])
     expect(back).toMatchObject({ navPanel: 'setup', navChart: 'weather' })
+    expect(back.polarRoles.start).toBe('j105')
   })
 
   it('leaves a built-in polar out, since it reloads from the library by id', () => {

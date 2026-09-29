@@ -47,6 +47,8 @@ export function SetupScreen() {
   const updateBoat = useStore((s) => s.updateBoat)
   const polarId = useStore((s) => s.polarId)
   const polar = useStore((s) => s.polar)
+  const polarRoles = useStore((s) => s.polarRoles)
+  const setPolarRole = useStore((s) => s.setPolarRole)
   const setPolar = useStore((s) => s.setPolar)
   const settings = useStore((s) => s.settings)
   const updateSettings = useStore((s) => s.updateSettings)
@@ -339,6 +341,31 @@ export function SetupScreen() {
             {i.message}
           </div>
         ))}
+        <h2>Polar roles</h2>
+        {(['performance', 'start'] as const).map((role) => (
+          <div className="field field--wide" key={role}>
+            <label htmlFor={'role-' + role}>{role === 'performance' ? 'Performance polar' : 'Start polar'}</label>
+            <select
+              id={'role-' + role}
+              value={polarRoles[role]}
+              onChange={(e) => setPolarRole(role, e.target.value)}
+            >
+              <option value="navigation">Same as the navigation polar</option>
+              {POLAR_LIBRARY.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+        <p className="note">
+          As in Expedition, the polar above is the navigation polar, used for routing,
+          laylines and mark times. The performance polar gives Polar BSP, Polar % and the
+          targets, and can be the book polar while navigation uses today&apos;s. The start
+          polar drives the start numbers, and can be a slower one for a downwind start.
+        </p>
+
         <label className="btn btn--sm" style={{ display: 'block', marginTop: 8 }}>
           IMPORT POLAR FILE
           <input

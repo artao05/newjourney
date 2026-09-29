@@ -407,6 +407,26 @@ describe('computeTactics', () => {
     expect(r.vmgPct).toBeCloseTo((100 * 5 * COS40) / (6 * COS40), 6)
   })
 
+  it('takes the performance numbers from the performance polar, and navigation from the other', () => {
+    // A performance polar exactly 10 % faster everywhere.
+    const nav = fakeLattice()
+    const perf = {
+      ...nav,
+      speed: (tws: number, twa: number) => nav.speed(tws, twa) * 1.1,
+      targetsAt: (tws: number) => {
+        const t = nav.targetsAt(tws)
+        return { ...t, upBsp: t.upBsp * 1.1, downBsp: t.downBsp * 1.1, upVmg: t.upVmg * 1.1, downVmg: t.downVmg * 1.1 }
+      },
+    }
+    const both = computeTactics(inputs)
+    const split = computeTactics({ ...inputs, performanceLattice: perf })
+    expect(split.polarBsp).toBeCloseTo(both.polarBsp! * 1.1, 9)
+    expect(split.targetBsp).toBeCloseTo(both.targetBsp! * 1.1, 9)
+    // The navigation side is unchanged: laylines and mark time still use `lattice`.
+    expect(split.markTimeS).toBeCloseTo(both.markTimeS!, 9)
+    expect(split.laylines!.distanceToPortLayline).toBeCloseTo(both.laylines!.distanceToPortLayline!, 9)
+  })
+
   it('fills in the mark numbers', () => {
     const r = computeTactics(inputs)
     expectAngle(r.markBearing, 0, 4)
