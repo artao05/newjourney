@@ -11,6 +11,9 @@ import { useStore } from '@/state/store'
 import { BoatSim } from '@/lib/sim'
 import { buildLattice } from '@/lib/polar'
 import type { BoatState, LatLon } from '@/lib/types'
+import { fromOrientationEvent, phoneAdditions, type OrientationEventLike } from '@/lib/instruments/orientation'
+import { declinationAt } from '@/lib/magnetic'
+import { PILOT_VENUE } from '@/data/venues'
 
 /** Watch the real GPS and push `BoatState` into the store. */
 export function useGeolocation(enabled: boolean) {
@@ -31,6 +34,11 @@ export function useGeolocation(enabled: boolean) {
       (pos) => {
         setGpsError(null)
         const c = pos.coords
+        // The phone's heel, and its compass if trusted and good, joined to the fix.
+        const st = useStore.getState()
+        const phone = st.phoneSensors.on
+          ? phoneAdditions(st.phoneOrientation, Date.now(), st.phoneSensors.trustCompass, declinationAt(PILOT_VENUE.declination, pos.timestamp))
+          : { heading: null, heelDeg: null }
         const state: BoatState = {
           t: pos.timestamp,
           position: { lat: c.latitude, lon: c.longitude },
@@ -51,9 +59,9 @@ export function useGeolocation(enabled: boolean) {
           sog: c.speed != null && Number.isFinite(c.speed) ? c.speed * 1.94384 : NaN,
           cog: c.heading != null && Number.isFinite(c.heading) ? c.heading : NaN,
           accuracyM: c.accuracy ?? null,
-          heading: null,
+          heading: phone.heading,
           bsp: null,
-          heelDeg: null,
+          heelDeg: phone.heelDeg,
         }
         setBoatState(state)
       },
@@ -62,6 +70,34 @@ export function useGeolocation(enabled: boolean) {
     )
     return () => geo.clearWatch(id)
   }, [enabled, setBoatState, setGpsError])
+}
+
+/**
+ * Listen to the phone's orientation while asked to, into the store at 4 Hz.
+ * Prefers Android's absolute event, which is a compass; the plain one is not.
+ */
+export function usePhoneOrientation(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined') {
+      useStore.getState().setPhoneOrientation(null)
+      return
+    }
+    const absolute = 'ondeviceorientationabsolute' in window
+    const type = absolute ? 'deviceorientationabsolute' : 'deviceorientation'
+    let last = 0
+    const on = (e: Event) => {
+      const now = Date.now()
+      if (now - last < 250) return
+      last = now
+      const angle = window.screen?.orientation?.angle ?? 0
+      useStore.getState().setPhoneOrientation(fromOrientationEvent(e as unknown as OrientationEventLike, angle, now))
+    }
+    window.addEventListener(type, on)
+    return () => {
+      window.removeEventListener(type, on)
+      useStore.getState().setPhoneOrientation(null)
+    }
+  }, [enabled])
 }
 
 /** Drive the store from the synthetic boat instead of the GPS. */

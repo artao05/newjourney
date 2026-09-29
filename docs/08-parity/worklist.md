@@ -166,7 +166,7 @@ leaves something tested and working.
       deviation and offsets. *Accept:* tests.
 - [x] **6.5b Mast angle** (from 6.5): read a mast-rotation sensor (XDR or Signal K) and
       correct it with an offset. *Accept:* tests.
-- [ ] **6.6 Phone heading and heel** from DeviceOrientation, with an honest quality
+- [x] **6.6 Phone heading and heel** from DeviceOrientation, with an honest quality
       flag. *Accept:* hook tests.
 - [ ] **6.7 GPS window:** fix, HDOP and satellites when NMEA provides them. *Accept:*
       tests.

@@ -3,7 +3,9 @@
  * what it is sending.
  */
 
+import { useState } from 'react'
 import { useStore } from '@/state/store'
+import { GOOD_COMPASS_DEG, requestOrientationPermission } from '@/lib/instruments/orientation'
 import { mixedContentWarning } from '@/lib/instruments/signalk'
 import { BAUD_RATES, choosePort, webSerialAvailable } from '@/lib/instruments/webserial'
 import { useTick } from '@/hooks/useSensors'
@@ -28,6 +30,10 @@ export function InstrumentsSection() {
   const pipeline = useStore((s) => s.pipeline)
   const setPipeline = useStore((s) => s.setPipeline)
   const derived = useStore((s) => s.instrumentDerived)
+  const phoneSensors = useStore((s) => s.phoneSensors)
+  const setPhoneSensors = useStore((s) => s.setPhoneSensors)
+  const phone = useStore((s) => s.phoneOrientation)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
   const now = useTick(1)
   const warning = mixedContentWarning(window.location.protocol, instruments.signalKUrl)
   const age = status.lastAt != null ? Math.max(0, Math.round((now - status.lastAt) / 1000)) : null
@@ -99,6 +105,51 @@ export function InstrumentsSection() {
         {status.status === 'connected' && age != null ? ` · ${fields} values, the latest ${age} s ago` : ''}
         {status.status === 'connected' && age == null ? ' · no data yet' : ''}
       </p>
+      <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          type="checkbox"
+          checked={phoneSensors.on}
+          aria-label="Use the phone's tilt as heel"
+          onChange={async (e) => {
+            const on = e.target.checked
+            // iOS asks first, and only in answer to a tap like this one.
+            if (on && !(await requestOrientationPermission())) {
+              setPhoneError('This browser will not share the phone’s orientation.')
+              return
+            }
+            setPhoneError(null)
+            setPhoneSensors({ on })
+          }}
+        />
+        <span>Use the phone&apos;s tilt as heel. Lay it flat, screen up, top toward the bow.</span>
+      </label>
+      <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          type="checkbox"
+          checked={phoneSensors.trustCompass}
+          disabled={!phoneSensors.on}
+          aria-label="Trust the phone's compass for heading"
+          onChange={(e) => setPhoneSensors({ trustCompass: e.target.checked })}
+        />
+        <span>Trust its compass for heading, while the phone says it is within {GOOD_COMPASS_DEG}°.</span>
+      </label>
+      {phoneError && <p className="warnbox" role="alert">{phoneError}</p>}
+      {phoneSensors.on && (
+        <p className="note" aria-label="Phone sensors">
+          {phone
+            ? `Heel ${phone.heel != null ? `${phone.heel.toFixed(0)}°` : '—'} · compass ${
+                phone.headingMag != null ? `${Math.round(phone.headingMag)}°M` : 'none on this phone'
+              } · ${
+                phone.quality === 'good'
+                  ? `within ${phone.accuracyDeg}°, good`
+                  : phone.quality === 'poor'
+                    ? `±${phone.accuracyDeg}°, not trusted`
+                    : 'accuracy not reported, not trusted'
+              }`
+            : 'No orientation from this device yet.'}
+        </p>
+      )}
+
       <div className="seg" role="group" aria-label="True wind" style={{ margin: '8px 0' }}>
         <button aria-pressed={pipeline.trueWind === 'calculate'} onClick={() => setPipeline({ trueWind: 'calculate' })}>
           Calculate true wind

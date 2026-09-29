@@ -16,7 +16,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { useGeolocation, useSimulation, useTick } from './useSensors'
+import { useGeolocation, usePhoneOrientation, useSimulation, useTick } from './useSensors'
 import { useStore } from '@/state/store'
 
 // ------------------------------------------------------------- fake platform
@@ -227,5 +227,63 @@ describe('useTick', () => {
     view.unmount()
     // No timer left behind to wake a backgrounded screen.
     expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('the phone’s own tilt and compass', () => {
+  afterEach(() => {
+    useStore.setState({ phoneSensors: { on: false, trustCompass: false }, phoneOrientation: null })
+  })
+
+  it('reads orientation events into the store, a few times a second, and stops', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    const hook = renderHook(() => usePhoneOrientation(true))
+    const type = 'ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation'
+    const fire = (props: Record<string, unknown>) => {
+      const e = new Event(type)
+      Object.assign(e, props)
+      act(() => {
+        window.dispatchEvent(e)
+      })
+    }
+    fire({ alpha: 90, beta: 2, gamma: -12, webkitCompassHeading: 270, webkitCompassAccuracy: 5 })
+    expect(useStore.getState().phoneOrientation).toMatchObject({ headingMag: 270, heel: -12, pitch: 2, quality: 'good' })
+    // Within a quarter second: throttled.
+    fire({ alpha: 0, beta: 0, gamma: 30, webkitCompassHeading: 10, webkitCompassAccuracy: 5 })
+    expect(useStore.getState().phoneOrientation!.heel).toBe(-12)
+    vi.setSystemTime(10_300)
+    fire({ alpha: 0, beta: 0, gamma: 30, webkitCompassHeading: 10, webkitCompassAccuracy: 5 })
+    expect(useStore.getState().phoneOrientation!.heel).toBe(30)
+    hook.unmount()
+    expect(useStore.getState().phoneOrientation).toBeNull()
+  })
+
+  it('joins the heel to a GPS fix, and the compass only when trusted and good', () => {
+    const t = Date.now()
+    useStore.setState({
+      phoneSensors: { on: true, trustCompass: false },
+      phoneOrientation: { headingMag: 100, heel: 8, pitch: 1, accuracyDeg: 5, quality: 'good', t },
+    })
+    renderHook(() => useGeolocation(true))
+    act(() => success!(fix()))
+    expect(boat()).toMatchObject({ heelDeg: 8, heading: null })
+    useStore.setState({ phoneSensors: { on: true, trustCompass: true } })
+    act(() => success!(fix()))
+    // Magnetic 100 plus the venue's variation, about 14.5° W.
+    expect(boat()!.heading).toBeCloseTo(100 - 14.5, 0)
+    useStore.setState({ phoneOrientation: { headingMag: 100, heel: 8, pitch: 1, accuracyDeg: 25, quality: 'poor', t } })
+    act(() => success!(fix()))
+    expect(boat()!.heading).toBeNull()
+  })
+
+  it('leaves heel and heading unknown with phone sensors off', () => {
+    useStore.setState({
+      phoneSensors: { on: false, trustCompass: true },
+      phoneOrientation: { headingMag: 100, heel: 8, pitch: 1, accuracyDeg: 5, quality: 'good', t: Date.now() },
+    })
+    renderHook(() => useGeolocation(true))
+    act(() => success!(fix()))
+    expect(boat()).toMatchObject({ heelDeg: null, heading: null })
   })
 })

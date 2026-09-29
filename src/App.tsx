@@ -12,7 +12,7 @@ import { useStore, type ChartTab, type PanelTab, type Tab } from '@/state/store'
 import { LayoutContext, useWide } from '@/hooks/useWide'
 import { toggleFullscreen, useShortcuts } from '@/hooks/useShortcuts'
 import { NumberBoxes } from '@/components/NumberBoxes'
-import { useGeolocation, useSimulation, useWakeLock, useTick } from '@/hooks/useSensors'
+import { useGeolocation, usePhoneOrientation, useSimulation, useWakeLock, useTick } from '@/hooks/useSensors'
 import { useInstruments, type InstrumentSource } from '@/hooks/useInstruments'
 import { StartScreen } from '@/screens/StartScreen'
 import { RaceScreen } from '@/screens/RaceScreen'
@@ -101,6 +101,8 @@ export function App() {
         ? { kind: 'serial', baud: instruments.serialBaud }
         : null
   useGeolocation(!settings.simulate && !instrumentSource)
+  const phoneSensors = useStore((s) => s.phoneSensors)
+  usePhoneOrientation(phoneSensors.on && !settings.simulate && !instrumentSource)
   const pipeline = useStore((s) => s.pipeline)
   const calibration = useStore((s) => s.calibration)
   useInstruments(instrumentSource, pipeline, calibration)

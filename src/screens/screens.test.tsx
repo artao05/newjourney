@@ -199,6 +199,8 @@ function emptyStore() {
     instrumentDerived: null,
     pipeline: { ...DEFAULT_PIPELINE },
     calibration: { ...NO_CALIBRATION, offsets: { ...NO_CALIBRATION.offsets } },
+    phoneSensors: { on: false, trustCompass: false },
+    phoneOrientation: null,
     instrumentStatus: { status: 'off', detail: null, lastAt: null },
   })
 }
@@ -952,6 +954,25 @@ describe('Setup connects to the instruments', () => {
     fireEvent.change(within(section).getByLabelText(/^Compass offset/), { target: { value: '-2.5' } })
     expect(useStore.getState().calibration.offsets.compass).toBe(-2.5)
     expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.calibration.offsets.compass).toBe(-2.5)
+  })
+
+  it('turns on the phone’s tilt where the browser shares it, and says so where it will not', async () => {
+    emptyStore()
+    render(<SetupScreen />)
+    const section = screen.getByRole('region', { name: 'Instruments' })
+    const tilt = within(section).getByLabelText("Use the phone's tilt as heel")
+    expect((within(section).getByLabelText("Trust the phone's compass for heading") as HTMLInputElement).disabled).toBe(true)
+    vi.stubGlobal('DeviceOrientationEvent', undefined)
+    fireEvent.click(tilt)
+    await waitFor(() => expect(within(section).getByRole('alert').textContent).toMatch(/will not share/))
+    expect(useStore.getState().phoneSensors.on).toBe(false)
+    vi.stubGlobal('DeviceOrientationEvent', class {})
+    fireEvent.click(tilt)
+    await waitFor(() => expect(useStore.getState().phoneSensors.on).toBe(true))
+    vi.unstubAllGlobals()
+    fireEvent.click(within(section).getByLabelText("Trust the phone's compass for heading"))
+    expect(useStore.getState().phoneSensors.trustCompass).toBe(true)
+    expect(within(section).getByLabelText('Phone sensors').textContent).toMatch(/No orientation/)
   })
 
   it('offers the instruments as a wind source', () => {

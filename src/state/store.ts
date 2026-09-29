@@ -30,6 +30,7 @@ import type { Reading } from '@/lib/instruments/nmea0183'
 import { DEFAULT_SIGNALK_URL, type SignalKStatus } from '@/lib/instruments/signalk'
 import { DEFAULT_PIPELINE, type Derived, type PipelineSettings } from '@/lib/instruments/pipeline'
 import { NO_CALIBRATION, type Calibration } from '@/lib/instruments/calibration'
+import type { PhoneOrientation } from '@/lib/instruments/orientation'
 
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
 /** The nav station's two tab sets: panels on the left, charts in the middle. */
@@ -297,6 +298,14 @@ interface AppState {
   setPipeline(patch: Partial<PipelineSettings>): void
   calibration: Calibration
   setCalibration(patch: Partial<Calibration>): void
+  /**
+   * The phone's own tilt and compass. Heel is used whenever this is on; the
+   * compass only with `trustCompass`, and only while the phone calls it good.
+   */
+  phoneSensors: { on: boolean; trustCompass: boolean }
+  setPhoneSensors(patch: Partial<{ on: boolean; trustCompass: boolean }>): void
+  phoneOrientation: PhoneOrientation | null
+  setPhoneOrientation(p: PhoneOrientation | null): void
   instrumentStatus: { status: SignalKStatus; detail: string | null; lastAt: Millis | null }
   setInstrumentStatus(s: Partial<{ status: SignalKStatus; detail: string | null; lastAt: Millis | null }>): void
 
@@ -378,6 +387,7 @@ export function mergePersistedState(
     // Kept field by field, so a setting added later gets its default on an older save.
     instruments: { ...c.instruments, ...p.instruments },
     pipeline: { ...c.pipeline, ...p.pipeline },
+    phoneSensors: { ...c.phoneSensors, ...p.phoneSensors },
     calibration: {
       ...c.calibration,
       ...p.calibration,
@@ -719,6 +729,10 @@ export const useStore = create<AppState>()(
       setPipeline: (patch) => set({ pipeline: { ...get().pipeline, ...patch } }),
       calibration: { ...NO_CALIBRATION, offsets: { ...NO_CALIBRATION.offsets } },
       setCalibration: (patch) => set({ calibration: { ...get().calibration, ...patch } }),
+      phoneSensors: { on: false, trustCompass: false },
+      setPhoneSensors: (patch) => set({ phoneSensors: { ...get().phoneSensors, ...patch } }),
+      phoneOrientation: null,
+      setPhoneOrientation: (p) => set({ phoneOrientation: p }),
       instrumentStatus: { status: 'off', detail: null, lastAt: null },
       setInstrumentStatus: (s) => set({ instrumentStatus: { ...get().instrumentStatus, ...s } }),
 
@@ -862,6 +876,7 @@ export const useStore = create<AppState>()(
         instruments: s.instruments,
         pipeline: s.pipeline,
         calibration: s.calibration,
+        phoneSensors: s.phoneSensors,
         routes: s.routes,
         raceNotes: s.raceNotes,
         navPanel: s.navPanel,
