@@ -27,6 +27,8 @@ export function RaceScreen() {
   const polar = useStore((s) => s.polar)
   const windHistory = useStore((s) => s.windHistory)
   const activeMarkIndex = useStore((s) => s.activeMarkIndex)
+  const xteOrigin = useStore((s) => s.xteOrigin)
+  const resetXte = useStore((s) => s.resetXte)
   const setActiveMark = useStore((s) => s.setActiveMark)
   const addMark = useStore((s) => s.addMark)
   const replaceMarks = useStore((s) => s.replaceMarks)
@@ -76,11 +78,12 @@ export function RaceScreen() {
         course,
         activeMarkIndex,
         windHistory,
+        xteOrigin,
       })
     } catch {
       return null
     }
-  }, [state, effectiveWind, current, boat, lattice, course, activeMarkIndex, windHistory])
+  }, [state, effectiveWind, current, boat, lattice, course, activeMarkIndex, windHistory, xteOrigin])
 
   const marks = course.marks
   const active = marks[activeMarkIndex]
@@ -254,7 +257,11 @@ export function RaceScreen() {
           unit="nm"
           dp={2}
           small
-          sub={t?.xteNm == null ? 'off the leg' : t.xteNm >= 0 ? 'right of the leg' : 'left of the leg'}
+          sub={
+            t?.xteNm == null
+              ? 'off the leg'
+              : `${t.xteNm >= 0 ? 'right' : 'left'} of the ${xteOrigin ? 'reset line' : 'leg'}`
+          }
         />
         <Tile label="to finish" value={t?.distanceToFinishNm ?? null} unit="nm" dp={2} small
           sub="through every mark" />
@@ -265,6 +272,21 @@ export function RaceScreen() {
           small
           sub={t?.nextMarkRange != null ? `${t.nextMarkRange.toFixed(2)} nm` : 'no next mark'}
         />
+      </div>
+      <div className="actions">
+        <button
+          className="btn btn--sm btn--ghost"
+          onClick={() => state && resetXte(state.position)}
+          disabled={!state || !active}
+          title="Measure cross-track from here to the mark, instead of from the start of the leg"
+        >
+          RESET XTE
+        </button>
+        {xteOrigin && (
+          <button className="btn btn--sm btn--ghost" onClick={() => resetXte(null)}>
+            XTE FROM LEG
+          </button>
+        )}
       </div>
 
       <div className="panel">

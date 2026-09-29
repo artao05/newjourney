@@ -728,6 +728,23 @@ describe('Race shows every number the tactics already compute', () => {
   })
 })
 
+describe('Reset XTE re-zeroes cross-track at the boat', () => {
+  it('reads zero from the reset line, says so, and can go back to the leg', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    const xte = () =>
+      [...document.querySelectorAll('.tile')].find(
+        (el) => el.querySelector('.tile__label')?.textContent === 'XTE',
+      )!
+    fireEvent.click(screen.getByRole('button', { name: 'RESET XTE' }))
+    expect(xte().querySelector('.tile__value')!.textContent).toMatch(/^0\.00/)
+    expect(xte().textContent).toMatch(/reset line/)
+    fireEvent.click(screen.getByRole('button', { name: 'XTE FROM LEG' }))
+    expect(useStore.getState().xteOrigin).toBeNull()
+    expect(xte().textContent).toMatch(/of the leg/)
+  })
+})
+
 describe('the loaded polar can be saved in the format it was read in', () => {
   it('downloads an Expedition .txt that parses back to the same speeds', async () => {
     const polar = findPolar('j70')!.polar

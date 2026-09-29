@@ -62,6 +62,13 @@ interface AppState {
   clearCourse(): void
   activeMarkIndex: number
   setActiveMark(i: number): void
+  /**
+   * Where Reset XTE was pressed, or null to measure from the previous mark (or
+   * the line). It belongs to one leg, so changing the active mark or the marks
+   * clears it.
+   */
+  xteOrigin: LatLon | null
+  resetXte(at: LatLon | null): void
 
   state: BoatState | null
   setBoatState(s: BoatState | null): void
@@ -191,7 +198,7 @@ let markSeq = 0
  * pinging an end or switching the active leg changes the tactical numbers and
  * nothing the router computed.
  */
-const COURSE_CHANGED = { route: null, routeError: null } as const
+const COURSE_CHANGED = { route: null, routeError: null, xteOrigin: null } as const
 
 export const useStore = create<AppState>()(
   persist(
@@ -280,7 +287,10 @@ export const useStore = create<AppState>()(
         set({ ...COURSE_CHANGED, course: { ...get().course, marks: [] }, activeMarkIndex: 0 }),
       clearCourse: () => set({ ...COURSE_CHANGED, course: EMPTY_COURSE, activeMarkIndex: 0 }),
       activeMarkIndex: 0,
-      setActiveMark: (i) => set({ activeMarkIndex: i }),
+      setActiveMark: (i) =>
+        set(i === get().activeMarkIndex ? { activeMarkIndex: i } : { activeMarkIndex: i, xteOrigin: null }),
+      xteOrigin: null,
+      resetXte: (at) => set({ xteOrigin: at }),
 
       state: null,
       setBoatState: (s) => set({ state: s }),
@@ -379,6 +389,7 @@ export const useStore = create<AppState>()(
         settings: s.settings,
         routeSettings: s.routeSettings,
         activeMarkIndex: s.activeMarkIndex,
+        xteOrigin: s.xteOrigin,
         // A recording that was on survives a reload too: a phone that drops the app
         // mid-race must not come back with the track stopped and nothing said.
         recording: s.recording,

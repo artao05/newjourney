@@ -54,6 +54,11 @@ export interface TacticalInputs {
   activeMarkIndex: number
   /** Recent TWD samples for the oscillation band. */
   windHistory?: Array<{ t: number; twd: number; tws: number }>
+  /**
+   * Where Reset XTE was pressed. Set, it replaces the start of the leg as the far
+   * end of the cross-track line, as Expedition's reset does.
+   */
+  xteOrigin?: LatLon | null
 }
 
 export type WindHistory = Array<{ t: number; twd: number; tws: number }>
@@ -508,7 +513,7 @@ export function computeTactics(i: TacticalInputs): TacticalNumbers {
   attempt(() => {
     // Cross-track from the leg we are on. Before the first mark the leg starts
     // at the middle of the start line, if it has been pinged.
-    const prev = previousPoint(i.course, i.activeMarkIndex)
+    const prev = i.xteOrigin ?? previousPoint(i.course, i.activeMarkIndex)
     if (prev) out.xteNm = crossTrack(state.position, prev, mark.position)
 
     const next = marks[i.activeMarkIndex + 1]

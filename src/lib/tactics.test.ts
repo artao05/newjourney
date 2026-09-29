@@ -423,6 +423,19 @@ describe('computeTactics', () => {
     expect(r.laylines!.distanceToPortLayline).toBeCloseTo(1 / (2 * COS40), 4)
   })
 
+  it('measures XTE from a reset point when one is set', () => {
+    // A leg due north into MARK. The boat is half way up it and 0.3 nm east, so
+    // 0.3 nm right of the leg. Reset at the boat, and it is on the line again.
+    const leg = {
+      ...inputs,
+      state: stateOf({ heading: 320, bsp: 5, position: destination(destination(MARK, 180, 1), 90, 0.3) }),
+      course: courseOf([destination(MARK, 180, 2), MARK]),
+      activeMarkIndex: 1,
+    }
+    expect(computeTactics(leg).xteNm).toBeCloseTo(0.3, 2)
+    expect(computeTactics({ ...leg, xteOrigin: leg.state.position }).xteNm).toBeCloseTo(0, 9)
+  })
+
   it('splits the beat for a mark inside the no-go zone', () => {
     const r = computeTactics(inputs)
     expect(r.portTackDistanceNm).toBeCloseTo(1 / (2 * COS40), 4)

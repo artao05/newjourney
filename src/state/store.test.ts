@@ -197,6 +197,21 @@ describe('persistence', () => {
   })
 })
 
+describe('a reset XTE belongs to one leg', () => {
+  it('is kept while the same mark is active, and dropped when the leg or the marks change', () => {
+    courseOf(3)
+    const s = useStore.getState
+    s().resetXte(at(43.61, -70.21))
+    s().setActiveMark(0)
+    expect(s().xteOrigin).toEqual(at(43.61, -70.21))
+    s().setActiveMark(1)
+    expect(s().xteOrigin).toBeNull()
+    s().resetXte(at(43.61, -70.21))
+    s().addMark('M4', at(43.7, -70.2))
+    expect(s().xteOrigin).toBeNull()
+  })
+})
+
 describe('an imported polar survives a reload', () => {
   const imported = {
     name: 'My tuned polar',
