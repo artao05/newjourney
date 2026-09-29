@@ -1093,8 +1093,8 @@ describe('a route can start anywhere, not only at the boat', () => {
       expect(calls.at(-1)).toEqual({ lat: start.lat + 0.01, polar: POLAR_LIBRARY[2].polar.name })
       expect(within(table).getAllByRole('row')[1].textContent).toMatch(/^Wild Horses.*50m.*−10m/)
       expect(screen.getByLabelText('Not routed').textContent).toBe('Not routed: Blue Moon (no polar)')
-      const fc = mapInstances[0].data.get('fleet-route') as GeoJSON.FeatureCollection
-      expect(fc.features).toHaveLength(1)
+      // The map's source is set by an effect after the sheet renders: wait for it, as under load it can lag.
+      await waitFor(() => expect((mapInstances[0].data.get('fleet-route') as GeoJSON.FeatureCollection | undefined)?.features).toHaveLength(1))
     } finally {
       spy.mockRestore()
       stubForecast.cube = null

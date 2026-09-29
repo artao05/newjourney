@@ -25,6 +25,7 @@ import { WindSheet, windChip } from '@/components/WindSheet'
 import { ChannelLogRecorder } from '@/components/ChannelLogRecorder'
 import { ChannelsOutBridge } from '@/components/ChannelsOutBridge'
 import { startMarkHistory } from '@/state/markHistory'
+import { useAutoAdvance } from '@/hooks/useAutoAdvance'
 import { PlaybackBar } from '@/components/PlaybackBar'
 import { AlarmBanner, AlarmWatcher } from '@/components/Alarms'
 import { usePlayback } from '@/hooks/usePlayback'
@@ -107,6 +108,7 @@ export function App() {
   const replaying = useStore((s) => s.playback != null)
   const hasAlarms = useStore((s) => s.alarms.length > 0)
   const channelsOutOn = useStore((s) => s.settings.channelsOut.enabled)
+  useAutoAdvance()
   // The night palette is the whole page's: styles.css reads it from <html>.
   const palette = useStore((s) => s.settings.palette)
   useEffect(() => {

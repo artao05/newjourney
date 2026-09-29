@@ -78,6 +78,20 @@ export function MarkSheet({ mark, index, count, onClose }: {
           degrees, minutes and seconds.
         </div>
       )}
+      <div className="field">
+        <label htmlFor="mark-range">Range circle <span className="note">nm, 0 for none</span></label>
+        <input
+          id="mark-range"
+          type="number"
+          min="0"
+          step="0.01"
+          value={mark.rangeNm ?? 0}
+          onChange={(e) => {
+            const v = Number(e.target.value)
+            if (v >= 0) updateMark(mark.id, { rangeNm: v || undefined })
+          }}
+        />
+      </div>
       <h2>Round to</h2>
       <div className="seg" role="group" aria-label="Round to">
         {(['port', 'starboard', 'either'] as RoundingSide[]).map((r) => (

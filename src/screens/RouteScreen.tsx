@@ -31,6 +31,7 @@ import { offsetCorners, offsetFeatures } from '@/lib/charts/georef'
 import { checkRoute, withEncHazards } from '@/lib/charts/encRouting'
 import { captureMap, chartCaption, chartFileName, downloadCanvas, printCanvas, withCaption } from '@/lib/mapExport'
 import { nearestLegInsert } from '@/lib/courseEdit'
+import { legFeatures } from '@/lib/legsOnChart'
 import type { EncFeature } from '@/lib/charts/s57'
 import { AisSheet } from '@/components/AisSheet'
 import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
@@ -398,12 +399,15 @@ export function RouteScreen() {
   }, [ready, state])
 
   // ------------------------------------------------------------ draw updates
+  const legActive = useStore((s) => s.activeMarkIndex)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
     setSource(map, 'boat', state ? pointFC(state.position.lon, state.position.lat) : emptyFC())
     setSource(map, 'marks', marksFC(course.marks))
-  }, [ready, state, course.marks])
+    // The legs with range and bearing, the boat's line to the active mark, and range circles.
+    setSource(map, 'legs', { type: 'FeatureCollection', features: legFeatures(course.marks, state?.position ?? null, legActive) } as FC)
+  }, [ready, state, course.marks, legActive])
 
   useEffect(() => {
     const map = mapRef.current
@@ -2218,7 +2222,7 @@ function addEmptyLayers(map: maplibregl.Map) {
     // Shallower than the safety depth stands out; deeper recedes, as S-52 has it.
     paint: { 'text-color': ['case', ['get', 'shallow'], '#ffffff', '#7f9bb3'] as never, 'text-halo-color': '#04101c', 'text-halo-width': 1 },
   })
-  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'fleet', 'fleet-route', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais', 'route-hazards'].forEach(add)
+  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'fleet', 'fleet-route', 'legs', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais', 'route-hazards'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
   // plain notes grey, so the colour says what the router will do with each.
@@ -2385,6 +2389,18 @@ function addEmptyLayers(map: maplibregl.Map) {
     source: 'route-wind',
     layout: { 'text-field': ['get', 'label'], 'text-size': 10, 'text-offset': [0, -0.9], 'symbol-placement': 'point' },
     paint: { 'text-color': '#4fc3f7', 'text-halo-color': '#0a1a2a', 'text-halo-width': 1.2 },
+  })
+  // The course's legs under the route: thin, the active one brighter, the boat's line to it dashed.
+  map.addLayer({ id: 'legs-line', type: 'line', source: 'legs', filter: ['==', ['get', 'kind'], 'leg'], paint: { 'line-color': '#eaf2fa', 'line-width': ['case', ['get', 'active'], 1.8, 1] as never, 'line-opacity': ['case', ['get', 'active'], 0.75, 0.4] as never } })
+  map.addLayer({ id: 'legs-current', type: 'line', source: 'legs', filter: ['==', ['get', 'kind'], 'current'], paint: { 'line-color': '#ffd54a', 'line-width': 1.6, 'line-dasharray': [4, 3], 'line-opacity': 0.9 } })
+  map.addLayer({ id: 'legs-circle', type: 'line', source: 'legs', filter: ['==', ['get', 'kind'], 'circle'], paint: { 'line-color': '#ffd54a', 'line-width': 1, 'line-opacity': 0.6 } })
+  map.addLayer({
+    id: 'legs-label',
+    type: 'symbol',
+    source: 'legs',
+    filter: ['==', ['get', 'kind'], 'leg-label'],
+    layout: { 'text-field': ['get', 'label'] as never, 'text-size': 10, 'text-allow-overlap': true },
+    paint: { 'text-color': '#cfd8dc', 'text-halo-color': '#0a1a2a', 'text-halo-width': 1.2 },
   })
   map.addLayer({
     id: 'marks-pt',

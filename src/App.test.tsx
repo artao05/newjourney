@@ -609,3 +609,23 @@ describe('the night palette', () => {
     expect(document.documentElement.dataset.palette).toBe('normal')
   })
 })
+
+describe('auto mark advance', () => {
+  it('moves on to the next mark once the boat is inside the active one’s range', () => {
+    const s = useStore.getState()
+    s.clearCourse()
+    s.addMark('One', { lat: 43.7, lon: -70.2 })
+    s.addMark('Two', { lat: 43.6, lon: -70.2 })
+    s.setActiveMark(0)
+    s.updateSettings({ autoAdvance: 'range', simulate: false })
+    render(<App />)
+    const at = (lat: number) => act(() => useStore.getState().setBoatState({ t: Date.now(), position: { lat, lon: -70.2 }, cog: 0, sog: 5, accuracyM: 5, heading: null, bsp: null, heelDeg: null }))
+    at(43.69)
+    at(43.695)
+    expect(useStore.getState().activeMarkIndex).toBe(0)
+    at(43.6996)
+    expect(useStore.getState().activeMarkIndex).toBe(1)
+    expect(useStore.getState().events.at(-1)?.text).toBe('Mark 1 done: on to Two')
+    act(() => useStore.getState().updateSettings({ autoAdvance: 'off' }))
+  })
+})

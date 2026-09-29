@@ -406,6 +406,8 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
 - [ ] **15.2 Legs on the chart:** leg labels, the current-leg line, mark range
       circles, mark and route colours, auto mark advance (P4-138, P4-139, P4-141,
       P4-131, P4-175). *Accept:* tests and a browser check.
+      *All but mark and route colours (P4-131) are in (tick 6): labels, the current leg, range
+      circles and auto advance (lib/legsOnChart.ts, hooks/useAutoAdvance.ts).*
 - [ ] **15.3 AIS on the chart:** labels, predictor lines and trails, the CPA marker,
       a colour scheme, own-ship MMSI, an allow-list, the raw message log, a warning on
       entering an avoid area (P4-159, P4-160, P4-161, P3-106, P3-103, P3-104, P3-101,

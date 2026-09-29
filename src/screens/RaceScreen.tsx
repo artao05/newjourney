@@ -52,6 +52,7 @@ export function RaceScreen() {
 
   const [editingMark, setEditingMark] = useState<string | null>(null)
   const { canUndo, canRedo } = useMarkHistory()
+  const autoAdvance = useStore((s) => s.settings.autoAdvance)
   const [pingRange, setPingRange] = useState('')
   const [pingBearing, setPingBearing] = useState('')
   const whatIf = useStore((s) => s.whatIf)
@@ -628,6 +629,15 @@ export function RaceScreen() {
           <button className="btn btn--sm btn--ghost" onClick={clearMarks} disabled={!marks.length}>
             CLEAR
           </button>
+        </div>
+        <div className="field">
+          <label htmlFor="auto-advance">Advance to the next mark</label>
+          <select id="auto-advance" value={autoAdvance} onChange={(e) => useStore.getState().updateSettings({ autoAdvance: e.target.value as typeof autoAdvance })}>
+            <option value="off">By hand</option>
+            <option value="range">Inside the mark's range</option>
+            <option value="bisector">Across the leg bisector</option>
+            <option value="both">Either</option>
+          </select>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
           <span className="note">From the boat</span>

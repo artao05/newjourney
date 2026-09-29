@@ -8,6 +8,7 @@ import type { ChartMotion, ChartOrientation } from '@/lib/chartView'
 import type { ChartOffset } from '@/lib/charts/georef'
 import { bearing, distance, midpoint } from '@/lib/geo'
 import { angdiff, wrap360 } from '@/lib/angles'
+import type { AdvanceMode } from '@/lib/legsOnChart'
 import { DEFAULT_CHANNELS_OUT, type ChannelsOutSettings } from '@/lib/api/channelsOut'
 import { create } from 'zustand'
 import type { ColourMode } from '@/lib/maplayers/colormap'
@@ -243,6 +244,8 @@ export interface Settings {
   channelsOut: ChannelsOutSettings
   /** The whole app red on black at night, to keep night vision. */
   palette: 'normal' | 'night'
+  /** Move to the next mark by itself: inside the mark's range, across its bisector, both, or not. */
+  autoAdvance: AdvanceMode
 }
 
 interface AppState {
@@ -281,7 +284,7 @@ interface AppState {
   replaceMarks(marks: Array<Pick<Mark, 'name' | 'position'> & Partial<Pick<Mark, 'roundTo' | 'gate'>>>): void
   removeMark(id: string): void
   /** Rename, move, lock, or change the rounding side of one mark. A locked mark does not move. */
-  updateMark(id: string, patch: Partial<Pick<Mark, 'name' | 'position' | 'roundTo' | 'locked'>>): void
+  updateMark(id: string, patch: Partial<Pick<Mark, 'name' | 'position' | 'roundTo' | 'locked' | 'rangeNm'>>): void
   /** Put the marks back as they were (undo and redo). */
   restoreMarks(marks: Mark[], activeMarkIndex: number): void
   /**
@@ -527,6 +530,7 @@ export const DEFAULT_SETTINGS: Settings = {
   chartOffset: { northM: 0, eastM: 0 },
   channelsOut: DEFAULT_CHANNELS_OUT,
   palette: 'normal',
+  autoAdvance: 'off',
 }
 
 export function mergePersistedState(

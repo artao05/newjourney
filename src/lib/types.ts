@@ -209,6 +209,8 @@ export interface Mark {
   gate?: { widthM: number; left: LatLon; right: LatLon }
   /** Locked: it cannot be moved or deleted until unlocked. */
   locked?: boolean
+  /** A range circle drawn around it, nautical miles; inside it, auto advance counts it done. */
+  rangeNm?: number
 }
 
 export interface StartLine {
