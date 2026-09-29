@@ -21,6 +21,9 @@ import { gribDrop, useWeatherFiles } from '@/state/weatherFiles'
 import { useAis } from '@/state/ais'
 import { useTracking } from '@/state/tracking'
 import { useCharts } from '@/state/charts'
+import { fleetPositions, fleetRouteJobs, fleetRouteRow, rankFleet, type FleetRouteRow } from '@/lib/routing/fleetRoute'
+import { fleetPolar } from '@/lib/fleet'
+import { POLAR_LIBRARY } from '@/data/polars'
 import { encDrawFeatures, encObjectsAt } from '@/lib/charts/s52'
 import type { EncFeature } from '@/lib/charts/s57'
 import { openEncCell } from '@/lib/charts/s57Client'
@@ -557,6 +560,7 @@ export function RouteScreen() {
   const safetyDepthM = useCharts((s) => s.safetyDepthM)
   const encDisplay = useCharts((s) => s.display)
   const [showEnc, setShowEnc] = useState(false)
+  const fleetCount = useStore((s) => s.fleet.length)
   const [encQuery, setEncQuery] = useState<{ at: LatLon; objects: Array<EncFeature & { cell: string }> } | null>(null)
   useEffect(() => {
     const map = mapRef.current
@@ -778,6 +782,55 @@ export function RouteScreen() {
       setBusy(null)
     }
   }, [origin, polar, polarPort, course.marks, cube, buildRequest, landPayload, setRouteError])
+
+  // Fleet routing: every boat with a polar and a position, routed with her own polar.
+  const [fleetRows, setFleetRows] = useState<{ rows: FleetRouteRow[]; skipped: Array<{ name: string; why: string }> } | null>(null)
+  const [showFleet, setShowFleet] = useState(false)
+  const runFleet = useCallback(async () => {
+    const marks = course.marks.slice(useStore.getState().activeMarkIndex).map((m) => m.position)
+    if (!marks.length) return
+    const s = useStore.getState()
+    const now = Date.now()
+    const positions = fleetPositions(s.fleet, useTracking.getState().tracks, useAis.getState().targets, now)
+    const { jobs, skipped } = fleetRouteJobs(s.fleet, positions, (b) => fleetPolar(b, POLAR_LIBRARY, polar))
+    // A new run clears the last one's rows, so a failure never leaves them showing.
+    setFleetRows(null)
+    if (!jobs.length) {
+      setFleetRows({ rows: [], skipped })
+      setShowFleet(true)
+      return
+    }
+    let download = cube
+    if (!download && needsDownload) download = await loadWeather()
+    const sources = pickSources(download)
+    if (!sources) {
+      setRouteError(noWeather)
+      return
+    }
+    setShowFleet(true)
+    clientRef.current ??= new RoutingClient()
+    const rows: FleetRouteRow[] = []
+    try {
+      for (const [i, job] of jobs.entries()) {
+        setBusy(`Fleet: ${job.name}, ${i + 1} of ${jobs.length}…`)
+        const req = buildRequest(now, false, marks)
+        if (!req) break
+        const r = await clientRef.current.route({ ...req, start: job.start }, { ...sources, polar: job.polar, polarPort: null, landRaster: landPayload() })
+        rows.push(fleetRouteRow(job, r, route?.ok ? route.etaMs : null))
+      }
+    } finally {
+      setBusy(null)
+    }
+    setFleetRows({ rows: rankFleet(rows), skipped })
+  }, [course.marks, polar, cube, needsDownload, loadWeather, pickSources, noWeather, buildRequest, landPayload, route, setRouteError])
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const features: GeoJSON.Feature[] = (fleetRows?.rows ?? [])
+      .filter((r) => r.ok && r.track.length > 1)
+      .map((r) => ({ type: 'Feature', properties: { color: r.colour, name: r.name }, geometry: { type: 'LineString', coordinates: r.track.map((p) => [p.lon, p.lat]) } }))
+    setSource(map, 'fleet-route', { type: 'FeatureCollection', features } as FC)
+  }, [ready, fleetRows])
 
   const tidalOn = useStore((s) => s.routeSettings.tidalStreams)
   const tidalRadius = useStore((s) => s.routeSettings.tidalRadiusNm)
@@ -1297,6 +1350,9 @@ export function RouteScreen() {
         <button className="btn btn--sm btn--ghost" onClick={runSweep} disabled={!canRoute}>
           WHEN
         </button>
+        <button className="btn btn--sm btn--ghost" onClick={() => void runFleet()} disabled={!canRoute || fleetCount === 0 || !!busy} title="Route every boat in the fleet with her own polar">
+          FLEET
+        </button>
         <button
           className="btn btn--sm btn--ghost"
           onClick={() => setShowResults(true)}
@@ -1329,6 +1385,7 @@ export function RouteScreen() {
       {showSettings && <RouteSettingsSheet onClose={() => setShowSettings(false)} />}
       {showAis && <AisSheet onClose={() => setShowAis(false)} />}
       {showEnc && <EncSheet onClose={() => setShowEnc(false)} />}
+      {showFleet && fleetRows && <FleetRoutesSheet rows={fleetRows.rows} skipped={fleetRows.skipped} onClose={() => setShowFleet(false)} />}
       {encQuery && (
         <div className="legend" role="dialog" aria-label="Chart objects" style={{ position: 'absolute', right: 10, top: 90, maxWidth: 260, maxHeight: 260, overflow: 'auto', pointerEvents: 'auto', zIndex: 5 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -1943,7 +2000,7 @@ function addEmptyLayers(map: maplibregl.Map) {
     // Shallower than the safety depth stands out; deeper recedes, as S-52 has it.
     paint: { 'text-color': ['case', ['get', 'shallow'], '#ffffff', '#7f9bb3'] as never, 'text-halo-color': '#04101c', 'text-halo-width': 1 },
   })
-  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'fleet', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais'].forEach(add)
+  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'fleet', 'fleet-route', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
   // plain notes grey, so the colour says what the router will do with each.
@@ -2168,6 +2225,13 @@ function addEmptyLayers(map: maplibregl.Map) {
     source: 'fleet',
     filter: ['==', ['geometry-type'], 'Point'],
     paint: { 'circle-radius': 4.5, 'circle-color': ['get', 'color'] as never, 'circle-stroke-color': '#04101c', 'circle-stroke-width': 1.2 },
+  })
+  // Each fleet boat's optimal route, dashed, in her colour.
+  map.addLayer({
+    id: 'fleet-route-line',
+    type: 'line',
+    source: 'fleet-route',
+    paint: { 'line-color': ['get', 'color'] as never, 'line-width': 1.4, 'line-dasharray': [3, 2], 'line-opacity': 0.8 },
   })
   // AIS targets: a six-minute course vector, and a dot by class, red for a distress beacon.
   map.addLayer({
@@ -2394,6 +2458,50 @@ function EncSheet({ onClose }: { onClose: () => void }) {
             : ''}
         </p>
       ))}
+      <button className="btn btn--sm" onClick={onClose}>
+        Done
+      </button>
+    </div>
+  )
+}
+
+/** The fleet's optimal routes: who gets there first, and by how much against us. */
+function FleetRoutesSheet({ rows, skipped, onClose }: { rows: FleetRouteRow[]; skipped: Array<{ name: string; why: string }>; onClose: () => void }) {
+  const signed = (s: number) => `${s < 0 ? '−' : '+'}${fmtDuration(Math.abs(s))}`
+  return (
+    <div className="sheet" role="dialog" aria-label="Fleet routes">
+      <div className="sheet__grip" onClick={onClose} />
+      <h2>Fleet routes</h2>
+      {rows.length === 0 ? (
+        <p className="note">No boat could be routed: each needs a polar (Race → Boats) and a position from tracking or AIS.</p>
+      ) : (
+        <table className="targets" aria-label="Fleet arrivals" style={{ width: '100%' }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left' }}>Boat</th>
+              <th>Arrives</th>
+              <th>Sailing</th>
+              <th>Against us</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.boatId}>
+                <td style={{ color: r.colour }}>{r.name}</td>
+                <td style={{ textAlign: 'center' }}>{r.ok && r.etaMs != null ? new Date(r.etaMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                <td style={{ textAlign: 'center' }}>{r.ok && r.elapsedS != null ? fmtDuration(r.elapsedS) : r.error ?? 'failed'}</td>
+                <td style={{ textAlign: 'center' }}>{r.vsUsS != null ? signed(r.vsUsS) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {skipped.length > 0 && (
+        <p className="note" aria-label="Not routed">
+          Not routed: {skipped.map((s) => `${s.name} (${s.why})`).join(', ')}
+        </p>
+      )}
+      <p className="note">Each boat from where she is now, with her own polar, to the rest of the course, in the same weather as us. Against us needs our own route.</p>
       <button className="btn btn--sm" onClick={onClose}>
         Done
       </button>

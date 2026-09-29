@@ -222,7 +222,7 @@ leaves something tested and working.
 - [x] **9.10 Globally optimal multi-mark routing.** *Accept:* a test where leg-by-leg
       routing loses.
 - [x] **9.11 Ensemble routing.** *Accept:* tests.
-- [ ] **9.12 Fleet routing:** every boat with its own polar (after 13.4). *Accept:*
+- [x] **9.12 Fleet routing:** every boat with its own polar (after 13.4). *Accept:*
       tests.
 - [ ] **9.13 World land avoidance** from a tiled OSM land pack. *Accept:* a route
       outside Portland goes round land. `blocked: D1`: building the pack means downloading
