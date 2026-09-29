@@ -344,8 +344,10 @@ leaves something tested and working.
       the comparison with NOAA's own rendering needs a real cell (13.1b, D8).*
 - [x] **13.4 Display categories and safety settings:** base, standard and all;
       safety, shallow and deep contours; two-colour shading; night palette. *Accept:* tests.
-- [ ] **13.4b Simplified or paper symbols** for buoys, beacons and lights: a symbol set to draw
+- [x] **13.4b Simplified or paper symbols** for buoys, beacons and lights: a symbol set to draw
       them with (the dots stand in until then). *Accept:* a browser check.
+      *The simplified set, drawn in plain TypeScript and registered on demand (lib/charts/symbols.ts);
+      checked in the browser on a built cell. The paper-chart set and light sectors are still to do.*
 - [ ] **13.5 Chart installer:** load `.000` files or a folder, a cell catalogue and
       bounds. *Accept:* tests.
 - [x] **13.6 Chart object query.** *Accept:* tests.

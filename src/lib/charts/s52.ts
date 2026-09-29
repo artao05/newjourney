@@ -7,6 +7,7 @@
  */
 import { distance } from '../geo'
 import type { EncCell, EncFeature, EncFeature as Feature } from './s57'
+import { symbolFor, symbolKey } from './symbols'
 
 /** Dark-palette depth shades, from drying to deep. */
 export const DEPTH_SHADES = { drying: '#2f4a2c', shallow: '#1f5f8b', medium: '#15466a', deep: '#0a2438' } as const
@@ -25,7 +26,7 @@ export type DisplayCategory = 'base' | 'standard' | 'all'
 export const CATEGORY: Record<string, DisplayCategory> = {
   COALNE: 'base', SLCONS: 'base', LNDARE: 'base', DEPARE: 'base', UWTROC: 'base', WRECKS: 'base', OBSTRN: 'base',
   DEPCNT: 'standard', LIGHTS: 'standard', BOYLAT: 'standard', BOYCAR: 'standard', BOYSAW: 'standard', BOYSPP: 'standard', BOYISD: 'standard', BOYINB: 'standard',
-  BCNLAT: 'standard', BCNCAR: 'standard', RESARE: 'standard', ACHARE: 'standard', BRIDGE: 'standard', LNDMRK: 'standard',
+  BCNLAT: 'standard', BCNCAR: 'standard', BCNISD: 'standard', BCNSAW: 'standard', BCNSPP: 'standard', LITFLT: 'standard', LITVES: 'standard', RESARE: 'standard', ACHARE: 'standard', BRIDGE: 'standard', LNDMRK: 'standard',
   SOUNDG: 'all',
 }
 const RANK: Record<DisplayCategory, number> = { base: 0, standard: 1, all: 2 }
@@ -102,9 +103,11 @@ export function encDrawFeatures(cells: EncCell[], o: EncStyleOptions): DrawFeatu
       } else if (f.prim === 1) {
         const colour = COLOURS[(f.attrs.COLOUR ?? '').split(',')[0]] ?? '#b0bec5'
         const danger = f.cls === 'UWTROC' || f.cls === 'WRECKS' || f.cls === 'OBSTRN'
+        // A symbol where there is one; the dot for the rest.
+        const sym = symbolFor(f, o.night)
         out.push({
           type: 'Feature',
-          properties: { layer: 'point', cls: f.cls, color: f.cls === 'LIGHTS' ? '#e040fb' : danger ? '#ff5252' : colour, radius: f.cls === 'LIGHTS' ? 3.5 : 5, name },
+          properties: { layer: 'point', cls: f.cls, color: f.cls === 'LIGHTS' ? '#e040fb' : danger ? '#ff5252' : colour, radius: f.cls === 'LIGHTS' ? 3.5 : 5, name, ...(sym ? { icon: symbolKey(sym) } : {}) },
           geometry: f.geometry,
         })
       }

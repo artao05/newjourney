@@ -25,6 +25,7 @@ import { fleetPositions, fleetRouteJobs, fleetRouteRow, rankFleet, type FleetRou
 import { fleetPolar } from '@/lib/fleet'
 import { POLAR_LIBRARY } from '@/data/polars'
 import { encDrawFeatures, encObjectsAt } from '@/lib/charts/s52'
+import { parseSymbolKey, rasterSymbol } from '@/lib/charts/symbols'
 import type { EncFeature } from '@/lib/charts/s57'
 import { openEncCell } from '@/lib/charts/s57Client'
 import { AisSheet } from '@/components/AisSheet'
@@ -223,6 +224,11 @@ export function RouteScreen() {
     map.on('load', () => {
       addEmptyLayers(map)
       setReady(true)
+    })
+    // Chart symbols are drawn when the map first asks for one: the key says what to draw.
+    map.on('styleimagemissing', (e: { id: string }) => {
+      const spec = parseSymbolKey(e.id)
+      if (spec && !map.hasImage(e.id)) map.addImage(e.id, rasterSymbol(spec, 2), { pixelRatio: 2 })
     })
 
     /*
@@ -1990,7 +1996,14 @@ function addEmptyLayers(map: maplibregl.Map) {
   add('enc')
   map.addLayer({ id: 'enc-area', type: 'fill', source: 'enc', filter: ['==', ['get', 'layer'], 'area'], paint: { 'fill-color': ['get', 'color'] as never, 'fill-opacity': 0.85 } })
   map.addLayer({ id: 'enc-line', type: 'line', source: 'enc', filter: ['==', ['get', 'layer'], 'line'], paint: { 'line-color': ['get', 'color'] as never, 'line-width': ['get', 'width'] as never } })
-  map.addLayer({ id: 'enc-point', type: 'circle', source: 'enc', filter: ['==', ['get', 'layer'], 'point'], paint: { 'circle-color': ['get', 'color'] as never, 'circle-radius': ['get', 'radius'] as never, 'circle-stroke-color': '#04101c', 'circle-stroke-width': 1 } })
+  map.addLayer({
+    id: 'enc-symbol',
+    type: 'symbol',
+    source: 'enc',
+    filter: ['all', ['==', ['get', 'layer'], 'point'], ['has', 'icon']],
+    layout: { 'icon-image': ['get', 'icon'] as never, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
+  })
+  map.addLayer({ id: 'enc-point', type: 'circle', source: 'enc', filter: ['all', ['==', ['get', 'layer'], 'point'], ['!', ['has', 'icon']]], paint: { 'circle-color': ['get', 'color'] as never, 'circle-radius': ['get', 'radius'] as never, 'circle-stroke-color': '#04101c', 'circle-stroke-width': 1 } })
   map.addLayer({
     id: 'enc-sounding',
     type: 'symbol',

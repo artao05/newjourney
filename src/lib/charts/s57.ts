@@ -13,14 +13,14 @@ import { parse8211, type Field, type Value } from './iso8211'
 
 /** Object classes by code, the ones a sailor's chart draws most. */
 export const OBJECT_CLASSES: Record<number, string> = {
-  4: 'ACHARE', 5: 'BCNCAR', 7: 'BCNLAT', 11: 'BRIDGE', 14: 'BOYCAR', 15: 'BOYINB', 16: 'BOYISD', 17: 'BOYLAT', 18: 'BOYSAW', 19: 'BOYSPP',
-  30: 'COALNE', 42: 'DEPARE', 43: 'DEPCNT', 71: 'LNDARE', 74: 'LNDMRK', 75: 'LIGHTS', 86: 'OBSTRN', 112: 'RESARE', 122: 'SLCONS',
-  129: 'SOUNDG', 153: 'UWTROC', 159: 'WRECKS', 302: 'M_COVR', 308: 'M_QUAL',
+  4: 'ACHARE', 5: 'BCNCAR', 6: 'BCNISD', 7: 'BCNLAT', 8: 'BCNSAW', 9: 'BCNSPP', 11: 'BRIDGE', 14: 'BOYCAR', 15: 'BOYINB', 16: 'BOYISD', 17: 'BOYLAT', 18: 'BOYSAW', 19: 'BOYSPP',
+  30: 'COALNE', 39: 'DAYMAR', 42: 'DEPARE', 43: 'DEPCNT', 71: 'LNDARE', 74: 'LNDMRK', 75: 'LIGHTS', 76: 'LITFLT', 77: 'LITVES', 86: 'OBSTRN', 112: 'RESARE', 122: 'SLCONS',
+  129: 'SOUNDG', 144: 'TOPMAR', 153: 'UWTROC', 159: 'WRECKS', 302: 'M_COVR', 308: 'M_QUAL',
 }
 
 /** Attributes by code: the ones the display and the depth checks need. */
 export const ATTRIBUTES: Record<number, string> = {
-  75: 'COLOUR', 87: 'DRVAL1', 88: 'DRVAL2', 116: 'OBJNAM', 174: 'VALDCO', 179: 'VALSOU',
+  2: 'BCNSHP', 4: 'BOYSHP', 13: 'CATCAM', 35: 'CATLMK', 36: 'CATLAM', 75: 'COLOUR', 76: 'COLPAT', 87: 'DRVAL1', 88: 'DRVAL2', 107: 'LITCHR', 116: 'OBJNAM', 141: 'SIGGRP', 142: 'SIGPER', 171: 'TOPSHP', 174: 'VALDCO', 179: 'VALSOU',
 }
 
 export type Geometry =
