@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { END_HIT_PX, fromPx, hitEnd, startView, toPx } from './StartCanvas'
+import { END_HIT_PX, MAGNIFY_BL, fromPx, hitEnd, nearEnd, startView, toPx } from './StartCanvas'
 import { destination, mToNm } from '@/lib/geo'
 import type { LatLon } from '@/lib/types'
 
@@ -56,6 +56,36 @@ describe('startView', () => {
     const q = toPx(v, dropped)
     expect(q.px).toBeCloseTo(a.px + 25, 6)
     expect(q.py).toBeCloseTo(a.py - 10, 6)
+  })
+})
+
+describe('the magnified end', () => {
+  const LOA = 10
+  const nearPin = destination(port, 150, mToNm(LOA * 3))
+
+  it('zooms in on the end the boat is within five lengths of', () => {
+    expect(nearEnd(port, starboard, nearPin, LOA)).toBe('port')
+    expect(nearEnd(port, starboard, destination(starboard, 150, mToNm(LOA * 2)), LOA)).toBe('starboard')
+    expect(nearEnd(port, starboard, destination(port, 150, mToNm(LOA * (MAGNIFY_BL + 1))), LOA)).toBeNull()
+    expect(nearEnd(port, starboard, boat, LOA)).toBeNull()
+  })
+
+  it('never on a line too short for the whole of it to shrink the end', () => {
+    expect(nearEnd(port, starboard, nearPin, 20)).toBeNull()
+  })
+
+  it('fits that end and the boat, larger, and leaves the far end off the screen', () => {
+    const whole = startView(port, starboard, nearPin, W, H)
+    const zoomed = startView(port, starboard, nearPin, W, H, LOA)
+    expect(whole.magnified).toBeNull()
+    expect(zoomed.magnified).toBe('port')
+    expect(zoomed.scale).toBeGreaterThan(whole.scale * 2)
+    for (const p of [port, nearPin]) {
+      const q = toPx(zoomed, p)
+      expect(q.px).toBeGreaterThanOrEqual(0)
+      expect(q.px).toBeLessThanOrEqual(W)
+    }
+    expect(toPx(zoomed, starboard).px).toBeGreaterThan(W)
   })
 })
 

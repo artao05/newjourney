@@ -11,6 +11,7 @@
 import { useEffect, useRef } from 'react'
 import { LocalFrame, fromPolar, nmToM, mToNm } from '@/lib/geo'
 import { courseFor, fmtDeg, wrap360 } from '@/lib/angles'
+import { fmtClock } from '@/components/Tile'
 import type {
   Boat,
   BoatState,
@@ -99,7 +100,7 @@ export function StartCanvas(props: Props) {
     if (!onMoveEnd || !line.port || !line.starboard) return
     const { px, py, w, h } = pointAt(e)
     if (w <= 0 || h <= 0) return
-    const view = startView(line.port, line.starboard, state?.position ?? null, w, h)
+    const view = startView(line.port, line.starboard, state?.position ?? null, w, h, props.boat.loaMetres)
     const which = hitEnd(view, { port: line.port, starboard: line.starboard }, px, py)
     if (!which) return
     drag.current = { which, view, pointerId: e.pointerId }
@@ -149,14 +150,44 @@ export interface StartView {
   maxX: number
   minY: number
   maxY: number
+  /** The end the view has zoomed in on, with the boat close to it, or null. */
+  magnified: 'port' | 'starboard' | null
 }
 
+/** Within this many boat lengths of an end, the view zooms in on that end. */
+export const MAGNIFY_BL = 5
+
+/** The line end the boat is within MAGNIFY_BL boat lengths of, the nearer if both. */
+export function nearEnd(
+  port: LatLon,
+  starboard: LatLon,
+  boatAt: LatLon | null,
+  loaM: number,
+): 'port' | 'starboard' | null {
+  if (!boatAt || !(loaM > 0)) return null
+  const frame = new LocalFrame(boatAt)
+  const d = (p: LatLon) => nmToM(Math.hypot(frame.toXY(p).x, frame.toXY(p).y))
+  const dp = d(port)
+  const ds = d(starboard)
+  const reach = MAGNIFY_BL * loaM
+  // Only while the line is long enough that the whole of it would shrink the end.
+  const lineM = nmToM(Math.hypot(frame.toXY(starboard).x - frame.toXY(port).x, frame.toXY(starboard).y - frame.toXY(port).y))
+  if (!(lineM > 2 * reach) || Math.min(dp, ds) > reach) return null
+  return dp <= ds ? 'port' : 'starboard'
+}
+
+/**
+ * `loaM`, when given, turns on the magnified end: with the boat near an end,
+ * the view fits that end and the boat instead of the whole line, as the boat
+ * lines up to start at the pin or luff the committee boat.
+ */
 export function startView(
   port: LatLon,
   starboard: LatLon,
   boatAt: LatLon | null,
   w: number,
   h: number,
+  loaM = 0,
 ): StartView {
   const frame = new LocalFrame({
     lat: (port.lat + starboard.lat) / 2,
@@ -173,12 +204,15 @@ export function startView(
   // Its transpose, which for a rotation is its inverse.
   const unrot = (v: XY): XY => ({ x: v.x * s - v.y * c, y: v.x * c + v.y * s })
 
-  const pts: XY[] = [rot(pPort), rot(pStbd)]
+  const magnified = nearEnd(port, starboard, boatAt, loaM)
+  const pts: XY[] = magnified ? [rot(magnified === 'port' ? pPort : pStbd)] : [rot(pPort), rot(pStbd)]
   if (boatAt) pts.push(rot(frame.toXY(boatAt)))
 
   // ---- fit a view around everything of interest ---------------------------
   const lineLenNm = Math.hypot(pStbd.x - pPort.x, pStbd.y - pPort.y)
-  const pad = Math.max(lineLenNm * 0.35, mToNm(40))
+  const pad = magnified
+    ? Math.max(mToNm(loaM * 2), mToNm(15))
+    : Math.max(lineLenNm * 0.35, mToNm(40))
   let minX = Infinity
   let maxX = -Infinity
   let minY = Infinity
@@ -197,7 +231,7 @@ export function startView(
   const scale = Math.min(w / (maxX - minX), h / (maxY - minY))
   const ox = w / 2 - ((minX + maxX) / 2) * scale
   const oy = h / 2 + ((minY + maxY) / 2) * scale
-  return { frame, rot, unrot, scale, ox, oy, minX, maxX, minY, maxY }
+  return { frame, rot, unrot, scale, ox, oy, minX, maxX, minY, maxY, magnified }
 }
 
 export function toPx(v: StartView, p: LatLon): { px: number; py: number } {
@@ -249,7 +283,7 @@ function render(
 
   // Frozen while an end is dragged, so the picture does not re-fit under the
   // finger; otherwise fitted fresh around the line and the boat.
-  const view = frozen ?? startView(line.port, line.starboard, state?.position ?? null, w, h)
+  const view = frozen ?? startView(line.port, line.starboard, state?.position ?? null, w, h, boat.loaMetres)
   const { frame, rot, scale, minX, maxX, minY, maxY } = view
   const pts: XY[] = [rot(frame.toXY(line.port)), rot(frame.toXY(line.starboard))]
   const boatXY = state ? rot(frame.toXY(state.position)) : null
@@ -379,6 +413,24 @@ function render(
   endMark(a, '#ff4d4d', 'PIN')
   endMark(b, '#35d07f', 'RC')
 
+  // Time to sail to each end, under its name, until the gun.
+  if (!declutter) {
+    ctx.font = '600 10px system-ui, sans-serif'
+    ctx.fillStyle = 'rgba(234,242,250,0.6)'
+    ctx.textAlign = 'center'
+    const t = (s: number | null) => (s != null && Number.isFinite(s) ? fmtClock(s) : null)
+    const tp = t(numbers.timeToPortEndS)
+    const ts = t(numbers.timeToStarboardEndS)
+    if (tp) ctx.fillText(tp, a.px, a.py + 32)
+    if (ts) ctx.fillText(ts, b.px, b.py + 32)
+  }
+  if (view.magnified) {
+    ctx.font = '700 10px system-ui, sans-serif'
+    ctx.fillStyle = '#ffd54a'
+    ctx.textAlign = 'left'
+    ctx.fillText(`${view.magnified === 'port' ? 'PIN' : 'RC'} END ×`, 14, 18)
+  }
+
   // ---- wind arrow ---------------------------------------------------------
   if (wind) {
     const wDir = rot(fromPolar(wrap360(wind.twd + 180), 1))
@@ -418,6 +470,32 @@ function render(
     // below switches to a circle: position known, heading not.
     const known = Number.isFinite(hdg)
     const ang = known ? Math.atan2(hv.x, hv.y) : 0
+
+    // Boat-length rings, every two lengths out to six, for judging a gap.
+    const blPx = blNm * scale
+    if (!declutter && blPx > 6 && Number.isFinite(blPx)) {
+      ctx.strokeStyle = 'rgba(255,213,74,0.18)'
+      ctx.lineWidth = 1
+      for (const n of [2, 4, 6]) {
+        ctx.beginPath()
+        ctx.arc(s.px, s.py, n * blPx, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+    }
+
+    // Heading, thin, apart from the COG line: the gap between them is leeway and
+    // current, which is what sets a boat down onto the pin.
+    if (state.heading != null && Number.isFinite(state.heading)) {
+      const lenNm = Math.max(blNm * 3, ((state.sog || 0) * 30) / 3600)
+      const hl = rot(fromPolar(state.heading, lenNm))
+      const tip = S({ x: boatXY.x + hl.x, y: boatXY.y + hl.y })
+      ctx.strokeStyle = 'rgba(234,242,250,0.7)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(s.px, s.py)
+      ctx.lineTo(tip.px, tip.py)
+      ctx.stroke()
+    }
 
     // COG predictor: where you'll be in 30 s at current SOG.
     if (state.sog > 0.2 && Number.isFinite(state.cog)) {

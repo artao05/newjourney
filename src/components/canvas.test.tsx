@@ -410,6 +410,39 @@ describe('StartCanvas', () => {
     cleanup()
   })
 
+  it('draws heading apart from COG, the time to each end, and boat-length rings', () => {
+    const state = stateOf()
+    render(
+      <StartCanvas line={LINE} state={state} wind={WIND} numbers={numbersFor(LINE, state, WIND)}
+        boat={BOAT} track={[]} secondsSinceGun={null} />,
+    )
+    expect(ctx.styles).toContain('rgba(234,242,250,0.7)')
+    const clocks = ctx.calls.filter((c) => c.op === 'fillText' && /^-?\d+:\d\d$/.test(String(c.args[0])))
+    expect(clocks).toHaveLength(2)
+    const rings = ctx.calls.filter((c) => c.op === 'arc').map((c) => c.args[2] as number)
+    const r2 = rings.find((r, i) => rings[i + 1] === 2 * r && rings[i + 2] === 3 * r)
+    expect(r2).toBeGreaterThan(0)
+  })
+
+  it('draws no heading line without a compass: COG alone is not a heading', () => {
+    const state = stateOf({ heading: null })
+    render(
+      <StartCanvas line={LINE} state={state} wind={WIND} numbers={numbersFor(LINE, state, WIND)}
+        boat={BOAT} track={[]} secondsSinceGun={null} />,
+    )
+    expect(ctx.styles).not.toContain('rgba(234,242,250,0.7)')
+  })
+
+  it('says so when it has zoomed in on an end', () => {
+    const state = stateOf({ position: { lat: LINE.port!.lat - 0.0001, lon: LINE.port!.lon } })
+    render(
+      <StartCanvas line={LINE} state={state} wind={WIND} numbers={numbersFor(LINE, state, WIND)}
+        boat={BOAT} track={[]} secondsSinceGun={null} />,
+    )
+    expectNothingUndrawable(ctx, 'magnified')
+    expect(ctx.calls.some((c) => c.op === 'fillText' && c.args[0] === 'PIN END ×')).toBe(true)
+  })
+
   it('draws the boat without a bow when there is no heading to point', () => {
     /*
      * A stationary GPS reports no course, so the bearing the hull is rotated by is
