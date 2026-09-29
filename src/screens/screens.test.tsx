@@ -1019,6 +1019,23 @@ describe('Setup connects to the instruments', () => {
     setLogStore(null)
   })
 
+  it('imports a log file into days, and says what it made of it', async () => {
+    emptyStore()
+    const store = new MemoryLogStore()
+    setLogStore(store)
+    render(<SetupScreen />)
+    const section = screen.getByRole('region', { name: 'Logs' })
+    const csv = new File(['Utc,Bsp,Load\n2026-09-29T10:00:00Z,6.1,1\n2026-09-29T10:00:01Z,6.2,1\nnot a time,1,1\n'], 'log.csv', { type: 'text/csv' })
+    fireEvent.change(within(section).getByLabelText('Import a log'), { target: { files: [csv] } })
+    await waitFor(() => expect(within(section).getByRole('status').textContent).toMatch(/Imported 2 seconds from CSV into 1 day/))
+    expect(within(section).getByRole('status').textContent).toMatch(/1 lines skipped; columns not known here: Load/)
+    expect((await store.days())[0].rows).toBe(2)
+    const bad = new File(['Bsp\n6'], 'x.csv', { type: 'text/csv' })
+    fireEvent.change(within(section).getByLabelText('Import a log'), { target: { files: [bad] } })
+    await waitFor(() => expect(section.textContent).toMatch(/No time column/))
+    setLogStore(null)
+  })
+
   it('offers the instruments as a wind source', () => {
     emptyStore()
     render(<SetupScreen />)
