@@ -187,7 +187,7 @@ leaves something tested and working.
       seek. Every screen works during playback. *Accept:* tests and a browser check.
 - [x] **7.4 Stripchart:** any channels against time, with zoom, pan and wands showing
       deltas and means. *Accept:* tests and a browser check.
-- [ ] **7.5 Events and sail tests:** sail changes and notes (automatic at ping and
+- [x] **7.5 Events and sail tests:** sail changes and notes (automatic at ping and
       gun), and tests saved from wanded spans. *Accept:* tests.
 
 ## M8 — Alarms

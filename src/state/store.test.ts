@@ -13,7 +13,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, mergePersistedState, useStore } from './store'
+import { DEFAULT_SETTINGS, MAX_EVENTS, mergePersistedState, useStore } from './store'
 import type { LatLon, RouteResult } from '@/lib/types'
 
 const at = (lat: number, lon: number): LatLon => ({ lat, lon })
@@ -525,5 +525,20 @@ describe('a manual wind knows whether anybody set it', () => {
       manualWindSetAt: null,
     })
     expect(merged.manualWindSetAt).toBeNull()
+  })
+})
+
+describe('events and sail tests', () => {
+  it('keeps events in time order, trimmed, and caps them', () => {
+    useStore.setState({ events: [] })
+    const s = useStore.getState()
+    s.addEvent('note', '  second  ', 2000)
+    s.addEvent('gun', 'Gun', 1000)
+    expect(useStore.getState().events.map((e) => [e.kind, e.text])).toEqual([['gun', 'Gun'], ['note', 'second']])
+    for (let i = 0; i < MAX_EVENTS + 5; i++) s.addEvent('note', 'x', 10_000 + i)
+    expect(useStore.getState().events).toHaveLength(MAX_EVENTS)
+    s.removeEvent(useStore.getState().events[0].id)
+    expect(useStore.getState().events).toHaveLength(MAX_EVENTS - 1)
+    useStore.setState({ events: [] })
   })
 })

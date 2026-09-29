@@ -1122,3 +1122,7 @@ table.results tr.beating td {
   gap: 6px;
   margin-bottom: 8px;
 }
+
+.strip-block {
+  margin: 12px 0;
+}

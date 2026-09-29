@@ -523,6 +523,24 @@ describe('the timer rolls through the classes before ours', () => {
   })
 })
 
+describe('the gun as an event', () => {
+  it('is logged once when the gun goes, and not for one long past', () => {
+    useStore.setState({ events: [] })
+    const gun = Date.now() - 1000
+    useStore.getState().setGunTime(gun)
+    const view = render(<App />)
+    expect(useStore.getState().events.filter((e) => e.kind === 'gun')).toEqual([expect.objectContaining({ t: gun, text: 'Gun' })])
+    view.rerender(<App />)
+    expect(useStore.getState().events.filter((e) => e.kind === 'gun')).toHaveLength(1)
+    view.unmount()
+    useStore.setState({ events: [] })
+    useStore.getState().setGunTime(Date.now() - 3_600_000)
+    render(<App />)
+    expect(useStore.getState().events).toEqual([])
+    act(() => useStore.getState().setGunTime(null))
+  })
+})
+
 describe('while a log replays', () => {
   it('lets the log be the boat: no manual wind over it, and the chip says LOG', () => {
     const s = useStore.getState()

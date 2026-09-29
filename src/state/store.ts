@@ -60,6 +60,29 @@ export interface LibraryMark {
   folder: string
 }
 
+/** Something that happened, on the log's timeline: a note, a sail change, a ping, the gun. */
+export interface LogEvent {
+  id: string
+  t: Millis
+  kind: 'note' | 'sail' | 'ping' | 'gun'
+  text: string
+}
+
+/** A sail or speed test: a wanded span's means, with what was up and what was said. */
+export interface SailTest {
+  id: string
+  day: string
+  from: Millis
+  to: Millis
+  sails: string
+  note: string
+  means: Record<string, number>
+}
+
+/** The most events and tests kept; the oldest go first. */
+export const MAX_EVENTS = 2000
+export const MAX_TESTS = 500
+
 /** Where a replay is: the day, the play time within it, and how it is running. */
 export interface Playback {
   day: string
@@ -331,6 +354,12 @@ interface AppState {
   /** The stripchart's panes, one channel each, and the minutes it shows. */
   strip: { panes: string[]; spanMin: number }
   setStrip(patch: Partial<{ panes: string[]; spanMin: number }>): void
+  events: LogEvent[]
+  addEvent(kind: LogEvent['kind'], text: string, t?: Millis): void
+  removeEvent(id: string): void
+  sailTests: SailTest[]
+  addSailTest(test: Omit<SailTest, 'id'>): void
+  removeSailTest(id: string): void
   instrumentStatus: { status: SignalKStatus; detail: string | null; lastAt: Millis | null }
   setInstrumentStatus(s: Partial<{ status: SignalKStatus; detail: string | null; lastAt: Millis | null }>): void
 
@@ -761,6 +790,18 @@ export const useStore = create<AppState>()(
       setPhoneOrientation: (p) => set({ phoneOrientation: p }),
       strip: { panes: ['bsp', 'tws', 'twd', 'sog'], spanMin: 15 },
       setStrip: (patch) => set({ strip: { ...get().strip, ...patch } }),
+      events: [],
+      addEvent: (kind, text, t = Date.now()) =>
+        set({
+          events: [...get().events, { id: `ev-${t}-${++markSeq}`, t, kind, text: text.trim() }]
+            .sort((a, b) => a.t - b.t)
+            .slice(-MAX_EVENTS),
+        }),
+      removeEvent: (id) => set({ events: get().events.filter((e) => e.id !== id) }),
+      sailTests: [],
+      addSailTest: (test) =>
+        set({ sailTests: [...get().sailTests, { ...test, id: `test-${Date.now()}-${++markSeq}` }].slice(-MAX_TESTS) }),
+      removeSailTest: (id) => set({ sailTests: get().sailTests.filter((x) => x.id !== id) }),
       playback: null,
       setPlayback: (p) => {
         if (p === null) return set({ playback: null })
@@ -913,6 +954,8 @@ export const useStore = create<AppState>()(
         calibration: s.calibration,
         phoneSensors: s.phoneSensors,
         strip: s.strip,
+        events: s.events,
+        sailTests: s.sailTests,
         routes: s.routes,
         raceNotes: s.raceNotes,
         navPanel: s.navPanel,

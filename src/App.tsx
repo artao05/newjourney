@@ -123,6 +123,13 @@ export function App() {
   const hold = useStore((s) => s.hold)
   const gunTime = useStore((s) => s.course.startLine.gunTime)
   const timer = useStore((s) => s.timer)
+  // The gun as an event, once per gun, for the log and the stripchart.
+  const gunLogged = useRef<number | null>(null)
+  useEffect(() => {
+    if (gunTime == null || now < gunTime || gunLogged.current === gunTime || now - gunTime > 60_000) return
+    gunLogged.current = gunTime
+    useStore.getState().addEvent('gun', timer.classesBefore > 0 ? 'Gun (another class)' : 'Gun', gunTime)
+  }, [now, gunTime, timer.classesBefore])
   useEffect(() => {
     if (gunTime == null || now < gunTime) return
     // Another class's gun: roll on to the next start, and keep holding.

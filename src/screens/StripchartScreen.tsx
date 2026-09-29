@@ -38,6 +38,16 @@ export function StripchartScreen() {
   const [end, setEnd] = useState<number | null>(null)
   const [wands, setWands] = useState<number[]>([])
   const [adding, setAdding] = useState('')
+  const events = useStore((s) => s.events)
+  const addEvent = useStore((s) => s.addEvent)
+  const removeEvent = useStore((s) => s.removeEvent)
+  const sailTests = useStore((s) => s.sailTests)
+  const addSailTest = useStore((s) => s.addSailTest)
+  const removeSailTest = useStore((s) => s.removeSailTest)
+  const [eventKind, setEventKind] = useState<'note' | 'sail'>('note')
+  const [eventText, setEventText] = useState('')
+  const [testSails, setTestSails] = useState('')
+  const [testNote, setTestNote] = useState('')
 
   useEffect(() => {
     void logStore()
@@ -74,6 +84,25 @@ export function StripchartScreen() {
   ]
 
   const pan = (by: number) => setEnd(Math.min(latest, right + by * spanMs))
+  const inWindow = events.filter((e) => e.t >= left && e.t <= right)
+  const dayEvents = events.filter((e) => dayOf(e.t) === day)
+  const dayTests = sailTests.filter((x) => x.day === day)
+
+  /** The first wanded section as a test: the mean of every channel the log has there. */
+  const saveTest = () => {
+    const sec = sections[0]
+    if (!sec) return
+    const [from, to] = sec[0] <= sec[1] ? sec : [sec[1], sec[0]]
+    const ids = new Set<string>()
+    for (const r of rows) if (r.t >= from && r.t <= to) for (const k of Object.keys(r.v)) ids.add(k)
+    const means: Record<string, number> = {}
+    for (const id of ids) {
+      const m = meanBetween(rows, id, from, to)
+      if (m != null) means[id] = m
+    }
+    addSailTest({ day, from, to, sails: testSails.trim(), note: testNote.trim(), means })
+    setTestNote('')
+  }
 
   return (
     <div className="screen panel" aria-label="Stripchart">
@@ -149,6 +178,12 @@ export function StripchartScreen() {
                     fill={WAND_COLOURS[i * 2]} opacity={0.08} />
                 ) : null,
               )}
+              {inWindow.map((ev) => (
+                <line key={ev.id} x1={x(ev.t)} x2={x(ev.t)} y1={0} y2={PANE_H} stroke="#ff8a4a" strokeWidth={1}
+                  strokeDasharray="3 3" vectorEffect="non-scaling-stroke">
+                  <title>{ev.text}</title>
+                </line>
+              ))}
               {wands.map((w, i) => (
                 <line key={i} x1={x(w)} x2={x(w)} y1={0} y2={PANE_H} stroke={WAND_COLOURS[i]} strokeWidth={2} vectorEffect="non-scaling-stroke" />
               ))}
@@ -165,6 +200,72 @@ export function StripchartScreen() {
           </section>
         )
       })}
+
+      <section aria-label="Events" className="strip-block">
+        <h2>Events</h2>
+        <div className="strip-toolbar">
+          <div className="seg" role="group" aria-label="Event kind">
+            <button aria-pressed={eventKind === 'note'} onClick={() => setEventKind('note')}>Note</button>
+            <button aria-pressed={eventKind === 'sail'} onClick={() => setEventKind('sail')}>Sail change</button>
+          </div>
+          <input aria-label="Event text" placeholder={eventKind === 'sail' ? 'e.g. J2 to J3' : 'what happened'}
+            value={eventText} onChange={(e) => setEventText(e.target.value)} style={{ flex: 1, minWidth: 120 }} />
+          <button className="btn btn--sm" disabled={!eventText.trim()} onClick={() => {
+            addEvent(eventKind, eventText)
+            setEventText('')
+          }}>
+            ADD NOW
+          </button>
+        </div>
+        {dayEvents.length === 0 ? (
+          <p className="note">None on {day}. Pings and the gun are added on their own.</p>
+        ) : (
+          <table className="targets" aria-label="Day events">
+            <tbody>
+              {dayEvents.slice(-20).reverse().map((ev) => (
+                <tr key={ev.id}>
+                  <td style={{ textAlign: 'left' }}>{hm(ev.t)}</td>
+                  <td style={{ textAlign: 'left' }}>{ev.kind}</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>{ev.text}</td>
+                  <td>
+                    <button className="btn btn--sm btn--ghost" aria-label={`Remove event ${ev.text}`} onClick={() => removeEvent(ev.id)}>×</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section aria-label="Sail tests" className="strip-block">
+        <h2>Tests</h2>
+        <div className="strip-toolbar">
+          <input aria-label="Test sails" placeholder="sails up" value={testSails} onChange={(e) => setTestSails(e.target.value)} style={{ flex: 1, minWidth: 90 }} />
+          <input aria-label="Test note" placeholder="sea, trim, comments" value={testNote} onChange={(e) => setTestNote(e.target.value)} style={{ flex: 2, minWidth: 120 }} />
+          <button className="btn btn--sm" disabled={!sections[0]} onClick={saveTest}>
+            SAVE TEST
+          </button>
+        </div>
+        {!sections[0] && <p className="note">Drop two wands on a pane to mark the span, then save it as a test.</p>}
+        {dayTests.length > 0 && (
+          <table className="targets" aria-label="Day tests">
+            <tbody>
+              {dayTests.map((x) => (
+                <tr key={x.id}>
+                  <td style={{ textAlign: 'left' }}>{hm(x.from)}–{hm(x.to)}</td>
+                  <td style={{ textAlign: 'left' }}>{x.sails || '—'}</td>
+                  <td>{x.means.bsp != null ? `${x.means.bsp.toFixed(2)} kn` : '—'}</td>
+                  <td>{x.means.twa != null ? `${Math.round(x.means.twa)}°` : '—'}</td>
+                  <td>{x.means.tws != null ? `${x.means.tws.toFixed(1)} kn` : '—'}</td>
+                  <td>
+                    <button className="btn btn--sm btn--ghost" aria-label={`Remove test ${hm(x.from)}`} onClick={() => removeSailTest(x.id)}>×</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       {available.length > 0 && (
         <div className="field">

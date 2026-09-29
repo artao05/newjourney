@@ -27,6 +27,7 @@ export function applyExpAction(a: ExpAction, now = Date.now()): string {
     case 'ping': {
       if (!s.state) return 'Ping ignored: no position.'
       s.setStartEnd(a.end, pingPosition(s.state, s.boat).at)
+      s.addEvent('ping', a.end === 'port' ? 'Pin end pinged (remote)' : 'RC end pinged (remote)')
       return `${a.end === 'port' ? 'Pin' : 'RC'} end pinged.`
     }
     case 'set-end':

@@ -120,6 +120,7 @@ export function StartScreen() {
     if (!state) return
     const { at, bow } = pingPosition(state, boat)
     setStartEnd(which, at)
+    useStore.getState().addEvent('ping', which === 'port' ? 'Pin end pinged' : 'RC end pinged')
     setPingNote(bow ? null : { which, t: Date.now() })
   }
   // Said for a while after a ping that could not find the bow, so the sailor

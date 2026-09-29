@@ -207,6 +207,8 @@ function emptyStore() {
     instrumentStatus: { status: 'off', detail: null, lastAt: null },
     playback: null,
     strip: { panes: ['bsp', 'tws', 'twd', 'sog'], spanMin: 15 },
+    events: [],
+    sailTests: [],
   })
 }
 
@@ -1861,5 +1863,46 @@ describe('the stripchart', () => {
     fireEvent.click(screen.getByRole('button', { name: '1h' }))
     expect(useStore.getState().strip.spanMin).toBe(60)
     setLogStore(null)
+  })
+
+  it('adds events, flags them on the panes, and saves a wanded span as a test', async () => {
+    emptyStore()
+    const store = new MemoryLogStore()
+    const T0 = new Date(2026, 8, 29, 10, 0, 0).getTime()
+    await store.append('2026-09-29', Array.from({ length: 600 }, (_, i) => ({ t: T0 + i * 1000, v: { bsp: 6 + (i % 2) * 0.2, twa: 42, tws: 12 } })))
+    setLogStore(store)
+    useStore.setState({ strip: { panes: ['bsp'], spanMin: 15 } })
+    useStore.getState().addEvent('gun', 'Gun', T0 + 100_000)
+    render(<StripchartScreen />)
+    fireEvent.change(screen.getByLabelText('Log day'), { target: { value: '2026-09-29' } })
+    const pane = await screen.findByRole('region', { name: 'Pane Bsp' })
+    await waitFor(() => expect(pane.querySelector('line title')?.textContent).toBe('Gun'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sail change' }))
+    fireEvent.change(screen.getByLabelText('Event text'), { target: { value: 'J2 to J3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ADD NOW' }))
+    expect(useStore.getState().events.find((e) => e.kind === 'sail')).toMatchObject({ text: 'J2 to J3' })
+
+    const svg = within(pane).getByRole('img')
+    vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 1000, top: 0, height: 84, right: 1000, bottom: 84, x: 0, y: 0, toJSON: () => ({}) })
+    expect((screen.getByRole('button', { name: 'SAVE TEST' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(svg, { clientX: 400 })
+    fireEvent.click(svg, { clientX: 900 })
+    fireEvent.change(screen.getByLabelText('Test sails'), { target: { value: 'Main, J2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'SAVE TEST' }))
+    const test = useStore.getState().sailTests[0]
+    expect(test).toMatchObject({ day: '2026-09-29', sails: 'Main, J2' })
+    expect(test.means.bsp).toBeCloseTo(6.1, 1)
+    expect(test.means.twa).toBeCloseTo(42, 6)
+    expect(screen.getByRole('table', { name: 'Day tests' }).textContent).toMatch(/Main, J2/)
+    expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.sailTests).toHaveLength(1)
+    setLogStore(null)
+  })
+
+  it('logs a ping as an event', () => {
+    populatedStore()
+    render(<StartScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'PING PIN' }))
+    expect(useStore.getState().events.at(-1)).toMatchObject({ kind: 'ping', text: 'Pin end pinged' })
   })
 })
