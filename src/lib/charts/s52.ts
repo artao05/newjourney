@@ -14,11 +14,33 @@ export const LAND = '#3a3426'
 /** Buoy and beacon colours by S-57 COLOUR code (the first listed). */
 const COLOURS: Record<string, string> = { '1': '#f5f5f5', '2': '#212121', '3': '#e53935', '4': '#43a047', '5': '#1e88e5', '6': '#fdd835', '11': '#fb8c00' }
 
+export type DisplayCategory = 'base' | 'standard' | 'all'
+
+/**
+ * S-52's display categories: Display Base can never be taken off (coast, the
+ * safety contour, dangers); Standard adds the rest a chart shows by default;
+ * All ("Other") adds soundings and the lesser detail.
+ */
+export const CATEGORY: Record<string, DisplayCategory> = {
+  COALNE: 'base', SLCONS: 'base', LNDARE: 'base', DEPARE: 'base', UWTROC: 'base', WRECKS: 'base', OBSTRN: 'base',
+  DEPCNT: 'standard', LIGHTS: 'standard', BOYLAT: 'standard', BOYCAR: 'standard', BOYSAW: 'standard', BOYSPP: 'standard', BOYISD: 'standard', BOYINB: 'standard',
+  BCNLAT: 'standard', BCNCAR: 'standard', RESARE: 'standard', ACHARE: 'standard', BRIDGE: 'standard', LNDMRK: 'standard',
+  SOUNDG: 'all',
+}
+const RANK: Record<DisplayCategory, number> = { base: 0, standard: 1, all: 2 }
+
 export interface EncStyleOptions {
   /** Depth the boat needs, metres: anything shallower is a hazard. */
   safetyDepthM: number
-  /** The deep contour: deeper than this is shaded as deep water. */
+  /** Shallow and deep contours for the four-shade scheme. */
+  shallowM?: number
   deepM?: number
+  /** Two shades only: shallower or deeper than the safety depth. */
+  twoShades?: boolean
+  /** What is drawn: base, standard (the default) or all. */
+  category?: DisplayCategory
+  /** The night palette: dimmer everything, for dark adaptation. */
+  night?: boolean
 }
 
 export interface DrawFeature {
@@ -29,9 +51,18 @@ export interface DrawFeature {
 
 function depthShade(drval1: number, o: EncStyleOptions): string {
   if (drval1 < 0) return DEPTH_SHADES.drying
-  if (drval1 < o.safetyDepthM) return DEPTH_SHADES.shallow
+  if (o.twoShades) return drval1 < o.safetyDepthM ? DEPTH_SHADES.shallow : DEPTH_SHADES.deep
+  if (drval1 < Math.min(o.shallowM ?? o.safetyDepthM, o.safetyDepthM)) return DEPTH_SHADES.shallow
+  if (drval1 < o.safetyDepthM) return DEPTH_SHADES.medium
   if (drval1 < (o.deepM ?? Math.max(10, 2 * o.safetyDepthM))) return DEPTH_SHADES.medium
   return DEPTH_SHADES.deep
+}
+
+/** The night palette: each colour at a third of its brightness. */
+export function dim(hex: string): string {
+  const v = parseInt(hex.slice(1), 16)
+  const c = (sh: number) => Math.round(((v >> sh) & 255) * 0.35).toString(16).padStart(2, '0')
+  return `#${c(16)}${c(8)}${c(0)}`
 }
 
 /**
@@ -44,9 +75,12 @@ export function encDrawFeatures(cells: EncCell[], o: EncStyleOptions): DrawFeatu
   // The safety contour: the shallowest contour at or deeper than the safety depth.
   const contours = cells.flatMap((c) => c.features.filter((f) => f.cls === 'DEPCNT').map((f) => Number(f.attrs.VALDCO))).filter(Number.isFinite)
   const safety = contours.filter((v) => v >= o.safetyDepthM).sort((a, b) => a - b)[0]
+  const show = RANK[o.category ?? 'standard']
   for (const c of cells) {
     for (const f of c.features) {
       if (!f.geometry) continue
+      // Anything not in the table counts as Other; Display Base is always drawn.
+      if (RANK[CATEGORY[f.cls] ?? 'all'] > show) continue
       if (f.cls === 'SOUNDG' && f.geometry.type === 'MultiPoint') {
         for (const [lon, lat, d] of f.geometry.coordinates) {
           out.push({ type: 'Feature', properties: { layer: 'sounding', depth: Math.round(d * 10) / 10, label: d < 31 ? d.toFixed(1).replace(/\.0$/, '') : String(Math.round(d)), shallow: d < o.safetyDepthM }, geometry: { type: 'Point', coordinates: [lon, lat] } })
@@ -75,5 +109,6 @@ export function encDrawFeatures(cells: EncCell[], o: EncStyleOptions): DrawFeatu
       }
     }
   }
+  if (o.night) for (const x of out) if (typeof x.properties.color === 'string') x.properties.color = dim(x.properties.color)
   return out
 }

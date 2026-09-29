@@ -548,12 +548,13 @@ export function RouteScreen() {
   // ENC cells the user opened, drawn against the safety depth.
   const encCells = useCharts((s) => s.cells)
   const safetyDepthM = useCharts((s) => s.safetyDepthM)
+  const encDisplay = useCharts((s) => s.display)
   const [showEnc, setShowEnc] = useState(false)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    setSource(map, 'enc', { type: 'FeatureCollection', features: encDrawFeatures(encCells, { safetyDepthM }) } as unknown as FC)
-  }, [ready, encCells, safetyDepthM])
+    setSource(map, 'enc', { type: 'FeatureCollection', features: encDrawFeatures(encCells, { safetyDepthM, ...encDisplay }) } as unknown as FC)
+  }, [ready, encCells, safetyDepthM, encDisplay])
 
   // The fleet's tracks from tracking files, in each boat's colour.
   const fleetTracks = useTracking((s) => s.tracks)
@@ -2268,6 +2269,8 @@ export function sensitivityFC(route: RouteResult, bandMin = 10): FC {
 function EncSheet({ onClose }: { onClose: () => void }) {
   const cells = useCharts((s) => s.cells)
   const safety = useCharts((s) => s.safetyDepthM)
+  const display = useCharts((s) => s.display)
+  const setDisplay = useCharts((s) => s.setDisplay)
   const [error, setError] = useState<string | null>(null)
   return (
     <div className="sheet" role="dialog" aria-label="Electronic charts">
@@ -2319,6 +2322,33 @@ function EncSheet({ onClose }: { onClose: () => void }) {
             if (v >= 0) useCharts.getState().setSafetyDepth(v)
           }}
         />
+      </div>
+      <div className="seg" role="group" aria-label="Display category" style={{ marginBottom: 6 }}>
+        {(['base', 'standard', 'all'] as const).map((k) => (
+          <button key={k} aria-pressed={display.category === k} onClick={() => setDisplay({ category: k })}>
+            {k === 'base' ? 'Base' : k === 'standard' ? 'Standard' : 'All'}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+        <label>
+          <input type="checkbox" checked={display.twoShades} onChange={(e) => setDisplay({ twoShades: e.target.checked })} /> Two shades
+        </label>
+        {!display.twoShades && (
+          <>
+            <label>
+              Shallow{' '}
+              <input aria-label="Shallow contour" type="number" min="0" step="0.5" value={display.shallowM} onChange={(e) => setDisplay({ shallowM: Math.max(0, Number(e.target.value) || 0) })} style={{ width: 56 }} /> m
+            </label>
+            <label>
+              Deep{' '}
+              <input aria-label="Deep contour" type="number" min="0" step="1" value={display.deepM} onChange={(e) => setDisplay({ deepM: Math.max(0, Number(e.target.value) || 0) })} style={{ width: 56 }} /> m
+            </label>
+          </>
+        )}
+        <label>
+          <input type="checkbox" checked={display.night} onChange={(e) => setDisplay({ night: e.target.checked })} /> Night palette
+        </label>
       </div>
       {cells.map((c) => (
         <p key={c.name} className="note" aria-label={`Cell ${c.name}`}>

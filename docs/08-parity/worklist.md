@@ -340,10 +340,12 @@ leaves something tested and working.
       buoys, beacons and hazards. *Accept:* a browser check against NOAA's own
       rendering.
       *A simplified rendition on the dark chart, drawn from cells opened under Route → ENC; the full
-      PresLib symbol set and light sectors are not drawn.*
-- [ ] **13.4 Display categories and safety settings:** base, standard and all;
-      safety, shallow and deep contours; two-colour shading; night palette; simplified
-      or paper symbols. *Accept:* tests.
+      PresLib symbol set and light sectors are not drawn. Checked in the browser on a built cell only:
+      the comparison with NOAA's own rendering needs a real cell (13.1b, D8).*
+- [x] **13.4 Display categories and safety settings:** base, standard and all;
+      safety, shallow and deep contours; two-colour shading; night palette. *Accept:* tests.
+- [ ] **13.4b Simplified or paper symbols** for buoys, beacons and lights: a symbol set to draw
+      them with (the dots stand in until then). *Accept:* a browser check.
 - [ ] **13.5 Chart installer:** load `.000` files or a folder, a cell catalogue and
       bounds. *Accept:* tests.
 - [ ] **13.6 Chart object query.** *Accept:* tests.

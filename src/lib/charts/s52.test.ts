@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEPTH_SHADES, LAND, encDrawFeatures } from './s52'
+import { DEPTH_SHADES, LAND, dim, encDrawFeatures } from './s52'
 import { decodeS57, type EncCell } from './s57'
 import { cell } from './fixtures/cell'
 
@@ -16,11 +16,33 @@ describe('ENC display', () => {
   })
 
   it('splits soundings, marking those shallower than the safety depth, and colours points by kind', () => {
-    const f = encDrawFeatures([decodeS57(cell())], { safetyDepthM: 5 })
+    const f = encDrawFeatures([decodeS57(cell())], { safetyDepthM: 5, category: 'all' })
     const s = f.filter((x) => x.properties.layer === 'sounding').map((x) => [x.properties.label, x.properties.shallow])
     expect(s).toEqual([['12.3', false], ['4.5', true]])
     expect(f.find((x) => x.properties.cls === 'LIGHTS')!.properties).toMatchObject({ layer: 'point', color: '#e040fb', name: 'Portland Head Light' })
     expect(f.find((x) => x.properties.cls === 'COALNE')!.properties.layer).toBe('line')
     expect(encDrawFeatures([made([{ objl: 71, cls: 'LNDARE', prim: 3, attrs: {}, geometry: area(0).geometry }])], { safetyDepthM: 3 })[0].properties.color).toBe(LAND)
+  })
+})
+
+describe('ENC display settings', () => {
+  const all = [decodeS57(cell())]
+  it('draws Display Base always, Standard over it, and soundings only under All', () => {
+    const kinds = (category: 'base' | 'standard' | 'all') => [...new Set(encDrawFeatures(all, { safetyDepthM: 3, category }).map((x) => x.properties.cls ?? x.properties.layer))].sort()
+    expect(kinds('base')).toEqual(['COALNE', 'DEPARE'])
+    expect(kinds('standard')).toEqual(['COALNE', 'DEPARE', 'LIGHTS'])
+    expect(kinds('all')).toEqual(['COALNE', 'DEPARE', 'LIGHTS', 'sounding'])
+  })
+
+  it('shades in two colours or four, by the shallow, safety and deep contours', () => {
+    const shades = (o: Parameters<typeof encDrawFeatures>[1]) => encDrawFeatures([made([area(1), area(3), area(6), area(20)])], o).map((x) => x.properties.color)
+    expect(shades({ safetyDepthM: 5, shallowM: 2, deepM: 10 })).toEqual([DEPTH_SHADES.shallow, DEPTH_SHADES.medium, DEPTH_SHADES.medium, DEPTH_SHADES.deep])
+    expect(shades({ safetyDepthM: 5, twoShades: true })).toEqual([DEPTH_SHADES.shallow, DEPTH_SHADES.shallow, DEPTH_SHADES.deep, DEPTH_SHADES.deep])
+  })
+
+  it('dims every colour for the night palette', () => {
+    expect(dim('#ffffff')).toBe('#595959')
+    const night = encDrawFeatures([made([area(20)])], { safetyDepthM: 3, night: true })[0].properties.color
+    expect(night).toBe(dim(DEPTH_SHADES.deep))
   })
 })
