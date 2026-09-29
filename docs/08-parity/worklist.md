@@ -226,8 +226,9 @@ leaves something tested and working.
       tests.
 - [ ] **9.13 World land avoidance** from a tiled OSM land pack. *Accept:* a route
       outside Portland goes round land.
-- [ ] **9.14 Asymmetric port and starboard polars**, moved here from 4.5 because it
+- [x] **9.14 Asymmetric port and starboard polars**, moved here from 4.5 because it
       needs a second set of target tables in the hot loop. *Accept:* the kernel uses
+- [ ] **9.14b A port polar in the app:** import it in Setup, keep it, and pass it through the worker. *Accept:* store and worker tests.
       the right side on each tack, with a test.
 
 ## M10 — Weather

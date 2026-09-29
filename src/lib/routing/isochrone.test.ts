@@ -25,7 +25,7 @@ import type {
   Targets,
   WeatherField,
 } from '../types'
-import { defaultConstraints, defaultScalings, isNight, lookupPct, routeIsochrone, MAX_EXPLORED_SEGMENTS } from './isochrone'
+import { defaultConstraints, defaultScalings, isNight, lookupPct, mixedVmg, routeIsochrone, MAX_EXPLORED_SEGMENTS } from './isochrone'
 import { PolygonLandMask, buildLandMask, extractPolygons } from './land'
 import type { RouteWorkerResponse } from './worker'
 
@@ -882,6 +882,49 @@ describe('isochrone routing kernel', () => {
     expect(lookupPct(t, 1, 45)).toBeCloseTo((100 * 0.5 + 100 * 0.5) * 0.5 + (80 * 0.5 + 90 * 0.5) * 0.5, 9)
     expect(lookupPct(t, 6, 0)).toBe(60)
     expect(lookupPct(t, -1, 180)).toBe(100)
+  })
+
+  it('sails each tack on its own polar when the boat has two', () => {
+    // A port-tack polar at half speed: a boat with a keel canted the wrong way.
+    const half: PolarLattice = {
+      ...LATTICE,
+      speed: (tws, twa) => LATTICE.speed(tws, twa) * 0.5,
+      targetsAt: (tws) => {
+        const t = LATTICE.targetsAt(tws)
+        return { ...t, upBsp: t.upBsp * 0.5, upVmg: t.upVmg * 0.5, downBsp: t.downBsp * 0.5, downVmg: t.downVmg * 0.5 }
+      },
+    }
+    const start = { lat: 40, lon: -70 }
+    // Wind from the north: heading east it is on the port side, so east is the port
+    // reach and west the starboard one.
+    const field = makeField({ twd: 0, tws: 12 })
+    const time = (brg: number, port: PolarLattice | null) =>
+      routeIsochrone(request({ start, marks: [destination(start, brg, 4)], resolution: 'balanced' }), {
+        field,
+        lattice: LATTICE,
+        latticePort: port,
+      }).elapsedS!
+    const east = time(90, half) / time(90, null)
+    const west = time(270, half) / time(270, null)
+    note(`9.14 port polar at 50%: port reach ${east.toFixed(2)}× as long, starboard reach ${west.toFixed(2)}×`)
+    expect(east).toBeGreaterThan(1.8)
+    expect(west).toBeCloseTo(1, 2)
+    // And a beat up the wind spends its time on the faster tack.
+    const beat = routeIsochrone(request({ start, marks: [north(start, 4)], resolution: 'balanced' }), { field, lattice: LATTICE, latticePort: half })
+    expect(beat.ok, beat.error).toBe(true)
+    // A zigzag sails both tacks: slower than the fast polar alone, faster than the slow one.
+    const sym = routeIsochrone(request({ start, marks: [north(start, 4)], resolution: 'balanced' }), { field, lattice: LATTICE }).elapsedS!
+    const ratio = beat.elapsedS! / sym
+    note(`9.14 beat with a half-speed port polar: ${ratio.toFixed(2)}× the symmetric time`)
+    expect(ratio).toBeGreaterThan(1.2)
+    expect(ratio).toBeLessThan(2)
+  })
+
+  it('mixes two tacks into one speed made good, and gives one tack back unchanged', () => {
+    expect(mixedVmg(40, 5, 40, 5)).toBeCloseTo(5, 9)
+    // Same angle, port at half: the fast tack also drifts sideways twice as fast, so
+    // it needs only a third of the time to cancel the slow tack: 1/3·5 + 2/3·2.5.
+    expect(mixedVmg(40, 5, 40, 2.5)).toBeCloseTo((1 / 3) * 5 + (2 / 3) * 2.5, 9)
   })
 
   it('an impassable band returns a clean failure, not a throw', () => {

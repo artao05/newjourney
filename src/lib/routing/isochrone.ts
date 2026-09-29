@@ -75,6 +75,11 @@ import { NULL_LAND_MASK, PolygonLandMask, combineMasks, type LandMask } from './
 export interface RouteContext {
   field: WeatherField
   lattice: PolarLattice
+  /**
+   * The polar on port tack, where it differs: a boat with a canting keel, an
+   * asymmetric rig, or a foil on one side. Without it `lattice` serves both.
+   */
+  latticePort?: PolarLattice | null
   land?: LandMask | null
   /**
    * Optional 0..1 progress tap. Additive to the brief's interface; the worker
@@ -784,6 +789,7 @@ function growU8(a: Uint8Array, cap: number, keep: number): Uint8Array {
 interface SearchOpts {
   field: DenseField
   lattice: PolarLattice
+  latticePort?: PolarLattice | null
   land: LandMask | null
   constraints: RouteConstraints
   scalings: RouteScalings
@@ -873,6 +879,12 @@ class Search {
   private readonly tgDnTwa = new Float64Array(321)
   private readonly tgDnVmg = new Float64Array(321)
   private readonly tgReady = new Uint8Array(321)
+  // The same for port tack, when the boat has a polar of its own for it.
+  private readonly latticePort: PolarLattice | null
+  private readonly tgUpTwaP = new Float64Array(321)
+  private readonly tgUpVmgP = new Float64Array(321)
+  private readonly tgDnTwaP = new Float64Array(321)
+  private readonly tgDnVmgP = new Float64Array(321)
 
   // Open-addressed (cell, tack) label table for §4.2 pruning.
   //
@@ -924,6 +936,7 @@ class Search {
   constructor(o: SearchOpts) {
     this.f = o.field
     this.lattice = o.lattice
+    this.latticePort = o.latticePort ?? null
     this.land = o.land
     this.maxTws = o.constraints.maxTws ?? Infinity
     this.minTws = o.constraints.minTws ?? 0
@@ -959,6 +972,13 @@ class Search {
       this.tgUpVmg[b] = t.upVmg
       this.tgDnTwa[b] = t.downTwa
       this.tgDnVmg[b] = Math.abs(t.downVmg)
+      if (this.latticePort) {
+        const p = this.latticePort.targetsAt(b / 4)
+        this.tgUpTwaP[b] = p.upTwa
+        this.tgUpVmgP[b] = p.upVmg
+        this.tgDnTwaP[b] = p.downTwa
+        this.tgDnVmgP[b] = Math.abs(p.downVmg)
+      }
       this.tgReady[b] = 1
     }
     return b
@@ -984,19 +1004,25 @@ class Search {
    * Leaves the answer in `effBsp` / `effBeat`; returning a struct here would
    * allocate once per candidate.
    */
-  effective(tws: number, twaAbs: number, tb: number): void {
-    const upTwa = this.tgUpTwa[tb]
+  effective(tws: number, twaAbs: number, tb: number, port = false): void {
+    // Port tack reads its own polar and targets, where the boat has them.
+    const p = port && this.latticePort !== null
+    const lat = p ? this.latticePort! : this.lattice
+    const upTwa = p ? this.tgUpTwaP[tb] : this.tgUpTwa[tb]
     if (twaAbs < upTwa) {
       const c = Math.cos(twaAbs * DEG)
-      const vmg = this.tgUpVmg[tb]
+      // A zigzag sails both tacks, so with two polars its speed made good mixes them.
+      const vmg = this.latticePort ? mixedVmg(this.tgUpTwa[tb], this.tgUpVmg[tb], this.tgUpTwaP[tb], this.tgUpVmgP[tb]) : this.tgUpVmg[tb]
       this.effBsp = vmg > 0 && c > 1e-6 ? vmg / c : 0
       this.effBeat = 1
       return
     }
-    if (twaAbs > this.tgDnTwa[tb]) {
-      const direct = this.lattice.speed(tws, twaAbs)
+    if (twaAbs > (p ? this.tgDnTwaP[tb] : this.tgDnTwa[tb])) {
+      const direct = lat.speed(tws, twaAbs)
       const c = Math.cos((180 - twaAbs) * DEG)
-      const vmg = this.tgDnVmg[tb]
+      const vmg = this.latticePort
+        ? mixedVmg(180 - this.tgDnTwa[tb], this.tgDnVmg[tb], 180 - this.tgDnTwaP[tb], this.tgDnVmgP[tb])
+        : this.tgDnVmg[tb]
       const gybing = vmg > 0 && c > 1e-6 ? vmg / c : 0
       if (gybing > direct) {
         this.effBsp = gybing
@@ -1007,7 +1033,7 @@ class Search {
       }
       return
     }
-    this.effBsp = this.lattice.speed(tws, twaAbs)
+    this.effBsp = lat.speed(tws, twaAbs)
     this.effBeat = 0
   }
 
@@ -1015,7 +1041,7 @@ class Search {
   speedForHeading(tws: number, twd: number, hdg: number, polarF: number): number {
     const tb = this.targetBucket(tws)
     const twa = twaFrom(hdg, twd)
-    this.effective(tws, Math.abs(twa), tb)
+    this.effective(tws, Math.abs(twa), tb, twa < 0)
     return this.limited(this.effBsp * polarF, tws, Math.abs(twa))
   }
 
@@ -1084,11 +1110,17 @@ class Search {
       else if (h < 0) h += 360
       this.fanPush(h)
     }
+    // Each tack's own target angles: port's from its own polar, where there is one.
+    const tb = this.fanTb
+    const upP = this.latticePort ? this.tgUpTwaP[tb] : upTwa
+    const dnP = this.latticePort ? this.tgDnTwaP[tb] : dnTwa
     this.fanPushInCone(courseFor(twd, upTwa), centre, half)
-    this.fanPushInCone(courseFor(twd, -upTwa), centre, half)
+    this.fanPushInCone(courseFor(twd, -upP), centre, half)
     this.fanPushInCone(courseFor(twd, dnTwa), centre, half)
-    this.fanPushInCone(courseFor(twd, -dnTwa), centre, half)
+    this.fanPushInCone(courseFor(twd, -dnP), centre, half)
   }
+  /** The target bucket of the node whose fan is being built. */
+  private fanTb = 0
 
   // ----------------------------------------------------------- label table
 
@@ -1193,7 +1225,7 @@ class Search {
     for (let it = 0; it < 4; it++) {
       const twa = angdiff(twd, hdg)
       const twaAbs = twa < 0 ? -twa : twa
-      this.effective(tws, twaAbs, tb)
+      this.effective(tws, twaAbs, tb, twa < 0)
       bsp = this.limited(this.effBsp * polarF * this.waveFactor(this.nodeWaveH, this.nodeWaveFrom, hdg), tws, twaAbs)
       if (bsp <= 1e-9) return false
       if (it === 3) break
@@ -1402,6 +1434,7 @@ class Search {
         }
 
         // ---- the heading fan
+        this.fanTb = tb
         this.buildFan(
           isFwd ? goalBrg : wrap360(goalBrg + 180),
           half,
@@ -1416,7 +1449,7 @@ class Search {
           evaluated++
           const twa = angdiff(twd, this.fanHdg[j])
           const twaAbs = twa < 0 ? -twa : twa
-          this.effective(tws, twaAbs, tb)
+          this.effective(tws, twaAbs, tb, twa < 0)
           const bsp = this.limited(
             this.effBsp * polarF * this.waveFactor(this.nodeWaveH, this.nodeWaveFrom, this.fanHdg[j]),
             tws,
@@ -1695,6 +1728,26 @@ function directTimeS(
 // -------------------------------------------------------------- the entry
 
 /** Sensible defaults — handy for tests and for the UI's initial state. */
+/**
+ * Speed made good straight up (or down) the wind by a zigzag between two tacks
+ * that differ: each tack at its target angle `a` off the wind axis and target
+ * VMG, the time split so the sideways components cancel. Equal tacks give
+ * their own VMG back.
+ */
+export function mixedVmg(aS: number, vmgS: number, aP: number, vmgP: number): number {
+  const cs = Math.cos(aS * DEG)
+  const cp = Math.cos(aP * DEG)
+  if (!(cs > 1e-6) || !(cp > 1e-6) || !(vmgS > 0) || !(vmgP > 0)) return Math.max(0, Math.min(vmgS, vmgP))
+  const vs = vmgS / cs
+  const vp = vmgP / cp
+  const xs = vs * Math.sin(aS * DEG)
+  const xp = vp * Math.sin(aP * DEG)
+  if (!(xs + xp > 1e-9)) return (vmgS + vmgP) / 2
+  // Time on each tack in the proportion that cancels the sideways drift.
+  const fs = xp / (xs + xp)
+  return fs * vmgS + (1 - fs) * vmgP
+}
+
 /** A wave table's percentage at a height and angle: bilinear, held at the edges. */
 export function lookupPct(t: NonNullable<RouteScalings['waveTable']>, heightM: number, angle: number): number {
   const at = (xs: number[], x: number): [number, number] => {
@@ -1898,6 +1951,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
     const search = new Search({
       field: dense,
       lattice: ctx.lattice,
+      latticePort: ctx.latticePort ?? null,
       land: combineMasks(land, avoid),
       constraints: req.constraints,
       scalings: req.scalings,
