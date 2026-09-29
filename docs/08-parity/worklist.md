@@ -373,7 +373,10 @@ leaves something tested and working.
 
 ## M14 — Integration and the rest of the shell
 
-- [ ] **14.1 A documented JSON/WebSocket API** for channels out. *Accept:* tests.
+- [x] **14.1 A documented JSON/WebSocket API** for channels out. *Accept:* tests.
+      *Setup → Channels out: newjourney JSON (hello, channels, subscribe, ping) or Signal K deltas
+      to a WebSocket the user names, reconnecting with back-off (docs/09-api/channels-out.md).
+      Checked live against a local WebSocket server.*
 - [ ] **14.2 Sharing between devices:** marks, routes and the start line. `blocked:
       D1`.
 - [ ] **14.3 Save the display as an image, print, and a night palette** for the whole

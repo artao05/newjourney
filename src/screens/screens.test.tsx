@@ -178,6 +178,7 @@ import { DEFAULT_CONTOURS } from '@/state/store'
 import { useAis } from '@/state/ais'
 import { useTracking } from '@/state/tracking'
 import { uninstallAllCells, useCharts } from '@/state/charts'
+import { useChannelsOutStatus } from '@/components/ChannelsOutBridge'
 import { cellStore } from '@/lib/charts/library'
 import { cell as encCell, update3 as encUpdate3 } from '@/lib/charts/fixtures/cell'
 import { useEnsembleView } from '@/state/ensembleView'
@@ -1983,6 +1984,26 @@ describe('Setup keeps a port-tack polar for a boat whose tacks differ', () => {
     expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.polarPort.name).toBe('port')
     fireEvent.click(screen.getByRole('button', { name: 'SAME BOTH TACKS' }))
     expect(useStore.getState().polarPort).toBeNull()
+  })
+})
+
+describe('Setup sends the channels out', () => {
+  it('turns channels out on, to an address, in a form and at a rate, and says how the link is', () => {
+    emptyStore()
+    render(<SetupScreen />)
+    const section = screen.getByRole('region', { name: 'Channels out' })
+    expect(within(section).queryByLabelText('Channels out status')).toBeNull()
+    fireEvent.change(within(section).getByLabelText('WebSocket'), { target: { value: ' ws://192.168.1.10:8765 ' } })
+    fireEvent.change(within(section).getByLabelText('Form'), { target: { value: 'signalk' } })
+    fireEvent.change(within(section).getByLabelText('Rate'), { target: { value: '0.2' } })
+    fireEvent.click(within(section).getByLabelText('Send channels'))
+    expect(useStore.getState().settings.channelsOut).toEqual({ enabled: true, url: 'ws://192.168.1.10:8765', format: 'signalk', rateHz: 0.2 })
+    act(() => useChannelsOutStatus.setState({ status: 'open', sent: 1234 }))
+    expect(within(section).getByLabelText('Channels out status').textContent).toBe('Connected · 1,234 sent')
+    act(() => {
+      useChannelsOutStatus.setState({ status: 'off', sent: 0 })
+      useStore.getState().updateSettings({ channelsOut: { enabled: false, url: 'ws://localhost:8765', format: 'json', rateHz: 1 } })
+    })
   })
 })
 

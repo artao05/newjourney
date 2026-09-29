@@ -6,6 +6,7 @@
  * and nothing here blocks the start screen.
  */
 
+import { useChannelsOutStatus } from '@/components/ChannelsOutBridge'
 import { useMemo, useState } from 'react'
 import { MAX_TRACK_POINTS, useStore } from '@/state/store'
 import { POLAR_LIBRARY, findPolar } from '@/data/polars'
@@ -587,6 +588,8 @@ export function SetupScreen() {
           </button>
         </div>
 
+        <ChannelsOutSection />
+
         <h2>Keyboard</h2>
         <div className="rows" aria-label="Keyboard shortcuts">
           {SHORTCUT_HELP.map(([keys, does]) => (
@@ -614,5 +617,52 @@ export function SetupScreen() {
         </p>
       </div>
     </div>
+  )
+}
+
+/** Setup → Channels out: the live channels over a WebSocket, to a server named here. */
+function ChannelsOutSection() {
+  const out = useStore((s) => s.settings.channelsOut)
+  const updateSettings = useStore((s) => s.updateSettings)
+  const { status, sent } = useChannelsOutStatus()
+  const set = (p: Partial<typeof out>) => updateSettings({ channelsOut: { ...out, ...p } })
+  const insecure = typeof location !== 'undefined' && location.protocol === 'https:' && /^ws:\/\/(?!localhost|127\.0\.0\.1)/.test(out.url)
+  return (
+    <section aria-label="Channels out">
+      <h2>Channels out</h2>
+      <div className="field">
+        <label htmlFor="co-on">Send channels</label>
+        <input id="co-on" type="checkbox" checked={out.enabled} onChange={(e) => set({ enabled: e.target.checked })} style={{ width: 26, height: 26 }} />
+      </div>
+      <div className="field">
+        <label htmlFor="co-url">WebSocket</label>
+        <input id="co-url" type="text" value={out.url} spellCheck={false} onChange={(e) => set({ url: e.target.value.trim() })} placeholder="ws://192.168.1.10:8765" />
+      </div>
+      <div className="field">
+        <label htmlFor="co-format">Form</label>
+        <select id="co-format" value={out.format} onChange={(e) => set({ format: e.target.value as typeof out.format })}>
+          <option value="json">newjourney JSON (every channel)</option>
+          <option value="signalk">Signal K delta</option>
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor="co-rate">Rate</label>
+        <select id="co-rate" value={out.rateHz} onChange={(e) => set({ rateHz: Number(e.target.value) })}>
+          <option value={0.2}>every 5 s</option>
+          <option value={1}>1 a second</option>
+        </select>
+      </div>
+      {out.enabled && (
+        <p className="note" aria-label="Channels out status">
+          {status === 'open' ? `Connected · ${sent.toLocaleString()} sent` : status === 'connecting' ? 'Connecting…' : status === 'closed' ? 'Not connected: trying again' : 'Off'}
+        </p>
+      )}
+      {insecure && <p className="warnbox">This page is served over https, so the browser will only connect to wss:// (or ws://localhost).</p>}
+      <p className="note">
+        A web app cannot take connections, so it makes one: to a logger, a display, a script or a Signal K server on the boat&apos;s
+        network. The JSON form sends a hello with the channel list, then the channels at the rate set; the far end may subscribe to
+        some of them. The schema is in docs/09-api/channels-out.md.
+      </p>
+    </section>
   )
 }

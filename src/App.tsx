@@ -23,6 +23,7 @@ import { NotForNavigationDialog } from '@/components/NotForNavigation'
 import { useTrackPersistence } from '@/state/trackPersistence'
 import { WindSheet, windChip } from '@/components/WindSheet'
 import { ChannelLogRecorder } from '@/components/ChannelLogRecorder'
+import { ChannelsOutBridge } from '@/components/ChannelsOutBridge'
 import { PlaybackBar } from '@/components/PlaybackBar'
 import { AlarmBanner, AlarmWatcher } from '@/components/Alarms'
 import { usePlayback } from '@/hooks/usePlayback'
@@ -101,6 +102,7 @@ export function App() {
   // A replaying log is the boat: every live source stands aside while it plays.
   const replaying = useStore((s) => s.playback != null)
   const hasAlarms = useStore((s) => s.alarms.length > 0)
+  const channelsOutOn = useStore((s) => s.settings.channelsOut.enabled)
   usePlayback()
   const instrumentSource: InstrumentSource = settings.simulate || replaying
     ? null
@@ -469,6 +471,7 @@ export function App() {
         {/* Not while replaying, or the replay would be logged again as today. */}
         {recording && !replaying && <ChannelLogRecorder />}
         {hasAlarms && <AlarmWatcher />}
+        {channelsOutOn && <ChannelsOutBridge />}
       </div>
       {mustAccept && (
         <NotForNavigationDialog onAccept={() => updateSettings({ acceptedNotForNavigation: true })} />

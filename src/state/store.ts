@@ -6,6 +6,7 @@
 
 import type { ChartMotion, ChartOrientation } from '@/lib/chartView'
 import type { ChartOffset } from '@/lib/charts/georef'
+import { DEFAULT_CHANNELS_OUT, type ChannelsOutSettings } from '@/lib/api/channelsOut'
 import { create } from 'zustand'
 import type { ColourMode } from '@/lib/maplayers/colormap'
 import { persist, createJSONStorage } from 'zustand/middleware'
@@ -236,6 +237,8 @@ export interface Settings {
   chartMotion: ChartMotion
   /** Our own charts (ENC, raster) moved to line up with GPS where a chart is off. */
   chartOffset: ChartOffset
+  /** The channels sent out over a WebSocket (Setup → Channels out). */
+  channelsOut: ChannelsOutSettings
 }
 
 interface AppState {
@@ -508,6 +511,7 @@ export const DEFAULT_SETTINGS: Settings = {
   chartOrientation: 'north',
   chartMotion: 'free',
   chartOffset: { northM: 0, eastM: 0 },
+  channelsOut: DEFAULT_CHANNELS_OUT,
 }
 
 export function mergePersistedState(
