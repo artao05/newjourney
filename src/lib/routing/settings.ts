@@ -44,6 +44,13 @@ export interface RouteSettings {
   maxGust: Knots | null
   /** Cells with significant wave height above this are impassable. Null = no limit. */
   maxWaveHeightM: Metres | null
+  /** Will not sail closer than 90° to the wind above this. Null = no limit. */
+  maxTwsUpwind: Knots | null
+  /** Will not sail 90° or more off the wind above this. Null = no limit. */
+  maxTwsDownwind: Knots | null
+  /** Motor at this speed wherever sailing would be slower than `motorBelowKn`. Null = never. */
+  motorSpeedKn: Knots | null
+  motorBelowKn: Knots | null
 }
 
 export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
@@ -56,6 +63,10 @@ export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
   minTws: null,
   maxGust: null,
   maxWaveHeightM: null,
+  maxTwsUpwind: null,
+  maxTwsDownwind: null,
+  motorSpeedKn: null,
+  motorBelowKn: null,
 }
 
 /**
@@ -97,6 +108,12 @@ export function requestParts(
   if (settings.minTws != null) constraints.minTws = settings.minTws
   if (settings.maxGust != null) constraints.maxGust = settings.maxGust
   if (settings.maxWaveHeightM != null) constraints.maxWaveHeightM = settings.maxWaveHeightM
+  if (settings.maxTwsUpwind != null) constraints.maxTwsUpwind = settings.maxTwsUpwind
+  if (settings.maxTwsDownwind != null) constraints.maxTwsDownwind = settings.maxTwsDownwind
+  if (settings.motorSpeedKn != null && settings.motorBelowKn != null) {
+    constraints.motorSpeedKn = settings.motorSpeedKn
+    constraints.motorBelowKn = settings.motorBelowKn
+  }
   return {
     constraints,
     scalings: {
@@ -143,5 +160,8 @@ export function nonDefaultLabels(s: RouteSettings): string[] {
   if (s.minTws != null) out.push(`TWS ≥ ${s.minTws} kn`)
   if (s.maxGust != null) out.push(`gust ≤ ${s.maxGust} kn`)
   if (s.maxWaveHeightM != null) out.push(`waves ≤ ${s.maxWaveHeightM} m`)
+  if (s.maxTwsUpwind != null) out.push(`beat ≤ ${s.maxTwsUpwind} kn`)
+  if (s.maxTwsDownwind != null) out.push(`run ≤ ${s.maxTwsDownwind} kn`)
+  if (s.motorSpeedKn != null && s.motorBelowKn != null) out.push(`motor ${s.motorSpeedKn} kn below ${s.motorBelowKn} kn`)
   return out
 }

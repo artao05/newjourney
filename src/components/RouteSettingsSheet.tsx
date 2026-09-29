@@ -54,7 +54,11 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
     </div>
   )
 
-  const limit = (key: 'maxTws' | 'minTws' | 'maxGust' | 'maxWaveHeightM', label: string, unit: string) => (
+  const limit = (
+    key: 'maxTws' | 'minTws' | 'maxGust' | 'maxWaveHeightM' | 'maxTwsUpwind' | 'maxTwsDownwind' | 'motorSpeedKn' | 'motorBelowKn',
+    label: string,
+    unit: string,
+  ) => (
     <div className="field">
       <label htmlFor={`rs-${key}`}>
         {label} <span className="note">{unit}</span>
@@ -108,6 +112,15 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
       {limit('minTws', 'Wind below', 'kn')}
       {limit('maxGust', 'Gusts above', 'kn')}
       {limit('maxWaveHeightM', 'Waves above', 'm')}
+      {limit('maxTwsUpwind', 'Beating in wind above', 'kn')}
+      {limit('maxTwsDownwind', 'Running in wind above', 'kn')}
+
+      <h2>Motor</h2>
+      {limit('motorBelowKn', 'Motor when sailing is slower than', 'kn')}
+      {limit('motorSpeedKn', 'Motoring speed', 'kn')}
+      <p className="note">
+        Both, or neither: with a motoring speed and a least sailing speed, the route motors wherever the polar is slower.
+      </p>
 
       <h2>Manoeuvres</h2>
       <div className="field">

@@ -355,6 +355,13 @@ export interface TacticalNumbers {
 export interface RouteConstraints {
   maxTws?: Knots
   minTws?: Knots
+  /** No heading closer than 90° to the wind above this TWS: the boat will not beat into it. */
+  maxTwsUpwind?: Knots
+  /** No heading 90° or more off the wind above this TWS. */
+  maxTwsDownwind?: Knots
+  /** Motor at `motorSpeedKn` wherever sailing would be slower than `motorBelowKn`. */
+  motorSpeedKn?: Knots
+  motorBelowKn?: Knots
   maxGust?: Knots
   maxWaveHeightM?: Metres
   tackPenaltyS?: Seconds

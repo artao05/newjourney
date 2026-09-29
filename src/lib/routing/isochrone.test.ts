@@ -751,6 +751,56 @@ describe('isochrone routing kernel', () => {
     expect(sailed).toBeGreaterThan(distance(start, finish) * 1.001)
   })
 
+  it('will not beat above the upwind wind limit, and still runs before it', () => {
+    const start = { lat: 40, lon: -70 }
+    const up = north(start, 4)
+    const down = destination(start, 180, 4)
+    const field = makeField({ twd: 0, tws: 22 })
+    const upwind = (max: number) =>
+      routeIsochrone(
+        request({ start, marks: [up], resolution: 'fast', constraints: { ...defaultConstraints(), maxTwsUpwind: max } }),
+        { field, lattice: LATTICE },
+      )
+    expect(upwind(25).ok).toBe(true)
+    const barred = upwind(20)
+    note(`9.1a no beating above 20 kn in 22 kn: ok=${barred.ok}`)
+    expect(barred.ok).toBe(false)
+    const run = routeIsochrone(
+      request({ start, marks: [down], resolution: 'fast', constraints: { ...defaultConstraints(), maxTwsUpwind: 20 } }),
+      { field, lattice: LATTICE },
+    )
+    expect(run.ok, run.error).toBe(true)
+    expect(run.legs.every((l) => Math.abs(l.twa) >= 90 - 1e-6 || l === run.legs[run.legs.length - 1])).toBe(true)
+  })
+
+  it('keeps off the wind below the downwind limit when told to', () => {
+    const start = { lat: 40, lon: -70 }
+    const down = destination(start, 180, 4)
+    const res = routeIsochrone(
+      request({ start, marks: [down], resolution: 'fast', constraints: { ...defaultConstraints(), maxTwsDownwind: 15 } }),
+      { field: makeField({ twd: 0, tws: 22 }), lattice: LATTICE },
+    )
+    note(`9.1b no running above 15 kn in 22 kn: ok=${res.ok}`)
+    expect(res.ok).toBe(false)
+  })
+
+  it('motors through a calm where sailing is slower than the least allowed', () => {
+    const start = { lat: 40, lon: -70 }
+    const finish = north(start, 5)
+    const calm = makeField({ twd: 90, tws: 1 })
+    const motor = routeIsochrone(
+      request({ start, marks: [finish], resolution: 'balanced', constraints: { ...defaultConstraints(), motorSpeedKn: 5, motorBelowKn: 3 } }),
+      { field: calm, lattice: LATTICE },
+    )
+    expect(motor.ok, motor.error).toBe(true)
+    const hours = motor.elapsedS! / 3600
+    note(`9.1c motoring 5 nm at 5 kn in a 1 kn calm: ${hours.toFixed(2)} h`)
+    expect(hours).toBeGreaterThan(0.95)
+    expect(hours).toBeLessThan(1.15)
+    const sail = routeIsochrone(request({ start, marks: [finish], resolution: 'balanced' }), { field: calm, lattice: LATTICE })
+    expect(!sail.ok || sail.elapsedS! > motor.elapsedS! * 2).toBe(true)
+  })
+
   it('an impassable band returns a clean failure, not a throw', () => {
     const start = { lat: 40, lon: -70 }
     const finish = { lat: 40, lon: -69 }

@@ -199,7 +199,7 @@ leaves something tested and working.
 
 ## M9 — Routing to Expedition's depth
 
-- [ ] **9.1 Upwind and downwind TWS limits, and motoring** below a minimum sailing
+- [x] **9.1 Upwind and downwind TWS limits, and motoring** below a minimum sailing
       speed. *Accept:* kernel tests.
 - [ ] **9.2 Keep and compare routes:** several optimised routes, highlighting the
       previous one. *Accept:* store and screen tests.

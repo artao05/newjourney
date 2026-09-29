@@ -766,6 +766,10 @@ class Search {
   private readonly land: LandMask | null
   private readonly maxTws: number
   private readonly minTws: number
+  private readonly maxTwsUp: number
+  private readonly maxTwsDown: number
+  private readonly motorKn: number
+  private readonly motorBelow: number
   private readonly maxGust: number
   private readonly maxWave: number
   private readonly tackPen: number
@@ -847,6 +851,10 @@ class Search {
     this.land = o.land
     this.maxTws = o.constraints.maxTws ?? Infinity
     this.minTws = o.constraints.minTws ?? 0
+    this.maxTwsUp = o.constraints.maxTwsUpwind ?? Infinity
+    this.maxTwsDown = o.constraints.maxTwsDownwind ?? Infinity
+    this.motorKn = o.constraints.motorSpeedKn != null && o.constraints.motorBelowKn != null ? o.constraints.motorSpeedKn : 0
+    this.motorBelow = this.motorKn > 0 ? (o.constraints.motorBelowKn ?? 0) : 0
     this.maxGust = o.constraints.maxGust ?? Infinity
     this.maxWave = o.constraints.maxWaveHeightM ?? Infinity
     this.tackPen = o.constraints.tackPenaltyS ?? 0
@@ -931,7 +939,18 @@ class Search {
     const tb = this.targetBucket(tws)
     const twa = twaFrom(hdg, twd)
     this.effective(tws, Math.abs(twa), tb)
-    return this.effBsp * polarF
+    return this.limited(this.effBsp * polarF, tws, Math.abs(twa))
+  }
+
+  /**
+   * A heading's speed after the point-of-sail wind limits and the motor: zero
+   * where the boat will not sail that angle in this wind, the motor's speed
+   * where sailing would be slower than the least the skipper will put up with.
+   */
+  private limited(bsp: number, tws: number, twaAbs: number): number {
+    if (twaAbs < 90 ? tws > this.maxTwsUp : tws > this.maxTwsDown) return 0
+    if (this.motorKn > 0 && bsp < this.motorBelow) return this.motorKn
+    return bsp
   }
 
   // -------------------------------------------------------------- fan (§3)
@@ -1088,8 +1107,9 @@ class Search {
     let bsp = 0
     for (let it = 0; it < 4; it++) {
       const twa = angdiff(twd, hdg)
-      this.effective(tws, twa < 0 ? -twa : twa, tb)
-      bsp = this.effBsp * polarF
+      const twaAbs = twa < 0 ? -twa : twa
+      this.effective(tws, twaAbs, tb)
+      bsp = this.limited(this.effBsp * polarF, tws, twaAbs)
       if (bsp <= 1e-9) return false
       if (it === 3) break
       const need = (-dir * cPerp) / bsp
@@ -1310,7 +1330,7 @@ class Search {
           const twa = angdiff(twd, this.fanHdg[j])
           const twaAbs = twa < 0 ? -twa : twa
           this.effective(tws, twaAbs, tb)
-          const bsp = this.effBsp * polarF
+          const bsp = this.limited(this.effBsp * polarF, tws, twaAbs)
           if (bsp <= 1e-9) continue
           const vx = bsp * this.fanSin[j] + cu
           const vy = bsp * this.fanCos[j] + cv
