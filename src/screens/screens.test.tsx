@@ -72,12 +72,18 @@ const { FakeMap, FakeLngLatBounds, mapInstances } = vi.hoisted(() => {
     fire(ev: string) {
       for (const fn of this.handlers.get(ev) ?? []) fn({})
     }
-    addSource() {}
+    /** Sources added and not since removed, by id. */
+    sources = new Map<string, unknown>()
+    addSource(id: string, spec: unknown) {
+      this.sources.set(id, spec)
+    }
     addLayer(spec: { id?: string; type?: string; layout?: Record<string, unknown> }) {
       this.layers.push(spec)
     }
     removeLayer() {}
-    removeSource() {}
+    removeSource(id: string) {
+      this.sources.delete(id)
+    }
     /** The last data set on each GeoJSON source, by source id. */
     data = new Map<string, unknown>()
     getSource(id: string) {
@@ -1047,6 +1053,28 @@ describe('the Weather screen states its provenance', () => {
     // Off again takes the markers away.
     fireEvent.click(screen.getByRole('button', { name: 'Observations' }))
     await waitFor(() => expect(marks()).toHaveLength(0))
+  })
+
+  it('lays the latest radar frame and satellite image over the chart, and takes them off', async () => {
+    globalThis.fetch = (async (url: string) => {
+      if (!String(url).includes('rainviewer')) throw new Error('network disabled in screen tests')
+      return new Response(JSON.stringify({ host: 'https://tiles.example', radar: { past: [{ time: 1790691000, path: '/v2/radar/abc' }] } }), { status: 200 })
+    }) as unknown as typeof fetch
+    render(<WeatherScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const src = (id: string) => mapInstances[0].sources.get(id) as { tiles?: string[]; attribution?: string } | undefined
+    fireEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await waitFor(() => expect(src('wx-radar')?.tiles).toEqual(['https://tiles.example/v2/radar/abc/256/{z}/{x}/{y}/2/1_1.png']))
+    expect(src('wx-radar')?.attribution).toMatch(/RainViewer/)
+    expect(document.body.textContent).toContain('radar ' + new Date(1790691000_000).toISOString().slice(11, 16) + 'Z')
+    fireEvent.click(screen.getByRole('button', { name: 'Satellite' }))
+    expect(src('wx-sat')?.tiles?.[0]).toMatch(/GOES-East_ABI_GeoColor/)
+    fireEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Satellite' }))
+    expect(src('wx-radar')).toBeUndefined()
+    expect(src('wx-sat')).toBeUndefined()
   })
 
   it('shows no legend at all rather than an unattributed one', () => {

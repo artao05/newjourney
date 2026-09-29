@@ -270,7 +270,10 @@ leaves something tested and working.
       *Accept:* tests and a browser check.
 - [ ] **10.8c Buoys and METARs on the chart.** Parsed already; a browser can't fetch them
       (NDBC and aviationweather.gov send no CORS headers). `blocked: D1`: they need the proxy.
-- [ ] **10.9 Radar, satellite and weather-chart overlays.** *Accept:* a browser check.
+- [x] **10.9 Radar and satellite overlays:** RainViewer's latest frame and GOES-East GeoColor from
+      NASA GIBS. *Accept:* a browser check.
+- [ ] **10.9b Weather-chart overlays:** OPC surface analyses and other fax charts, placed by their
+      corners on the chart, as Expedition's image manager does. *Accept:* a browser check.
 - [ ] **10.10 Ensemble display:** members, and mean ± SD. *Accept:* tests.
 - [ ] **10.11 A GRIB request builder:** area on the chart, model, parameters and
       times, with a Saildocs `mailto:` and a size estimate. *Accept:* tests.

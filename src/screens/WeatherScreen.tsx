@@ -75,6 +75,7 @@ import { WeatherFilesSheet } from '@/components/WeatherFiles'
 import { PointMeteogram } from '@/components/PointMeteogram'
 import { ObservationsSheet, type ObsStation } from '@/components/ObservationsSheet'
 import { fetchCoopsObservations, type Observation } from '@/lib/weather/observations'
+import { RADAR_INDEX, SAT_TILES, latestRadar } from '@/lib/weather/overlays'
 import { contourFeatures, type ContourField } from '@/lib/maplayers/contours'
 import { DEFAULT_CONTOURS, type ContourKind } from '@/state/store'
 import { useWeatherFiles } from '@/state/weatherFiles'
@@ -113,6 +114,8 @@ const MODES: Array<{ id: VectorMode; label: string }> = [
  * to remove a source that a layer still references.
  */
 const OWNED_LAYERS = [
+  'wx-sat',
+  'wx-radar',
   'wx-obs-pt',
   'wx-obs-label',
   'wx-contour-line',
@@ -123,7 +126,7 @@ const OWNED_LAYERS = [
   'wx-station-pt',
   'wx-station-label',
 ]
-const OWNED_SOURCES = ['wx-symbols', 'wx-station', 'wx-contours', 'wx-obs']
+const OWNED_SOURCES = ['wx-symbols', 'wx-station', 'wx-contours', 'wx-obs', 'wx-sat', 'wx-radar']
 
 export function WeatherScreen() {
   return (
@@ -153,6 +156,10 @@ function WeatherOverlay() {
   const [moreLayers, setMoreLayers] = useState(false)
   const [meteo, setMeteo] = useState<'point' | 'boat' | null>(null)
   const [obsOn, setObsOn] = useState(false)
+  const [radarOn, setRadarOn] = useState(false)
+  const [satOn, setSatOn] = useState(false)
+  const [radar, setRadar] = useState<{ tiles: string; time: number } | null>(null)
+  const [radarError, setRadarError] = useState<string | null>(null)
   const [showObsSheet, setShowObsSheet] = useState(false)
   const [obs, setObs] = useState<Record<string, Observation[]>>({})
   const [obsErrors, setObsErrors] = useState<Record<string, string>>({})
@@ -445,6 +452,42 @@ function WeatherOverlay() {
       cancelled = true
     }
   }, [])
+
+  // The radar index, when radar is on, and every ten minutes after: frames come every ten.
+  useEffect(() => {
+    if (!radarOn) return
+    let cancelled = false
+    const load = () =>
+      fetch(RADAR_INDEX)
+        .then((r) => r.json())
+        .then((j) => {
+          if (cancelled) return
+          const got = latestRadar(j)
+          setRadar(got)
+          setRadarError(got ? null : 'Radar index had no frames')
+        })
+        .catch((e) => !cancelled && setRadarError(`Radar unavailable: ${e instanceof Error ? e.message : String(e)}`))
+    void load()
+    const id = window.setInterval(load, 10 * 60_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [radarOn])
+
+  // Satellite and radar as raster layers under the contours and symbols.
+  useEffect(() => {
+    if (!map || !ready) return
+    const put = (id: string, tiles: string | null, attribution: string, opacity: number) => {
+      if (map.getLayer(id)) map.removeLayer(id)
+      if (map.getSource(id)) map.removeSource(id)
+      if (!tiles) return
+      map.addSource(id, { type: 'raster', tiles: [tiles], tileSize: 256, maxzoom: 7, attribution })
+      map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-opacity': opacity } }, 'wx-contour-line')
+    }
+    put('wx-sat', satOn ? SAT_TILES : null, 'Satellite: NASA GIBS / NOAA GOES-East', 0.85)
+    put('wx-radar', radarOn && radar ? radar.tiles : null, 'Radar: RainViewer', 0.75)
+  }, [map, ready, satOn, radarOn, radar])
 
   // Observations: fetched when switched on, and every ten minutes after.
   useEffect(() => {
@@ -849,6 +892,13 @@ function WeatherOverlay() {
               </option>
             ))}
           </select>
+          <button className={`chip${radarOn ? ' chip--good' : ''}`} aria-pressed={radarOn} onClick={() => setRadarOn((v) => !v)}>
+            Radar
+          </button>
+          {radarOn && radar && <span className="chip">radar {new Date(radar.time).toISOString().slice(11, 16)}Z</span>}
+          <button className={`chip${satOn ? ' chip--good' : ''}`} aria-pressed={satOn} onClick={() => setSatOn((v) => !v)}>
+            Satellite
+          </button>
           <button
             className={`chip${obsOn ? ' chip--good' : ''}`}
             aria-pressed={obsOn}
@@ -884,6 +934,11 @@ function WeatherOverlay() {
           )}
         </div>
 
+        {radarOn && radarError && (
+          <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
+            {radarError}
+          </div>
+        )}
         {error && (
           <div className="errbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
             {error}
