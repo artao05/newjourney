@@ -60,11 +60,13 @@ export async function grantedPort(): Promise<SerialPortLike | null> {
 export interface SerialOptions {
   onReading: (r: Partial<Reading>) => void
   onStatus?: (s: SignalKStatus, detail?: string) => void
+  /** Expedition protocol lines (`#...`) that arrive on the same port. */
+  onHashLine?: (line: string) => void
 }
 
 /** Reads NMEA lines from a port until stopped. */
 export class SerialNmeaSource {
-  readonly decoder = new NmeaDecoder()
+  readonly decoder: NmeaDecoder
   private stopped = false
   private reader: ReturnType<NonNullable<SerialPortLike['readable']>['getReader']> | null = null
 
@@ -72,7 +74,9 @@ export class SerialNmeaSource {
     private readonly port: () => Promise<SerialPortLike | null>,
     private readonly baudRate: number,
     private readonly opts: SerialOptions,
-  ) {}
+  ) {
+    this.decoder = new NmeaDecoder(opts.onHashLine)
+  }
 
   async start(): Promise<void> {
     this.opts.onStatus?.('connecting')

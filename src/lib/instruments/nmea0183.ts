@@ -303,6 +303,9 @@ export class NmeaDecoder {
   stats = { sentences: 0, badChecksum: 0, unknown: 0 }
   private buffer = ''
 
+  /** Lines that are not NMEA but Expedition's own protocol (`#...`) go here. */
+  constructor(private readonly onHashLine?: (line: string) => void) {}
+
   feed(chunk: string, now = Date.now()): Array<Partial<Reading>> {
     this.buffer += chunk
     const lines = this.buffer.split(/\r?\n/)
@@ -318,7 +321,12 @@ export class NmeaDecoder {
   }
 
   line(line: string, now = Date.now()): Partial<Reading> | null {
-    if (!line.trim().startsWith('$')) return null
+    const t = line.trim()
+    if (t.startsWith('#')) {
+      this.onHashLine?.(t)
+      return null
+    }
+    if (!t.startsWith('$')) return null
     const s = parseSentence(line)
     if (!s) {
       if (checksumFails(line)) this.stats.badChecksum++

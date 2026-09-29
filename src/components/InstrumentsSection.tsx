@@ -104,6 +104,7 @@ export function InstrumentsSection() {
         {status.detail && status.status !== 'connected' ? ` (${status.detail})` : ''}
         {status.status === 'connected' && age != null ? ` · ${fields} values, the latest ${age} s ago` : ''}
         {status.status === 'connected' && age == null ? ' · no data yet' : ''}
+        {status.status === 'connected' && status.detail ? ` · ${status.detail}` : ''}
       </p>
       <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <input

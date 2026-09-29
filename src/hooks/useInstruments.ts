@@ -16,6 +16,8 @@ import type { Reading } from '@/lib/instruments/nmea0183'
 import { boatStateFrom } from '@/lib/instruments/toBoat'
 import { InstrumentPipeline, type Derived, type PipelineSettings } from '@/lib/instruments/pipeline'
 import { NO_CALIBRATION, type Calibration } from '@/lib/instruments/calibration'
+import { actionFor, parseExpLine } from '@/lib/instruments/expProtocol'
+import { applyExpAction } from '@/state/expCommands'
 
 export type InstrumentSource =
   | { kind: 'signalk'; url: string }
@@ -57,7 +59,14 @@ export function useInstruments(
       client.start()
       stop = () => client.stop()
     } else {
-      const serial = new SerialNmeaSource(grantedPort, source.baud, { onReading, onStatus })
+      // Expedition's own commands can share the port: the countdown, line ends, marks.
+      const onHashLine = (line: string) => {
+        const p = parseExpLine(line)
+        if (p?.kind !== 'command') return
+        const said = applyExpAction(actionFor(p))
+        useStore.getState().setInstrumentStatus({ detail: said })
+      }
+      const serial = new SerialNmeaSource(grantedPort, source.baud, { onReading, onStatus, onHashLine })
       void serial.start()
       stop = () => void serial.stop()
     }

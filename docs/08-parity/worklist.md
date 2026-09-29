@@ -170,7 +170,7 @@ leaves something tested and working.
       flag. *Accept:* hook tests.
 - [x] **6.7 GPS window:** fix, HDOP and satellites when NMEA provides them. *Accept:*
       tests.
-- [ ] **6.8 Expedition's simple text protocol**, parsed and emitted. *Accept:* tests,
+- [x] **6.8 Expedition's simple text protocol**, parsed and emitted. *Accept:* tests,
       including the checksum.
 - [ ] **6.9 NMEA 2000 PGN decoding** from Actisense or YD raw formats. *Accept:*
       fixture tests. Live use is `Hardware`.
