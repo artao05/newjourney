@@ -8,16 +8,21 @@
  *   1 identification the reference time
  *   3 grid           template 3.0, a regular latitude/longitude grid
  *   4 product        template 4.0 (and 4.8, accumulations), parameter, level, forecast time
- *   5 representation template 5.0 simple packing, 5.2 complex packing, and
- *                    5.3 complex packing with spatial differencing (what GFS uses)
+ *   5 representation template 5.0 simple packing, 5.2 complex packing,
+ *                    5.3 complex packing with spatial differencing (what GFS uses),
+ *                    and 5.41 PNG
  *   6 bitmap         none, or one that marks the points with data
  *   7 data
  *
- * JPEG 2000 and PNG packing (5.40, 5.41) and GRIB1 are worklist 10.2. A message
- * this cannot read is skipped with a reason, never guessed at.
+ * Edition 1 messages go to grib1.ts. JPEG 2000 and CCSDS packing (5.40, 5.42)
+ * are not read yet. A message this
+ * cannot read is skipped with a reason, never guessed at.
  */
 
 import type { BBox, WeatherCube } from '../types'
+import { decodePng } from './png'
+import { BitReader } from './bits'
+import { readGrib1Message } from './grib1'
 
 export interface GribGrid {
   ni: number
@@ -56,7 +61,7 @@ export interface GribSkipped {
 }
 
 /** The short names this knows, by discipline, category and number. */
-const NAMES: Record<string, string> = {
+export const NAMES: Record<string, string> = {
   '0.0.0': 'TMP',
   '0.1.1': 'RH',
   '0.2.0': 'WDIR',
@@ -112,33 +117,6 @@ class Reader {
   }
 }
 
-/** Reads `bits`-wide unsigned integers from a byte array, most significant bit first. */
-class BitReader {
-  private pos = 0
-  constructor(private readonly b: Uint8Array, startByte: number) {
-    this.pos = startByte * 8
-  }
-  read(bits: number): number {
-    let x = 0
-    while (bits > 0) {
-      const avail = 8 - (this.pos & 7)
-      const take = avail < bits ? avail : bits
-      const chunk = ((this.b[this.pos >> 3] ?? 0) >> (avail - take)) & ((1 << take) - 1)
-      x = x * (1 << take) + chunk
-      bits -= take
-      this.pos += take
-    }
-    return x
-  }
-  /** Skip to the next octet boundary, as GRIB pads each block of groups. */
-  align() {
-    this.pos = Math.ceil(this.pos / 8) * 8
-  }
-  get byte() {
-    return this.pos >> 3
-  }
-}
-
 const UNIT_MS: Record<number, number> = { 0: 60_000, 1: 3_600_000, 2: 86_400_000, 10: 3 * 3_600_000, 11: 6 * 3_600_000, 12: 12 * 3_600_000, 13: 1000 }
 
 interface Packing {
@@ -166,7 +144,7 @@ interface Packing {
 function readPacking(r: Reader, o: number): Packing | string {
   const template = r.u16(o + 9)
   const base = { template, count: r.u32(o + 5), R: r.f32(o + 11), E: r.s16(o + 15), D: r.s16(o + 17), bits: r.u8(o + 19) }
-  if (template === 0) return base
+  if (template === 0 || template === 41) return base
   if (template === 2 || template === 3) {
     return {
       ...base,
@@ -192,7 +170,16 @@ function unpack(p: Packing, data: Uint8Array): Float64Array | string {
   if (!p.complex) {
     const out = new Float64Array(p.count)
     if (p.bits === 0) return out
-    const br = new BitReader(data, 0)
+    let src = data
+    if (p.template === 41) {
+      // The image's pixels, row after row, are the packed integers.
+      try {
+        src = decodePng(data).rows
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e)
+      }
+    }
+    const br = new BitReader(src, 0)
     for (let i = 0; i < p.count; i++) out[i] = br.read(p.bits)
     return out
   }
@@ -236,7 +223,7 @@ function unpack(p: Packing, data: Uint8Array): Float64Array | string {
   return out
 }
 
-/** Every message in a GRIB2 file, and the ones that could not be read, with why. */
+/** Every message in a GRIB file (edition 2, or 1), and the ones that could not be read, with why. */
 export function decodeGrib2(input: ArrayBuffer | Uint8Array): { messages: GribMessage[]; skipped: GribSkipped[] } {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input)
   const r = new Reader(bytes)
@@ -250,10 +237,17 @@ export function decodeGrib2(input: ArrayBuffer | Uint8Array): { messages: GribMe
       continue
     }
     const edition = bytes[off + 7]
+    if (edition === 1) {
+      const one = readGrib1Message(bytes, off)
+      if (one.message) messages.push(one.message)
+      else skipped.push({ offset: off, reason: one.reason ?? 'the GRIB1 message could not be read' })
+      off += Math.max(4, one.length)
+      continue
+    }
     const total = edition === 2 ? r.u64(off + 8) : 0
     if (edition !== 2 || total < 16 || off + total > bytes.length) {
-      skipped.push({ offset: off, reason: edition !== 2 ? `GRIB edition ${edition} is not read yet` : 'message runs past the end of the file' })
-      off += Math.max(4, edition === 1 ? (bytes[off + 4] << 16) | (bytes[off + 5] << 8) | bytes[off + 6] : 4)
+      skipped.push({ offset: off, reason: edition !== 2 ? `GRIB edition ${edition} is not read` : 'message runs past the end of the file' })
+      off += 4
       continue
     }
     const end = off + total

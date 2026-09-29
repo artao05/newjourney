@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { decodeGrib2, gribToCube, openGribSync } from './grib2'
 import { sampleCube } from './cube'
+import { encodePng } from './fixtures/png'
 
 /*
  * There is no real GFS file in the repo, so these build GRIB2 messages byte by
@@ -71,7 +72,7 @@ interface Field {
   grid: Grid
   /** In scan order; NaN is a point the bitmap leaves out. */
   values: number[]
-  packing: 'simple' | 'complex' | 'sd1' | 'sd2'
+  packing: 'simple' | 'complex' | 'sd1' | 'sd2' | 'png'
   D?: number
   gridTemplate?: number
   dataTemplate?: number
@@ -116,7 +117,21 @@ function message(f: Field): number[] {
 
   let s5: number[]
   let s7: number[]
-  if (f.packing === 'simple') {
+  if (f.packing === 'png') {
+    // NCEP's encoder rounds the width up to whole octets and makes an image one row per grid row.
+    const need = bitsFor(z.reduce((a, b) => Math.max(a, b), 0))
+    const bits = need <= 8 ? 8 : need <= 16 ? 16 : need <= 24 ? 24 : 32
+    const bpp = bits / 8
+    const width = z.length === g.ni * g.nj ? g.ni : z.length
+    const height = z.length / width
+    const rows = new Uint8Array(z.length * bpp)
+    z.forEach((v, i) => {
+      for (let k = 0; k < bpp; k++) rows[i * bpp + k] = Math.floor(v / 256 ** (bpp - 1 - k)) & 255
+    })
+    const [depth, colour] = bits === 8 ? [8, 0] : bits === 16 ? [16, 0] : bits === 24 ? [8, 2] : [8, 6]
+    s5 = section(5, [...u32(z.length), ...u16(41), ...f32(R), ...s16(0), ...s16(D), bits, 0])
+    s7 = section(7, [...encodePng(width, height, depth, colour, rows, bpp)])
+  } else if (f.packing === 'simple') {
     const bits = bitsFor(z.reduce((a, b) => Math.max(a, b), 0))
     s5 = section(5, [...u32(z.length), ...u16(f.dataTemplate ?? 0), ...f32(R), ...s16(0), ...s16(D), bits, 0])
     const b = new Bits()
@@ -226,7 +241,7 @@ describe('GRIB2 decoder', () => {
     for (let i = 0; i < values.length; i++) expect(m.values[i]).toBeCloseTo(Math.round(values[i] * 100) / 100, 4)
   })
 
-  it.each(['complex', 'sd1', 'sd2'] as const)('reads complex packing (%s) to the packed precision', (packing) => {
+  it.each(['complex', 'sd1', 'sd2', 'png'] as const)('reads %s packing to the packed precision', (packing) => {
     const g = gfsGrid(50, 280, 23, 17, 0.5)
     const values = over(g, smooth)
     const { messages, skipped } = decodeGrib2(file(message({ category: 3, number: 1, levelType: 101, grid: g, values, packing, D: 1 })))
@@ -260,6 +275,21 @@ describe('GRIB2 decoder', () => {
     }
   })
 
+  it.each([
+    ['8-bit grey', 2, 0],
+    ['16-bit grey', 2, 2],
+    ['24-bit colour', 2, 4],
+    ['32-bit colour', 2, 7],
+  ])('reads PNG packing in %s pixels, with a bitmap', (_label, scale, D) => {
+    const g = gfsGrid(44, 290, 9, 7, 0.5)
+    const values = over(g, (lat, lon) => (lat > 43 && lon < 291 ? NaN : scale * (lat - 40) + (lon - 290) / 3 + (D > 4 ? 100 : 0)))
+    const m = decodeGrib2(file(message({ category: 3, number: 1, grid: g, values, packing: 'png', D }))).messages[0]
+    for (let i = 0; i < values.length; i++) {
+      if (Number.isNaN(values[i])) expect(m.values[i]).toBeNaN()
+      else expect(m.values[i]).toBeCloseTo(Math.round(values[i] * 10 ** D) / 10 ** D, Math.min(D, 4))
+    }
+  })
+
   it('reads a constant field packed in no bits at all', () => {
     const g = gfsGrid(40, 290, 3, 2, 1)
     const m = decodeGrib2(file(message({ category: 2, number: 22, grid: g, values: [7, 7, 7, 7, 7, 7], packing: 'simple' }))).messages[0]
@@ -286,7 +316,7 @@ describe('GRIB2 decoder', () => {
     expect(skipped.map((s) => s.reason)).toEqual([
       'data representation template 5.40 is not read yet',
       'grid template 3.30 is not read yet',
-      'GRIB edition 1 is not read yet',
+      'a GRIB1 message is too short or runs past the end of the file',
     ])
   })
 

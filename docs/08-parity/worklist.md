@@ -242,8 +242,11 @@ leaves something tested and working.
       may I download a small GFS subset from the NOMADS filter (one run, 10 m wind and
       MSLP, a 5° box, about 20 KB) and commit it as a test fixture? Or drop one in
       `src/lib/weather/fixtures/`.
-- [ ] **10.2 GRIB2 JPEG 2000 and PNG packing**, then **GRIB1**. *Accept:* fixture
-      tests.
+- [x] **10.2 GRIB2 PNG packing**, then **GRIB1**. *Accept:* fixture tests. *PNG with a
+      small inflate of our own (src/lib/inflate.ts); GRIB1 with NCEP and ECMWF tables.*
+- [ ] **10.2b GRIB2 JPEG 2000 and CCSDS packing** (5.40, used by NAM and Canada's GEM;
+      5.42, used by ECMWF open data and DWD). Each needs a decoder of its own, a few
+      hundred lines for CCSDS and more for JPEG 2000. *Accept:* fixture tests.
 - [ ] **10.3 Open GRIB files** by picker or drag-drop, several at once, with a
       parameter catalogue. *Accept:* tests and a browser check.
 - [ ] **10.4 Merge sources** in production: StackedField, best resolution first, per
