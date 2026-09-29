@@ -332,6 +332,14 @@ export interface StartNumbers {
    */
   timeToLaylinePS: Seconds | null
   timeToLaylineSS: Seconds | null
+  /**
+   * The top corner: where the pin's port-tack course and the committee boat's
+   * starboard-tack course meet above the line, the point both ends lay alike.
+   * The time to sail there, and that time less the time to gun (positive: late).
+   */
+  topCorner: LatLon | null
+  timeToCornerS: Seconds | null
+  cornerBurnS: Seconds | null
   /** True once the bow is over the line before the gun. */
   ocs: boolean
 }

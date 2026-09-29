@@ -418,7 +418,8 @@ describe('StartCanvas', () => {
     )
     expect(ctx.styles).toContain('rgba(234,242,250,0.7)')
     const clocks = ctx.calls.filter((c) => c.op === 'fillText' && /^-?\d+:\d\d$/.test(String(c.args[0])))
-    expect(clocks).toHaveLength(2)
+    // One under each end, and the top corner's when it is on screen.
+    expect(clocks.length).toBeGreaterThanOrEqual(2)
     const rings = ctx.calls.filter((c) => c.op === 'arc').map((c) => c.args[2] as number)
     const r2 = rings.find((r, i) => rings[i + 1] === 2 * r && rings[i + 2] === 3 * r)
     expect(r2).toBeGreaterThan(0)
@@ -436,6 +437,15 @@ describe('StartCanvas', () => {
     const arcs = ctx.calls.filter((c) => c.op === 'arc').map((c) => c.args)
     const pair = arcs.findIndex((a, k) => arcs[k + 1] && a[2] === arcs[k + 1][2] && a[0] !== arcs[k + 1][0])
     expect(pair).toBeGreaterThanOrEqual(0)
+  })
+
+  it('marks the top corner with its time, and its time to burn beneath', () => {
+    const state = stateOf()
+    const numbers = { ...numbersFor(LINE, state, WIND), topCorner: { lat: LINE.port!.lat + 0.0004, lon: MID.lon }, timeToCornerS: 95, cornerBurnS: -25 }
+    render(<StartCanvas line={LINE} state={state} wind={WIND} numbers={numbers} boat={BOAT} track={[]} secondsSinceGun={null} />)
+    const texts = ctx.calls.filter((c) => c.op === 'fillText').map((c) => String(c.args[0]))
+    expect(texts).toContain('1:35')
+    expect(texts).toContain('+0:25')
   })
 
   it('draws no turn circles for a boat with no way on', () => {

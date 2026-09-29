@@ -67,6 +67,9 @@ const EMPTY_START_NUMBERS: StartNumbers = {
   boatToPinS: null,
   timeToLaylinePS: null,
   timeToLaylineSS: null,
+  topCorner: null,
+  timeToCornerS: null,
+  cornerBurnS: null,
   ocs: false,
 }
 

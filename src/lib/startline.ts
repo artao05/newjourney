@@ -473,6 +473,9 @@ function emptyStart(): StartNumbers {
     boatToPinS: null,
     timeToLaylinePS: null,
     timeToLaylineSS: null,
+    topCorner: null,
+    timeToCornerS: null,
+    cornerBurnS: null,
     ocs: false,
   }
 }
@@ -638,6 +641,16 @@ export function computeStart(i: StartInputs): StartNumbers {
     }
     out.timeToLaylinePS = layTime(pxy, toPin, tg.upTwa)
     out.timeToLaylineSS = layTime(sxy, lineBrg, -tg.upTwa)
+
+    // The top corner, where the two ends' close-hauled courses meet up the course:
+    // port tack out of the pin and starboard out of the committee boat converge.
+    const apex = rayIntersect(pxy, fromPolar(courseFor(wind.twd, -tg.upTwa), 1), sxy, fromPolar(courseFor(wind.twd, tg.upTwa), 1))
+    if (apex && apex.t > 0 && apex.s > 0) {
+      out.topCorner = frame.toLatLon(apex.point)
+      // Up the course by construction, so a beat at target VMG, as the simple times are.
+      out.timeToCornerS = simpleTimeS(bow, out.topCorner, wind, lat)
+      if (out.timeToCornerS != null && out.timeToGunS != null) out.cornerBurnS = out.timeToCornerS - out.timeToGunS
+    }
   }
   if (approaches.ends) {
     if (out.timeToPortEndS !== null) candidates.push(out.timeToPortEndS)

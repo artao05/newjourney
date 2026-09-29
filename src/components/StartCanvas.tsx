@@ -425,6 +425,29 @@ function render(
     if (tp) ctx.fillText(tp, a.px, a.py + 32)
     if (ts) ctx.fillText(ts, b.px, b.py + 32)
   }
+  // The top corner, with the time to it and, beneath, its time to burn.
+  if (!declutter && numbers.topCorner) {
+    const c = S(rot(frame.toXY(numbers.topCorner)))
+    if (c.px >= 0 && c.px <= w && c.py >= 0 && c.py <= h) {
+      ctx.fillStyle = 'rgba(234,242,250,0.8)'
+      ctx.beginPath()
+      ctx.moveTo(c.px, c.py - 5)
+      ctx.lineTo(c.px + 5, c.py)
+      ctx.lineTo(c.px, c.py + 5)
+      ctx.lineTo(c.px - 5, c.py)
+      ctx.closePath()
+      ctx.fill()
+      ctx.font = '600 10px system-ui, sans-serif'
+      ctx.textAlign = 'center'
+      const t = numbers.timeToCornerS != null ? fmtClock(numbers.timeToCornerS) : null
+      if (t) ctx.fillText(t, c.px, c.py - 9)
+      if (numbers.cornerBurnS != null) {
+        const spare = -numbers.cornerBurnS
+        ctx.fillStyle = spare >= 0 ? 'rgba(53,208,127,0.85)' : 'rgba(255,77,77,0.85)'
+        ctx.fillText(`${spare >= 0 ? '+' : '−'}${fmtClock(Math.abs(spare))}`, c.px, c.py + 16)
+      }
+    }
+  }
   if (view.magnified) {
     ctx.font = '700 10px system-ui, sans-serif'
     ctx.fillStyle = '#ffd54a'

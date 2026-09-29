@@ -299,6 +299,24 @@ describe('pinch times, gun speed, running the line, and time to the laylines', (
   })
 })
 
+describe('the top corner', () => {
+  it('is where port tack out of the pin meets starboard out of the committee boat', () => {
+    // A square 100 m line in a northerly, targets at 40°: the corner is 50/tan 40° m up the middle.
+    const r = computeStart({ line: lineOf(100), wind: windOf(0), boat: boatOf(), lattice: fakeLattice(), now: NOW, state: stateOf() })
+    const up = 50 / Math.tan((40 * Math.PI) / 180)
+    const expected = off(0, up)
+    expect(r.topCorner!.lat).toBeCloseTo(expected.lat, 7)
+    expect(r.topCorner!.lon).toBeCloseTo(expected.lon, 7)
+    expect(r.timeToCornerS).toBeGreaterThan(0)
+    expect(r.cornerBurnS).toBeCloseTo(r.timeToCornerS! - 60, 6)
+  })
+
+  it('has none without a wind or a polar', () => {
+    const r = computeStart({ line: lineOf(100), wind: null, boat: boatOf(), now: NOW, state: stateOf() })
+    expect(r.topCorner).toBeNull()
+  })
+})
+
 describe('the turning radius', () => {
   it('is speed over the rate of turn', () => {
     // 6 kn is 3.087 m/s; the default model turns at 9.06°/s there: 19.5 m.

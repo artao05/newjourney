@@ -134,7 +134,7 @@ leaves something tested and working.
 - [x] **5.6a Start line adjustments** (from 5.6): an end set by range and bearing, nudge up the wind, swap ends, and approach options. *Done.*
 - [x] **5.6b Start canvas extras** (from 5.6): heading apart from COG, the time to each end, boat-length rings, and a magnified end. *Done.*
 - [x] **5.6c Turn circles** (from 5.6): either side of the bow, radius from the rate-of-turn model. *Done.*
-- [ ] **5.6 Start display extras:** the top-corner time with its time to burn. *Accept:* canvas tests.
+- [x] **5.6 Start display extras:** the top-corner time with its time to burn. *Accept:* canvas tests. *Done as a best reading; to check against Expedition when D7 allows.*
 - [x] **5.7a Gun distance and stern below the line** (from 5.7): both start channels, from the bow dead-reckoned to the gun and the stern one hull length back. *Done.*
 - [x] **5.7b Speed to the ends, start targets and the simple times** (from 5.7). *Done.*
 - [x] **5.7c Speed on each tack** (from 5.7), bearing away when over the line early. *Done.*
