@@ -178,6 +178,16 @@ describe('GRIB1', () => {
     expect(c.data.prmsl[4]).toBeCloseTo(1012, 4)
   })
 
+  it('reads the wave partitions of NCEP Table 2 and ECMWF table 140 alike', () => {
+    const g = { la1: 44, lo1: -70, ni: 2, nj: 2, d: 1 }
+    const w = (param: number, v: number, centre = 7, table = 2) => grib1({ ...g, centre, table, param, levelType: 1, values: over(g, () => v), D: 1 })
+    const ncep = decodeGrib2(new Uint8Array([...w(100, 2), ...w(102, 1), ...w(103, 4), ...w(105, 1.5), ...w(104, 90), ...w(107, 95), ...w(108, 9)])).messages
+    expect(ncep.map((m) => m.name)).toEqual(['HTSGW', 'WVHGT', 'WVPER', 'SWELL', 'SWDIR', 'DIRPW', 'PERPW'])
+    const ec = decodeGrib2(new Uint8Array([...w(229, 2, 98, 140), ...w(230, 95, 98, 140), ...w(237, 1.5, 98, 140), ...w(238, 90, 98, 140)])).messages
+    expect(ec.map((m) => m.name)).toEqual(['HTSGW', 'DIRPW', 'SWELL', 'SWDIR'])
+    expect(gribToCube(ec).cube!.params).toEqual(['hs', 'wdir', 'swh', 'swd'])
+  })
+
   it('skips what it does not read, with the reason, and goes on to the next message', () => {
     const g = { la1: 50, lo1: -5, ni: 3, nj: 3, d: 1 }
     const vals = over(g, () => 1)

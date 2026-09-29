@@ -269,3 +269,18 @@ describe('GRIB display parameters', () => {
     expect(c.data.rain[0]).toBeCloseTo(1.8, 3)
   })
 })
+
+describe('GRIB2 wave partitions', () => {
+  it('reads the combined sea with the primary wave, and the wind sea and swell apart (Table 4.2-10-0)', () => {
+    const g = gfsGrid(44, 290, 3, 2, 1)
+    const wave = (number: number, v: number) => message({ discipline: 10, category: 0, number, levelType: 1, grid: g, values: over(g, () => v), packing: 'simple', D: 2 })
+    const { messages } = decodeGrib2(file(wave(3, 2.5), wave(4, 200), wave(5, 1.1), wave(6, 4.5), wave(7, 110), wave(8, 2.1), wave(9, 11), wave(10, 120), wave(11, 10.5)))
+    expect(messages.map((m) => m.name)).toEqual(['HTSGW', 'WVDIR', 'WVHGT', 'WVPER', 'SWDIR', 'SWELL', 'SWPER', 'DIRPW', 'PERPW'])
+    const c = gribToCube(messages).cube!
+    const at = (p: string) => Math.round(c.data[p][0] * 100) / 100
+    expect(Object.fromEntries(['hs', 'wdir', 'wper', 'wwh', 'wwd', 'wwp', 'swh', 'swd', 'swp'].map((p) => [p, at(p)]))).toEqual({
+      hs: 2.5, wdir: 120, wper: 10.5, wwh: 1.1, wwd: 200, wwp: 4.5, swh: 2.1, swd: 110, swp: 11,
+    })
+  })
+})
+

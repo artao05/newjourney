@@ -37,7 +37,13 @@ const TABLE2: Record<number, [number, number, number, string]> = {
   80: [10, 3, 0, 'WTMP'],
   100: [10, 0, 3, 'HTSGW'],
   101: [10, 0, 4, 'WVDIR'],
-  103: [10, 0, 5, 'WVPER'],
+  102: [10, 0, 5, 'WVHGT'],
+  103: [10, 0, 6, 'WVPER'],
+  104: [10, 0, 7, 'SWDIR'],
+  105: [10, 0, 8, 'SWELL'],
+  106: [10, 0, 9, 'SWPER'],
+  107: [10, 0, 10, 'DIRPW'],
+  108: [10, 0, 11, 'PERPW'],
   180: [0, 2, 22, 'GUST'],
 }
 /** ECMWF's parameters, with the level they imply when the product says "surface". */
@@ -46,9 +52,16 @@ const ECMWF: Record<string, [number, number, number, string, number?, number?]> 
   '128.166': [0, 2, 3, 'VGRD', 103, 10],
   '128.151': [0, 3, 1, 'PRMSL', 101, 0],
   '128.49': [0, 2, 22, 'GUST', 103, 10],
+  // ECMWF's wave table: mean wave direction and period stand in for the primary wave's.
   '140.229': [10, 0, 3, 'HTSGW'],
-  '140.230': [10, 0, 4, 'WVDIR'],
-  '140.232': [10, 0, 5, 'WVPER'],
+  '140.230': [10, 0, 10, 'DIRPW'],
+  '140.232': [10, 0, 11, 'PERPW'],
+  '140.234': [10, 0, 5, 'WVHGT'],
+  '140.235': [10, 0, 4, 'WVDIR'],
+  '140.236': [10, 0, 6, 'WVPER'],
+  '140.237': [10, 0, 8, 'SWELL'],
+  '140.238': [10, 0, 7, 'SWDIR'],
+  '140.239': [10, 0, 9, 'SWPER'],
 }
 
 /** GRIB1 level types to GRIB2's (Table 3 to Table 4.5), and how to scale the value. */

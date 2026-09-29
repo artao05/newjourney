@@ -121,6 +121,10 @@ export const PARAM_SCALE: Readonly<Record<string, number>> = {
   hs: 0.01, // metres, ±163 m
   wdir: 0.1, // degrees, 0..3600
   wper: 0.01, // seconds, ±163 s
+  // The swell and wind-sea partitions, like the combined sea.
+  swd: 0.1,
+  wwd: 0.1,
+  rh: 0.1, // percent
   uo: 0.001, // knots, ±16 kn; currents are small, so buy resolution
   vo: 0.001,
 }
