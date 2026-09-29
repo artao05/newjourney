@@ -30,6 +30,7 @@ import { SHORTCUT_HELP } from '@/lib/shortcuts'
 import { ConfigError, exportConfig, parseConfig } from '@/lib/config'
 import { InstrumentsSection } from '@/components/InstrumentsSection'
 import { CalibrationSection } from '@/components/CalibrationSection'
+import { GpsSection } from '@/components/GpsSection'
 
 /**
  * How to name the tide station on the venue panel.
@@ -438,6 +439,7 @@ export function SetupScreen() {
 
         <InstrumentsSection />
         <CalibrationSection />
+        <GpsSection />
 
         <h2>Wind</h2>
         <div className="seg" style={{ marginBottom: 10 }}>

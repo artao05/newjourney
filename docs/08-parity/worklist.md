@@ -168,7 +168,7 @@ leaves something tested and working.
       correct it with an offset. *Accept:* tests.
 - [x] **6.6 Phone heading and heel** from DeviceOrientation, with an honest quality
       flag. *Accept:* hook tests.
-- [ ] **6.7 GPS window:** fix, HDOP and satellites when NMEA provides them. *Accept:*
+- [x] **6.7 GPS window:** fix, HDOP and satellites when NMEA provides them. *Accept:*
       tests.
 - [ ] **6.8 Expedition's simple text protocol**, parsed and emitted. *Accept:* tests,
       including the checksum.

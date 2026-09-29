@@ -66,6 +66,7 @@ function simulated(twa = 45, lineAhead = false): SnapshotInputs {
     instruments: {
       awa: 32, aws: 15.1, hdop: 0.9, depthM: 12.4, waterTempC: 17.5, airTempC: 21, baroHpa: 1013.2,
       humidityPct: 64, pitch: 1.5, rudder: -3, logNm: 1234.5, tripNm: 12.3, mastAngle: 22,
+      altitudeM: 3, fixQuality: 2, utc: Date.UTC(2026, 8, 29, 10),
     },
     // And what the pipeline made of them.
     derived: {

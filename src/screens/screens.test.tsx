@@ -975,6 +975,29 @@ describe('Setup connects to the instruments', () => {
     expect(within(section).getByLabelText('Phone sensors').textContent).toMatch(/No orientation/)
   })
 
+  it('shows the GPS: only an accuracy from a phone, the fix, satellites and HDOP from NMEA', () => {
+    emptyStore()
+    useStore.getState().setBoatState({
+      t: Date.now(), position: { lat: 43.66, lon: -70.25 }, cog: 90, sog: 5, accuracyM: 6, heading: null, bsp: null, heelDeg: null,
+    })
+    const { unmount } = render(<SetupScreen />)
+    const phone = screen.getByRole('table', { name: 'GPS status' }).textContent!
+    expect(phone).toMatch(/This device's GPS/)
+    expect(phone).toMatch(/Estimated error6 m/)
+    expect(phone).not.toMatch(/HDOP/)
+    unmount()
+    useStore.setState({
+      instruments: { ...useStore.getState().instruments, signalKOn: true },
+      instrumentReading: { fixQuality: 2, satellites: 9, hdop: 1.1, altitudeM: 4 },
+    })
+    render(<SetupScreen />)
+    const nmea = screen.getByRole('table', { name: 'GPS status' }).textContent!
+    expect(nmea).toMatch(/SourceSignal K/)
+    expect(nmea).toMatch(/Fixdifferential \(DGPS\)/)
+    expect(nmea).toMatch(/Satellites9/)
+    expect(nmea).toMatch(/HDOP1\.1/)
+  })
+
   it('offers the instruments as a wind source', () => {
     emptyStore()
     render(<SetupScreen />)
