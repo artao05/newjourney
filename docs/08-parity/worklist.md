@@ -151,7 +151,7 @@ leaves something tested and working.
 
 ## M6 — Instruments
 
-- [ ] **6.1 NMEA 0183 parser.** Checksum, plus RMC, GGA, GLL, VTG, HDG/HDM/HDT, MWV,
+- [x] **6.1 NMEA 0183 parser.** Checksum, plus RMC, GGA, GLL, VTG, HDG/HDM/HDT, MWV,
       MWD, VHW, VLW, DPT/DBT, MTW, MDA, XDR, RSA, ROT, ZDA, RMB, APB and XTE.
       *Accept:* fixture tests.
 - [ ] **6.2 Signal K client.** WebSocket delta stream into boat state and channels,
