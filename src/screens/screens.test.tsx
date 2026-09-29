@@ -2965,6 +2965,34 @@ describe('the Setup screen does not claim a polar it has not loaded', () => {
 })
 
 describe('the stripchart', () => {
+  it('analyses the day: its tacks and what they cost, a summary, and the best 24 hours', async () => {
+    emptyStore()
+    const store = new MemoryLogStore()
+    const T0 = new Date(2026, 8, 29, 10, 0, 0).getTime()
+    // Twenty minutes beating at VMG 5 kn, a tack at ten that drops it to 2 kn for 10 s, moving north at 6 kn.
+    await store.append(
+      '2026-09-29',
+      Array.from({ length: 1200 }, (_, i) => ({
+        t: T0 + i * 1000,
+        v: { twa: i < 600 ? 42 : -42, vmg: i >= 600 && i < 610 ? 2 : 5, sog: 6, tws: 12, latitude: 43.6 + (i * 6) / 3600 / 60, longtitude: -70.2 },
+      })),
+    )
+    setLogStore(store)
+    try {
+      useStore.setState({ strip: { panes: ['sog'], spanMin: 15 } })
+      render(<StripchartScreen />)
+      fireEvent.change(screen.getByLabelText('Log day'), { target: { value: '2026-09-29' } })
+      const table = await screen.findByRole('table', { name: 'Tacks and gybes' })
+      const rows = within(table).getAllByRole('row').slice(1).map((r) => [...r.querySelectorAll('td')].slice(1).map((td) => td.textContent))
+      expect(rows).toEqual([['tack', '15', '6']])
+      expect(screen.getByRole('table', { name: 'Day summary' }).textContent).toMatch(/0h 20m, 2\.0 nm/)
+      fireEvent.click(screen.getByRole('button', { name: 'BEST 24 H RUN' }))
+      await waitFor(() => expect(screen.getByLabelText('Best 24-hour run').textContent).toMatch(/^2\.0 nm/))
+    } finally {
+      setLogStore(null)
+    }
+  })
+
   it('draws the day’s log a pane a channel, and compares two wanded sections', async () => {
     emptyStore()
     const store = new MemoryLogStore()

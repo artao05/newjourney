@@ -14,6 +14,7 @@ import { useStore } from '@/state/store'
 import { logStore } from '@/lib/logging/idbStore'
 import { dayOf, type LogRow } from '@/lib/logging/logger'
 import { meanBetween, sectionDelta, series, valueRange } from '@/lib/logging/strip'
+import { bestRun, findManoeuvres, performanceReport, type BestRun } from '@/lib/logging/analysis'
 import { CHANNELS } from '@/lib/channels/catalogue'
 import { useTick } from '@/hooks/useSensors'
 
@@ -285,6 +286,77 @@ export function StripchartScreen() {
           </select>
         </div>
       )}
+      <Analysis rows={rows} days={days} />
     </div>
+  )
+}
+
+const n1 = (v: number | null, dp = 1) => (v == null ? '—' : v.toFixed(dp))
+const clock = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+
+/** The day's log in numbers: a summary, each tack and gybe and its cost, and the best 24 hours. */
+function Analysis({ rows, days }: { rows: LogRow[]; days: string[] }) {
+  const report = useMemo(() => (rows.length > 1 ? performanceReport(rows) : null), [rows])
+  const man = useMemo(() => findManoeuvres(rows), [rows])
+  const [best, setBest] = useState<BestRun | null | 'none'>(null)
+  const [busy, setBusy] = useState(false)
+  if (!report) return null
+  const h = (s: number) => `${Math.floor(s / 3600)}h ${String(Math.round((s % 3600) / 60)).padStart(2, '0')}m`
+  return (
+    <section aria-label="Analysis" className="strip-block">
+      <h2>Analysis</h2>
+      <table className="targets" aria-label="Day summary">
+        <tbody>
+          <tr><td>Logged</td><td>{h(report.durationS)}, {n1(report.distanceNm)} nm</td></tr>
+          <tr><td>SOG</td><td>{n1(report.meanSog)} kn mean, {n1(report.maxSog)} kn best</td></tr>
+          <tr><td>TWS</td><td>{n1(report.meanTws)} kn mean</td></tr>
+          <tr><td>Polar, VMG</td><td>{n1(report.meanPolarPct, 0)} %, {n1(report.meanVmgPct, 0)} %</td></tr>
+          <tr><td>Upwind, reaching, downwind</td><td>{n1(report.upwindPct, 0)} %, {n1(report.reachingPct, 0)} %, {n1(report.downwindPct, 0)} %</td></tr>
+          <tr><td>Tacks, gybes</td><td>{report.tacks} ({n1(report.meanTackLossS, 0)} s each), {report.gybes} ({n1(report.meanGybeLossS, 0)} s each)</td></tr>
+        </tbody>
+      </table>
+      {man.length > 0 && (
+        <table className="targets" aria-label="Tacks and gybes">
+          <thead>
+            <tr><th style={{ textAlign: 'left' }}>Time</th><th>Kind</th><th>Lost m</th><th>Lost s</th></tr>
+          </thead>
+          <tbody>
+            {man.map((m) => (
+              <tr key={m.t}>
+                <td>{clock(m.t)}</td>
+                <td style={{ textAlign: 'center' }}>{m.kind}</td>
+                <td style={{ textAlign: 'center' }}>{n1(m.lossM, 0)}</td>
+                <td style={{ textAlign: 'center' }}>{n1(m.lossS, 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="note">A tack or gybe's cost is the distance made good lost against the VMG sailed steadily before it, over a minute around it.</p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          className="btn btn--sm btn--ghost"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true)
+            try {
+              // Every day logged, joined in order: a 24-hour run crosses midnight.
+              const all: LogRow[] = []
+              for (const d of [...days].sort()) all.push(...(await logStore().read(d)))
+              setBest(bestRun(all) ?? 'none')
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          BEST 24 H RUN
+        </button>
+        {best && (
+          <span aria-label="Best 24-hour run">
+            {best === 'none' ? 'No positions logged.' : `${best.nm.toFixed(1)} nm, ${new Date(best.from).toLocaleString()} to ${new Date(best.to).toLocaleString()}`}
+          </span>
+        )}
+      </div>
+    </section>
   )
 }

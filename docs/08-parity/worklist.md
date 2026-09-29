@@ -424,9 +424,12 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       P1-159, P4-172, P4-174). *Accept:* tests.
       *Situation boxes cover upwind, reaching, downwind and prestart; MOB, timer and tack are
       still to do in P4-172.*
-- [ ] **15.6 Log analysis:** tack and gybe analysis, the performance report, the best
+- [x] **15.6 Log analysis:** tack and gybe analysis, the performance report, the best
       24-hour run, a track point to the stripchart (P1-153, P1-152, P1-239, P1-272).
       *Accept:* tests against a logged session.
+      *Analysis, the summary and the best 24 hours are in (Stripchart → Analysis). Still to do: the
+      live Tack/gybe loss channels, and a track point to the stripchart (P1-272), which waits on our
+      own track being drawn on the chart.*
 - [ ] **15.7 Stripchart:** sample rate, axis behaviour, a second trace per pane,
       configuration files (P4-206, P4-208, P4-215, P4-209). *Accept:* tests.
 - [ ] **15.8 Routing views:** several optimum routes on screen, stepping through the
