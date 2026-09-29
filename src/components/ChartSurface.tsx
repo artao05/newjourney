@@ -31,6 +31,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useStore } from '@/state/store'
 import { PILOT_VENUE } from '@/data/venues'
 import { MODELS, fetchWindCube, type ModelId } from '@/lib/weather/openmeteo'
+import { activeFileCube, looksLikeGrib, openWeatherFiles, useWeatherFiles } from '@/state/weatherFiles'
 import { ParticleLayer } from '@/lib/maplayers/particleLayer'
 import { ScalarLayer } from '@/lib/maplayers/scalarLayer'
 import { barbToImageData, buildBarbSprites } from '@/lib/maplayers/barbs'
@@ -103,7 +104,10 @@ interface ChartValue {
   scalar: ScalarLayer | null
   particles: ParticleLayer | null
 
+  /** What the chart shows: a ticked GRIB file if there is one, else the downloaded model. */
   cube: WeatherCube | null
+  /** The GRIB file the cube came from, or null for the downloaded model. */
+  fileName: string | null
   model: ModelId
   setModel(m: ModelId): void
   modelLabel: string
@@ -308,7 +312,18 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
     )
   }, [map, ready, boatState])
 
-  const modelLabel = MODELS.find((m) => m.id === model)?.label ?? model
+  // A ticked GRIB file takes over from the download, as long as it is ticked.
+  const files = useWeatherFiles((s) => s.files)
+  const fromFile = useMemo(() => activeFileCube(files), [files])
+  const shown = fromFile?.cube ?? cube
+  const fileName = fromFile?.name ?? null
+  useEffect(() => {
+    if (!fromFile) return
+    const c = fromFile.cube
+    setT((prev) => Math.min(Math.max(prev, c.t0), c.t0 + (c.nt - 1) * c.dtMs))
+  }, [fromFile])
+
+  const modelLabel = fileName ?? MODELS.find((m) => m.id === model)?.label ?? model
 
   const value = useMemo<ChartValue>(
     () => ({
@@ -316,7 +331,8 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
       ready,
       scalar,
       particles,
-      cube,
+      cube: shown,
+      fileName,
       model,
       setModel,
       modelLabel,
@@ -325,17 +341,30 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
       t,
       setT,
     }),
-    [map, ready, scalar, particles, cube, model, modelLabel, busy, error, t],
+    [map, ready, scalar, particles, shown, fileName, model, modelLabel, busy, error, t],
   )
 
   return (
     <ChartContext.Provider value={value}>
-      <div className="screen screen--flush" style={{ position: 'relative' }}>
+      <div
+        className="screen screen--flush"
+        style={{ position: 'relative' }}
+        // GRIB files dropped anywhere on the chart are opened, several at once.
+        onDragOver={(e) => {
+          if (e.dataTransfer?.types?.includes('Files')) e.preventDefault()
+        }}
+        onDrop={(e) => {
+          const files = [...(e.dataTransfer?.files ?? [])].filter((f) => looksLikeGrib(f.name))
+          if (!files.length) return
+          e.preventDefault()
+          void openWeatherFiles(files)
+        }}
+      >
         <div ref={containerRef} className="map" />
 
         {children}
 
-        {cube && showTimeline && (
+        {shown && showTimeline && (
           <div
             style={{
               position: 'absolute',
@@ -349,9 +378,9 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
             }}
           >
             <Timeline
-              t0={cube.t0}
-              dtMs={cube.dtMs}
-              nt={cube.nt}
+              t0={shown.t0}
+              dtMs={shown.dtMs}
+              nt={shown.nt}
               value={t}
               onChange={setT}
               playing={playing}

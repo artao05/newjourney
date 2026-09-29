@@ -146,6 +146,8 @@ import { RaceScreen } from './RaceScreen'
 import { SetupScreen, tideStationLabel } from './SetupScreen'
 import { StripchartScreen } from './StripchartScreen'
 import { WeatherScreen } from './WeatherScreen'
+import { file, gfsGrid, message, over } from '@/lib/weather/fixtures/grib2'
+import { openWeatherFiles, useWeatherFiles } from '@/state/weatherFiles'
 import { RouteScreen, exploredFC, isochroneFC, keptFC, sensitivityFC } from './RouteScreen'
 import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
 import { alternatingIndex } from '@/components/NumberBoxes'
@@ -760,6 +762,25 @@ describe('the Weather screen states its provenance', () => {
     expect(text).toContain('Depth')
     expect(text).toContain('Current')
     expect(text).not.toMatch(/Wave height/i)
+  })
+
+  it('shows a ticked GRIB file instead of the download, and says which', async () => {
+    const g = gfsGrid(44, 289, 5, 4, 0.5)
+    const bytes = file(
+      message({ category: 2, number: 2, levelType: 103, levelValue: 10, grid: g, values: over(g, () => 6), packing: 'simple' }),
+      message({ category: 2, number: 3, levelType: 103, levelValue: 10, grid: g, values: over(g, () => -1), packing: 'simple' }),
+    )
+    await openWeatherFiles([new File([bytes], 'saildocs.grb2')])
+    try {
+      render(<WeatherScreen />)
+      expect(screen.getByRole('button', { name: 'GRIB files (1)' })).toBeTruthy()
+      expect(document.querySelector('select')!.disabled).toBe(true)
+      expect(document.body.textContent).toContain('saildocs.grb2')
+      fireEvent.click(screen.getByRole('button', { name: 'GRIB files (1)' }))
+      expect(screen.getByRole('dialog', { name: 'Weather files' }).textContent).toContain('UGRD')
+    } finally {
+      act(() => useWeatherFiles.getState().clear())
+    }
   })
 
   it('shows no legend at all rather than an unattributed one', () => {

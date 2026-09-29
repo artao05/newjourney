@@ -67,6 +67,8 @@ import type { LayerSpec, VectorMode } from '@/lib/maplayers/types'
 import type { WeatherCube } from '@/lib/types'
 import { useStore } from '@/state/store'
 import { fmtLength } from '@/lib/units'
+import { WeatherFilesSheet } from '@/components/WeatherFiles'
+import { useWeatherFiles } from '@/state/weatherFiles'
 
 const MODES: Array<{ id: VectorMode; label: string }> = [
   { id: 'particles', label: 'Streamlines' },
@@ -98,8 +100,10 @@ export function WeatherScreen() {
 }
 
 function WeatherOverlay() {
-  const { map, ready, scalar, particles, cube, model, setModel, modelLabel, busy, error, t } =
+  const { map, ready, scalar, particles, cube, fileName, model, setModel, modelLabel, busy, error, t } =
     useChart()
+  const fileCount = useWeatherFiles((s) => s.files.length)
+  const [showFiles, setShowFiles] = useState(false)
   const units = useStore((s) => s.settings.units)
 
   const [layerId, setLayerId] = useState<string>('wind')
@@ -514,9 +518,12 @@ function WeatherOverlay() {
    * precision this project exists to avoid.
    */
   const resolutionNote =
-    // `best_match` switches model by location, so it has no single resolution to
-    // quote. Saying "varies" is the honest answer; quoting one number is not.
-    model === 'best_match'
+    // A GRIB file is on its own model's grid, so here the grid is the resolution.
+    fileName && cube
+      ? ` · ${cube.dx}° grid`
+      : // `best_match` switches model by location, so it has no single resolution to
+        // quote. Saying "varies" is the honest answer; quoting one number is not.
+        model === 'best_match'
       ? ' · resolution varies by location'
       : modelInfo
         ? ` · ~${modelInfo.resolutionKm} km model`
@@ -530,7 +537,7 @@ function WeatherOverlay() {
    * "Current" would be quietly wrong, so it says which one this is.
    */
   const layerCaveat =
-    layer.id === 'current' ? ' · ocean model, does not resolve tidal reversal' : ''
+    layer.id === 'current' && !fileName ? ' · ocean model, does not resolve tidal reversal' : ''
   /*
    * Depth answers to a different source, a different datum and a different set of
    * caveats from anything on the forecast clock, so it gets its own provenance
@@ -608,6 +615,8 @@ function WeatherOverlay() {
             value={model}
             onChange={(e) => setModel(e.target.value as ModelId)}
             style={{ maxWidth: 190 }}
+            disabled={fileName != null}
+            title={fileName ? `Showing ${fileName}; untick it under GRIB files to go back to the download` : undefined}
           >
             {MODELS.map((m) => (
               <option key={m.id} value={m.id}>
@@ -615,6 +624,13 @@ function WeatherOverlay() {
               </option>
             ))}
           </select>
+          <button
+            className={`chip${fileName ? ' chip--good' : ''}`}
+            onClick={() => setShowFiles(true)}
+            title={fileName ? `Showing ${fileName}` : 'Open GRIB files, or drop them on the chart'}
+          >
+            GRIB files{fileCount ? ` (${fileCount})` : ''}
+          </button>
           {busy && (
             <span className="chip chip--warn">
               <span className="spinner" /> {busy}
@@ -787,6 +803,7 @@ function WeatherOverlay() {
           </div>
         </div>
       )}
+      {showFiles && <WeatherFilesSheet onClose={() => setShowFiles(false)} />}
     </>
   )
 }

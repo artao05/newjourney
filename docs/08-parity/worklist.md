@@ -244,13 +244,13 @@ leaves something tested and working.
       `src/lib/weather/fixtures/`.
 - [x] **10.2 GRIB2 PNG packing**, then **GRIB1**. *Accept:* fixture tests. *PNG with a
       small inflate of our own (src/lib/inflate.ts); GRIB1 with NCEP and ECMWF tables.*
-- [ ] **10.2b GRIB2 JPEG 2000 and CCSDS packing** (5.40, used by NAM and Canada's GEM;
-      5.42, used by ECMWF open data and DWD). Each needs a decoder of its own, a few
-      hundred lines for CCSDS and more for JPEG 2000. *Accept:* fixture tests.
-- [ ] **10.3 Open GRIB files** by picker or drag-drop, several at once, with a
+- [x] **10.3 Open GRIB files** by picker or drag-drop, several at once, with a
       parameter catalogue. *Accept:* tests and a browser check.
 - [ ] **10.4 Merge sources** in production: StackedField, best resolution first, per
       parameter. *Accept:* tests.
+- [ ] **10.2b GRIB2 JPEG 2000 and CCSDS packing** (5.40, used by NAM and Canada's GEM;
+      5.42, used by ECMWF open data and DWD). Each needs a decoder of its own, a few
+      hundred lines for CCSDS and more for JPEG 2000. *Accept:* fixture tests. *Moved after 10.4, so the files people open are used first.*
 - [ ] **10.5 Pick the model for routing.** *Accept:* a test that the request uses the
       chosen model.
 - [ ] **10.6 Display parity:** a display mode per parameter, contours with step and a

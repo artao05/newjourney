@@ -1,5 +1,6 @@
 /** Test fixtures: a PNG writer, so tests can build the images GRIB 5.41 carries. */
-import { deflateSync } from 'node:zlib'
+// A namespace import, so a browser can load these fixtures as long as it builds no PNG.
+import * as zlib from 'node:zlib'
 
 const u32 = (x: number) => [(x >>> 24) & 255, (x >>> 16) & 255, (x >>> 8) & 255, x & 255]
 const chunk = (type: string, data: number[] | Uint8Array) => [...u32(data.length), ...[...type].map((c) => c.charCodeAt(0)), ...data, 0, 0, 0, 0]
@@ -30,7 +31,7 @@ export function encodePng(width: number, height: number, bitDepth: number, colou
       raw.push((r - pred) & 255)
     }
   }
-  const z = new Uint8Array(deflateSync(new Uint8Array(raw)))
+  const z = new Uint8Array(zlib.deflateSync(new Uint8Array(raw)))
   const half = z.length >> 1
   return new Uint8Array([
     137, 80, 78, 71, 13, 10, 26, 10,
