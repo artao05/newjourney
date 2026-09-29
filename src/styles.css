@@ -135,6 +135,22 @@ button {
   height: 21px;
 }
 
+/* ----------------------------------------------------------- marks library */
+
+.libfolder {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 4px 10px;
+  margin-bottom: 8px;
+}
+
+.libfolder__head {
+  width: 100%;
+  text-align: left;
+  padding: 8px 0;
+  font-weight: 700;
+}
+
 /* ------------------------------------------------------------ nav station */
 
 /*

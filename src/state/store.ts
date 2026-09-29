@@ -40,6 +40,18 @@ export interface NumberBox {
   size: 'sm' | 'md' | 'lg'
 }
 
+/**
+ * A mark in the library: Expedition's marks database. Named marks, in folders,
+ * kept apart from the course, so a season's buoys outlive any one race. The course
+ * is built from them.
+ */
+export interface LibraryMark {
+  id: string
+  name: string
+  position: LatLon
+  folder: string
+}
+
 /** The most channels one box alternates between (Expedition's limit). */
 export const MAX_ALTERNATING = 10
 
@@ -163,6 +175,11 @@ interface AppState {
    */
   routeStart: LatLon | null
   setRouteStart(at: LatLon | null): void
+
+  library: LibraryMark[]
+  /** File marks under a folder, e.g. from a GPX import or a course being saved. */
+  addToLibrary(folder: string, marks: Array<{ name: string; position: LatLon }>): void
+  removeFromLibrary(ids: string[]): void
 
   numberBoxes: NumberBox[]
   addNumberBox(channelId: string): void
@@ -464,6 +481,24 @@ export const useStore = create<AppState>()(
       },
       clearTrack: () => set({ track: [] }),
 
+      library: [],
+      addToLibrary: (folder, marks) =>
+        set({
+          library: [
+            ...get().library,
+            ...marks.map((m) => ({
+              id: `lib-${Date.now()}-${++markSeq}`,
+              name: m.name,
+              position: m.position,
+              folder: folder.trim() || 'Marks',
+            })),
+          ],
+        }),
+      removeFromLibrary: (ids) => {
+        const drop = new Set(ids)
+        set({ library: get().library.filter((m) => !drop.has(m.id)) })
+      },
+
       numberBoxes: DEFAULT_NUMBER_BOXES.map((b) => ({ ...b, channels: [...b.channels] })),
       addNumberBox: (channelId) =>
         set({
@@ -546,6 +581,7 @@ export const useStore = create<AppState>()(
         routeSettings: s.routeSettings,
         routeStart: s.routeStart,
         numberBoxes: s.numberBoxes,
+        library: s.library,
         navPanel: s.navPanel,
         navChart: s.navChart,
         activeMarkIndex: s.activeMarkIndex,

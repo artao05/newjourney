@@ -82,7 +82,7 @@ leaves something tested and working.
       to 3.1b, so each commit stays one thing.
 - [x] **3.1b Drag marks on the chart.** *Accept:* a screen test, and a browser check
       of a pointer drag.
-- [ ] **3.1c A marks library.** A library of named marks, in folders and separate
+- [x] **3.1c A marks library.** A library of named marks, in folders and separate
       from the course, which routes are built from. GPX import goes to it.
       *Accept:* store and screen tests.
 - [ ] **3.2 Marks import and export:** GPX and Expedition-style CSV. *Accept:*

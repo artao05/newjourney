@@ -11,6 +11,7 @@ import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
 import { NumberBoxes } from '@/components/NumberBoxes'
 import { MarkSheet } from '@/components/MarkSheet'
+import { MarksLibrary } from '@/components/MarksLibrary'
 import { useLayout } from '@/hooks/useWide'
 import { Tile, fmtClock } from '@/components/Tile'
 import { computeTactics } from '@/lib/tactics'
@@ -495,27 +496,6 @@ export function RaceScreen() {
           </button>
         </div>
         <div className="actions" style={{ background: 'none', border: 'none', padding: 0 }}>
-          <label className="btn btn--sm btn--ghost" style={{ display: 'block' }}>
-            IMPORT GPX
-            <input
-              type="file"
-              accept=".gpx,application/gpx+xml"
-              style={{ display: 'none' }}
-              onChange={async (e) => {
-                const f = e.target.files?.[0]
-                if (!f) return
-                try {
-                  const { parseGpx } = await import('@/lib/gpx')
-                  const parsed = parseGpx(await f.text())
-                  parsed.waypoints.forEach((w) => addMark(w.name, w.position))
-                } catch (err) {
-                  alert(`Could not read that GPX: ${err instanceof Error ? err.message : err}`)
-                } finally {
-                  e.target.value = ''
-                }
-              }}
-            />
-          </label>
           <button
             className="btn btn--sm btn--ghost"
             disabled={!marks.length}
@@ -527,6 +507,7 @@ export function RaceScreen() {
             EXPORT GPX
           </button>
         </div>
+        <MarksLibrary />
       </div>
     </div>
   )

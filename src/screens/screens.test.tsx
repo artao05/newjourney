@@ -179,6 +179,7 @@ function emptyStore() {
     routeStart: null,
     xteOrigin: null,
     numberBoxes: DEFAULT_NUMBER_BOXES.map((b) => ({ ...b, channels: [...b.channels] })),
+    library: [],
   })
 }
 
@@ -928,6 +929,51 @@ describe('marks can be edited, and placed on the chart', () => {
     expect(marks).toHaveLength(n + 1)
     expect(marks.at(-1)!.position).toEqual({ lat: 43.61, lon: -70.15 })
     expect(useStore.getState().routeStart).toBeNull()
+  })
+})
+
+describe('the marks library', () => {
+  const gpx = `<?xml version="1.0"?><gpx version="1.1" creator="t">
+    <wpt lat="43.60" lon="-70.20"><name>Bell 1</name></wpt>
+    <wpt lat="43.62" lon="-70.18"><name>Can 3</name></wpt></gpx>`
+
+  it('files a GPX import under its own folder, not straight onto the course', async () => {
+    render(<RaceScreen />)
+    const file = new File([gpx], 'Casco Bay.gpx', { type: 'application/gpx+xml' })
+    fireEvent.change(screen.getByLabelText('Import GPX into the library'), { target: { files: [file] } })
+    await waitFor(() => expect(useStore.getState().library).toHaveLength(2))
+    expect(useStore.getState().library.map((m) => [m.folder, m.name])).toEqual([
+      ['Casco Bay', 'Bell 1'],
+      ['Casco Bay', 'Can 3'],
+    ])
+    expect(useStore.getState().course.marks).toHaveLength(0)
+  })
+
+  it('builds the course from it, a mark at a time or a folder at once', () => {
+    useStore.getState().addToLibrary('Casco Bay', [
+      { name: 'Bell 1', position: { lat: 43.6, lon: -70.2 } },
+      { name: 'Can 3', position: { lat: 43.62, lon: -70.18 } },
+    ])
+    render(<RaceScreen />)
+    fireEvent.click(screen.getByRole('button', { name: /Casco Bay/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Can 3 to the course' }))
+    expect(useStore.getState().course.marks.map((m) => m.name)).toEqual(['Can 3'])
+    fireEvent.click(screen.getByRole('button', { name: 'USE AS COURSE' }))
+    expect(useStore.getState().course.marks.map((m) => m.name)).toEqual(['Bell 1', 'Can 3'])
+    // The library keeps its marks whatever happens to the course.
+    act(() => useStore.getState().clearMarks())
+    expect(useStore.getState().library).toHaveLength(2)
+  })
+
+  it('saves the course into a folder, and deletes a folder', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'SAVE COURSE HERE' }))
+    const lib = useStore.getState().library
+    expect(lib.map((m) => m.name)).toEqual(['W', 'L'])
+    expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.library).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'DELETE FOLDER' }))
+    expect(useStore.getState().library).toHaveLength(0)
   })
 })
 
