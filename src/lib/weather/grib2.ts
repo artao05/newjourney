@@ -480,10 +480,16 @@ export function gribToCube(
     }
   }
 
-  const times = [...new Set(onGrid.map((p) => p.m.validTime))].sort((a, b) => a - b)
+  // Valid times to the minute: a forecast's steps are whole minutes at least.
+  const minute = (t: number) => Math.round(t / 60_000) * 60_000
+  const times = [...new Set(onGrid.map((p) => minute(p.m.validTime)))].sort((a, b) => a - b)
   let dtMs = 3_600_000
   for (let i = 1; i < times.length; i++) dtMs = i === 1 ? times[1] - times[0] : Math.min(dtMs, times[i] - times[i - 1])
   const nt = times.length > 1 ? Math.round((times[times.length - 1] - times[0]) / dtMs) + 1 : 1
+  // Steps so uneven that a regular axis would be mostly holes are refused, not allocated.
+  if (nt > 4 * times.length + 16) {
+    return { cube: null, warnings: [...warnings, `the file's ${times.length} times are too unevenly spaced to put on one time axis`] }
+  }
   if (times.length > 1 && nt > times.length) warnings.push(`the file's time steps are uneven; ${nt - times.length} step(s) of ${dtMs / 3_600_000} h have no data`)
   const params = [...new Set(onGrid.map((p) => p.param))]
   const data: Record<string, Float32Array> = {}
@@ -501,7 +507,7 @@ export function gribToCube(
     rowIndex[r] = northward ? n : nj - 1 - n
   }
   for (const { m, param, k, add } of onGrid) {
-    const it = Math.round((m.validTime - times[0]) / dtMs)
+    const it = Math.round((minute(m.validTime) - times[0]) / dtMs)
     const out = data[param]
     const base = it * ny * nx
     for (let r = 0; r < ny; r++) {

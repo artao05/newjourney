@@ -707,11 +707,12 @@ describe('a route can start anywhere, not only at the boat', () => {
   it('routes on the ticked GRIB files as well as the download, or on the files alone', async () => {
     const g = gfsGrid(44, 289.5, 5, 3, 0.25)
     const w = uvFromWind(8, 200)
+    const ref = Date.now() - 3_600_000
     const bytes = file(
-      message({ category: 2, number: 2, levelType: 103, levelValue: 10, ref: Date.now() - 3_600_000, grid: g, values: over(g, () => w.u / 1.9438445), packing: 'simple', D: 2 }),
-      message({ category: 2, number: 3, levelType: 103, levelValue: 10, ref: Date.now() - 3_600_000, forecastH: 0, grid: g, values: over(g, () => w.v / 1.9438445), packing: 'simple', D: 2 }),
-      message({ category: 2, number: 2, levelType: 103, levelValue: 10, ref: Date.now() - 3_600_000, forecastH: 6, grid: g, values: over(g, () => w.u / 1.9438445), packing: 'simple', D: 2 }),
-      message({ category: 2, number: 3, levelType: 103, levelValue: 10, ref: Date.now() - 3_600_000, forecastH: 6, grid: g, values: over(g, () => w.v / 1.9438445), packing: 'simple', D: 2 }),
+      message({ category: 2, number: 2, levelType: 103, levelValue: 10, ref, grid: g, values: over(g, () => w.u / 1.9438445), packing: 'simple', D: 2 }),
+      message({ category: 2, number: 3, levelType: 103, levelValue: 10, ref, forecastH: 0, grid: g, values: over(g, () => w.v / 1.9438445), packing: 'simple', D: 2 }),
+      message({ category: 2, number: 2, levelType: 103, levelValue: 10, ref, forecastH: 6, grid: g, values: over(g, () => w.u / 1.9438445), packing: 'simple', D: 2 }),
+      message({ category: 2, number: 3, levelType: 103, levelValue: 10, ref, forecastH: 6, grid: g, values: over(g, () => w.v / 1.9438445), packing: 'simple', D: 2 }),
     )
     await openWeatherFiles([new File([bytes], 'local.grb2')])
     const payloads: Array<{ cube: string; extra: string[] }> = []
@@ -1080,11 +1081,13 @@ describe('the Weather screen states its provenance', () => {
 
   it('shows an ensemble as its mean, its spread, or any one member', async () => {
     const b = PILOT_VENUE.bbox
+    // One start time for all: members of one download share their grid and clock.
+    const t0 = Date.now() - 3_600_000
     const mk = (name: string, kn: number): WeatherCube => {
       const w = uvFromWind(kn, 200)
       return {
         model: name, run: 'test-run', bbox: b, nx: 2, ny: 2, dx: b.east - b.west, dy: b.north - b.south,
-        t0: Date.now() - 3_600_000, dtMs: 3_600_000, nt: 3, params: ['u10', 'v10'],
+        t0, dtMs: 3_600_000, nt: 3, params: ['u10', 'v10'],
         data: { u10: new Float32Array(12).fill(w.u), v10: new Float32Array(12).fill(w.v) },
       }
     }

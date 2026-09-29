@@ -207,6 +207,17 @@ describe('GRIB to the weather cube', () => {
     expect(gribToCube([]).warnings).toEqual(['no wind, pressure, wave or current fields in the file'])
   })
 
+  it('puts times a moment apart on the same step, and refuses an axis that would be all holes', () => {
+    const a = gfsGrid(44, 290, 3, 3, 1)
+    const w = (ref: number, h: number) => message({ category: 2, number: 2, levelType: 103, levelValue: 10, ref, forecastH: h, grid: a, values: over(a, () => h), packing: 'simple' })
+    const m = decodeGrib2(file(w(REF, 0), w(REF + 1, 3), w(REF, 6))).messages
+    expect(gribToCube(m).cube!.nt).toBe(3)
+    const odd = decodeGrib2(file(w(REF, 0), w(REF + 60_000, 0), w(REF, 240))).messages
+    const got = gribToCube(odd)
+    expect(got.cube).toBeNull()
+    expect(got.warnings.at(-1)).toMatch(/too unevenly spaced/)
+  })
+
   it('gives the catalogue of everything in the file alongside the cube', () => {
     const out = openGribSync(gfsFile([0]), { bbox: { west: -1, east: 1, south: 0, north: 1 } })
     expect(out.catalogue.map((e) => `${e.name}@${e.levelType}/${e.levelValue}`)).toEqual(['UGRD@103/10', 'VGRD@103/10', 'PRMSL@101/0', 'UGRD@100/85000'])
