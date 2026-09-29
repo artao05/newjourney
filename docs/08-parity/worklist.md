@@ -408,10 +408,12 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       P4-131, P4-175). *Accept:* tests and a browser check.
       *Labels, the current leg, range circles and auto advance (lib/legsOnChart.ts,
       hooks/useAutoAdvance.ts); route and mark colours in Route → SETTINGS → Display.*
-- [ ] **15.3 AIS on the chart:** labels, predictor lines and trails, the CPA marker,
+- [x] **15.3 AIS on the chart:** labels, predictor lines and trails, the CPA marker,
       a colour scheme, own-ship MMSI, an allow-list, the raw message log, a warning on
       entering an avoid area (P4-159, P4-160, P4-161, P3-106, P3-103, P3-104, P3-101,
       P3-102). *Accept:* tests.
+      *Labels are names only, the MOB PGN is transmitting (D3), and the raw log is kept in memory
+      with an export rather than written to storage.*
 - [ ] **15.4 ENC lights and text:** light descriptions, sectors (full-length and
       small), text groups, large text, anti-clutter (P1-094, P1-095, P2-006, P2-007,
       P2-008, P2-010, P2-009, P1-309). *Accept:* tests and a browser check.

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { destination } from '../geo'
 import { decodeAis } from './decode'
 import { sentences, ll, type Field } from './fixtures/encode'
-import { DEFAULT_AIS_FILTER, aisAlarmValues, alertOf, applyMessage, approach, closestApproach, prune, shownTargets, type AisTarget } from './targets'
+import { DEFAULT_AIS_FILTER, TRAIL_MIN, aisAlarmValues, alertOf, applyMessage, approach, closestApproach, cpaPoints, dangerOf, prune, shownTargets, targetsInAreas, type AisTarget } from './targets'
+import { distance } from '../geo'
 
 const at = (lat: number, lon: number) => ({ lat, lon })
 const target = (mmsi: number, pos: { lat: number; lon: number } | null, sog: number, cog: number, over: Partial<AisTarget> = {}): AisTarget => ({
@@ -51,7 +52,7 @@ describe('AIS targets', () => {
     ]
     expect(closestApproach(list, own)).toBeCloseTo(0, 3)
     expect(closestApproach([list[1]], own)).toBeNull()
-    expect(aisAlarmValues(list, own)).toEqual({ 'ais-cpa': expect.closeTo(0, 3), 'ais-alert': 1 })
+    expect(aisAlarmValues(list, own)).toEqual({ 'ais-cpa': expect.closeTo(0, 3), 'ais-alert': 1, 'ais-avoid': 0 })
     expect(aisAlarmValues(list, null)['ais-cpa']).toBeNull()
   })
 
@@ -68,5 +69,46 @@ describe('AIS targets', () => {
     // Two that will come to 0 nm: the sooner first.
     expect(shownTargets(list, own, DEFAULT_AIS_FILTER).map((t) => t.mmsi)).toEqual([972000009, 2, 1, 3, 5])
     expect(shownTargets(list, own, { ...DEFAULT_AIS_FILTER, classB: false, hideMoored: true }).map((t) => t.mmsi)).toEqual([972000009, 2, 1])
+  })
+})
+
+describe('AIS on the chart', () => {
+  const own = { position: at(43.5, -70.2), sog: 6, cog: 0 }
+
+  it('keeps a trail of where a vessel has been, the last twenty minutes', () => {
+    const map = new Map<number, AisTarget>()
+    const report = (lat: number, t: number) => applyMessage(map, { kind: 'position', mmsi: 338000001, cls: 'A', lat, lon: -70.2, sog: 6, cog: 0, heading: null, status: 0 } as never, t)
+    for (let i = 0; i < 30; i++) report(43.5 + i * 0.001, i * 60_000)
+    const trail = map.get(338000001)!.trail!
+    expect(trail.at(-1)).toEqual([29 * 60_000, 43.529, -70.2])
+    expect(trail[0][0]).toBe((29 - TRAIL_MIN) * 60_000)
+  })
+
+  it('finds where each boat will be at the closest approach, and how dangerous it is', () => {
+    // Head on, 2 nm ahead, both at 6 kn: we meet 1 nm on, in ten minutes.
+    const t = target(1, destination(own.position, 0, 2), 6, 180)
+    const a = approach(own, t)!
+    const p = cpaPoints(own, t, a)!
+    expect(distance(p.us, destination(own.position, 0, 1))).toBeLessThan(0.001)
+    expect(distance(p.us, p.them)).toBeLessThan(0.001)
+    expect(dangerOf(a)).toBe('danger')
+    expect(dangerOf({ ...a, cpaNm: 0.8 })).toBe('caution')
+    expect(dangerOf({ ...a, cpaNm: 3 })).toBe('clear')
+    expect(dangerOf({ ...a, tcpaMin: -5 })).toBe('clear')
+    expect(cpaPoints(own, t, { ...a, tcpaMin: -1 })).toBeNull()
+  })
+
+  it('leaves out our own MMSI, and shows only the vessels asked for, beacons always', () => {
+    const list = [target(338000001, at(43.51, -70.2), 5, 0), target(338000002, at(43.52, -70.2), 5, 0), target(970000009, at(43.53, -70.2), 0, 0)]
+    const f = { ...DEFAULT_AIS_FILTER, ownMmsi: 338000001 }
+    expect(shownTargets(list, own, f).map((x) => x.mmsi).sort()).toEqual([338000002, 970000009])
+    expect(shownTargets(list, own, { ...DEFAULT_AIS_FILTER, only: [338000001] }).map((x) => x.mmsi).sort()).toEqual([338000001, 970000009])
+  })
+
+  it('finds the vessels inside an avoid area', () => {
+    const area = [[-70.25, 43.505], [-70.15, 43.505], [-70.15, 43.515], [-70.25, 43.515], [-70.25, 43.505]]
+    const list = [target(1, at(43.51, -70.2), 5, 0), target(2, at(43.52, -70.2), 5, 0), target(3, at(43.51, -70.2), 0, 0, { cls: 'AtoN' })]
+    expect(targetsInAreas(list, [area]).map((t) => t.mmsi)).toEqual([1])
+    expect(aisAlarmValues(list, { position: own.position, sog: 6, cog: 0 }, [area])['ais-avoid']).toBe(1)
   })
 })

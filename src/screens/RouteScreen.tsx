@@ -30,6 +30,7 @@ import { parseSymbolKey, rasterSymbol } from '@/lib/charts/symbols'
 import { offsetCorners, offsetFeatures } from '@/lib/charts/georef'
 import { checkRoute, withEncHazards } from '@/lib/charts/encRouting'
 import { captureMap, chartCaption, chartFileName, downloadCanvas, printCanvas, withCaption } from '@/lib/mapExport'
+import { cpaPoints, dangerOf, shownTargets, type Danger } from '@/lib/ais/targets'
 import { nearestLegInsert } from '@/lib/courseEdit'
 import { legFeatures } from '@/lib/legsOnChart'
 import type { EncFeature } from '@/lib/charts/s57'
@@ -718,24 +719,42 @@ export function RouteScreen() {
     setSource(map, 'fleet', { type: 'FeatureCollection', features } as FC)
   }, [ready, fleetTracks, fleetBoats])
 
-  // AIS targets on the chart, each with where it will be in six minutes.
+  // AIS targets on the chart as the AIS sheet's filter shows them: a dot, its name, a course
+  // vector, its trail, and for a vessel closing on us, where each of us will be at the CPA.
   const aisTargets = useAis((s) => s.targets)
+  const aisFilter = useAis((s) => s.filter)
   const [showAis, setShowAis] = useState(false)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
+    const own = state && Number.isFinite(state.sog) && Number.isFinite(state.cog) ? { position: state.position, sog: state.sog, cog: state.cog } : null
     const features: GeoJSON.Feature[] = []
-    for (const t of aisTargets) {
+    const byClass = (t: { cls: string; alert: unknown }) => (t.alert ? '#ff5252' : t.cls === 'B' ? '#b0bec5' : t.cls === 'AtoN' ? '#ce93d8' : '#ffcc80')
+    // By risk and motion: red coming inside the CPA limit, white with no recent fix, green under
+    // way (1 kn or more), yellow stopped.
+    const byRisk = (t: { positionAt: number | null; sog: number | null }, d: Danger) =>
+      d === 'danger' ? '#ff5252' : t.positionAt == null || Date.now() - t.positionAt > 3 * 60_000 ? '#eceff1' : (t.sog ?? 0) >= 1 ? '#66bb6a' : '#fdd835'
+    for (const t of shownTargets(aisTargets, own, aisFilter)) {
       if (!t.position) continue
-      const props = { mmsi: t.mmsi, cls: t.cls, alert: t.alert != null, name: t.name ?? String(t.mmsi) }
+      const danger = dangerOf(t.a)
+      const color = t.alert ? '#ff5252' : aisFilter.colourBy === 'danger' && t.cls !== 'AtoN' && t.cls !== 'base' ? byRisk(t, danger) : byClass(t)
+      const props = { mmsi: t.mmsi, cls: t.cls, alert: t.alert != null, name: aisFilter.labels ? (t.name ?? String(t.mmsi)) : '', color, kind: 'target' }
       features.push({ type: 'Feature', properties: props, geometry: { type: 'Point', coordinates: [t.position.lon, t.position.lat] } })
-      if (t.sog && t.sog > 0.2 && t.cog != null) {
-        const ahead = destination(t.position, t.cog, t.sog / 10)
-        features.push({ type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: [[t.position.lon, t.position.lat], [ahead.lon, ahead.lat]] } })
+      if (t.sog && t.sog > 0.2 && t.cog != null && aisFilter.vectorMin > 0) {
+        const ahead = destination(t.position, t.cog, (t.sog * aisFilter.vectorMin) / 60)
+        features.push({ type: 'Feature', properties: { ...props, kind: 'vector' }, geometry: { type: 'LineString', coordinates: [[t.position.lon, t.position.lat], [ahead.lon, ahead.lat]] } })
+      }
+      if (aisFilter.trails && t.trail && t.trail.length > 1) {
+        features.push({ type: 'Feature', properties: { ...props, kind: 'trail' }, geometry: { type: 'LineString', coordinates: t.trail.map((p) => [p[2], p[1]]) } })
+      }
+      // The CPA, for a vessel that will come close: us and them then, and the gap between.
+      const cpa = own && t.a && danger !== 'clear' ? cpaPoints(own, t, t.a) : null
+      if (cpa) {
+        features.push({ type: 'Feature', properties: { ...props, kind: 'cpa', name: `CPA ${t.a!.cpaNm.toFixed(2)} nm in ${Math.round(t.a!.tcpaMin)} min` }, geometry: { type: 'LineString', coordinates: [[cpa.us.lon, cpa.us.lat], [cpa.them.lon, cpa.them.lat]] } })
       }
     }
     setSource(map, 'ais', { type: 'FeatureCollection', features } as FC)
-  }, [ready, aisTargets])
+  }, [ready, aisTargets, aisFilter, state])
 
   // The ensemble members' routes.
   const ensembleRoutes = useStore((s) => s.ensembleRoutes)
@@ -2483,17 +2502,27 @@ function addEmptyLayers(map: maplibregl.Map) {
     id: 'ais-vector',
     type: 'line',
     source: 'ais',
-    filter: ['==', ['geometry-type'], 'LineString'],
-    paint: { 'line-color': ['case', ['get', 'alert'], '#ff5252', '#ffcc80'] as never, 'line-width': 1.5 },
+    filter: ['==', ['get', 'kind'], 'vector'],
+    paint: { 'line-color': ['get', 'color'] as never, 'line-width': 1.5 },
+  })
+  map.addLayer({ id: 'ais-trail', type: 'line', source: 'ais', filter: ['==', ['get', 'kind'], 'trail'], paint: { 'line-color': ['get', 'color'] as never, 'line-width': 1, 'line-opacity': 0.5, 'line-dasharray': [1, 2] } })
+  map.addLayer({ id: 'ais-cpa', type: 'line', source: 'ais', filter: ['==', ['get', 'kind'], 'cpa'], paint: { 'line-color': ['get', 'color'] as never, 'line-width': 2, 'line-dasharray': [2, 1] } })
+  map.addLayer({
+    id: 'ais-label',
+    type: 'symbol',
+    source: 'ais',
+    filter: ['any', ['==', ['get', 'kind'], 'target'], ['==', ['get', 'kind'], 'cpa']],
+    layout: { 'text-field': ['get', 'name'] as never, 'text-size': 10, 'text-offset': [0, 1.2], 'text-optional': true },
+    paint: { 'text-color': ['get', 'color'] as never, 'text-halo-color': '#04101c', 'text-halo-width': 1.2 },
   })
   map.addLayer({
     id: 'ais-pt',
     type: 'circle',
     source: 'ais',
-    filter: ['==', ['geometry-type'], 'Point'],
+    filter: ['==', ['get', 'kind'], 'target'],
     paint: {
       'circle-radius': ['case', ['get', 'alert'], 8, 5] as never,
-      'circle-color': ['case', ['get', 'alert'], '#ff5252', ['==', ['get', 'cls'], 'B'], '#b0bec5', ['==', ['get', 'cls'], 'AtoN'], '#ce93d8', '#ffcc80'] as never,
+      'circle-color': ['get', 'color'] as never,
       'circle-stroke-color': '#04101c',
       'circle-stroke-width': 1.5,
     },

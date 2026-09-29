@@ -929,15 +929,55 @@ describe('a route can start anywhere, not only at the boat', () => {
         for (const m of mapInstances) m.fire('load')
       })
       const fc = mapInstances[0].data.get('ais') as GeoJSON.FeatureCollection
-      expect(fc.features.filter((f) => f.geometry.type === 'Point')).toHaveLength(3)
-      // Only the moving one has a course vector.
-      expect(fc.features.filter((f) => f.geometry.type === 'LineString')).toHaveLength(1)
+      const kind = (k: string) => fc.features.filter((f) => f.properties!.kind === k)
+      expect(kind('target')).toHaveLength(3)
+      // Only the moving one has a course vector; it is coming straight at us, so it has a CPA line too.
+      expect(kind('vector')).toHaveLength(1)
+      expect(kind('cpa').map((f) => f.properties!.name)).toEqual(['CPA 0.00 nm in 15 min'])
+      expect(kind('target').find((f) => f.properties!.mmsi === 338000001)!.properties!.name).toBe('FERRY')
+      // By risk and motion: the ferry closing red, the one stopped yellow.
+      act(() => useAis.getState().setFilter({ colourBy: 'danger' }))
+      const colours = Object.fromEntries((mapInstances[0].data.get('ais') as GeoJSON.FeatureCollection).features.filter((f) => f.properties!.kind === 'target').map((f) => [f.properties!.mmsi, f.properties!.color]))
+      expect(colours[338000001]).toBe('#ff5252')
+      expect(colours[338000002]).toBe('#fdd835')
+      act(() => useAis.getState().setFilter({ colourBy: 'class' }))
       fireEvent.click(screen.getByRole('button', { name: 'AIS ALERT · 3' }))
       const rows = within(screen.getByRole('table', { name: 'Targets' })).getAllByRole('row').slice(1).map((r) => r.textContent)
       expect(rows[0]).toMatch(/^AIS-SART · 970000001/)
       expect(rows[1]).toMatch(/^FERRY A3\.00.*0\.00.*15/)
     } finally {
       act(() => useAis.getState().clear())
+    }
+  })
+
+  it('leaves our own MMSI out, shows the raw messages, and flags a vessel in an avoid area', () => {
+    const own = PILOT_VENUE.waterStart
+    useStore.setState({ state: { ...(useStore.getState().state ?? {}), position: own, sog: 0, cog: 0, t: Date.now() } as never })
+    const t = (mmsi: number, lat: number, name: string) => ({ mmsi, cls: 'A' as const, name, position: { lat, lon: own.lon }, sog: 0, cog: 0, heading: null, status: 0, positionAt: Date.now(), updated: Date.now(), alert: null })
+    const d = 0.002
+    act(() => {
+      useStore.getState().addRaceNote({ kind: 'area', text: 'No go', points: [{ lat: own.lat + 0.005 - d, lon: own.lon - d }, { lat: own.lat + 0.005 - d, lon: own.lon + d }, { lat: own.lat + 0.005 + d, lon: own.lon + d }, { lat: own.lat + 0.005 + d, lon: own.lon - d }], avoid: true, speedPct: null } as never)
+      useAis.setState({ targets: [t(338000001, own.lat + 0.01, 'US'), t(338000002, own.lat + 0.005, 'INTRUDER')], raw: [{ t: Date.now(), line: '!AIVDM,1,1,,A,15MgK45P3@G?fl0E`JbR0OwT0@MS,0*4E' }] })
+    })
+    try {
+      render(<RouteScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      fireEvent.click(screen.getByRole('button', { name: /^AIS/ }))
+      const table = () => within(screen.getByRole('table', { name: 'Targets' }))
+      expect(table().getAllByRole('row')).toHaveLength(3)
+      fireEvent.change(screen.getByLabelText('Our MMSI'), { target: { value: '338000001' } })
+      expect(useAis.getState().filter.ownMmsi).toBe(338000001)
+      expect(table().getAllByRole('row')).toHaveLength(2)
+      expect(table().getByText(/in an avoid area/).closest('tr')!.textContent).toMatch(/^INTRUDER/)
+      expect(screen.getByLabelText('Raw AIS messages').textContent).toMatch(/!AIVDM,1,1,,A,15MgK45P3/)
+    } finally {
+      act(() => {
+        useAis.getState().clear()
+        useAis.getState().setFilter({ ownMmsi: null })
+        useStore.setState({ raceNotes: [] })
+      })
     }
   })
 

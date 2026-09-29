@@ -7,6 +7,7 @@
  * clears, so nobody forgets the depth is still low.
  */
 
+import { zonesFromNotes } from '@/lib/routing/settings'
 import { useEffect, useRef, useState } from 'react'
 import { useAis } from '@/state/ais'
 import { aisAlarmValues } from '@/lib/ais/targets'
@@ -33,7 +34,7 @@ export function AlarmWatcher() {
       ...snap,
       'anchor-distance': anchorDistanceM(s.anchor, s.state?.position ?? null),
       'wind-shift': windShiftDeg(s.windHistory, now),
-      ...aisAlarmValues(useAis.getState().targets, s.state),
+      ...aisAlarmValues(useAis.getState().targets, s.state, (zonesFromNotes(s.raceNotes).avoidAreas ?? []).map((p) => p[0])),
     }
     const e = evaluate(s.alarms, values, s.alarmStates, now)
     s.setAlarmStates(e.states)

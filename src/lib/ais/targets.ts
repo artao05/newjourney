@@ -2,7 +2,7 @@
  * AIS targets: the vessels (and aids to navigation) heard, each built up from
  * its position reports and static data, with closest point of approach to us.
  */
-import { bearing, distance } from '../geo'
+import { bearing, destination, distance } from '../geo'
 import type { LatLon, Millis } from '../types'
 import type { AisMessage } from './decode'
 
@@ -26,7 +26,13 @@ export interface AisTarget {
   updated: Millis
   alert: AisAlert | null
   virtual?: boolean
+  /** Where it has been: [time, lat, lon], oldest first, the last `TRAIL_MIN` minutes. */
+  trail?: Array<[Millis, number, number]>
 }
+
+/** How long a moving target's trail is kept, minutes, and how many points at most. */
+export const TRAIL_MIN = 20
+const TRAIL_MAX = 60
 
 /**
  * The distress devices go by their MMSI: 970… an AIS-SART, 972… a man-overboard
@@ -52,6 +58,10 @@ export function applyMessage(targets: Map<number, AisTarget>, m: AisMessage, now
     if (m.lat != null && m.lon != null) {
       t.position = { lat: m.lat, lon: m.lon }
       t.positionAt = now
+      // The trail: a point a report, the old ones dropped.
+      const trail = (t.trail ?? []).filter((p) => now - p[0] <= TRAIL_MIN * 60_000)
+      trail.push([now, m.lat, m.lon])
+      t.trail = trail.slice(-TRAIL_MAX)
     }
     t.sog = m.sog
     t.cog = m.cog
@@ -151,9 +161,10 @@ export function closestApproach(targets: Iterable<AisTarget>, own: Own | null, w
 export function aisAlarmValues(
   targets: readonly AisTarget[],
   state: { position: LatLon; sog: number | null; cog: number | null } | null,
-): { 'ais-cpa': number | null; 'ais-alert': number } {
+  avoidAreas: number[][][] = [],
+): { 'ais-cpa': number | null; 'ais-alert': number; 'ais-avoid': number } {
   const own = state && state.sog != null && state.cog != null ? { position: state.position, sog: state.sog, cog: state.cog } : null
-  return { 'ais-cpa': closestApproach(targets, own), 'ais-alert': targets.filter((t) => t.alert).length }
+  return { 'ais-cpa': closestApproach(targets, own), 'ais-alert': targets.filter((t) => t.alert).length, 'ais-avoid': targetsInAreas(targets, avoidAreas).length }
 }
 
 export interface AisFilter {
@@ -162,16 +173,68 @@ export interface AisFilter {
   aton: boolean
   /** Leave out vessels moored or at anchor (status 1 and 5). */
   hideMoored: boolean
+  /** Show only these MMSIs (beacons always); empty for all. */
+  only: number[]
+  /** Our own transponder's MMSI, never shown as a target. */
+  ownMmsi: number | null
+  /** The course vector's length, minutes of COG and SOG. */
+  vectorMin: number
+  trails: boolean
+  labels: boolean
+  /** Colour targets by their class, or by how close they will come. */
+  colourBy: 'class' | 'danger'
 }
 
-export const DEFAULT_AIS_FILTER: AisFilter = { maxRangeNm: 24, classB: true, aton: true, hideMoored: false }
+export const DEFAULT_AIS_FILTER: AisFilter = { maxRangeNm: 24, classB: true, aton: true, hideMoored: false, only: [], ownMmsi: null, vectorMin: 6, trails: true, labels: true, colourBy: 'class' }
+
+export type Danger = 'danger' | 'caution' | 'clear'
+
+/** Danger: coming within `cpaNm` inside `tcpaMin`; caution: within twice that. */
+export function dangerOf(a: Approach | null, cpaNm = 0.5, tcpaMin = 20): Danger {
+  if (!a || a.tcpaMin < 0) return 'clear'
+  if (a.cpaNm <= cpaNm && a.tcpaMin <= tcpaMin) return 'danger'
+  if (a.cpaNm <= 2 * cpaNm && a.tcpaMin <= 2 * tcpaMin) return 'caution'
+  return 'clear'
+}
+
+/** Where we and the target will each be at the closest approach, both holding course and speed. */
+export function cpaPoints(own: Own, t: AisTarget, a: Approach): { us: LatLon; them: LatLon } | null {
+  if (!t.position || a.tcpaMin <= 0) return null
+  const h = a.tcpaMin / 60
+  return {
+    us: destination(own.position, own.cog, own.sog * h),
+    them: t.sog != null && t.cog != null ? destination(t.position, t.cog, t.sog * h) : t.position,
+  }
+}
+
+function inRing(ring: number[][], lon: number, lat: number): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]
+    const [xj, yj] = ring[j]
+    if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+/** The targets inside any of the areas (GeoJSON rings of [lon, lat]), aids to navigation aside. */
+export function targetsInAreas(targets: Iterable<AisTarget>, areas: number[][][]): AisTarget[] {
+  const out: AisTarget[] = []
+  for (const t of targets) {
+    if (!t.position || t.cls === 'AtoN' || t.cls === 'base') continue
+    if (areas.some((ring) => inRing(ring, t.position!.lon, t.position!.lat))) out.push(t)
+  }
+  return out
+}
 
 /** The targets to show, alerts first, then by closest approach, then range. */
 export function shownTargets(targets: Iterable<AisTarget>, own: Own | null, f: AisFilter): Array<AisTarget & { a: Approach | null }> {
   const out: Array<AisTarget & { a: Approach | null }> = []
   for (const t of targets) {
+    if (f.ownMmsi != null && t.mmsi === f.ownMmsi) continue
     const a = own ? approach(own, t) : null
     if (!t.alert) {
+      if (f.only.length && !f.only.includes(t.mmsi)) continue
       if (a && a.rangeNm > f.maxRangeNm) continue
       if (!f.classB && t.cls === 'B') continue
       if (!f.aton && (t.cls === 'AtoN' || t.cls === 'base')) continue

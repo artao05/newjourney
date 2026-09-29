@@ -37,7 +37,7 @@ export function windShiftDeg(
 }
 
 /** Values that are not channels, for the alarm engine and the banner. */
-export const DERIVED_UNITS: Record<string, string> = { 'anchor-distance': 'm', 'wind-shift': '°', 'ais-cpa': 'nm', 'ais-alert': '' }
+export const DERIVED_UNITS: Record<string, string> = { 'anchor-distance': 'm', 'wind-shift': '°', 'ais-cpa': 'nm', 'ais-alert': '', 'ais-avoid': '' }
 
 export const STANDARD_ALARMS: Array<{ key: string; label: string; rule: Omit<AlarmRule, 'id'> }> = [
   {
@@ -90,5 +90,11 @@ export const STANDARD_ALARMS: Array<{ key: string; label: string; rule: Omit<Ala
     key: 'ais-alert',
     label: 'AIS-SART, MOB or EPIRB',
     rule: { name: 'AIS-SART, MOB or EPIRB', channel: 'ais-alert', op: 'above', value: 0.5, hysteresis: 0, delayS: 0, enabled: true },
+  },
+  {
+    key: 'ais-avoid',
+    label: 'AIS target in an avoid area',
+    // How many vessels are inside a keep-out race note.
+    rule: { name: 'AIS target in an avoid area', channel: 'ais-avoid', op: 'above', value: 0.5, hysteresis: 0, delayS: 0, enabled: true },
   },
 ]
