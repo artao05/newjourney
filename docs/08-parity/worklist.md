@@ -397,12 +397,12 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       the file and test that show it. *Accept:* each changed row names its evidence.
       *Two passes in tick 6: 17 rows to Done and 31 to Partial, each with its evidence. Still to
       audit: the Missing rows in Charts, AIS, fleet, networking and satcom, and every Partial row.*
-- [ ] **15.1 Marks by hand:** undo and redo, lock and unlock, a mark at range and
+- [x] **15.1 Marks by hand:** undo and redo, lock and unlock, a mark at range and
       bearing from the boat or a mark, insert into the nearest leg, add as a gate, go
       to the pointer, a mark from a chart object (P1-121, P1-123, P2-105, P1-128,
       P1-263, P1-261, P1-258, P1-259, P1-255). *Accept:* tests.
-      *All in (tick 6) but pairing a mark into a gate (P1-258); gates themselves exist.
-      Go here inserts the mark as the active one rather than replacing the course.*
+      *Go here inserts the mark as the active one rather than replacing the course; a gate is
+      left and right looking upwind, as the W/L wizard makes them.*
 - [ ] **15.2 Legs on the chart:** leg labels, the current-leg line, mark range
       circles, mark and route colours, auto mark advance (P4-138, P4-139, P4-141,
       P4-131, P4-175). *Accept:* tests and a browser check.

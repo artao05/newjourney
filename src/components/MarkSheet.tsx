@@ -12,7 +12,7 @@ import { useState } from 'react'
 import { useStore } from '@/state/store'
 import { parseLatLon } from '@/lib/latlon'
 import { fmtDmm } from '@/lib/channels/format'
-import { destination } from '@/lib/geo'
+import { bearing, destination, midpoint } from '@/lib/geo'
 import type { Mark, RoundingSide } from '@/lib/types'
 
 export function fmtPosition(p: { lat: number; lon: number }): string {
@@ -37,6 +37,11 @@ export function MarkSheet({ mark, index, count, onClose }: {
   const b = Number(bearingT)
   const rbOk = rangeNm.trim() !== '' && bearingT.trim() !== '' && r > 0 && b >= 0 && b <= 360
   const locked = !!mark.locked
+  const marks = useStore((s) => s.course.marks)
+  const twd = useStore((s) => s.wind?.twd ?? null)
+  const makeGate = useStore((s) => s.makeGate)
+  const [gateWith, setGateWith] = useState('')
+  const pairable = marks.filter((m) => m.id !== mark.id && !m.gate && !m.locked)
 
   return (
     <div className="sheet" role="dialog" aria-label={`Edit mark ${mark.name}`}>
@@ -109,6 +114,34 @@ export function MarkSheet({ mark, index, count, onClose }: {
           ADD MARK
         </button>
       </div>
+      {!mark.gate && !locked && pairable.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+          <select aria-label="Gate with" value={gateWith} onChange={(e) => setGateWith(e.target.value)}>
+            <option value="">Make a gate with…</option>
+            {pairable.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn btn--sm btn--ghost"
+            disabled={!gateWith}
+            title="This mark and the other become one gate between them; left and right as seen looking upwind"
+            onClick={() => {
+              const other = marks.find((m) => m.id === gateWith)
+              if (!other) return
+              // Looking upwind: into the wind, or else back up the leg to this mark.
+              const prev = marks[index - 1]
+              const up = twd ?? (prev ? bearing(midpoint(mark.position, other.position), prev.position) : 0)
+              makeGate(mark.id, other.id, up)
+              setGateWith('')
+            }}
+          >
+            MAKE GATE
+          </button>
+        </div>
+      )}
       <div className="actions">
         <button className="btn btn--sm btn--ghost" aria-pressed={locked} onClick={() => updateMark(mark.id, { locked: !locked })} title="A locked mark cannot be moved or deleted">
           {locked ? '🔒 LOCKED' : 'LOCK'}

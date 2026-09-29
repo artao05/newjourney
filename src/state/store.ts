@@ -6,6 +6,8 @@
 
 import type { ChartMotion, ChartOrientation } from '@/lib/chartView'
 import type { ChartOffset } from '@/lib/charts/georef'
+import { bearing, distance, midpoint } from '@/lib/geo'
+import { angdiff, wrap360 } from '@/lib/angles'
 import { DEFAULT_CHANNELS_OUT, type ChannelsOutSettings } from '@/lib/api/channelsOut'
 import { create } from 'zustand'
 import type { ColourMode } from '@/lib/maplayers/colormap'
@@ -282,6 +284,12 @@ interface AppState {
   updateMark(id: string, patch: Partial<Pick<Mark, 'name' | 'position' | 'roundTo' | 'locked'>>): void
   /** Put the marks back as they were (undo and redo). */
   restoreMarks(marks: Mark[], activeMarkIndex: number): void
+  /**
+   * Pair a mark with another into one gate: the other goes, and this one
+   * becomes the gate between them, its buoys left and right looking up
+   * `upwindT` (true).
+   */
+  makeGate(id: string, otherId: string, upwindT: number): void
   /** Move a mark one place earlier (-1) or later (+1) in the course. */
   moveMark(id: string, by: -1 | 1): void
   /**
@@ -708,6 +716,19 @@ export const useStore = create<AppState>()(
             marks: course.marks.map((m) => (m.id === id ? { ...m, ...patch } : m)),
           },
         })
+      },
+      makeGate: (id, otherId, upwindT) => {
+        const { course, activeMarkIndex } = get()
+        const a = course.marks.find((m) => m.id === id)
+        const b = course.marks.find((m) => m.id === otherId)
+        if (!a || !b || a === b || a.gate || b.gate) return
+        const mid = midpoint(a.position, b.position)
+        // Looking upwind, the left buoy lies toward upwind − 90°.
+        const leftIsA = Math.abs(angdiff(bearing(mid, a.position), wrap360(upwindT - 90))) < 90
+        const gate = { widthM: distance(a.position, b.position) * 1852, left: leftIsA ? a.position : b.position, right: leftIsA ? b.position : a.position }
+        const at = course.marks.indexOf(b)
+        const marks = course.marks.filter((m) => m !== b).map((m) => (m === a ? { ...m, position: mid, roundTo: 'either' as const, gate } : m))
+        set({ ...COURSE_CHANGED, course: { ...course, marks }, activeMarkIndex: at < activeMarkIndex ? activeMarkIndex - 1 : Math.min(activeMarkIndex, Math.max(0, marks.length - 1)) })
       },
       restoreMarks: (marks, active) =>
         set({

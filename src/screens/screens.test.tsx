@@ -2083,6 +2083,18 @@ describe('marks can be edited, and placed on the chart', () => {
     expect(useStore.getState().course.marks).toHaveLength(n + 1)
   })
 
+  it('pairs two marks into a gate from the mark sheet', () => {
+    populatedStore()
+    const before = useStore.getState().course.marks
+    render(<RaceScreen />)
+    fireEvent.click(screen.getByRole('button', { name: `Edit mark ${before[0].name}` }))
+    fireEvent.change(screen.getByLabelText('Gate with'), { target: { value: before[1].id } })
+    fireEvent.click(screen.getByRole('button', { name: 'MAKE GATE' }))
+    const after = useStore.getState().course.marks
+    expect(after).toHaveLength(before.length - 1)
+    expect(after[0].gate?.widthM).toBeCloseTo(distance(before[0].position, before[1].position) * 1852, 3)
+  })
+
   it('pings a mark at a range and bearing from the boat', () => {
     populatedStore()
     const n = useStore.getState().course.marks.length

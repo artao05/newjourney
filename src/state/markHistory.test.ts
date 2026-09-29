@@ -103,3 +103,33 @@ describe('inserting a mark', () => {
     expect(names().at(-1)).toBe('Last')
   })
 })
+
+describe('pairing marks into a gate', () => {
+  it('makes one gate between them, its buoys left and right looking upwind', () => {
+    const s = useStore.getState()
+    // Two buoys 0.1 nm apart east and west; the wind from the north.
+    const west = { lat: 43.6, lon: -70.202 }
+    const east = { lat: 43.6, lon: -70.198 }
+    s.addMark('Windward', { lat: 43.7, lon: -70.2 })
+    s.addMark('Gate W', west)
+    s.addMark('Gate E', east)
+    s.setActiveMark(2)
+    const [, w, e] = useStore.getState().course.marks
+    s.makeGate(w.id, e.id, 0)
+    const m = useStore.getState().course.marks
+    expect(m.map((x) => x.name)).toEqual(['Windward', 'Gate W'])
+    const g = m[1]
+    // Looking north, west is on the left.
+    expect(g.gate!.left).toEqual(west)
+    expect(g.gate!.right).toEqual(east)
+    expect(g.gate!.widthM).toBeCloseTo(322, -1)
+    expect(g.position.lon).toBeCloseTo(-70.2, 9)
+    expect(g.roundTo).toBe('either')
+    // The active mark was the one that went into the gate: it is the gate now.
+    expect(useStore.getState().activeMarkIndex).toBe(1)
+    // Looking south, it is the other way round.
+    undoMarks()
+    s.makeGate(w.id, e.id, 180)
+    expect(useStore.getState().course.marks[1].gate!.left).toEqual(east)
+  })
+})
