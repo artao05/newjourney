@@ -1,0 +1,281 @@
+# Parity worklist
+
+The build order for [Expedition parity](README.md). Items are worked top to bottom, one
+per commit. Each commit carries the tick and updates the [matrix](parity-matrix.md)
+rows it closes. An item that needs something from [needs.md](needs.md) is marked
+`blocked:` with the need's number, and work moves on.
+
+**Order.** First the test gate, because nothing else can be verified without it. Then
+the cheap wins: engine features that already exist but have no UI. Then the channel
+system and nav-station layout that every later display hangs off. Then navigation
+data, polars, race tools, instruments, logging and alarms. The large engines come
+last: routing depth, GRIB, tides, AIS and fleet, ENC charts, and integration.
+
+Several engines (ENC, GRIB2) span many commits. They are split so that every commit
+leaves something tested and working.
+
+---
+
+## M0 — A gate that can be trusted
+
+- [ ] **0.1 `npm test` passes on this machine.** It currently exits 1: one test fails
+      under load, and vitest's worker RPC times out (`onTaskUpdate`) while long
+      synchronous routing tests hold the worker. *Accept:* three consecutive full runs
+      exit 0, with no test weakened. Slow tests are split or moved to the `PERF` run.
+
+## M1 — Wire up what already exists
+
+- [ ] **1.1 Routing settings.** The kernel supports resolution presets, wind
+      scale/rotate/time shift, current scale, max TWS/gust/waves and tack/gybe
+      penalties, but Route hard-codes all of them. *Accept:* a settings sheet
+      reaches every option, the values persist, and a test shows each one reaching the
+      `RouteRequest`.
+- [ ] **1.2 Mast height really scales the wind.** Setup says it does, and nothing
+      calls `heightScaleFactor`. *Accept:* routing and polar lookups apply the height
+      correction when the polar is 10 m-referenced, and a test pins the factor.
+- [ ] **1.3 Draw reverse isochrones.** They are computed and never drawn. *Accept:* a
+      toggle draws them beside the forward isochrones, and a screen test finds the
+      layer.
+- [ ] **1.4 An imported polar survives reload.** *Accept:* the table persists, and a
+      store test covers the reload.
+- [ ] **1.5 Show the computed-but-hidden numbers:** XTE, distance to finish, polar BSP,
+      VMG %, VMC, layline bearings and next-mark bearing/range. *Accept:* each is
+      reachable on screen, and a test finds it.
+- [ ] **1.6 Route from anywhere.** Planning from a mark or a tapped point, not only the
+      live fix. *Accept:* a start picker, with a test that the request's start is the
+      picked point.
+- [ ] **1.7 Units that do something.** `settings.units` is persisted and read by
+      nothing. *Accept:* speed, distance and depth units apply across screens, and a
+      format test covers each.
+
+## M2 — Channels and the nav-station layout
+
+- [ ] **2.1 The channel catalogue.** Every channel in Expedition's appendix (361 per
+      boat), with id, label, unit, group and source (computed, sensor, licence). Each
+      is marked computed or not yet. *Accept:* a test checks the catalogue against
+      the appendix list, with no duplicates and a valid unit on every entry.
+- [ ] **2.2 A live channel snapshot.** One per boat, built at 1 Hz from boat state,
+      wind, tactics and start numbers. *Accept:* unit tests for each group, and every
+      "computed" catalogue entry produces a value under the simulator.
+- [ ] **2.3 Number boxes.** A configurable grid of any channels, with sizes,
+      alternating channels, and a layout that persists. *Accept:* screen tests for
+      pick, alternate and persist.
+- [ ] **2.4 Nav-station layout at ≥1024 px.** The chart in the middle, the tabs as
+      side panes, and a number-box column. The phone layout is unchanged. *Accept:*
+      screen tests at both widths, plus a browser check.
+- [ ] **2.5 Keyboard shortcuts and full-screen chart.** *Accept:* a keymap test, plus
+      a browser check.
+- [ ] **2.6 User configuration export and import.** Boats, polars, marks, settings and
+      layouts in one JSON file. *Accept:* a round-trip test.
+
+## M3 — Marks, routes and race notes
+
+- [ ] **3.1 A marks database** in IndexedDB. Place, drag and edit marks on the chart;
+      enter lat/lon as DD, DMM or DMS. *Accept:* store, parser and screen tests.
+- [ ] **3.2 Marks import and export:** GPX and Expedition-style CSV. *Accept:*
+      round-trip tests.
+- [ ] **3.3 Named routes.** Build from marks or by tapping the chart; insert,
+      reorder, reverse and activate; next mark; a legs table with bearing, distance,
+      TWA and time. *Accept:* store and screen tests.
+- [ ] **3.4 Range and bearing tools.** Measure between points, EBL/VRM from the boat,
+      and a cursor readout with polar time to the cursor. *Accept:* geometry tests
+      and a browser check.
+- [ ] **3.5 Race notes.** Points, lines and polygons with text, drawn on the chart.
+      *Accept:* store and screen tests.
+- [ ] **3.6 Race notes steer the router.** Exclusion zones, and polygons that slow the
+      boat by a percentage. *Accept:* analytic kernel tests for both.
+
+## M4 — Polars and sails
+
+- [ ] **4.1 Polar roles:** performance, navigation, start and heel, each chosen
+      separately. *Accept:* store tests, and each consumer reads its own role.
+- [ ] **4.2 Polar editor.** Table and drag editing, derived targets, save as
+      Expedition text. *Accept:* editor and serialiser tests.
+- [ ] **4.3 Targets table, and logged points drawn on the polar.** *Accept:* tests.
+- [ ] **4.4 Sails and the sail chart.** A sail list, a TWA × TWS chart with
+      tab-separated import/export, the live point, sail channels and a sail per
+      route leg. *Accept:* parser, lookup and screen tests.
+- [ ] **4.5 Asymmetric port and starboard polars.** *Accept:* the kernel uses the
+      right side on each tack, with a test.
+
+## M5 — Race tools
+
+- [ ] **5.1 Full W/L course builder:** axis in °M, gates with width, a separate
+      finish, leeward alignment to boat, mid-line or pin, and the leave-to-port flag
+      honoured. *Accept:* geometry tests.
+- [ ] **5.2 Gates:** bearing, range, lay distances and times, gate spot, bias and
+      square wind. *Accept:* tactics tests.
+- [ ] **5.3 Laylines on the chart**, with min/max bounds from wind oscillation, and
+      tide-affected laylines. *Accept:* tests and a browser check.
+- [ ] **5.4 What-if for current**, and what-if applied to Start and Route as well.
+      *Accept:* tests.
+- [ ] **5.5 Hold wind and hold current** before the start, released at the gun.
+      *Accept:* store tests.
+- [ ] **5.6 Start display extras:** turn circles, range circles, times at each end, a
+      magnified end, heading distinct from COG, approach options in the UI, and an
+      end set by range and bearing. *Accept:* canvas and screen tests.
+- [ ] **5.7 The remaining start channels:** speed to ends, time to layline, gun
+      distance below line, stern below line, and the simple and pinch variants.
+      *Accept:* start-math tests.
+- [ ] **5.8 Handicap calculator:** TCF time-on-time and time-on-distance, with
+      elapsed, corrected and owed times. *Accept:* tests against hand-worked
+      examples.
+- [ ] **5.9 Race timer:** multiple class starts, custom sequences, and sounds.
+      *Accept:* timer tests.
+- [ ] **5.10 Wind shadow channels.** *Accept:* geometry tests.
+
+## M6 — Instruments
+
+- [ ] **6.1 NMEA 0183 parser.** Checksum, plus RMC, GGA, GLL, VTG, HDG/HDM/HDT, MWV,
+      MWD, VHW, VLW, DPT/DBT, MTW, MDA, XDR, RSA, ROT, ZDA, RMB, APB and XTE.
+      *Accept:* fixture tests.
+- [ ] **6.2 Signal K client.** WebSocket delta stream into boat state and channels,
+      with a connection UI and a mixed-content warning. *Accept:* tests against a
+      recorded delta stream. Live use is `Hardware`.
+- [ ] **6.3 Web Serial source** for NMEA 0183 on desktop Chromium. *Accept:* a test
+      with a mocked port. Live use is `Hardware`.
+- [ ] **6.4 The instrument pipeline:** per-channel damping, true wind from apparent
+      (heel and upwash corrected), the leeway coefficient, and set and drift gated on
+      rate of turn. *Accept:* fixture tests.
+- [ ] **6.5 Calibration tables:** BSP, AWA/TWA and TWS correction matrices, compass
+      deviation and mast angle. *Accept:* tests.
+- [ ] **6.6 Phone heading and heel** from DeviceOrientation, with an honest quality
+      flag. *Accept:* hook tests.
+- [ ] **6.7 GPS window:** fix, HDOP and satellites when NMEA provides them. *Accept:*
+      tests.
+- [ ] **6.8 Expedition's simple text protocol**, parsed and emitted. *Accept:* tests,
+      including the checksum.
+- [ ] **6.9 NMEA 2000 PGN decoding** from Actisense or YD raw formats. *Accept:*
+      fixture tests. Live use is `Hardware`.
+- [ ] **6.10 Output to instruments.** `blocked: D3`.
+
+## M7 — Logging, playback and stripchart
+
+- [ ] **7.1 Channel logger:** 1 Hz to IndexedDB, one log per day, a size cap, and CSV
+      export. *Accept:* tests.
+- [ ] **7.2 Log import:** CSV logs, NMEA recordings and GPX. *Accept:* fixture tests.
+- [ ] **7.3 LogPlayer:** replay into the live snapshot with play, pause, speed and
+      seek. Every screen works during playback. *Accept:* tests and a browser check.
+- [ ] **7.4 Stripchart:** any channels against time, with zoom, pan and wands showing
+      deltas and means. *Accept:* tests and a browser check.
+- [ ] **7.5 Events and sail tests:** sail changes and notes (automatic at ping and
+      gun), and tests saved from wanded spans. *Accept:* tests.
+
+## M8 — Alarms
+
+- [ ] **8.1 Alarm engine:** channel thresholds with hysteresis, sound and screen
+      alerts, acknowledgement and persistence. *Accept:* tests.
+- [ ] **8.2 The standard alarms:** anchor drag, depth, arrival, off-course, layline,
+      AIS CPA, GPS lost and wind shift. *Accept:* tests.
+
+## M9 — Routing to Expedition's depth
+
+- [ ] **9.1 Upwind and downwind TWS limits, and motoring** below a minimum sailing
+      speed. *Accept:* kernel tests.
+- [ ] **9.2 Keep and compare routes:** several optimised routes, highlighting the
+      previous one. *Accept:* store and screen tests.
+- [ ] **9.3 Results parity:** current and sail columns, a meteogram along the route,
+      barbs at each leg's own time, and export to the marks database. *Accept:*
+      tests.
+- [ ] **9.4 Adjustable sensitivity band and isochrone drawing interval.** *Accept:*
+      tests.
+- [ ] **9.5 Draw every explored path.** *Accept:* tests.
+- [ ] **9.6 Decaying wind correction:** a now-correction blended back to the forecast
+      over N minutes. *Accept:* field tests.
+- [ ] **9.7 Wave correction**, with swell priority, coefficients and crossed sea, and
+      **air-density correction**. *Accept:* kernel tests.
+- [ ] **9.8 Route to and via the pointer.** *Accept:* tests.
+- [ ] **9.9 Grid algorithm**, with an optional great-circle track. *Accept:* analytic
+      tests, and agreement with the isochrone solver on open water.
+- [ ] **9.10 Globally optimal multi-mark routing.** *Accept:* a test where leg-by-leg
+      routing loses.
+- [ ] **9.11 Ensemble routing.** *Accept:* tests.
+- [ ] **9.12 Fleet routing:** every boat with its own polar (after 13.4). *Accept:*
+      tests.
+- [ ] **9.13 World land avoidance** from a tiled OSM land pack. *Accept:* a route
+      outside Portland goes round land.
+
+## M10 — Weather
+
+- [ ] **10.1 GRIB2 decoder** in a worker, starting with simple and complex packing
+      with spatial differencing, which covers GFS. *Accept:* fixture tests on a real
+      GFS subset.
+- [ ] **10.2 GRIB2 JPEG 2000 and PNG packing**, then **GRIB1**. *Accept:* fixture
+      tests.
+- [ ] **10.3 Open GRIB files** by picker or drag-drop, several at once, with a
+      parameter catalogue. *Accept:* tests and a browser check.
+- [ ] **10.4 Merge sources** in production: StackedField, best resolution first, per
+      parameter. *Accept:* tests.
+- [ ] **10.5 Pick the model for routing.** *Accept:* a test that the request uses the
+      chosen model.
+- [ ] **10.6 Display parity:** a display mode per parameter, contours with step and a
+      bold level, Beaufort and other colour modes, isobars, gust, rain, waves, SST and
+      air temperature. *Accept:* tests and a browser check.
+- [ ] **10.7 Meteogram** at the boat or any point, and a time step setting. *Accept:*
+      tests.
+- [ ] **10.8 Observations:** NDBC, METAR and NOS PORTS on the chart, with history.
+      *Accept:* parser tests.
+- [ ] **10.9 Radar, satellite and weather-chart overlays.** *Accept:* a browser check.
+- [ ] **10.10 Ensemble display:** members, and mean ± SD. *Accept:* tests.
+- [ ] **10.11 A GRIB request builder:** area on the chart, model, parameters and
+      times, with a Saildocs `mailto:` and a size estimate. *Accept:* tests.
+- [ ] **10.12 NOMADS and ECMWF open-data download.** `blocked: D1`, which needs the
+      proxy.
+
+## M11 — Tides and currents
+
+- [ ] **11.1 Harmonic tide engine** from NOAA constituents. *Accept:* agreement with
+      NOAA predictions to within a stated tolerance.
+- [ ] **11.2 Tide stations:** nearest-station lookup, an offline constituent pack, the
+      tide curve, and tide channels. *Accept:* tests.
+- [ ] **11.3 Harmonic tidal currents** and tidal diamonds on the chart. *Accept:*
+      tests.
+- [ ] **11.4 Tidal streams in routing**, taking precedence over forecast current.
+      *Accept:* kernel tests.
+- [ ] **11.5 Position-aware magnetic variation** (WMM). *Accept:* tests against NOAA
+      calculator values.
+
+## M12 — AIS, boats and race tracking
+
+- [ ] **12.1 AIS decoder:** AIVDM/AIVDO types 1–5, 9, 14, 18, 19, 21, 24 and 27, with
+      multipart messages. *Accept:* fixture tests.
+- [ ] **12.2 AIS targets:** list, chart symbols, CPA/TCPA, filters, alarms, and
+      SART/MOB/EPIRB alerts. *Accept:* tests.
+- [ ] **12.3 aisstream.io source.** It needs a free key (needs §2). *Accept:* a test
+      against a recorded stream.
+- [ ] **12.4 Boats database:** several boats, each with a polar, colour and size.
+      *Accept:* tests.
+- [ ] **12.5 Race-tracking import:** native, Basic, Volvo, MaxSea, GPX, YB XML and
+      Vessel Finder formats, plus boat-id maps. *Accept:* parser tests.
+- [ ] **12.6 Tracking window:** positions interpolated to now, range and bearing,
+      Ahead-of, and a leaderboard. *Accept:* tests.
+
+## M13 — Charts
+
+- [ ] **13.1 ISO 8211 reader.** *Accept:* it parses a NOAA ENC cell fixture.
+- [ ] **13.2 S-57 decoder** to features in a worker. *Accept:* feature counts match
+      GDAL's on the same cell.
+- [ ] **13.3 S-52-style display:** depth areas, contours, soundings, land, lights,
+      buoys, beacons and hazards. *Accept:* a browser check against NOAA's own
+      rendering.
+- [ ] **13.4 Display categories and safety settings:** base, standard and all;
+      safety, shallow and deep contours; two-colour shading; night palette; simplified
+      or paper symbols. *Accept:* tests.
+- [ ] **13.5 Chart installer:** load `.000` files or a folder, a cell catalogue and
+      bounds. *Accept:* tests.
+- [ ] **13.6 Chart object query.** *Accept:* tests.
+- [ ] **13.7 Orientation modes:** north-up, course-up and head-up, with follow-boat.
+      *Accept:* a browser check.
+- [ ] **13.8 BSB/KAP raster charts.** *Accept:* it decodes a NOAA RNC fixture.
+- [ ] **13.9 Georeferenced custom images, and GPS chart offset.** *Accept:* tests.
+- [ ] **13.10 Safe route check and safety-depth routing** against ENC. *Accept:*
+      kernel tests.
+
+## M14 — Integration and the rest of the shell
+
+- [ ] **14.1 A documented JSON/WebSocket API** for channels out. *Accept:* tests.
+- [ ] **14.2 Sharing between devices:** marks, routes and the start line. `blocked:
+      D1`.
+- [ ] **14.3 Save the display as an image, print, and a night palette** for the whole
+      UI. *Accept:* a browser check.
+- [ ] **14.4 Self-hosted basemap and glyphs.** `blocked: D1`.
