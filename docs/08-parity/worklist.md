@@ -42,7 +42,7 @@ leaves something tested and working.
 - [x] **1.3 Draw reverse isochrones.** They are computed and never drawn. *Accept:* a
       toggle draws them beside the forward isochrones, and a screen test finds the
       layer.
-- [ ] **1.4 An imported polar survives reload.** *Accept:* the table persists, and a
+- [x] **1.4 An imported polar survives reload.** *Accept:* the table persists, and a
       store test covers the reload.
 - [ ] **1.5 Show the computed-but-hidden numbers:** XTE, distance to finish, polar BSP,
       VMG %, VMC, layline bearings and next-mark bearing/range. *Accept:* each is

@@ -707,6 +707,34 @@ describe('a recorded track can be exported, and reads back', () => {
   })
 })
 
+describe('the loaded polar can be saved in the format it was read in', () => {
+  it('downloads an Expedition .txt that parses back to the same speeds', async () => {
+    const polar = findPolar('j70')!.polar
+    useStore.getState().setPolar('j70', polar)
+    let saved: { blob?: Blob; name?: string } = {}
+    const original = { create: URL.createObjectURL, revoke: URL.revokeObjectURL }
+    URL.createObjectURL = (b: Blob) => ((saved.blob = b), 'blob:test')
+    URL.revokeObjectURL = () => {}
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved = { ...saved, name: this.download }
+    })
+    try {
+      render(<SetupScreen />)
+      act(() => screen.getByRole('button', { name: 'EXPORT POLAR (.TXT)' }).click())
+      await waitFor(() => expect(saved.name).toBeDefined())
+      expect(saved.name).toMatch(/\.txt$/)
+      const { parsePolar } = await import('@/lib/polar')
+      const back = parsePolar(await saved.blob!.text(), 'back')
+      expect(back.tws).toEqual(polar.tws)
+      expect(back.rows.map((r) => r.bsp)).toEqual(polar.rows.map((r) => r.bsp))
+      expect(back.rows.map((r) => r.twa)).toEqual(polar.rows.map((r) => r.twa))
+    } finally {
+      URL.createObjectURL = original.create
+      URL.revokeObjectURL = original.revoke
+    }
+  })
+})
+
 describe('a ping records the bow when it can, and says when it cannot', () => {
   const antenna = PILOT_VENUE.waterStart
   const pinged = () => useStore.getState().course.startLine.port!

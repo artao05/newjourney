@@ -9,7 +9,7 @@
 import { useMemo } from 'react'
 import { MAX_TRACK_POINTS, useStore } from '@/state/store'
 import { POLAR_LIBRARY, findPolar } from '@/data/polars'
-import { buildLattice, parsePolar, validatePolar } from '@/lib/polar'
+import { buildLattice, parsePolar, serialiseExpeditionPolar, validatePolar } from '@/lib/polar'
 import { PolarPlot } from '@/components/PolarPlot'
 import { NotForNavigationText } from '@/components/NotForNavigation'
 import { PILOT_VENUE } from '@/data/venues'
@@ -79,6 +79,14 @@ export function SetupScreen() {
     if (!entry) return
     setPolar(id, entry.polar)
     updateBoat({ className: entry.name, loaMetres: entry.loaM })
+  }
+
+  /** Save the loaded polar as an Expedition .txt, the format it reads back in. */
+  const exportPolar = async () => {
+    if (!polar) return
+    const { downloadText } = await import('@/lib/gpx')
+    const safe = polar.name.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'polar'
+    downloadText(`${safe}.txt`, serialiseExpeditionPolar(polar), 'text/plain')
   }
 
   const importPolar = async (file: File) => {
@@ -284,9 +292,18 @@ export function SetupScreen() {
             }}
           />
         </label>
+        <button
+          className="btn btn--sm btn--ghost"
+          style={{ display: 'block', width: '100%', marginTop: 8 }}
+          onClick={() => void exportPolar()}
+          disabled={!polar}
+        >
+          EXPORT POLAR (.TXT)
+        </button>
         <p className="note">
           Reads Expedition <code>.txt</code> polars (TWS in the first column,
-          then TWA/BSP pairs) and qtVlm/ORC CSV.
+          then TWA/BSP pairs) and qtVlm/ORC CSV, and saves in the Expedition
+          format. An imported polar is kept on this device until you pick another.
         </p>
 
         <h2>Wind</h2>

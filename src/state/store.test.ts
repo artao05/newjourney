@@ -197,6 +197,41 @@ describe('persistence', () => {
   })
 })
 
+describe('an imported polar survives a reload', () => {
+  const imported = {
+    name: 'My tuned polar',
+    tws: [6, 12],
+    rows: [
+      { twa: [45, 90, 150], bsp: [4.1, 5.6, 4.8] },
+      { twa: [40, 90, 150], bsp: [5.9, 7.2, 7.4] },
+    ],
+    reference: 'masthead' as const,
+  }
+  const saved = () => JSON.parse(localStorage.getItem('newjourney.v1') as string).state
+
+  it('keeps the whole table when it was imported', () => {
+    useStore.getState().setPolar('custom', imported)
+    expect(saved().polarId).toBe('custom')
+    expect(saved().polar).toEqual(imported)
+  })
+
+  it('comes back from storage as the same table, not the J/70', async () => {
+    useStore.getState().setPolar('custom', imported)
+    const stored = localStorage.getItem('newjourney.v1')
+    useStore.getState().setPolar('j70', null)
+    localStorage.setItem('newjourney.v1', stored as string)
+    await useStore.persist.rehydrate()
+    expect(useStore.getState().polarId).toBe('custom')
+    expect(useStore.getState().polar).toEqual(imported)
+  })
+
+  it('does not store a built-in polar, which reloads from the library by id', () => {
+    useStore.getState().setPolar('j70', imported)
+    expect(saved().polarId).toBe('j70')
+    expect(saved().polar).toBeNull()
+  })
+})
+
 describe('a computed route does not outlive the course it was computed for', () => {
   /*
    * `setRoute` is called from exactly one place - RouteScreen, on a successful

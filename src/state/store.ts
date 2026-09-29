@@ -365,6 +365,13 @@ export const useStore = create<AppState>()(
       partialize: (s) => ({
         boat: s.boat,
         polarId: s.polarId,
+        /*
+         * An imported polar is the only copy there is, so it is kept. A built-in
+         * one is not: it reloads from the library by id (App.tsx), so a corrected
+         * class polar reaches everyone who picked it. Without this, a reload found
+         * `polarId: 'custom'` with no table, and App quietly swapped in the J/70.
+         */
+        polar: s.polarId === 'custom' ? s.polar : null,
         course: s.course,
         manualWind: s.manualWind,
         manualWindSetAt: s.manualWindSetAt,
