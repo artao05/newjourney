@@ -11,6 +11,7 @@ import {
   type WeatherFile,
 } from '@/state/weatherFiles'
 import { GribRequestForm } from './GribRequestForm'
+import { ChartImages } from './ChartImages'
 import type { BBox } from '@/lib/types'
 
 const utc = (t: number) => (Number.isFinite(t) ? `${new Date(t).toISOString().slice(5, 16).replace('T', ' ')}Z` : '—')
@@ -73,7 +74,7 @@ function FileRow({ f }: { f: WeatherFile }) {
       {f.error && <p className="warnbox">Could not use this file: {f.error}</p>}
       {c && (
         <p className="note">
-          Run {c.run ? utc(Date.parse(c.run)) : '—'} · {c.nx}×{c.ny} at {c.dx}° · {c.bbox.south.toFixed(2)}° to {c.bbox.north.toFixed(2)}°,{' '}
+          Run {c.run ? utc(Date.parse(c.run)) : '—'} · {c.nx}×{c.ny} at {+c.dx.toFixed(3)}° · {c.bbox.south.toFixed(2)}° to {c.bbox.north.toFixed(2)}°,{' '}
           {c.bbox.west.toFixed(2)}° to {c.bbox.east.toFixed(2)}° · {c.nt} step{c.nt === 1 ? '' : 's'} from {utc(c.t0)}
         </p>
       )}
@@ -141,6 +142,7 @@ export function WeatherFilesSheet({ onClose, area }: { onClose: () => void; area
         </button>
       </div>
       {asking && area && <GribRequestForm area={area} />}
+      {area && <ChartImages area={area} />}
       {files.length === 0 && <p className="note">No files open.</p>}
       {files.map((f) => (
         <FileRow key={f.id} f={f} />

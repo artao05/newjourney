@@ -79,7 +79,7 @@ import { RADAR_INDEX, SAT_TILES, latestRadar } from '@/lib/weather/overlays'
 import { useEnsembleView } from '@/state/ensembleView'
 import { contourFeatures, type ContourField } from '@/lib/maplayers/contours'
 import { DEFAULT_CONTOURS, type ContourKind } from '@/state/store'
-import { useWeatherFiles } from '@/state/weatherFiles'
+import { imageCorners, useChartImages, useWeatherFiles } from '@/state/weatherFiles'
 
 /** The venue's observing stations: NOS stations answer a browser, buoys wait for the proxy. */
 const OBS_STATIONS: ObsStation[] = [
@@ -477,6 +477,25 @@ function WeatherOverlay() {
     }
   }, [radarOn])
 
+  // The user's chart images, each its own image source, under everything else of ours.
+  const chartImages = useChartImages((s) => s.images)
+  const [placed, setPlaced] = useState<string[]>([])
+  useEffect(() => {
+    if (!map || !ready) return
+    for (const id of placed) {
+      if (map.getLayer(id)) map.removeLayer(id)
+      if (map.getSource(id)) map.removeSource(id)
+    }
+    const now = chartImages.filter((i) => i.on && i.bbox.north > i.bbox.south && i.bbox.east > i.bbox.west)
+    for (const i of now) {
+      map.addSource(i.id, { type: 'image', url: i.url, coordinates: imageCorners(i.bbox) })
+      map.addLayer({ id: i.id, type: 'raster', source: i.id, paint: { 'raster-opacity': i.opacity } }, 'wx-contour-line')
+    }
+    setPlaced(now.map((i) => i.id))
+    // `placed` is what this effect itself put there; listing it would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, ready, chartImages])
+
   // Satellite and radar as raster layers under the contours and symbols.
   useEffect(() => {
     if (!map || !ready) return
@@ -744,7 +763,7 @@ function WeatherOverlay() {
   const resolutionNote =
     // A GRIB file is on its own model's grid, so here the grid is the resolution.
     fileName && cube
-      ? ` · ${cube.dx}° grid`
+      ? ` · ${+cube.dx.toFixed(3)}° grid`
       : // `best_match` switches model by location, so it has no single resolution to
         // quote. Saying "varies" is the honest answer; quoting one number is not.
         model === 'best_match'

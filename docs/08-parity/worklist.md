@@ -272,8 +272,9 @@ leaves something tested and working.
       (NDBC and aviationweather.gov send no CORS headers). `blocked: D1`: they need the proxy.
 - [x] **10.9 Radar and satellite overlays:** RainViewer's latest frame and GOES-East GeoColor from
       NASA GIBS. *Accept:* a browser check.
-- [ ] **10.9b Weather-chart overlays:** OPC surface analyses and other fax charts, placed by their
-      corners on the chart, as Expedition's image manager does. *Accept:* a browser check.
+- [x] **10.9b Weather-chart overlays:** OPC surface analyses and other fax charts, placed by their
+      corners on the chart, as Expedition's image manager does. *Accept:* a browser check. *A picked image placed by its four edges; fetching OPC's own charts needs the proxy (D1), and
+      reference-point georeferencing is 13.9.*
 - [x] **10.10 Ensemble display:** members, and mean ± SD. *Accept:* tests.
 - [x] **10.11 A GRIB request builder:** area on the chart, model, parameters and
       times, with a Saildocs `mailto:` and a size estimate. *Accept:* tests.

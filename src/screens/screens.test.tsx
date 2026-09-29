@@ -155,7 +155,7 @@ import { SetupScreen, tideStationLabel } from './SetupScreen'
 import { StripchartScreen } from './StripchartScreen'
 import { WeatherScreen } from './WeatherScreen'
 import { file, gfsGrid, message, over } from '@/lib/weather/fixtures/grib2'
-import { openWeatherFiles, useWeatherFiles } from '@/state/weatherFiles'
+import { openWeatherFiles, useChartImages, useWeatherFiles } from '@/state/weatherFiles'
 import { DEFAULT_CONTOURS } from '@/state/store'
 import { useEnsembleView } from '@/state/ensembleView'
 import { RouteScreen, exploredFC, isochroneFC, keptFC, sensitivityFC } from './RouteScreen'
@@ -1107,6 +1107,20 @@ describe('the Weather screen states its provenance', () => {
       stubForecast.ensemble = null
       act(() => useEnsembleView.getState().clear())
     }
+  })
+
+  it('lays a chart image on the map by its edges, and takes it off when unticked', () => {
+    URL.createObjectURL = (() => 'blob:fax') as typeof URL.createObjectURL
+    render(<WeatherScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    act(() => void useChartImages.getState().addImage(new File([new Uint8Array(4)], 'fax.png'), { west: -75, south: 38, east: -60, north: 48 }))
+    const id = useChartImages.getState().images[0].id
+    expect(mapInstances[0].sources.get(id)).toEqual({ type: 'image', url: 'blob:fax', coordinates: [[-75, 48], [-60, 48], [-60, 38], [-75, 38]] })
+    act(() => useChartImages.getState().updateImage(id, { on: false }))
+    expect(mapInstances[0].sources.get(id)).toBeUndefined()
+    act(() => useChartImages.setState({ images: [] }))
   })
 
   it('shows no legend at all rather than an unattributed one', () => {

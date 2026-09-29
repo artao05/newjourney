@@ -126,3 +126,52 @@ export function summariseCatalogue(entries: GribEntry[]): CatalogueRow[] {
   }
   return [...rows.values()].map(({ times, ...r }) => ({ ...r, steps: times.size }))
 }
+
+/**
+ * A weather chart image (a fax, a surface analysis, a satellite picture) laid
+ * on the chart by its edges. For an image drawn on a latitude/longitude or
+ * Mercator grid the edges place it exactly; a polar-stereographic chart (most
+ * OPC analyses) can only be approximated by four corners. Not for navigation.
+ */
+export interface ChartImage {
+  id: string
+  name: string
+  /** An object URL for the picked file. */
+  url: string
+  bbox: BBox
+  opacity: number
+  on: boolean
+}
+
+interface ChartImagesState {
+  images: ChartImage[]
+  addImage(file: File, bbox: BBox): ChartImage
+  updateImage(id: string, patch: Partial<Omit<ChartImage, 'id' | 'url'>>): void
+  removeImage(id: string): void
+}
+
+export const useChartImages = create<ChartImagesState>()((set) => ({
+  images: [],
+  addImage: (file, bbox) => {
+    const img: ChartImage = { id: `img-${Date.now().toString(36)}-${seq++}`, name: file.name, url: URL.createObjectURL(file), bbox, opacity: 0.7, on: true }
+    set((s) => ({ images: [img, ...s.images] }))
+    return img
+  },
+  updateImage: (id, patch) => set((s) => ({ images: s.images.map((i) => (i.id === id ? { ...i, ...patch } : i)) })),
+  removeImage: (id) =>
+    set((s) => {
+      const gone = s.images.find((i) => i.id === id)
+      if (gone) URL.revokeObjectURL(gone.url)
+      return { images: s.images.filter((i) => i.id !== id) }
+    }),
+}))
+
+/** MapLibre's image corners: top left, top right, bottom right, bottom left. */
+export function imageCorners(b: BBox): [[number, number], [number, number], [number, number], [number, number]] {
+  return [
+    [b.west, b.north],
+    [b.east, b.north],
+    [b.east, b.south],
+    [b.west, b.south],
+  ]
+}

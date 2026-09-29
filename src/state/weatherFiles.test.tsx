@@ -7,6 +7,8 @@ import { file, gfsGrid, message, over, REF } from '@/lib/weather/fixtures/grib2'
 import { OpenGribButton, WeatherFilesSheet } from '@/components/WeatherFiles'
 import {
   activeFileCube,
+  imageCorners,
+  useChartImages,
   levelLabel,
   looksLikeGrib,
   openWeatherFiles,
@@ -125,5 +127,30 @@ describe('requesting a GRIB by email', () => {
     expect(within(form).getByLabelText('Request text').textContent).toMatch(/\|CURRENT · /)
     fireEvent.click(within(form).getByLabelText('CURRENT'))
     expect(within(form).queryByRole('link', { name: 'Email Saildocs' })).toBeNull()
+  })
+})
+
+describe('chart images', () => {
+  it('lays a picked image on the chart area, and moves, fades, hides and removes it', () => {
+    const made: string[] = []
+    const revoked: string[] = []
+    URL.createObjectURL = (() => {
+      made.push('blob:img')
+      return 'blob:img'
+    }) as typeof URL.createObjectURL
+    URL.revokeObjectURL = ((u: string) => void revoked.push(u)) as typeof URL.revokeObjectURL
+    render(<WeatherFilesSheet onClose={() => {}} area={{ west: -72, south: 40, east: -66, north: 45 }} />)
+    fireEvent.change(screen.getByLabelText('Chart image to add'), { target: { files: [new File([new Uint8Array(4)], 'surface.png', { type: 'image/png' })] } })
+    const img = () => useChartImages.getState().images[0]
+    expect(img()).toMatchObject({ name: 'surface.png', url: 'blob:img', bbox: { west: -72, south: 40, east: -66, north: 45 }, on: true })
+    expect(imageCorners(img().bbox)).toEqual([[-72, 45], [-66, 45], [-66, 40], [-72, 40]])
+    const row = screen.getByRole('region', { name: 'Image surface.png' })
+    fireEvent.change(within(row).getByLabelText('Top °'), { target: { value: '50' } })
+    fireEvent.change(within(row).getByLabelText('See-through'), { target: { value: '0.4' } })
+    fireEvent.click(within(row).getByRole('checkbox'))
+    expect(img()).toMatchObject({ bbox: { north: 50 }, opacity: 0.4, on: false })
+    fireEvent.click(screen.getByRole('button', { name: 'Remove surface.png' }))
+    expect(useChartImages.getState().images).toEqual([])
+    expect(revoked).toEqual(['blob:img'])
   })
 })
