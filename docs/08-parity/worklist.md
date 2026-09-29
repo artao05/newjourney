@@ -76,8 +76,14 @@ leaves something tested and working.
 
 ## M3 — Marks, routes and race notes
 
-- [ ] **3.1 A marks database** in IndexedDB. Place, drag and edit marks on the chart;
-      enter lat/lon as DD, DMM or DMS. *Accept:* store, parser and screen tests.
+- [x] **3.1 Edit and place marks.** Enter lat/lon as DD, DMM or DMS, and edit the
+      name, rounding side and order. Place marks by tapping the chart. *Accept:*
+      store, parser and screen tests. *Split:* the marks library and dragging went
+      to 3.1b, so each commit stays one thing.
+- [ ] **3.1b A marks library, and dragging on the chart.** A library of named marks,
+      in folders, separate from the course, which routes are built from, plus
+      draggable mark symbols. *Accept:* store and screen tests, and a browser check
+      of a drag.
 - [ ] **3.2 Marks import and export:** GPX and Expedition-style CSV. *Accept:*
       round-trip tests.
 - [ ] **3.3 Named routes.** Build from marks or by tapping the chart; insert,

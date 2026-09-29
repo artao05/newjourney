@@ -885,6 +885,47 @@ describe('Setup exports and imports the whole configuration', () => {
   })
 })
 
+describe('marks can be edited, and placed on the chart', () => {
+  it('moves a mark to a typed position, in chart-plotter format', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit mark W' }))
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '43 40.000 N, 070 10.000 W' } })
+    const w = useStore.getState().course.marks[0]
+    expect(w.position.lat).toBeCloseTo(43 + 40 / 60, 9)
+    expect(w.position.lon).toBeCloseTo(-(70 + 10 / 60), 9)
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Windward' } })
+    expect(useStore.getState().course.marks[0].name).toBe('Windward')
+  })
+
+  it('leaves the mark where it was when the position cannot be read, and says so', () => {
+    populatedStore()
+    const before = useStore.getState().course.marks[0].position
+    render(<RaceScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit mark W' }))
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '43 61 N 70 W' } })
+    expect(useStore.getState().course.marks[0].position).toEqual(before)
+    expect(screen.getByText(/Cannot read that as a position/)).toBeTruthy()
+  })
+
+  it('adds a mark where the chart is tapped after + mark', () => {
+    populatedStore()
+    const n = useStore.getState().course.marks.length
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    fireEvent.click(screen.getByRole('button', { name: /\+ mark/ }))
+    act(() => {
+      for (const fn of mapInstances[0].handlers.get('click') ?? []) fn({ lngLat: { lat: 43.61, lng: -70.15 } })
+    })
+    const marks = useStore.getState().course.marks
+    expect(marks).toHaveLength(n + 1)
+    expect(marks.at(-1)!.position).toEqual({ lat: 43.61, lon: -70.15 })
+    expect(useStore.getState().routeStart).toBeNull()
+  })
+})
+
 describe('man overboard', () => {
   it('drops a MOB mark at the boat, makes it active, and says so in red', () => {
     populatedStore()

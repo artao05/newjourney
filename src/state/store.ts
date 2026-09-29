@@ -14,6 +14,7 @@ import type {
   Degrees,
   Knots,
   LatLon,
+  Mark,
   Millis,
   PolarTable,
   RouteResult,
@@ -91,6 +92,10 @@ interface AppState {
   /** Replace marks without resetting a previously pinged start line. */
   replaceMarks(marks: Array<{ name: string; position: LatLon }>): void
   removeMark(id: string): void
+  /** Rename, move, or change the rounding side of one mark. */
+  updateMark(id: string, patch: Partial<Pick<Mark, 'name' | 'position' | 'roundTo'>>): void
+  /** Move a mark one place earlier (-1) or later (+1) in the course. */
+  moveMark(id: string, by: -1 | 1): void
   /**
    * Man overboard: a MOB mark at `at`, stamped with the time and made the active
    * mark, so every bearing and range on screen points back at the person.
@@ -341,6 +346,29 @@ export const useStore = create<AppState>()(
           course: { ...course, marks },
           activeMarkIndex: marks.length === 0 ? 0 : Math.min(Math.max(0, shifted), marks.length - 1),
         })
+      },
+      updateMark: (id, patch) => {
+        const { course } = get()
+        set({
+          // A mark that moved is a different course; a rename is not.
+          ...(patch.position ? COURSE_CHANGED : {}),
+          course: {
+            ...course,
+            marks: course.marks.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+          },
+        })
+      },
+      moveMark: (id, by) => {
+        const { course, activeMarkIndex } = get()
+        const at = course.marks.findIndex((m) => m.id === id)
+        const to = at + by
+        if (at < 0 || to < 0 || to >= course.marks.length) return
+        const marks = course.marks.slice()
+        ;[marks[at], marks[to]] = [marks[to], marks[at]]
+        // The active pointer follows the mark it was on.
+        const active =
+          activeMarkIndex === at ? to : activeMarkIndex === to ? at : activeMarkIndex
+        set({ ...COURSE_CHANGED, course: { ...course, marks }, activeMarkIndex: active })
       },
       /*
        * What CLEAR on the Race tab does. The start line and the gun time belong to

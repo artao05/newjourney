@@ -197,6 +197,32 @@ describe('persistence', () => {
   })
 })
 
+describe('editing marks', () => {
+  it('moves a mark and drops the route, but a rename keeps it', () => {
+    const [m] = courseOf(2)
+    const s = useStore.getState
+    s().setRoute({ ok: true } as RouteResult)
+    s().updateMark(m.id, { name: 'Windward' })
+    expect(s().route).not.toBeNull()
+    s().updateMark(m.id, { position: at(43.7, -70.1) })
+    expect(s().route).toBeNull()
+    expect(s().course.marks[0]).toMatchObject({ name: 'Windward', position: at(43.7, -70.1) })
+  })
+
+  it('reorders marks, and the active pointer stays on its mark', () => {
+    const [a, b, c] = courseOf(3)
+    const s = useStore.getState
+    s().setActiveMark(2)
+    s().moveMark(c.id, -1)
+    expect(names()).toEqual(['M1', 'M3', 'M2'])
+    expect(s().course.marks[active()].id).toBe(c.id)
+    s().moveMark(a.id, -1)
+    expect(names()).toEqual(['M1', 'M3', 'M2'])
+    s().moveMark(b.id, 1)
+    expect(names()).toEqual(['M1', 'M3', 'M2'])
+  })
+})
+
 describe('a planned route start', () => {
   it('drops the route it no longer describes, and survives a reload', () => {
     const s = useStore.getState

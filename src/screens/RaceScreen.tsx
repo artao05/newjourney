@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
 import { NumberBoxes } from '@/components/NumberBoxes'
+import { MarkSheet } from '@/components/MarkSheet'
 import { useLayout } from '@/hooks/useWide'
 import { Tile, fmtClock } from '@/components/Tile'
 import { computeTactics } from '@/lib/tactics'
@@ -38,6 +39,7 @@ export function RaceScreen() {
   const replaceMarks = useStore((s) => s.replaceMarks)
   const clearMarks = useStore((s) => s.clearMarks)
 
+  const [editingMark, setEditingMark] = useState<string | null>(null)
   const [whatIfShift, setWhatIfShift] = useState(0)
   const [whatIfSpeed, setWhatIfSpeed] = useState(0)
   const [wlAxis, setWlAxis] = useState(0)
@@ -433,11 +435,11 @@ export function RaceScreen() {
           </p>
         )}
         {marks.map((m, i) => (
+          <div key={m.id} style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
           <button
-            key={m.id}
             className="field"
             style={{
-              width: '100%',
+              flex: 1,
               borderColor: i === activeMarkIndex ? 'var(--accent)' : 'var(--line)',
             }}
             onClick={() => setActiveMark(i)}
@@ -454,7 +456,24 @@ export function RaceScreen() {
                 : ''}
             </span>
           </button>
+          <button
+            className="btn btn--sm btn--ghost"
+            style={{ marginBottom: 8 }}
+            onClick={() => setEditingMark(m.id)}
+            aria-label={`Edit mark ${m.name}`}
+          >
+            EDIT
+          </button>
+          </div>
         ))}
+        {editingMark && marks.some((m) => m.id === editingMark) && (
+          <MarkSheet
+            mark={marks.find((m) => m.id === editingMark)!}
+            index={marks.findIndex((m) => m.id === editingMark)}
+            count={marks.length}
+            onClose={() => setEditingMark(null)}
+          />
+        )}
         <div className="actions" style={{ background: 'none', border: 'none', padding: '8px 0' }}>
           <button
             className="btn btn--sm btn--mob"

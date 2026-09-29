@@ -132,10 +132,13 @@ export function RouteScreen() {
    * route tomorrow's race from the dock, or at all with location turned off.
    */
   const origin = routeStart ?? state?.position ?? null
-  /** Waiting for a tap on the chart to become the planned start. */
-  const [pickingStart, setPickingStart] = useState(false)
-  const pickingRef = useRef(false)
-  pickingRef.current = pickingStart
+  /**
+   * Waiting for a tap on the chart: to become the planned start, or a new mark at
+   * the end of the course.
+   */
+  const [picking, setPicking] = useState<'start' | 'mark' | null>(null)
+  const pickingRef = useRef<'start' | 'mark' | null>(null)
+  pickingRef.current = picking
 
   // ---------------------------------------------------------------- map init
   useEffect(() => {
@@ -151,12 +154,16 @@ export function RouteScreen() {
       addEmptyLayers(map)
       setReady(true)
     })
-    // One tap after PICK START becomes the planned start. Read through refs and
+    // One tap after "pick start" or "+ mark" places it. Read through refs and
     // getState, because this handler outlives every render.
     map.on('click', (e: maplibregl.MapMouseEvent) => {
-      if (!pickingRef.current) return
-      useStore.getState().setRouteStart({ lat: e.lngLat.lat, lon: e.lngLat.lng })
-      setPickingStart(false)
+      const mode = pickingRef.current
+      if (!mode) return
+      const at = { lat: e.lngLat.lat, lon: e.lngLat.lng }
+      const s = useStore.getState()
+      if (mode === 'start') s.setRouteStart(at)
+      else s.addMark(`Mark ${s.course.marks.length + 1}`, at)
+      setPicking(null)
     })
     mapRef.current = map
     return () => {
@@ -608,9 +615,9 @@ export function RouteScreen() {
               {cube ? `${cube.model} · ${cube.nt}h` : 'no forecast'}
             </span>
             <span className="chip">{PILOT_VENUE.name}</span>
-          {pickingStart ? (
-            <button className="chip chip--warn" onClick={() => setPickingStart(false)}>
-              tap the chart for the start · cancel
+          {picking ? (
+            <button className="chip chip--warn" onClick={() => setPicking(null)}>
+              tap the chart for the {picking === 'start' ? 'start' : 'new mark'} · cancel
             </button>
           ) : routeStart ? (
             <button
@@ -623,10 +630,15 @@ export function RouteScreen() {
           ) : (
             <button
               className="chip"
-              onClick={() => setPickingStart(true)}
+              onClick={() => setPicking('start')}
               title="Plan from anywhere: pick a start on the chart"
             >
               {state ? 'from the boat · pick start' : 'no fix · pick a start'}
+            </button>
+          )}
+          {!picking && (
+            <button className="chip" onClick={() => setPicking('mark')} title="Tap the chart to add a mark">
+              + mark
             </button>
           )}
             {/*
