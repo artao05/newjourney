@@ -225,11 +225,12 @@ leaves something tested and working.
 - [ ] **9.12 Fleet routing:** every boat with its own polar (after 13.4). *Accept:*
       tests.
 - [ ] **9.13 World land avoidance** from a tiled OSM land pack. *Accept:* a route
-      outside Portland goes round land.
+      outside Portland goes round land. `blocked: D1`: building the pack means downloading
+      OSM's land polygons (about 700 MB, ODbL) and hosting the world tiles; may I, and where?
 - [x] **9.14 Asymmetric port and starboard polars**, moved here from 4.5 because it
       needs a second set of target tables in the hot loop. *Accept:* the kernel uses
-- [x] **9.14b A port polar in the app:** import it in Setup, keep it, and pass it through the worker. *Accept:* store and worker tests.
       the right side on each tack, with a test.
+- [x] **9.14b A port polar in the app:** import it in Setup, keep it, and pass it through the worker. *Accept:* store and worker tests.
 
 ## M10 — Weather
 
