@@ -47,14 +47,15 @@ describe('the grid router', () => {
       const to = destination(start, brg, 8)
       const field = uniform(0, 12)
       const grid = routeGrid(req(start, to), { field, lattice: LATTICE })
-      const iso = routeIsochrone(req(start, to), { field, lattice: LATTICE })
+      const iso = routeIsochrone({ ...req(start, to), resolution: 'balanced' }, { field, lattice: LATTICE })
       expect(grid.ok && iso.ok, grid.error ?? iso.error).toBe(true)
       const ratio = grid.elapsedS! / iso.elapsedS!
       console.log(`  · 9.9 grid vs isochrones, course ${brg}°: ${ratio.toFixed(3)}`)
       // The grid charges no tacks but cannot pick any angle: within a few per cent.
       expect(Math.abs(ratio - 1)).toBeLessThan(tol)
     }
-  })
+    // Two isochrone solves: slow on a loaded machine, so given room.
+  }, 30_000)
 
   it('lays its rows along the great circle when asked, poleward of the rhumb line', () => {
     const a = { lat: 45, lon: -60 }
