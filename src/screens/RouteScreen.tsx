@@ -15,7 +15,7 @@ import { sampleCube } from '@/lib/weather/cube'
 import { RoutingClient } from '@/lib/routing/client'
 import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
 import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
-import { nonDefaultLabels, requestParts, windHeightFactor } from '@/lib/routing/settings'
+import { nonDefaultLabels, requestParts, windHeightFactor, zonesFromNotes } from '@/lib/routing/settings'
 import { courseLegs } from '@/lib/legs'
 import { buildLattice } from '@/lib/polar'
 import { fmtPosition } from '@/components/MarkSheet'
@@ -542,20 +542,23 @@ export function RouteScreen() {
   const buildRequest = useCallback(
     (startTime: Millis, computeSensitivity: boolean): RouteRequest | null => {
       if (!origin || course.marks.length === 0) return null
+      const parts = requestParts(
+        routeSettings,
+        boat,
+        landPack != null,
+        windHeightFactor(polar?.reference, boat.mastHeightMetres),
+      )
       return {
         start: origin,
         startTime,
         marks: course.marks.map((m) => m.position),
-        ...requestParts(
-          routeSettings,
-          boat,
-          landPack != null,
-          windHeightFactor(polar?.reference, boat.mastHeightMetres),
-        ),
+        ...parts,
+        // Race notes steer the route: keep-out areas and slow areas.
+        constraints: { ...parts.constraints, ...zonesFromNotes(raceNotes) },
         computeSensitivity,
       }
     },
-    [origin, course.marks, landPack, boat, routeSettings, polar?.reference],
+    [origin, course.marks, landPack, boat, routeSettings, polar?.reference, raceNotes],
   )
   const heightFactor = windHeightFactor(polar?.reference, boat.mastHeightMetres)
 
@@ -876,6 +879,15 @@ export function RouteScreen() {
               masthead wind ×{heightFactor.toFixed(2)}
             </span>
           )}
+          {(() => {
+            const z = zonesFromNotes(raceNotes)
+            const n = (z.avoidAreas?.length ?? 0) + (z.slowAreas?.length ?? 0)
+            return n > 0 ? (
+              <span className="chip chip--warn" title="Race notes the router keeps out of, or slows down in">
+                {n} race note{n === 1 ? '' : 's'} steer routes
+              </span>
+            ) : null
+          })()}
           {nonDefaultLabels(routeSettings).map((label) => (
               <span className="chip chip--warn" key={label} title="Routing setting — change in SETTINGS">
                 {label}

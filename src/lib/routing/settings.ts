@@ -111,6 +111,25 @@ export function requestParts(
   }
 }
 
+/**
+ * Race-note areas as the kernel wants them: keep-out polygons, and slow polygons
+ * with their percentage. Points, lines and plain areas change nothing.
+ */
+export function zonesFromNotes(
+  notes: ReadonlyArray<{ kind: string; points: Array<{ lat: number; lon: number }>; avoid: boolean; speedPct: number | null }>,
+): Pick<RouteConstraints, 'avoidAreas' | 'slowAreas'> {
+  const ring = (pts: Array<{ lat: number; lon: number }>) => [pts.map((p) => [p.lon, p.lat])]
+  const areas = notes.filter((n) => n.kind === 'area' && n.points.length >= 3)
+  const avoidAreas = areas.filter((n) => n.avoid).map((n) => ring(n.points))
+  const slowAreas = areas
+    .filter((n) => !n.avoid && n.speedPct != null && n.speedPct > 0)
+    .map((n) => ({ polygon: ring(n.points), pct: n.speedPct as number }))
+  return {
+    ...(avoidAreas.length ? { avoidAreas } : {}),
+    ...(slowAreas.length ? { slowAreas } : {}),
+  }
+}
+
 /** Settings that differ from the defaults, as short labels for the Route chip row. */
 export function nonDefaultLabels(s: RouteSettings): string[] {
   const out: string[] = []

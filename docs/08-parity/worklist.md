@@ -95,7 +95,7 @@ leaves something tested and working.
       and a browser check.
 - [x] **3.5 Race notes.** Points, lines and polygons with text, drawn on the chart.
       *Accept:* store and screen tests.
-- [ ] **3.6 Race notes steer the router.** Exclusion zones, and polygons that slow the
+- [x] **3.6 Race notes steer the router.** Exclusion zones, and polygons that slow the
       boat by a percentage. *Accept:* analytic kernel tests for both.
 
 ## M4 — Polars and sails

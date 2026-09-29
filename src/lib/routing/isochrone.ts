@@ -68,7 +68,7 @@ import type {
   SensitivityField,
   WeatherField,
 } from '../types'
-import { NULL_LAND_MASK, type LandMask } from './land'
+import { NULL_LAND_MASK, PolygonLandMask, combineMasks, type LandMask } from './land'
 
 // ------------------------------------------------------------------ context
 
@@ -825,6 +825,21 @@ class Search {
   private hopHdg = 0
   private hopBsp = 0
   private hopBeat = 0
+  /** Race-note slow areas: inside one, the polar is scaled by its factor. */
+  private readonly slow: Array<{ mask: PolygonLandMask; f: number }>
+
+  /**
+   * The race-note speed factor at a point: the product of every slow area it is
+   * in, 1 outside them all. Constant across one step, taken where the step starts,
+   * the same way the night polar is.
+   */
+  private slowAt(lat: number, lon: number): number {
+    let f = 1
+    for (let i = 0; i < this.slow.length; i++) {
+      if (this.slow[i].mask.isLand(lat, lon)) f *= this.slow[i].f
+    }
+    return f
+  }
 
   constructor(o: SearchOpts) {
     this.f = o.field
@@ -838,6 +853,9 @@ class Search {
     this.gybePen = o.constraints.gybePenaltyS ?? 0
     this.polarDay = o.scalings.polarPct / 100
     this.polarNight = o.scalings.polarPctNight / 100
+    this.slow = (o.constraints.slowAreas ?? [])
+      .filter((z) => z.pct > 0 && z.polygon.length > 0)
+      .map((z) => ({ mask: new PolygonLandMask([z.polygon]), f: z.pct / 100 }))
     this.fanStep = o.preset.fanStepDeg
     this.maxNodes = o.preset.maxNodes
     this.maxFrontier = o.preset.maxFrontier
@@ -1224,9 +1242,9 @@ class Search {
         const cv = s[P_CV]
         const tb = this.targetBucket(tws)
         const polarF =
-          this.polarNight !== this.polarDay && isNight(plat, plon, sampleT)
+          (this.polarNight !== this.polarDay && isNight(plat, plon, sampleT)
             ? this.polarNight
-            : this.polarDay
+            : this.polarDay) * (this.slow.length ? this.slowAt(plat, plon) : 1)
 
         pa.lat = plat
         pa.lon = plon
@@ -1694,10 +1712,33 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
     timeStepS = dtS
     const dtMs = dtS * 1000
 
+    // Keep-out race notes are obstacles beside the coastline. `land` above stays
+    // the coastline alone, because landAvoided reports on the coastline.
+    const avoid = req.constraints.avoidAreas?.length
+      ? new PolygonLandMask(req.constraints.avoidAreas)
+      : null
+    if (avoid) {
+      // Say so plainly, and at once. Searching first only ends in "something
+      // impassable is in the way", which is true and tells a sailor nothing.
+      const inside = [req.start, ...req.marks].findIndex((p) => avoid.isLand(p.lat, p.lon))
+      if (inside >= 0) {
+        return failed(
+          inside === 0
+            ? 'The start is inside a keep-out race note, so no route can leave it.'
+            : `Mark ${inside} is inside a keep-out race note, so no route can reach it.`,
+          warnings,
+          dtS,
+          0,
+          started,
+          landAvoided,
+        )
+      }
+    }
+
     const search = new Search({
       field: dense,
       lattice: ctx.lattice,
-      land,
+      land: combineMasks(land, avoid),
       constraints: req.constraints,
       scalings: req.scalings,
       preset,

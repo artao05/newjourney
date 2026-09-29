@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_ROUTE_SETTINGS, nonDefaultLabels, requestParts, windHeightFactor } from './settings'
+import { DEFAULT_ROUTE_SETTINGS, nonDefaultLabels, requestParts, windHeightFactor, zonesFromNotes } from './settings'
 
 const BOAT = { polarPct: 97, polarPctNight: 92, tackPenaltyS: 12, gybePenaltyS: 8 }
 
@@ -89,5 +89,30 @@ describe('mast height lifts the forecast only for a masthead polar', () => {
     expect(p.scalings.windScalePct).toBeCloseTo(90 * k, 12)
     // And the sailor's setting itself is untouched, so the chip still reads 90 %.
     expect(nonDefaultLabels({ ...DEFAULT_ROUTE_SETTINGS, windScalePct: 90 })).toEqual(['wind 90%'])
+  })
+})
+
+describe('race notes become keep-out and slow areas', () => {
+  const tri = [
+    { lat: 43.6, lon: -70.2 },
+    { lat: 43.61, lon: -70.2 },
+    { lat: 43.61, lon: -70.19 },
+  ]
+  const note = (over: object) => ({ kind: 'area', points: tri, avoid: false, speedPct: null, ...over })
+
+  it('passes keep-out areas as polygons in lon, lat order', () => {
+    expect(zonesFromNotes([note({ avoid: true })])).toEqual({
+      avoidAreas: [[[[-70.2, 43.6], [-70.2, 43.61], [-70.19, 43.61]]]],
+    })
+  })
+
+  it('passes slow areas with their percentage, and a keep-out wins over a speed', () => {
+    const z = zonesFromNotes([note({ speedPct: 70 }), note({ avoid: true, speedPct: 50 })])
+    expect(z.slowAreas).toEqual([{ polygon: [[[-70.2, 43.6], [-70.2, 43.61], [-70.19, 43.61]]], pct: 70 }])
+    expect(z.avoidAreas).toHaveLength(1)
+  })
+
+  it('ignores points, lines and plain areas, so an ordinary note changes nothing', () => {
+    expect(zonesFromNotes([note({}), note({ kind: 'line', avoid: true }), note({ kind: 'point', speedPct: 50 })])).toEqual({})
   })
 })

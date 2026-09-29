@@ -332,6 +332,13 @@ export interface RouteConstraints {
   tackPenaltyS?: Seconds
   gybePenaltyS?: Seconds
   avoidLand: boolean
+  /**
+   * Race-note areas the route must not enter, as GeoJSON polygon coordinates
+   * (`[ring][vertex][lon, lat]`). Tested per segment, exactly as land is.
+   */
+  avoidAreas?: number[][][][]
+  /** Race-note areas where boat speed is a percentage of the polar. */
+  slowAreas?: Array<{ polygon: number[][][]; pct: number }>
 }
 
 export interface RouteScalings {

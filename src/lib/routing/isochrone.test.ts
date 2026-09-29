@@ -593,6 +593,64 @@ describe('isochrone routing kernel', () => {
 
   // The goal hop — the final partial step onto a mark — must check the land
   // mask, or it short-circuits through a peninsula near the mark.
+  it('race notes: a keep-out area is avoided like land, with no land data at all', () => {
+    const start = { lat: 40, lon: -70 }
+    const finish = { lat: 40, lon: -69 }
+    const zone = [
+      [
+        [-69.56, 39.93],
+        [-69.44, 39.93],
+        [-69.44, 40.07],
+        [-69.56, 40.07],
+      ],
+    ]
+    const exact = new PolygonLandMask([zone])
+    expect(exact.crosses(start, finish)).toBe(true)
+    const req = request({ start, marks: [finish], resolution: 'balanced' })
+    req.constraints = { ...req.constraints, avoidAreas: [zone] }
+    const res = routeIsochrone(req, { field: makeField({ twd: 0, tws: 14 }), lattice: LATTICE, land: null })
+    expect(res.ok, res.error).toBe(true)
+    for (let i = 1; i < res.legs.length; i++) {
+      expect(exact.crosses(res.legs[i - 1].position, res.legs[i].position), `leg ${i}`).toBe(false)
+    }
+    expect(routeDistanceNm(res.legs)).toBeGreaterThan(distance(start, finish) * 1.001)
+    // It is a race note, not a coastline: land avoidance was not claimed.
+    expect(res.diagnostics.landAvoided).toBe(false)
+  })
+
+  it('race notes: a slow area costs time, or is sailed round', () => {
+    const start = { lat: 40, lon: -70 }
+    const finish = { lat: 40, lon: -69.5 }
+    const ctx = { field: makeField({ twd: 0, tws: 12 }), lattice: LATTICE, land: null }
+    const plain = routeIsochrone(request({ start, marks: [finish] }), ctx)
+    // Weed across the whole direct line, at half speed.
+    const band = [
+      [
+        [-69.8, 39.6],
+        [-69.7, 39.6],
+        [-69.7, 40.4],
+        [-69.8, 40.4],
+      ],
+    ]
+    const req = request({ start, marks: [finish] })
+    req.constraints = { ...req.constraints, slowAreas: [{ polygon: band, pct: 50 }] }
+    const slowed = routeIsochrone(req, ctx)
+    expect(plain.ok && slowed.ok).toBe(true)
+    note(`race-note slow band: ${(plain.elapsedS! / 60).toFixed(1)} min clear, ${(slowed.elapsedS! / 60).toFixed(1)} min through weed`)
+    expect(slowed.elapsedS!).toBeGreaterThan(plain.elapsedS! * 1.02)
+  })
+
+  it('race notes: refuses at once, and says why, when a mark sits inside a keep-out area', () => {
+    const start = { lat: 40, lon: -70 }
+    const finish = { lat: 40, lon: -69.5 }
+    const around = [[[-69.51, 39.99], [-69.49, 39.99], [-69.49, 40.01], [-69.51, 40.01]]]
+    const req = request({ start, marks: [finish] })
+    req.constraints = { ...req.constraints, avoidAreas: [around] }
+    const res = routeIsochrone(req, { field: makeField({ twd: 0, tws: 12 }), lattice: LATTICE, land: null })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/Mark 1 is inside a keep-out race note/)
+  })
+
   it('goal hop: the final approach to a mark must not cross land', () => {
     const start = { lat: 40, lon: -71 }
     const finish = { lat: 40, lon: -69 }

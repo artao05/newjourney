@@ -36,6 +36,25 @@ export interface LandMask {
  */
 export type PolygonCoords = number[][][]
 
+/**
+ * Two obstacle sets as one: blocked where either is. How keep-out race notes sit
+ * beside the coastline, so every place the kernel tests land also tests them.
+ */
+export function combineMasks(a: LandMask | null, b: LandMask | null): LandMask | null {
+  if (!a) return b
+  if (!b) return a
+  return {
+    bbox: {
+      west: Math.min(a.bbox.west, b.bbox.west),
+      south: Math.min(a.bbox.south, b.bbox.south),
+      east: Math.max(a.bbox.east, b.bbox.east),
+      north: Math.max(a.bbox.north, b.bbox.north),
+    },
+    isLand: (lat, lon) => a.isLand(lat, lon) || b.isLand(lat, lon),
+    crosses: (p, q) => a.crosses(p, q) || b.crosses(p, q),
+  }
+}
+
 const WORLD_BBOX: BBox = { west: -180, south: -90, east: 180, north: 90 }
 
 /** Open-ocean routing: nothing is ever land, and both tests are free. */
