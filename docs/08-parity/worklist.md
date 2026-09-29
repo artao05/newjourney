@@ -180,7 +180,7 @@ leaves something tested and working.
 
 - [x] **7.1 Channel logger:** 1 Hz to IndexedDB, one log per day, a size cap, and CSV
       export. *Accept:* tests.
-- [ ] **7.1b Logged points on the polar**, coloured by tack and hollow when below the
+- [x] **7.1b Logged points on the polar**, coloured by tack and hollow when below the
       polar's VMG, as Expedition draws them. *Accept:* tests.
 - [ ] **7.2 Log import:** CSV logs, NMEA recordings and GPX. *Accept:* fixture tests.
 - [ ] **7.3 LogPlayer:** replay into the live snapshot with play, pause, speed and

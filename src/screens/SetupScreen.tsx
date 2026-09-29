@@ -10,7 +10,7 @@ import { useMemo, useState } from 'react'
 import { MAX_TRACK_POINTS, useStore } from '@/state/store'
 import { POLAR_LIBRARY, findPolar } from '@/data/polars'
 import { buildLattice, parsePolar, serialiseExpeditionPolar, validatePolar } from '@/lib/polar'
-import { PolarPlot } from '@/components/PolarPlot'
+import { PolarWithLog } from '@/components/PolarWithLog'
 import { PolarEditor } from '@/components/PolarEditor'
 import { TargetsTable } from '@/components/TargetsTable'
 import { SailChartView } from '@/components/SailChartView'
@@ -350,7 +350,7 @@ export function SetupScreen() {
                 </button>
               ))}
             </div>
-            <PolarPlot lattice={lattice} speeds={plotSpeeds} />
+            <PolarWithLog lattice={lattice} speeds={plotSpeeds} />
             <TargetsTable polar={polar} polarPct={boat.polarPct} />
             <div className="rows" style={{ marginTop: 8 }}>
               <div className="row">

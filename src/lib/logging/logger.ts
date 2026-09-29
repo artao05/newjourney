@@ -125,3 +125,32 @@ export class MemoryLogStore implements LogStore {
     this.data.delete(day)
   }
 }
+
+export interface PolarPoint {
+  twa: number
+  bsp: number
+  tws: number
+  tack: 'port' | 'starboard'
+  /** Slower than the polar at this angle and wind: drawn hollow. */
+  below: boolean
+}
+
+/**
+ * Logged seconds as points on the polar: the ones within `bandKn` of a plotted
+ * wind speed, so each point sits by the curve it should be compared with.
+ */
+export function polarPoints(
+  rows: LogRow[],
+  speedAt: (tws: number, twa: number) => number,
+  speeds: number[],
+  bandKn = 1,
+): PolarPoint[] {
+  const out: PolarPoint[] = []
+  for (const r of rows) {
+    const { twa, tws, bsp } = r.v
+    if (twa == null || tws == null || bsp == null || !(bsp > 0.3)) continue
+    if (!speeds.some((s) => Math.abs(s - tws) <= bandKn)) continue
+    out.push({ twa, bsp, tws, tack: twa < 0 ? 'port' : 'starboard', below: bsp < speedAt(tws, Math.abs(twa)) })
+  }
+  return out
+}

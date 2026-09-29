@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ChannelLogger, MemoryLogStore, dayOf, logToCsv, rowFrom, trimToCap } from './logger'
+import { ChannelLogger, MemoryLogStore, dayOf, logToCsv, polarPoints, rowFrom, trimToCap } from './logger'
 
 const T = new Date(2026, 8, 29, 14, 0, 0).getTime()
 
@@ -61,5 +61,33 @@ describe('a log as CSV', () => {
     expect(head).toBe('Utc,Twd,Bsp')
     expect(a).toBe('2026-09-29T10:00:00.000Z,250,6.2')
     expect(b).toBe('2026-09-29T10:00:01.000Z,,6.3')
+  })
+})
+
+describe('logged points on the polar', () => {
+  // A polar that does 6 kn at every angle and wind.
+  const speedAt = () => 6
+  const row = (twa: number, tws: number, bsp: number) => ({ t: 0, v: { twa, tws, bsp } })
+
+  it('takes the seconds near a plotted wind speed, by tack, hollow when slower than the polar', () => {
+    const pts = polarPoints([row(42, 10.5, 6.3), row(-40, 9.2, 5.5), row(90, 13, 7), row(45, 10, 0.1)], speedAt, [10, 16])
+    expect(pts).toEqual([
+      { twa: 42, bsp: 6.3, tws: 10.5, tack: 'starboard', below: false },
+      { twa: -40, bsp: 5.5, tws: 9.2, tack: 'port', below: true },
+    ])
+  })
+
+  it('needs all three of TWA, TWS and boat speed', () => {
+    expect(polarPoints([{ t: 0, v: { twa: 40, tws: 10 } }], speedAt, [10])).toEqual([])
+  })
+})
+
+describe('the band of wind speeds points are taken from', () => {
+  it('is half the gap between the plotted curves, and at least a knot', async () => {
+    const { bandFor } = await import('@/components/PolarWithLog')
+    expect(bandFor([6, 10, 14, 20])).toBe(2)
+    expect(bandFor([2, 4, 6, 8])).toBe(1)
+    expect(bandFor([16, 20, 25, 30])).toBe(2)
+    expect(bandFor([10])).toBe(1)
   })
 })

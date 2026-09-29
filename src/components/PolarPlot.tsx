@@ -8,18 +8,23 @@
 
 import { useEffect, useRef } from 'react'
 import type { PolarLattice } from '@/lib/types'
+import type { PolarPoint } from '@/lib/logging/logger'
 
 interface Props {
   lattice: PolarLattice | null
   /** Wind speeds to draw. */
   speeds?: number[]
   height?: number
+  /** Logged points: starboard to the right in green, port to the left in red. */
+  points?: PolarPoint[]
 }
 
 const DEFAULT_SPEEDS = [6, 10, 14, 20]
 const COLOURS = ['#4fc3f7', '#35d07f', '#ffd54a', '#ff8a4a', '#ff4d4d']
 
-export function PolarPlot({ lattice, speeds = DEFAULT_SPEEDS, height = 230 }: Props) {
+const NO_POINTS: PolarPoint[] = []
+
+export function PolarPlot({ lattice, speeds = DEFAULT_SPEEDS, height = 230, points = NO_POINTS }: Props) {
   const ref = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -54,14 +59,14 @@ export function PolarPlot({ lattice, speeds = DEFAULT_SPEEDS, height = 230 }: Pr
       const ctx = cv.getContext('2d')
       if (!ctx) return
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      render(ctx, w, h, lattice, speeds)
+      render(ctx, w, h, lattice, speeds, points)
     }
 
     draw()
     const ro = new ResizeObserver(draw)
     ro.observe(parent)
     return () => ro.disconnect()
-  }, [lattice, speeds, height])
+  }, [lattice, speeds, height, points])
 
   if (!lattice) return null
   return (
@@ -77,6 +82,7 @@ function render(
   h: number,
   lat: PolarLattice,
   speeds: number[],
+  points: PolarPoint[] = [],
 ) {
   ctx.clearRect(0, 0, w, h)
 
@@ -85,6 +91,7 @@ function render(
   for (const tws of speeds) {
     for (let a = 0; a <= 180; a += 2) vmax = Math.max(vmax, lat.speed(tws, a))
   }
+  for (const p of points) if (Number.isFinite(p.bsp)) vmax = Math.max(vmax, p.bsp)
   if (vmax <= 0) return
   vmax = Math.ceil(vmax)
 
@@ -169,8 +176,26 @@ function render(
     ctx.fillText(`${tws} kn`, 6, 14 + i * 13)
   })
 
+  // ---- logged points: filled at or above the polar, hollow below it -------
+  for (const q of points) {
+    const p = pt(q.twa, q.bsp)
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue
+    const colour = q.tack === 'port' ? 'rgba(255,77,77,0.8)' : 'rgba(53,208,127,0.8)'
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2)
+    if (q.below) {
+      ctx.strokeStyle = colour
+      ctx.lineWidth = 1
+      ctx.stroke()
+    } else {
+      ctx.fillStyle = colour
+      ctx.fill()
+    }
+  }
+
   ctx.fillStyle = '#5b7794'
   ctx.font = '9px system-ui, sans-serif'
   ctx.textAlign = 'right'
   ctx.fillText('dots = VMG targets', w - 6, 14)
+  if (points.length) ctx.fillText(`${points.length} logged: hollow = below the polar`, w - 6, 26)
 }

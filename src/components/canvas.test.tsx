@@ -630,6 +630,26 @@ describe('PolarPlot', () => {
     cleanup()
   })
 
+  it('draws logged points by tack, port to the left, hollow below the polar', () => {
+    ctx = new RecordingContext()
+    const points = [
+      { twa: 42, bsp: 6.3, tws: 10, tack: 'starboard' as const, below: false },
+      { twa: -42, bsp: 4, tws: 10, tack: 'port' as const, below: true },
+    ]
+    const view = render(<PolarPlot lattice={lattice} points={points} />)
+    expectNothingUndrawable(ctx, 'with points')
+    const dots = ctx.calls.map((c, i) => ({ c, i })).filter(({ c }) => c.op === 'arc' && c.args[2] === 2.2)
+    expect(dots).toHaveLength(2)
+    const [stbd, port] = dots.map(({ c }) => c.args[0] as number)
+    expect(port).toBeLessThan(stbd)
+    // The first is filled and the second only outlined.
+    expect(ctx.calls[dots[0].i + 1].op).toBe('fill')
+    expect(ctx.calls[dots[1].i + 1].op).toBe('stroke')
+    expect(ctx.styles).toContain('rgba(255,77,77,0.8)')
+    view.unmount()
+    cleanup()
+  })
+
   it('copes with every class in the library, at silly speed sets', () => {
     for (const id of ['optimist', 'ilca7', 'j105', 'nacra17', 'cruiser-40']) {
       for (const speeds of [[6, 10, 14, 20], [0], [0.5, 100], []]) {
