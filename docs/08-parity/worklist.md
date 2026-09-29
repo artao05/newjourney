@@ -336,9 +336,11 @@ leaves something tested and working.
 - [x] **13.2 S-57 decoder** to features in a worker. *Accept:* feature counts match
       GDAL's on the same cell.
       *On a cell built to the layout; feature counts against a real cell wait on 13.1b (D8).*
-- [ ] **13.3 S-52-style display:** depth areas, contours, soundings, land, lights,
+- [x] **13.3 S-52-style display:** depth areas, contours, soundings, land, lights,
       buoys, beacons and hazards. *Accept:* a browser check against NOAA's own
       rendering.
+      *A simplified rendition on the dark chart, drawn from cells opened under Route → ENC; the full
+      PresLib symbol set and light sectors are not drawn.*
 - [ ] **13.4 Display categories and safety settings:** base, standard and all;
       safety, shallow and deep contours; two-colour shading; night palette; simplified
       or paper symbols. *Accept:* tests.

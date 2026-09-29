@@ -159,6 +159,8 @@ import { openWeatherFiles, useChartImages, useWeatherFiles } from '@/state/weath
 import { DEFAULT_CONTOURS } from '@/state/store'
 import { useAis } from '@/state/ais'
 import { useTracking } from '@/state/tracking'
+import { useCharts } from '@/state/charts'
+import { cell as encCell } from '@/lib/charts/fixtures/cell'
 import { useEnsembleView } from '@/state/ensembleView'
 import { RouteScreen, exploredFC, isochroneFC, keptFC, sensitivityFC } from './RouteScreen'
 import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
@@ -890,6 +892,31 @@ describe('a route can start anywhere, not only at the boat', () => {
       expect(rows[1]).toMatch(/^FERRY A3\.00.*0\.00.*15/)
     } finally {
       act(() => useAis.getState().clear())
+    }
+  })
+
+  it('opens an ENC cell and draws it under the course against the safety depth', async () => {
+    try {
+      render(<RouteScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'ENC' }))
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Chart cells to open'), { target: { files: [new File([encCell() as Uint8Array<ArrayBuffer>], 'US5ME11M.000')] } })
+        await new Promise((r) => setTimeout(r, 30))
+      })
+      expect(screen.getByLabelText('Cell US5ME11M.000').textContent).toMatch(/5 features/)
+      const shallow = () => ((mapInstances[0].data.get('enc') as GeoJSON.FeatureCollection).features.filter((f) => f.properties!.layer === 'sounding' && f.properties!.shallow)).length
+      expect(shallow()).toBe(0)
+      fireEvent.change(screen.getByLabelText(/Safety depth/), { target: { value: '5' } })
+      expect(shallow()).toBe(1)
+      expect(screen.getByRole('button', { name: 'ENC · 1' })).toBeTruthy()
+    } finally {
+      act(() => {
+        useCharts.getState().clear()
+        useCharts.getState().setSafetyDepth(3)
+      })
     }
   })
 

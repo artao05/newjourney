@@ -20,6 +20,9 @@ import { sampleCube } from '@/lib/weather/cube'
 import { gribDrop, useWeatherFiles } from '@/state/weatherFiles'
 import { useAis } from '@/state/ais'
 import { useTracking } from '@/state/tracking'
+import { useCharts } from '@/state/charts'
+import { encDrawFeatures } from '@/lib/charts/s52'
+import { openEncCell } from '@/lib/charts/s57Client'
 import { AisSheet } from '@/components/AisSheet'
 import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
 import { RoutingClient } from '@/lib/routing/client'
@@ -67,6 +70,8 @@ import {
  */
 const STYLE: maplibregl.StyleSpecification = {
   version: 8,
+  // Glyphs for ENC sounding labels, from the same source the other charts use.
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
   sources: {
     osm: {
       type: 'raster',
@@ -540,6 +545,16 @@ export function RouteScreen() {
     setSource(map, 'explored', routeSettings.showExplored ? exploredFC(route.explored) : emptyFC())
   }, [ready, route, routeSettings.isoEveryMin, routeSettings.bandMin, routeSettings.showExplored])
 
+  // ENC cells the user opened, drawn against the safety depth.
+  const encCells = useCharts((s) => s.cells)
+  const safetyDepthM = useCharts((s) => s.safetyDepthM)
+  const [showEnc, setShowEnc] = useState(false)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setSource(map, 'enc', { type: 'FeatureCollection', features: encDrawFeatures(encCells, { safetyDepthM }) } as unknown as FC)
+  }, [ready, encCells, safetyDepthM])
+
   // The fleet's tracks from tracking files, in each boat's colour.
   const fleetTracks = useTracking((s) => s.tracks)
   const fleetBoats = useStore((s) => s.fleet)
@@ -1003,6 +1018,9 @@ export function RouteScreen() {
               )
             })()}
             <span className="chip">{PILOT_VENUE.name}</span>
+            <button className={`chip${encCells.length ? ' chip--good' : ''}`} onClick={() => setShowEnc(true)} style={{ pointerEvents: 'auto' }}>
+              ENC{encCells.length ? ` · ${encCells.length}` : ''}
+            </button>
             {aisTargets.length > 0 && (
               <button
                 className={`chip${aisTargets.some((t) => t.alert) ? ' chip--warn' : ''}`}
@@ -1301,6 +1319,7 @@ export function RouteScreen() {
 
       {showSettings && <RouteSettingsSheet onClose={() => setShowSettings(false)} />}
       {showAis && <AisSheet onClose={() => setShowAis(false)} />}
+      {showEnc && <EncSheet onClose={() => setShowEnc(false)} />}
       {editingNote && raceNotes.some((n) => n.id === editingNote) && (
         <RaceNoteSheet note={raceNotes.find((n) => n.id === editingNote)!} onClose={() => setEditingNote(null)} />
       )}
@@ -1877,6 +1896,20 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
+  // ENC cells first, so everything else draws over the chart.
+  add('enc')
+  map.addLayer({ id: 'enc-area', type: 'fill', source: 'enc', filter: ['==', ['get', 'layer'], 'area'], paint: { 'fill-color': ['get', 'color'] as never, 'fill-opacity': 0.85 } })
+  map.addLayer({ id: 'enc-line', type: 'line', source: 'enc', filter: ['==', ['get', 'layer'], 'line'], paint: { 'line-color': ['get', 'color'] as never, 'line-width': ['get', 'width'] as never } })
+  map.addLayer({ id: 'enc-point', type: 'circle', source: 'enc', filter: ['==', ['get', 'layer'], 'point'], paint: { 'circle-color': ['get', 'color'] as never, 'circle-radius': ['get', 'radius'] as never, 'circle-stroke-color': '#04101c', 'circle-stroke-width': 1 } })
+  map.addLayer({
+    id: 'enc-sounding',
+    type: 'symbol',
+    source: 'enc',
+    filter: ['==', ['get', 'layer'], 'sounding'],
+    layout: { 'text-field': ['get', 'label'] as never, 'text-font': ['Open Sans Regular'], 'text-size': 10, 'text-allow-overlap': false },
+    // Shallower than the safety depth stands out; deeper recedes, as S-52 has it.
+    paint: { 'text-color': ['case', ['get', 'shallow'], '#ffffff', '#7f9bb3'] as never, 'text-halo-color': '#04101c', 'text-halo-width': 1 },
+  })
   ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'fleet', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
@@ -2229,4 +2262,79 @@ export function sensitivityFC(route: RouteResult, bandMin = 10): FC {
     }
   }
   return { type: 'FeatureCollection', features }
+}
+
+/** Open S-57 cells, see what each holds, and set the safety depth they are drawn against. */
+function EncSheet({ onClose }: { onClose: () => void }) {
+  const cells = useCharts((s) => s.cells)
+  const safety = useCharts((s) => s.safetyDepthM)
+  const [error, setError] = useState<string | null>(null)
+  return (
+    <div className="sheet" role="dialog" aria-label="Electronic charts">
+      <div className="sheet__grip" onClick={onClose} />
+      <h2>Electronic charts</h2>
+      <p className="note">NOAA ENC cells (.000), drawn in a simplified S-52 style under the course. Not for navigation.</p>
+      <div className="actions" style={{ background: 'none', border: 'none', padding: '0 0 8px' }}>
+        <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+          OPEN CELLS
+          <input
+            type="file"
+            multiple
+            accept=".000"
+            aria-label="Chart cells to open"
+            style={{ display: 'none' }}
+            onChange={async (e) => {
+              const files = [...(e.target.files ?? [])]
+              e.target.value = ''
+              setError(null)
+              for (const f of files) {
+                try {
+                  useCharts.getState().add(await openEncCell(await f.arrayBuffer()))
+                } catch (err) {
+                  setError(`${f.name}: ${err instanceof Error ? err.message : String(err)}`)
+                }
+              }
+            }}
+          />
+        </label>
+        {cells.length > 0 && (
+          <button className="btn btn--sm btn--ghost" onClick={() => useCharts.getState().clear()}>
+            CLEAR
+          </button>
+        )}
+      </div>
+      {error && <p className="warnbox">{error}</p>}
+      <div className="field">
+        <label htmlFor="enc-safety">
+          Safety depth <span className="note">m, shallower is shaded and its soundings stand out</span>
+        </label>
+        <input
+          id="enc-safety"
+          type="number"
+          min="0"
+          step="0.5"
+          value={safety}
+          onChange={(e) => {
+            const v = Number(e.target.value)
+            if (v >= 0) useCharts.getState().setSafetyDepth(v)
+          }}
+        />
+      </div>
+      {cells.map((c) => (
+        <p key={c.name} className="note" aria-label={`Cell ${c.name}`}>
+          <b>{c.name}</b> edition {c.edition}, update {c.update}: {c.features.length} features
+          {Object.keys(c.counts).length
+            ? ` (${Object.entries(c.counts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 6)
+                .map(([k, v]) => `${v} ${k}`)
+                .join(', ')})`
+            : ''}
+        </p>
+      ))}
+      <button className="btn btn--sm" onClick={onClose}>
+        Done
+      </button>
+    </div>
+  )
 }
