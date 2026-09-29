@@ -8,6 +8,7 @@
  */
 
 import { NmeaDecoder, type Reading } from './nmea0183'
+import { N2kDecoder } from './n2k'
 import type { SignalKStatus } from './signalk'
 
 export const BAUD_RATES = [4800, 9600, 19200, 38400, 57600, 115200] as const
@@ -62,11 +63,18 @@ export interface SerialOptions {
   onStatus?: (s: SignalKStatus, detail?: string) => void
   /** Expedition protocol lines (`#...`) that arrive on the same port. */
   onHashLine?: (line: string) => void
+  /**
+   * What the port speaks: NMEA 0183 sentences, or NMEA 2000 frames as text (a
+   * Yacht Devices USB gateway in RAW mode, or canboat's CSV).
+   */
+  format?: 'nmea0183' | 'n2k'
 }
 
 /** Reads NMEA lines from a port until stopped. */
 export class SerialNmeaSource {
   readonly decoder: NmeaDecoder
+  readonly n2k = new N2kDecoder()
+  private n2kBuffer = ''
   private stopped = false
   private reader: ReturnType<NonNullable<SerialPortLike['readable']>['getReader']> | null = null
 
@@ -104,7 +112,17 @@ export class SerialNmeaSource {
         const { value, done } = await this.reader.read()
         if (done || this.stopped) break
         if (!value) continue
-        for (const r of this.decoder.feed(text.decode(value, { stream: true }))) this.opts.onReading(r)
+        const chunk = text.decode(value, { stream: true })
+        if (this.opts.format === 'n2k') {
+          const lines = (this.n2kBuffer + chunk).split(/\r?\n/)
+          this.n2kBuffer = (lines.pop() ?? '').slice(-512)
+          for (const l of lines) {
+            const r = this.n2k.line(l)
+            if (r && Object.keys(r).length) this.opts.onReading(r)
+          }
+        } else {
+          for (const r of this.decoder.feed(chunk)) this.opts.onReading(r)
+        }
       }
     } catch (e) {
       // Unplugging the adaptor ends up here.

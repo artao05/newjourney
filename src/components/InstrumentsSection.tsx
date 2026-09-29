@@ -75,6 +75,17 @@ export function InstrumentsSection() {
       </button>
 
       <div className="field">
+        <label htmlFor="serial-format">Serial data</label>
+        <select
+          id="serial-format"
+          value={instruments.serialFormat}
+          onChange={(e) => setInstruments({ serialFormat: e.target.value as 'nmea0183' | 'n2k' })}
+        >
+          <option value="nmea0183">NMEA 0183</option>
+          <option value="n2k">NMEA 2000, gateway text (Yacht Devices RAW)</option>
+        </select>
+      </div>
+      <div className="field">
         <label htmlFor="serial-baud">Serial NMEA 0183 speed</label>
         <select
           id="serial-baud"

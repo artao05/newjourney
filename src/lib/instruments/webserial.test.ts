@@ -60,6 +60,16 @@ describe('NMEA 0183 over a serial port', () => {
     expect(statuses).toEqual(['connecting', 'connected', 'closed'])
   })
 
+  it('reads NMEA 2000 frames as gateway text when the port speaks that', async () => {
+    const line = '17:33:21.107 R 09F80115 A0 7D E6 18 00 00 00 00\r\n'
+    const port = mockPort([line.slice(0, 20), line.slice(20) + 'garbage\r\n'])
+    const got: Reading = {}
+    const src = new SerialNmeaSource(async () => port, 115200, { onReading: (r) => Object.assign(got, r), format: 'n2k' })
+    await src.start()
+    expect(got.lat).toBeCloseTo(0x18e67da0 * 1e-7, 9)
+    expect(src.n2k.stats).toMatchObject({ frames: 1, messages: 1, bad: 1 })
+  })
+
   it('says what went wrong: no port granted, a port that will not open, an adaptor pulled out', async () => {
     const statuses: Array<[SignalKStatus, string | undefined]> = []
     const onStatus = (s: SignalKStatus, d?: string) => statuses.push([s, d])

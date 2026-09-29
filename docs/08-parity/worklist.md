@@ -172,7 +172,7 @@ leaves something tested and working.
       tests.
 - [x] **6.8 Expedition's simple text protocol**, parsed and emitted. *Accept:* tests,
       including the checksum.
-- [ ] **6.9 NMEA 2000 PGN decoding** from Actisense or YD raw formats. *Accept:*
+- [x] **6.9 NMEA 2000 PGN decoding** from Actisense or YD raw formats. *Accept:*
       fixture tests. Live use is `Hardware`.
 - [ ] **6.10 Output to instruments.** `blocked: D3`.
 

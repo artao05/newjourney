@@ -285,9 +285,15 @@ interface AppState {
   reverseCourse(): void
 
   /** Where the instruments come from. Off, the phone's GPS is the source. */
-  instruments: { signalKUrl: string; signalKOn: boolean; serialOn: boolean; serialBaud: number }
+  instruments: {
+    signalKUrl: string
+    signalKOn: boolean
+    serialOn: boolean
+    serialBaud: number
+    serialFormat: 'nmea0183' | 'n2k'
+  }
   /** Signal K and serial are one source or the other: turning one on turns the other off. */
-  setInstruments(patch: Partial<{ signalKUrl: string; signalKOn: boolean; serialOn: boolean; serialBaud: number }>): void
+  setInstruments(patch: Partial<AppState['instruments']>): void
   /** The latest instrument values, whatever sent them. Not persisted. */
   instrumentReading: Reading | null
   setInstrumentReading(r: Reading | null): void
@@ -714,7 +720,7 @@ export const useStore = create<AppState>()(
         set({ ...COURSE_CHANGED, course: { ...course, marks: [...course.marks].reverse() }, activeMarkIndex: 0 })
       },
 
-      instruments: { signalKUrl: DEFAULT_SIGNALK_URL, signalKOn: false, serialOn: false, serialBaud: 4800 },
+      instruments: { signalKUrl: DEFAULT_SIGNALK_URL, signalKOn: false, serialOn: false, serialBaud: 4800, serialFormat: 'nmea0183' },
       setInstruments: (patch) => {
         const next = { ...get().instruments, ...patch }
         if (patch.signalKOn) next.serialOn = false

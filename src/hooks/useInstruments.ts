@@ -21,7 +21,7 @@ import { applyExpAction } from '@/state/expCommands'
 
 export type InstrumentSource =
   | { kind: 'signalk'; url: string }
-  | { kind: 'serial'; baud: number }
+  | { kind: 'serial'; baud: number; format: 'nmea0183' | 'n2k' }
   | null
 
 export function useInstruments(
@@ -32,7 +32,7 @@ export function useInstruments(
   const reading = useRef<Reading>({})
   const derived = useRef<Derived | null>(null)
   const fresh = useRef(false)
-  const key = source ? (source.kind === 'signalk' ? `sk:${source.url}` : `serial:${source.baud}`) : ''
+  const key = source ? (source.kind === 'signalk' ? `sk:${source.url}` : `serial:${source.baud}:${source.format}`) : ''
   const settingsKey = JSON.stringify([settings, calibration])
 
   useEffect(() => {
@@ -66,7 +66,7 @@ export function useInstruments(
         const said = applyExpAction(actionFor(p))
         useStore.getState().setInstrumentStatus({ detail: said })
       }
-      const serial = new SerialNmeaSource(grantedPort, source.baud, { onReading, onStatus, onHashLine })
+      const serial = new SerialNmeaSource(grantedPort, source.baud, { onReading, onStatus, onHashLine, format: source.format })
       void serial.start()
       stop = () => void serial.stop()
     }

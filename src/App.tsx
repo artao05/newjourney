@@ -98,7 +98,7 @@ export function App() {
     : instruments.signalKOn
       ? { kind: 'signalk', url: instruments.signalKUrl }
       : instruments.serialOn
-        ? { kind: 'serial', baud: instruments.serialBaud }
+        ? { kind: 'serial', baud: instruments.serialBaud, format: instruments.serialFormat }
         : null
   useGeolocation(!settings.simulate && !instrumentSource)
   const phoneSensors = useStore((s) => s.phoneSensors)

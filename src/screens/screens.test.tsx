@@ -194,7 +194,7 @@ function emptyStore() {
     fleet: [],
     handicap: { system: 'tot', distanceNm: 0 },
     timer: { rollMin: 5, classesBefore: 0, sound: true },
-    instruments: { signalKUrl: 'ws://localhost:3000/signalk/v1/stream?subscribe=self', signalKOn: false, serialOn: false, serialBaud: 4800 },
+    instruments: { signalKUrl: 'ws://localhost:3000/signalk/v1/stream?subscribe=self', signalKOn: false, serialOn: false, serialBaud: 4800, serialFormat: 'nmea0183' },
     instrumentReading: null,
     instrumentDerived: null,
     pipeline: { ...DEFAULT_PIPELINE },
