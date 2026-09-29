@@ -57,6 +57,11 @@ export interface RouteSettings {
   isoEveryMin: number
   /** Draw every path the search kept, not only the best. */
   showExplored: boolean
+  /**
+   * Blend the wind now (instruments or manual) into the forecast, fading back
+   * to it over this many minutes. 0 is off.
+   */
+  nowDecayMin: number
 }
 
 export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
@@ -76,6 +81,7 @@ export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
   bandMin: 10,
   isoEveryMin: 0,
   showExplored: false,
+  nowDecayMin: 0,
 }
 
 /**
@@ -172,5 +178,6 @@ export function nonDefaultLabels(s: RouteSettings): string[] {
   if (s.maxTwsUpwind != null) out.push(`beat ≤ ${s.maxTwsUpwind} kn`)
   if (s.maxTwsDownwind != null) out.push(`run ≤ ${s.maxTwsDownwind} kn`)
   if (s.motorSpeedKn != null && s.motorBelowKn != null) out.push(`motor ${s.motorSpeedKn} kn below ${s.motorBelowKn} kn`)
+  if (s.nowDecayMin > 0) out.push(`wind now over ${s.nowDecayMin} min`)
   return out
 }

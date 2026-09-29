@@ -294,6 +294,40 @@ interface HydrateResult {
   error?: string
 }
 
+/**
+ * The now-correction as a rotation and a scale: the observed wind against the
+ * forecast at the middle of the start's cell and time. Null when there is none
+ * to apply, or no forecast there to compare with.
+ */
+function resolveNowCorrection(
+  src: WeatherField,
+  start: LatLon | null,
+  scalings: RouteScalings,
+): { t0: Millis; rotateDeg: number; scale: number; decayMin: number } | null {
+  const nc = scalings.nowCorrection
+  if (!nc || !start || !(nc.decayMin > 0) || !Number.isFinite(nc.observedTwd) || !(nc.observedTws >= 0)) return null
+  let w: { u: number; v: number } | null = null
+  try {
+    w = src.wind(start.lat, start.lon, nc.t0)
+  } catch {
+    w = null
+  }
+  if (!w) return null
+  const scale0 = scalings.windScalePct / 100
+  const fu = w.u * scale0
+  const fv = w.v * scale0
+  const fTws = Math.hypot(fu, fv)
+  if (!(fTws > 0.5)) return null
+  const fTwd = wrap360(Math.atan2(-fu, -fv) * RAD + scalings.windRotateDeg)
+  return {
+    t0: nc.t0,
+    rotateDeg: wrap180(nc.observedTwd - fTwd),
+    // Bounded: a correction that doubles or halves the forecast is a sensor fault more often than weather.
+    scale: clamp(nc.observedTws / fTws, 0.5, 2),
+    decayMin: nc.decayMin,
+  }
+}
+
 function hydrate(
   src: WeatherField,
   bbox: BBox,
@@ -302,6 +336,8 @@ function hydrate(
   budget: number,
   scalings: RouteScalings,
   warnings: string[],
+  /** Where the now-correction is measured; it needs the forecast there. */
+  start: LatLon | null = null,
 ): HydrateResult {
   let cov: { bbox: BBox; t0: Millis; t1: Millis }
   try {
@@ -330,6 +366,14 @@ function hydrate(
   const cosR = Math.cos(rot)
   const sinR = Math.sin(rot)
   const shiftMs = scalings.windTimeShiftS * 1000
+  const now = resolveNowCorrection(src, start, scalings)
+  if (now) {
+    warnings.push(
+      `The wind now is blended in: ${now.rotateDeg >= 0 ? '+' : ''}${now.rotateDeg.toFixed(0)}° and ${Math.round(
+        now.scale * 100,
+      )}% of the forecast at the start, fading to the forecast over ${now.decayMin} min.`,
+    )
+  }
 
   const canClampLon = cov.bbox.east >= cov.bbox.west
   let clampedTime = wanted > cov.t1
@@ -368,6 +412,17 @@ function hydrate(
   for (let k = 0; k < nt; k++) {
     const tBase = t0 + k * dtMs
     const tWant = tBase - shiftMs
+    // The now-correction for this slice: in full at its start, linearly to none.
+    let sliceCos = cosR
+    let sliceSin = sinR
+    let sliceScale = windScale
+    if (now) {
+      const w = clamp(1 - (tBase - now.t0) / (now.decayMin * 60_000), 0, 1)
+      const r = rot + now.rotateDeg * DEG * w
+      sliceCos = Math.cos(r)
+      sliceSin = Math.sin(r)
+      sliceScale = windScale * (1 + (now.scale - 1) * w)
+    }
     const tq = clamp(tWant, cov.t0, cov.t1)
     const tNoShift = clamp(tBase, cov.t0, cov.t1)
     if (tq !== tWant) clampedTime = true
@@ -392,12 +447,12 @@ function hydrate(
         }
         present++
         valid[idx] = 1
-        const u = w.u * windScale
-        const v = w.v * windScale
+        const u = w.u * sliceScale
+        const v = w.v * sliceScale
         // Rotating the wind vector clockwise rotates the reported TWD the same
         // way, which is what "rotate the forecast by N degrees" has to mean.
-        out.u[idx] = u * cosR + v * sinR
-        out.v[idx] = -u * sinR + v * cosR
+        out.u[idx] = u * sliceCos + v * sliceSin
+        out.v[idx] = -u * sliceSin + v * sliceCos
         if (anyGust) {
           const g = src.gust(latq, lonq, tq)
           if (g != null) out.gust[idx] = g * windScale
@@ -1726,6 +1781,7 @@ export function routeIsochrone(req: RouteRequest, ctx: RouteContext): RouteResul
       preset.hydrationBudget,
       req.scalings,
       warnings,
+      req.start,
     )
     if (hyd.field === null) {
       return failed(hyd.error ?? 'weather field unusable', warnings, 0, 0, started, landAvoided)

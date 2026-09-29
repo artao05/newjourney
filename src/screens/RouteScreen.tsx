@@ -600,6 +600,7 @@ export function RouteScreen() {
    * constraints or scalings from the route the user then sails would recommend a
    * time for a boat that is not theirs.
    */
+  const liveWind = useStore((s) => s.wind)
   const buildRequest = useCallback(
     (startTime: Millis, computeSensitivity: boolean): RouteRequest | null => {
       if (!origin || course.marks.length === 0) return null
@@ -618,9 +619,22 @@ export function RouteScreen() {
         constraints: { ...parts.constraints, ...zonesFromNotes(raceNotes) },
         computeSensitivity,
         returnExplored: routeSettings.showExplored,
+        // The wind now, if it was measured or set, and not the forecast itself.
+        scalings:
+          routeSettings.nowDecayMin > 0 && liveWind && liveWind.source !== 'forecast'
+            ? {
+                ...parts.scalings,
+                nowCorrection: {
+                  t0: startTime,
+                  observedTwd: liveWind.twd,
+                  observedTws: liveWind.tws,
+                  decayMin: routeSettings.nowDecayMin,
+                },
+              }
+            : parts.scalings,
       }
     },
-    [origin, course.marks, landPack, boat, routeSettings, polar?.reference, raceNotes],
+    [origin, course.marks, landPack, boat, routeSettings, polar?.reference, raceNotes, liveWind],
   )
   const heightFactor = windHeightFactor(polar?.reference, boat.mastHeightMetres)
 

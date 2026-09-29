@@ -383,6 +383,12 @@ export interface RouteScalings {
   windRotateDeg: Degrees
   windTimeShiftS: Seconds
   currentScalePct: number
+  /**
+   * The wind observed now, blended into the forecast: the difference between it
+   * and the forecast at the start, applied in full at `t0` and fading to nothing
+   * over `decayMin` minutes.
+   */
+  nowCorrection?: { t0: Millis; observedTwd: Degrees; observedTws: Knots; decayMin: number }
 }
 
 export type RouteResolution = 'fast' | 'balanced' | 'best'

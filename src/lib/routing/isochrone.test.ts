@@ -820,6 +820,43 @@ describe('isochrone routing kernel', () => {
     expect(fromRoot).toBe(true)
   })
 
+  it('blends the wind now into the forecast, fading back to it', () => {
+    const start = { lat: 40, lon: -70 }
+    const finish = destination(start, 90, 14)
+    const field = makeField({ twd: 0, tws: 10 })
+    const res = routeIsochrone(
+      request({
+        start,
+        marks: [finish],
+        resolution: 'balanced',
+        scalings: { ...defaultScalings(), nowCorrection: { t0: T0, observedTwd: 20, observedTws: 12, decayMin: 60 } },
+      }),
+      { field, lattice: LATTICE },
+    )
+    expect(res.ok, res.error).toBe(true)
+    const first = res.legs[0]
+    const late = res.legs.filter((l) => l.t - T0 > 75 * 60_000)
+    note(`9.6 now-correction: start ${first.twd.toFixed(1)}° ${first.tws.toFixed(1)} kn, after 75 min ${late[0]?.twd.toFixed(1)}° ${late[0]?.tws.toFixed(1)} kn`)
+    expect(first.twd).toBeCloseTo(20, 0)
+    expect(first.tws).toBeCloseTo(12, 0)
+    expect(late.length).toBeGreaterThan(0)
+    for (const l of late) {
+      expect(Math.min(l.twd, 360 - l.twd)).toBeLessThan(0.5)
+      expect(l.tws).toBeCloseTo(10, 1)
+    }
+    expect(res.diagnostics.warnings.some((w) => /wind now is blended in: \+20° and 120%/.test(w))).toBe(true)
+  })
+
+  it('leaves the forecast alone without a now-correction', () => {
+    const start = { lat: 40, lon: -70 }
+    const res = routeIsochrone(
+      request({ start, marks: [destination(start, 90, 4)], resolution: 'fast', scalings: { ...defaultScalings(), nowCorrection: { t0: T0, observedTwd: 20, observedTws: 12, decayMin: 0 } } }),
+      { field: makeField({ twd: 0, tws: 10 }), lattice: LATTICE },
+    )
+    expect(Math.min(res.legs[0].twd, 360 - res.legs[0].twd)).toBeLessThan(0.5)
+    expect(res.diagnostics.warnings.some((w) => /blended/.test(w))).toBe(false)
+  })
+
   it('an impassable band returns a clean failure, not a throw', () => {
     const start = { lat: 40, lon: -70 }
     const finish = { lat: 40, lon: -69 }

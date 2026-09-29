@@ -115,6 +115,24 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
       {limit('maxTwsUpwind', 'Beating in wind above', 'kn')}
       {limit('maxTwsDownwind', 'Running in wind above', 'kn')}
 
+      <div className="field">
+        <label htmlFor="rs-now">Blend in the wind now, fading over <span className="note">min, 0 off</span></label>
+        <input
+          id="rs-now"
+          type="number"
+          min="0"
+          max="1440"
+          step="15"
+          value={s.nowDecayMin}
+          onChange={(e) => update({ nowDecayMin: Math.max(0, Math.min(1440, Number(e.target.value) || 0)) })}
+          inputMode="numeric"
+        />
+      </div>
+      <p className="note">
+        The difference between the wind now (instruments or manual) and the forecast at the start, applied in full now
+        and fading to the forecast over that time.
+      </p>
+
       <h2>Display</h2>
       <div className="field">
         <label htmlFor="rs-band">Shade water within <span className="note">min of the best route</span></label>
