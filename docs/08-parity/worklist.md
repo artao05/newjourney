@@ -295,7 +295,7 @@ leaves something tested and working.
       fetched rather than shipped as a pack; the channels are 11.2b.*
 - [ ] **11.2b Tide channels** (Tide left/right, port/stbd time; Tide station). `blocked: D7`: the
       manual names them but doesn't say what they measure; what does Expedition show there?
-- [ ] **11.3 Harmonic tidal currents** and tidal diamonds on the chart. *Accept:*
+- [x] **11.3 Harmonic tidal currents** and tidal diamonds on the chart. *Accept:*
       tests.
 - [ ] **11.4 Tidal streams in routing**, taking precedence over forecast current.
       *Accept:* kernel tests.

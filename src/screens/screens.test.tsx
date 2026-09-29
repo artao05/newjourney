@@ -1123,6 +1123,32 @@ describe('the Weather screen states its provenance', () => {
     act(() => useChartImages.setState({ images: [] }))
   })
 
+  it("draws tidal diamonds at NOAA's current stations for the time on the timeline", async () => {
+    globalThis.fetch = (async (url: string) => {
+      const u = String(url)
+      if (u.includes('type=currentpredictions')) return new Response(JSON.stringify({ stations: [{ id: 'CAB1401', name: 'Portland Harbor Entrance', lat: 43.628, lng: -70.2095, type: 'H', currbin: 2 }] }), { status: 200 })
+      if (u.includes('CAB1401/harcon.json')) return new Response(JSON.stringify({ HarmonicConstituents: [{ binNbr: 2, binDepth: 11.6, constituentName: 'M2', majorAmplitude: 40, majorPhaseGMT: 17.5, minorAmplitude: 1, minorPhaseGMT: 81, majorMeanSpeed: -6, minorMeanSpeed: -3, azi: 315 }] }), { status: 200 })
+      throw new Error('network disabled in screen tests')
+    }) as unknown as typeof fetch
+    try {
+      render(<WeatherScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Tidal streams' }))
+      const feats = () => ((mapInstances[0].data.get('wx-diamonds') as GeoJSON.FeatureCollection | undefined)?.features ?? [])
+      await waitFor(() => expect(feats()).toHaveLength(1))
+      const p = feats()[0].properties!
+      expect(p.label).toMatch(/^\d\.\d kn$/)
+      expect(p.set).toBeGreaterThanOrEqual(0)
+      expect(screen.getByText('1 station')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Tidal streams' }))
+      await waitFor(() => expect(feats()).toHaveLength(0))
+    } finally {
+      localStorage.clear()
+    }
+  })
+
   it('shows no legend at all rather than an unattributed one', () => {
     /*
      * The legend renders "source unknown" in the warning colour when it has no

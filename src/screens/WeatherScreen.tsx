@@ -74,6 +74,7 @@ import { fmtLength } from '@/lib/units'
 import { WeatherFilesSheet } from '@/components/WeatherFiles'
 import { PointMeteogram } from '@/components/PointMeteogram'
 import { TideSheet } from '@/components/TideSheet'
+import { currentStations, nearestCurrentStations, predictStream, stationStreams, type CurrentBin, type CurrentStation } from '@/lib/tides/currents'
 import { ObservationsSheet, type ObsStation } from '@/components/ObservationsSheet'
 import { fetchCoopsObservations, type Observation } from '@/lib/weather/observations'
 import { RADAR_INDEX, SAT_TILES, latestRadar } from '@/lib/weather/overlays'
@@ -116,6 +117,8 @@ const MODES: Array<{ id: VectorMode; label: string }> = [
  * to remove a source that a layer still references.
  */
 const OWNED_LAYERS = [
+  'wx-diamond-arrow',
+  'wx-diamond-label',
   'wx-sat',
   'wx-radar',
   'wx-obs-pt',
@@ -128,7 +131,7 @@ const OWNED_LAYERS = [
   'wx-station-pt',
   'wx-station-label',
 ]
-const OWNED_SOURCES = ['wx-symbols', 'wx-station', 'wx-contours', 'wx-obs', 'wx-sat', 'wx-radar']
+const OWNED_SOURCES = ['wx-symbols', 'wx-station', 'wx-contours', 'wx-obs', 'wx-sat', 'wx-radar', 'wx-diamonds']
 
 export function WeatherScreen() {
   return (
@@ -159,6 +162,10 @@ function WeatherOverlay() {
   const [meteo, setMeteo] = useState<'point' | 'boat' | null>(null)
   const [obsOn, setObsOn] = useState(false)
   const [showTides, setShowTides] = useState(false)
+  // Tidal diamonds: NOAA's harmonic current stations near the venue, predicted on the device.
+  const [streamsOn, setStreamsOn] = useState(false)
+  const [streams, setStreams] = useState<Array<{ station: CurrentStation; bin: CurrentBin }> | null>(null)
+  const [streamsError, setStreamsError] = useState<string | null>(null)
   const [radarOn, setRadarOn] = useState(false)
   const ens = useEnsembleView()
   const [satOn, setSatOn] = useState(false)
@@ -239,6 +246,44 @@ function WeatherOverlay() {
           'symbol-spacing': 220,
         },
         paint: { 'text-color': '#eaf2fa', 'text-halo-color': '#04101c', 'text-halo-width': 1.4 },
+      },
+      BOAT_LAYER_ID,
+    )
+
+    // Tidal diamonds: an arrow where the stream is going, and its speed.
+    map.addSource('wx-diamonds', { type: 'geojson', data: emptyFC() })
+    map.addLayer(
+      {
+        id: 'wx-diamond-arrow',
+        type: 'symbol',
+        source: 'wx-diamonds',
+        layout: {
+          'text-field': '➤',
+          'text-font': ['Open Sans Regular'],
+          'text-size': ['interpolate', ['linear'], ['get', 'drift'], 0, 12, 3, 26] as never,
+          'text-rotate': ['-', ['get', 'set'], 90] as never,
+          'text-rotation-alignment': 'map',
+          'text-pitch-alignment': 'viewport',
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: { 'text-color': '#7fe0ff', 'text-halo-color': '#04101c', 'text-halo-width': 1.2 },
+      },
+      BOAT_LAYER_ID,
+    )
+    map.addLayer(
+      {
+        id: 'wx-diamond-label',
+        type: 'symbol',
+        source: 'wx-diamonds',
+        layout: {
+          'text-field': ['get', 'label'] as never,
+          'text-font': ['Open Sans Regular'],
+          'text-size': 11,
+          'text-offset': [0, 1.3],
+          'text-anchor': 'top',
+        },
+        paint: { 'text-color': '#bff0ff', 'text-halo-color': '#04101c', 'text-halo-width': 1.4 },
       },
       BOAT_LAYER_ID,
     )
@@ -511,6 +556,50 @@ function WeatherOverlay() {
     put('wx-sat', satOn ? SAT_TILES : null, 'Satellite: NASA GIBS / NOAA GOES-East', 0.85)
     put('wx-radar', radarOn && radar ? radar.tiles : null, 'Radar: RainViewer', 0.75)
   }, [map, ready, satOn, radarOn, radar])
+
+  // The harmonic current stations within 25 nm, each with the bin NOAA predicts by default.
+  useEffect(() => {
+    if (!streamsOn) return
+    let off = false
+    setStreamsError(null)
+    const at = boatNow?.position ?? PILOT_VENUE.center
+    currentStations()
+      .then((list) => Promise.all(nearestCurrentStations(list, at, 25, 12).map(async (station) => {
+        const bins = await stationStreams(station.id)
+        const bin = bins.find((b) => b.bin === station.bin) ?? [...bins].sort((a, b) => (a.depthM ?? 99) - (b.depthM ?? 99))[0]
+        return bin ? { station, bin } : null
+      })))
+      .then((got) => {
+        if (off) return
+        const ok: Array<{ station: CurrentStation; bin: CurrentBin }> = []
+        for (const g of got) if (g) ok.push(g)
+        setStreams(ok)
+      })
+      .catch((e) => !off && setStreamsError(`Tidal streams unavailable: ${e instanceof Error ? e.message : String(e)}`))
+    return () => {
+      off = true
+    }
+    // The stations near where the chart opened; a boat under way need not refetch them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streamsOn])
+
+  useEffect(() => {
+    if (!map || !ready) return
+    const src = map.getSource('wx-diamonds') as maplibregl.GeoJSONSource | undefined
+    if (!src) return
+    const features =
+      streamsOn && streams
+        ? streams.map(({ station, bin }) => {
+            const now = predictStream(bin, t)
+            return {
+              type: 'Feature' as const,
+              properties: { id: station.id, set: now.set, drift: now.drift, label: `${now.drift.toFixed(1)} kn` },
+              geometry: { type: 'Point' as const, coordinates: [station.position.lon, station.position.lat] },
+            }
+          })
+        : []
+    src.setData({ type: 'FeatureCollection', features } as GeoJSON.FeatureCollection)
+  }, [map, ready, streams, streamsOn, t])
 
   // Observations: fetched when switched on, and every ten minutes after.
   useEffect(() => {
@@ -968,6 +1057,15 @@ function WeatherOverlay() {
             Tides
           </button>
           <button
+            className={`chip${streamsOn ? ' chip--good' : ''}`}
+            aria-pressed={streamsOn}
+            onClick={() => setStreamsOn((v) => !v)}
+            title="Tidal streams at NOAA's current stations, predicted for the time on the timeline"
+          >
+            Tidal streams
+          </button>
+          {streamsOn && streams && <span className="chip">{streams.length} station{streams.length === 1 ? '' : 's'}</span>}
+          <button
             className="chip"
             disabled={!cube || (!boatNow && !probe)}
             onClick={() => setMeteo(boatNow ? 'boat' : 'point')}
@@ -989,6 +1087,11 @@ function WeatherOverlay() {
           )}
         </div>
 
+        {streamsOn && streamsError && (
+          <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
+            {streamsError}
+          </div>
+        )}
         {ens.error && (
           <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
             {ens.error}
