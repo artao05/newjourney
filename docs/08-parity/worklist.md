@@ -50,7 +50,7 @@ leaves something tested and working.
 - [x] **1.6 Route from anywhere.** Planning from a mark or a tapped point, not only the
       live fix. *Accept:* a start picker, with a test that the request's start is the
       picked point.
-- [ ] **1.7 Units that do something.** `settings.units` is persisted and read by
+- [x] **1.7 Units that do something.** `settings.units` is persisted and read by
       nothing. *Accept:* speed, distance and depth units apply across screens, and a
       format test covers each.
 

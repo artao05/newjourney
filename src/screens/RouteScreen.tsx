@@ -16,6 +16,7 @@ import { RoutingClient } from '@/lib/routing/client'
 import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
 import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
 import { nonDefaultLabels, requestParts, windHeightFactor } from '@/lib/routing/settings'
+import { fmtLength } from '@/lib/units'
 import { RouteSettingsSheet } from '@/components/RouteSettingsSheet'
 import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tides/coops'
 import { PORTLAND_DATUM, datumNote } from '@/lib/tides/datum'
@@ -122,6 +123,7 @@ export function RouteScreen() {
   const routeError = useStore((s) => s.routeError)
   const setRouteError = useStore((s) => s.setRouteError)
   const routeSettings = useStore((s) => s.routeSettings)
+  const units = useStore((s) => s.settings.units)
   const routeStart = useStore((s) => s.routeStart)
   const setRouteStart = useStore((s) => s.setRouteStart)
   /**
@@ -680,8 +682,8 @@ export function RouteScreen() {
               >
                 min{' '}
                 {depth.shallowest.underKeelM != null
-                  ? `${depth.shallowest.underKeelM.toFixed(1)} m keel`
-                  : `${(depth.shallowest.depthNowM ?? depth.shallowest.depthMslM).toFixed(1)} m deep`}
+                  ? `${fmtLength(depth.shallowest.underKeelM, units)} keel`
+                  : `${fmtLength(depth.shallowest.depthNowM ?? depth.shallowest.depthMslM, units)} deep`}
               </span>
             )}
             {busy && (
@@ -960,6 +962,7 @@ function DepthPanel({
   depth: DepthAdvisory
   levels: WaterLevelPrediction | null
 }) {
+  const units = useStore((st) => st.settings.units)
   const s = depth.shallowest
   if (!s) return null
   const tideLine = datumNote(levels, PORTLAND_DATUM, s.t)
@@ -975,8 +978,8 @@ function DepthPanel({
           */}
           <span style={{ color: depth.concerns.length > 0 ? 'var(--port)' : undefined }}>
             {s.depthNowM != null
-              ? `${s.depthNowM.toFixed(1)} m at ${fmtLocalHm(s.t)} local`
-              : `${s.depthMslM.toFixed(1)} m (uncorrected)`}
+              ? `${fmtLength(s.depthNowM, units)} at ${fmtLocalHm(s.t)} local`
+              : `${fmtLength(s.depthMslM, units)} (uncorrected)`}
           </span>
         </div>
         <div className="row">
@@ -987,7 +990,7 @@ function DepthPanel({
             question the user can answer in Setup in ten seconds.
           */}
           <span style={{ color: s.underKeelM != null && s.underKeelM < 1 ? 'var(--port)' : undefined }}>
-            {s.underKeelM != null ? `${s.underKeelM.toFixed(1)} m` : 'no draft set'}
+            {s.underKeelM != null ? fmtLength(s.underKeelM, units) : 'no draft set'}
           </span>
         </div>
         <div className="row">

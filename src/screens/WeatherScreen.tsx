@@ -65,6 +65,8 @@ import { uvToWind } from '@/lib/wind'
 import { fmtDeg } from '@/lib/angles'
 import type { LayerSpec, VectorMode } from '@/lib/maplayers/types'
 import type { WeatherCube } from '@/lib/types'
+import { useStore } from '@/state/store'
+import { fmtLength } from '@/lib/units'
 
 const MODES: Array<{ id: VectorMode; label: string }> = [
   { id: 'particles', label: 'Streamlines' },
@@ -98,6 +100,7 @@ export function WeatherScreen() {
 function WeatherOverlay() {
   const { map, ready, scalar, particles, cube, model, setModel, modelLabel, busy, error, t } =
     useChart()
+  const units = useStore((s) => s.settings.units)
 
   const [layerId, setLayerId] = useState<string>('wind')
   const [mode, setMode] = useState<VectorMode>('particles')
@@ -686,7 +689,7 @@ function WeatherOverlay() {
           </div>
           <div>gust {fmt(probeValues.gust, 1, ' kn')}</div>
           {/* "(MSL)" is not clutter: the number is 1.5 m optimistic at low water. */}
-          <div>depth {fmt(probeValues.depth, 1, ' m (MSL)')}</div>
+          <div>depth {withMsl(fmtLength(probeValues.depth, units))}</div>
           <div>
             current{' '}
             {probeValues.current
@@ -789,6 +792,11 @@ function WeatherOverlay() {
 }
 
 // ---------------------------------------------------------------- helpers
+
+/** A depth with its datum, or a dash: never "null (MSL)". */
+function withMsl(depth: string | null): string {
+  return depth == null ? '—' : `${depth} (MSL)`
+}
 
 function fmt(v: number | null, dp: number, unit: string): string {
   return v == null || !Number.isFinite(v) ? '—' : `${v.toFixed(dp)}${unit}`

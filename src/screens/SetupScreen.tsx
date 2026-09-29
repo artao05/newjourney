@@ -127,6 +127,20 @@ export function SetupScreen() {
           manifest; the app remains advisory only.
         </p>
 
+        <h2>Units</h2>
+        <div className="seg" style={{ marginBottom: 6 }} role="group" aria-label="Units">
+          {(['metric', 'imperial'] as const).map((u) => (
+            <button key={u} aria-pressed={settings.units === u} onClick={() => updateSettings({ units: u })}>
+              {u === 'metric' ? 'Metres' : 'Feet'}
+            </button>
+          ))}
+        </div>
+        <p className="note">
+          For depth, draft and the start line. Speed stays in knots and distance in
+          nautical miles either way, as on the chart. Boat dimensions below are
+          entered in metres.
+        </p>
+
         <h2>Boat</h2>
         <div className="field">
           <label>Name</label>

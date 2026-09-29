@@ -13,6 +13,7 @@ import { Tile, fmtAgo, fmtClock, fmtSigned } from '@/components/Tile'
 import { COG_TRUSTED_KN, computeStart, fixQuality, pingPosition, spareTimeS } from '@/lib/startline'
 import { buildLattice } from '@/lib/polar'
 import type { PolarLattice, StartNumbers } from '@/lib/types'
+import { fmtLength, lengthUnit, toLength } from '@/lib/units'
 
 const ROLL_OPTIONS = [5, 4, 3, 1]
 
@@ -49,6 +50,7 @@ export function StartScreen() {
   const now = useTick(2)
   const state = useStore((s) => s.state)
   const boat = useStore((s) => s.boat)
+  const units = useStore((s) => s.settings.units)
   const course = useStore((s) => s.course)
   const wind = useStore((s) => s.wind)
   const current = useStore((s) => s.current)
@@ -291,8 +293,8 @@ export function StartScreen() {
             numbers.distanceBelowLineM == null
               ? undefined
               : gpsVague
-                ? `${Math.abs(numbers.distanceBelowLineM).toFixed(0)} m · GPS ±${gpsBoatLengths.toFixed(1)} BL`
-                : `${Math.abs(numbers.distanceBelowLineM).toFixed(0)} m`
+                ? `${fmtLength(Math.abs(numbers.distanceBelowLineM), units, 0)} · GPS ±${gpsBoatLengths.toFixed(1)} BL`
+                : fmtLength(Math.abs(numbers.distanceBelowLineM), units, 0) ?? undefined
           }
           small
         />
@@ -326,8 +328,8 @@ export function StartScreen() {
         />
         <Tile
           label="line"
-          value={numbers.lineLengthM}
-          unit="m"
+          value={numbers.lineLengthM == null ? null : toLength(numbers.lineLengthM, units)}
+          unit={lengthUnit(units)}
           dp={0}
           sub={
             numbers.lineLengthM == null
@@ -412,6 +414,7 @@ function DetailSheet({
   numbers: StartNumbers
   onClose: () => void
 }) {
+  const units = useStore((s) => s.settings.units)
   const row = (k: string, v: string | null) => (
     <div className="row" key={k}>
       <span>{k}</span>
@@ -431,11 +434,11 @@ function DetailSheet({
           'Spare time (burn)',
           fmtSigned(numbers.timeToBurnS == null ? null : -numbers.timeToBurnS),
         )}
-        {row('Distance below line', s(numbers.distanceBelowLineM, 1, ' m'))}
-        {row('Line length', s(numbers.lineLengthM, 0, ' m'))}
+        {row('Distance below line', fmtLength(numbers.distanceBelowLineM, units, 1))}
+        {row('Line length', fmtLength(numbers.lineLengthM, units, 0))}
         {row('Line square wind', s(numbers.lineSquareWindDeg, 0, '°'))}
         {row('Bias angle', s(numbers.biasAngleDeg, 1, '°'))}
-        {row('Bias length', s(numbers.biasLengthM, 1, ' m'))}
+        {row('Bias length', fmtLength(numbers.biasLengthM, units, 1))}
         {row('Time to pin', s(numbers.timeToPortEndS, 0, ' s'))}
         {row('Time to RC', s(numbers.timeToStarboardEndS, 0, ' s'))}
         {row('OCS', numbers.ocs ? 'YES' : 'no')}

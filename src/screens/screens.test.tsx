@@ -790,6 +790,30 @@ describe('Reset XTE re-zeroes cross-track at the boat', () => {
   })
 })
 
+describe('the units setting changes the lengths on screen', () => {
+  const lineTile = () =>
+    [...document.querySelectorAll('.tile')].find(
+      (el) => el.querySelector('.tile__label')?.textContent === 'line',
+    )!
+  it('shows the start line in feet once Setup is switched to feet, and back', () => {
+    populatedStore()
+    render(<SetupScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'Feet' }))
+    expect(useStore.getState().settings.units).toBe('imperial')
+    cleanup()
+    render(<StartScreen />)
+    const len = useStore.getState().course.startLine
+    expect(len.port && len.starboard).toBeTruthy()
+    const metres = distance(len.port!, len.starboard!) * 1852
+    expect(lineTile().textContent).toContain('ft')
+    expect(lineTile().querySelector('.tile__value')!.textContent).toContain(
+      (metres / 0.3048).toFixed(0),
+    )
+    act(() => useStore.getState().updateSettings({ units: 'metric' }))
+    expect(lineTile().textContent).not.toContain('ft')
+  })
+})
+
 describe('the loaded polar can be saved in the format it was read in', () => {
   it('downloads an Expedition .txt that parses back to the same speeds', async () => {
     const polar = findPolar('j70')!.polar

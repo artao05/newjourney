@@ -26,6 +26,7 @@ import { DEFAULT_ROUTE_SETTINGS, type RouteSettings } from '@/lib/routing/settin
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
 
 export interface Settings {
+  /** Display units for lengths (depth, draft, line). Speeds stay in knots. */
   units: 'metric' | 'imperial'
   northRef: 'true' | 'magnetic'
   /** Simulation replaces the GPS feed. */
