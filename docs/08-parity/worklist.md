@@ -384,3 +384,53 @@ leaves something tested and working.
       *Route → image or print: the chart captured at its next frame, captioned with the base map's
       credit (lib/mapExport.ts); the moon in the top bar turns the whole app red on black.*
 - [ ] **14.4 Self-hosted basemap and glyphs.** `blocked: D1`.
+
+## M15 — The matrix, row by row (added in tick 6)
+
+M0–M14 ran out with parity at 24 %: the list never held every Build row of the
+matrix, and "perfect" is every row Done or Blocked (README). These milestones take
+the Build rows still Missing, cheapest and most used first. Each item names its rows.
+
+- [ ] **15.0 Reconcile the matrix with the code.** Rows marked Missing or Partial that
+      earlier ticks closed (GRIB opening and drop, JPEG 2000 GRIB, ENC exchange sets and
+      folders, heading-up, fleet on the chart, AIS targets, and others) get Done with
+      the file and test that show it. *Accept:* each changed row names its evidence.
+- [ ] **15.1 Marks by hand:** undo and redo, lock and unlock, a mark at range and
+      bearing from the boat or a mark, insert into the nearest leg, add as a gate, go
+      to the pointer, a mark from a chart object (P1-121, P1-123, P2-105, P1-128,
+      P1-263, P1-261, P1-258, P1-259, P1-255). *Accept:* tests.
+- [ ] **15.2 Legs on the chart:** leg labels, the current-leg line, mark range
+      circles, mark and route colours, auto mark advance (P4-138, P4-139, P4-141,
+      P4-131, P4-175). *Accept:* tests and a browser check.
+- [ ] **15.3 AIS on the chart:** labels, predictor lines and trails, the CPA marker,
+      a colour scheme, own-ship MMSI, an allow-list, the raw message log, a warning on
+      entering an avoid area (P4-159, P4-160, P4-161, P3-106, P3-103, P3-104, P3-101,
+      P3-102). *Accept:* tests.
+- [ ] **15.4 ENC lights and text:** light descriptions, sectors (full-length and
+      small), text groups, large text, anti-clutter (P1-094, P1-095, P2-006, P2-007,
+      P2-008, P2-010, P2-009, P1-309). *Accept:* tests and a browser check.
+- [ ] **15.5 Number boxes:** damped or raw values, per-channel precision, time to a race
+      note, alternating numbers by situation, the reaching band (P1-079, P4-182, P4-183,
+      P1-159, P4-172, P4-174). *Accept:* tests.
+- [ ] **15.6 Log analysis:** tack and gybe analysis, the performance report, the best
+      24-hour run, a track point to the stripchart (P1-153, P1-152, P1-239, P1-272).
+      *Accept:* tests against a logged session.
+- [ ] **15.7 Stripchart:** sample rate, axis behaviour, a second trace per pane,
+      configuration files (P4-206, P4-208, P4-215, P4-209). *Accept:* tests.
+- [ ] **15.8 Routing views:** several optimum routes on screen, stepping through the
+      routing times, the routing tooltip with DNM %, first leg only, draw paths, routes
+      kept (P1-012, P1-217, P1-221, P2-193, P2-215, P2-187). *Accept:* tests.
+- [ ] **15.9 Course wizards and start extras:** Olympic triangle and trapezoid wizards,
+      start line ends from marks, a separate finish mark, start time ratios (P1-165,
+      P1-166, P2-107, P2-244, P1-180). *Accept:* tests.
+- [ ] **15.10 Weather presets and info:** display presets 1–9, hide all weather,
+      forecast coverage outlines, GRIB file and run-time info (P1-185, P2-119, P1-188,
+      P4-168, P2-173, P2-170). *Accept:* tests.
+- [ ] **15.11 Files:** race-note files and areas from text, tracking to text,
+      BoatId.csv and scheds CSV, an XTide reader (P1-161, P1-162, P2-282, P2-286,
+      P2-287, P4-202). *Accept:* tests.
+- [ ] **15.12 Shell:** an error log, hover tooltips, chart text size, layout presets and
+      locked panes, Fahrenheit, user-channel names (P1-042, P4-163, P4-133, P1-065,
+      P1-063, P4-111, P4-184). *Accept:* tests and a browser check.
+- [ ] **15.13 Sails:** the sail inventory editor, the sail chart and its cell editing,
+      wind weight (P1-140, P1-073, P3-011, P1-283, P3-073). *Accept:* tests.
