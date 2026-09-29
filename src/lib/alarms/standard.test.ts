@@ -35,7 +35,7 @@ describe('the standard alarms', () => {
   it('has one rule for each alarm, each on a channel or a derived value', () => {
     expect(new Set(STANDARD_ALARMS.map((p) => p.rule.name)).size).toBe(STANDARD_ALARMS.length)
     expect(STANDARD_ALARMS.map((p) => p.key)).toEqual([
-      'depth', 'arrival', 'off-course', 'layline-port', 'layline-starboard', 'gps', 'anchor', 'wind-shift',
+      'depth', 'arrival', 'off-course', 'layline-port', 'layline-starboard', 'gps', 'anchor', 'wind-shift', 'ais-cpa', 'ais-alert',
     ])
   })
 })

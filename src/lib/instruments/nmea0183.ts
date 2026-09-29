@@ -303,8 +303,14 @@ export class NmeaDecoder {
   stats = { sentences: 0, badChecksum: 0, unknown: 0 }
   private buffer = ''
 
-  /** Lines that are not NMEA but Expedition's own protocol (`#...`) go here. */
-  constructor(private readonly onHashLine?: (line: string) => void) {}
+  /**
+   * Lines that are not NMEA but Expedition's own protocol (`#...`) go to the
+   * first; AIS sentences (`!AIVDM`, `!AIVDO`) to the second.
+   */
+  constructor(
+    private readonly onHashLine?: (line: string) => void,
+    private readonly onAisLine?: (line: string) => void,
+  ) {}
 
   feed(chunk: string, now = Date.now()): Array<Partial<Reading>> {
     this.buffer += chunk
@@ -324,6 +330,10 @@ export class NmeaDecoder {
     const t = line.trim()
     if (t.startsWith('#')) {
       this.onHashLine?.(t)
+      return null
+    }
+    if (t.startsWith('!')) {
+      this.onAisLine?.(t)
       return null
     }
     if (!t.startsWith('$')) return null

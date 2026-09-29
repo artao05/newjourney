@@ -18,6 +18,8 @@ import { NOTE_MIN_POINTS, useStore, type RaceNote } from '@/state/store'
 import { cubeNotes, fetchWindCube } from '@/lib/weather/openmeteo'
 import { sampleCube } from '@/lib/weather/cube'
 import { gribDrop, useWeatherFiles } from '@/state/weatherFiles'
+import { useAis } from '@/state/ais'
+import { AisSheet } from '@/components/AisSheet'
 import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
 import { RoutingClient } from '@/lib/routing/client'
 import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
@@ -34,7 +36,7 @@ import { fmtLength } from '@/lib/units'
 import { RouteSettingsSheet } from '@/components/RouteSettingsSheet'
 import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tides/coops'
 import { PORTLAND_DATUM, datumNote } from '@/lib/tides/datum'
-import { bboxOf, distance, lonSpan } from '@/lib/geo'
+import { bboxOf, destination, distance, lonSpan } from '@/lib/geo'
 import { fmtDeg, wrap180 } from '@/lib/angles'
 import type { Isochrone, LatLon, Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
 import { fmtDuration } from '@/components/Tile'
@@ -537,6 +539,25 @@ export function RouteScreen() {
     setSource(map, 'explored', routeSettings.showExplored ? exploredFC(route.explored) : emptyFC())
   }, [ready, route, routeSettings.isoEveryMin, routeSettings.bandMin, routeSettings.showExplored])
 
+  // AIS targets on the chart, each with where it will be in six minutes.
+  const aisTargets = useAis((s) => s.targets)
+  const [showAis, setShowAis] = useState(false)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const features: GeoJSON.Feature[] = []
+    for (const t of aisTargets) {
+      if (!t.position) continue
+      const props = { mmsi: t.mmsi, cls: t.cls, alert: t.alert != null, name: t.name ?? String(t.mmsi) }
+      features.push({ type: 'Feature', properties: props, geometry: { type: 'Point', coordinates: [t.position.lon, t.position.lat] } })
+      if (t.sog && t.sog > 0.2 && t.cog != null) {
+        const ahead = destination(t.position, t.cog, t.sog / 10)
+        features.push({ type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: [[t.position.lon, t.position.lat], [ahead.lon, ahead.lat]] } })
+      }
+    }
+    setSource(map, 'ais', { type: 'FeatureCollection', features } as FC)
+  }, [ready, aisTargets])
+
   // The ensemble members' routes.
   const ensembleRoutes = useStore((s) => s.ensembleRoutes)
   useEffect(() => {
@@ -963,6 +984,16 @@ export function RouteScreen() {
               )
             })()}
             <span className="chip">{PILOT_VENUE.name}</span>
+            {aisTargets.length > 0 && (
+              <button
+                className={`chip${aisTargets.some((t) => t.alert) ? ' chip--warn' : ''}`}
+                onClick={() => setShowAis(true)}
+                style={{ pointerEvents: 'auto' }}
+              >
+                {aisTargets.some((t) => t.alert) ? 'AIS ALERT · ' : 'AIS · '}
+                {aisTargets.length}
+              </button>
+            )}
           {picking === 'start' || picking === 'mark' ? (
             <button className="chip chip--warn" onClick={() => setPicking(null)}>
               tap the chart for the {picking === 'start' ? 'start' : 'new mark'} · cancel
@@ -1250,6 +1281,7 @@ export function RouteScreen() {
       )}
 
       {showSettings && <RouteSettingsSheet onClose={() => setShowSettings(false)} />}
+      {showAis && <AisSheet onClose={() => setShowAis(false)} />}
       {editingNote && raceNotes.some((n) => n.id === editingNote) && (
         <RaceNoteSheet note={raceNotes.find((n) => n.id === editingNote)!} onClose={() => setEditingNote(null)} />
       )}
@@ -1826,7 +1858,7 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
-  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure'].forEach(add)
+  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
   // plain notes grey, so the colour says what the router will do with each.
@@ -2036,6 +2068,26 @@ function addEmptyLayers(map: maplibregl.Map) {
     source: 'measure',
     filter: ['==', ['geometry-type'], 'Point'],
     paint: { 'circle-radius': 4, 'circle-color': '#eaf2fa' },
+  })
+  // AIS targets: a six-minute course vector, and a dot by class, red for a distress beacon.
+  map.addLayer({
+    id: 'ais-vector',
+    type: 'line',
+    source: 'ais',
+    filter: ['==', ['geometry-type'], 'LineString'],
+    paint: { 'line-color': ['case', ['get', 'alert'], '#ff5252', '#ffcc80'] as never, 'line-width': 1.5 },
+  })
+  map.addLayer({
+    id: 'ais-pt',
+    type: 'circle',
+    source: 'ais',
+    filter: ['==', ['geometry-type'], 'Point'],
+    paint: {
+      'circle-radius': ['case', ['get', 'alert'], 8, 5] as never,
+      'circle-color': ['case', ['get', 'alert'], '#ff5252', ['==', ['get', 'cls'], 'B'], '#b0bec5', ['==', ['get', 'cls'], 'AtoN'], '#ce93d8', '#ffcc80'] as never,
+      'circle-stroke-color': '#04101c',
+      'circle-stroke-width': 1.5,
+    },
   })
   // The planned start: hollow, so it never reads as the boat.
   map.addLayer({

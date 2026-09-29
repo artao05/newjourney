@@ -8,6 +8,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useAis } from '@/state/ais'
+import { aisAlarmValues } from '@/lib/ais/targets'
 import { useStore } from '@/state/store'
 import { useChannelSnapshot } from '@/hooks/useChannels'
 import { evaluate, sounding } from '@/lib/alarms/engine'
@@ -31,6 +33,7 @@ export function AlarmWatcher() {
       ...snap,
       'anchor-distance': anchorDistanceM(s.anchor, s.state?.position ?? null),
       'wind-shift': windShiftDeg(s.windHistory, now),
+      ...aisAlarmValues(useAis.getState().targets, s.state),
     }
     const e = evaluate(s.alarms, values, s.alarmStates, now)
     s.setAlarmStates(e.states)

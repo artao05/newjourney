@@ -63,6 +63,8 @@ export interface SerialOptions {
   onStatus?: (s: SignalKStatus, detail?: string) => void
   /** Expedition protocol lines (`#...`) that arrive on the same port. */
   onHashLine?: (line: string) => void
+  /** AIS sentences on the same port. */
+  onAisLine?: (line: string) => void
   /**
    * What the port speaks: NMEA 0183 sentences, or NMEA 2000 frames as text (a
    * Yacht Devices USB gateway in RAW mode, or canboat's CSV).
@@ -83,7 +85,7 @@ export class SerialNmeaSource {
     private readonly baudRate: number,
     private readonly opts: SerialOptions,
   ) {
-    this.decoder = new NmeaDecoder(opts.onHashLine)
+    this.decoder = new NmeaDecoder(opts.onHashLine, opts.onAisLine)
   }
 
   async start(): Promise<void> {

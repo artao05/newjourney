@@ -157,6 +157,7 @@ import { WeatherScreen } from './WeatherScreen'
 import { file, gfsGrid, message, over } from '@/lib/weather/fixtures/grib2'
 import { openWeatherFiles, useChartImages, useWeatherFiles } from '@/state/weatherFiles'
 import { DEFAULT_CONTOURS } from '@/state/store'
+import { useAis } from '@/state/ais'
 import { useEnsembleView } from '@/state/ensembleView'
 import { RouteScreen, exploredFC, isochroneFC, keptFC, sensitivityFC } from './RouteScreen'
 import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
@@ -818,6 +819,29 @@ describe('a route can start anywhere, not only at the boat', () => {
         useWeatherFiles.getState().clear()
         useStore.getState().updateRouteSettings({ model: 'best_match', source: 'merged' })
       })
+    }
+  })
+
+  it('marks AIS targets on the chart with their course vectors, and lists them by closest approach', async () => {
+    const own = PILOT_VENUE.waterStart
+    useStore.setState({ state: { ...(useStore.getState().state ?? {}), position: own, sog: 6, cog: 0, t: Date.now() } as never })
+    const t = (mmsi: number, lat: number, sog: number, cog: number, name?: string) => ({ mmsi, cls: 'A' as const, name, position: { lat, lon: own.lon }, sog, cog, heading: null, status: 0, positionAt: Date.now(), updated: Date.now(), alert: null })
+    act(() => useAis.setState({ targets: [t(338000001, own.lat + 3 / 60, 6, 180, 'FERRY'), t(338000002, own.lat - 1 / 60, 0, 0), { ...t(970000001, own.lat + 0.1, 0, 0), alert: 'SART' as const }] }))
+    try {
+      render(<RouteScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      const fc = mapInstances[0].data.get('ais') as GeoJSON.FeatureCollection
+      expect(fc.features.filter((f) => f.geometry.type === 'Point')).toHaveLength(3)
+      // Only the moving one has a course vector.
+      expect(fc.features.filter((f) => f.geometry.type === 'LineString')).toHaveLength(1)
+      fireEvent.click(screen.getByRole('button', { name: 'AIS ALERT · 3' }))
+      const rows = within(screen.getByRole('table', { name: 'Targets' })).getAllByRole('row').slice(1).map((r) => r.textContent)
+      expect(rows[0]).toMatch(/^AIS-SART · 970000001/)
+      expect(rows[1]).toMatch(/^FERRY A3\.00.*0\.00.*15/)
+    } finally {
+      act(() => useAis.getState().clear())
     }
   })
 

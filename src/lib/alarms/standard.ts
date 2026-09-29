@@ -37,7 +37,7 @@ export function windShiftDeg(
 }
 
 /** Values that are not channels, for the alarm engine and the banner. */
-export const DERIVED_UNITS: Record<string, string> = { 'anchor-distance': 'm', 'wind-shift': '°' }
+export const DERIVED_UNITS: Record<string, string> = { 'anchor-distance': 'm', 'wind-shift': '°', 'ais-cpa': 'nm', 'ais-alert': '' }
 
 export const STANDARD_ALARMS: Array<{ key: string; label: string; rule: Omit<AlarmRule, 'id'> }> = [
   {
@@ -79,5 +79,16 @@ export const STANDARD_ALARMS: Array<{ key: string; label: string; rule: Omit<Ala
     key: 'wind-shift',
     label: 'Wind shift',
     rule: { name: 'Wind shift', channel: 'wind-shift', op: 'above', value: 10, hysteresis: 3, delayS: 30, enabled: true, absolute: true },
+  },
+  {
+    key: 'ais-cpa',
+    label: 'AIS close approach',
+    // The closest any vessel will come within the next 30 minutes.
+    rule: { name: 'AIS close approach', channel: 'ais-cpa', op: 'below', value: 0.5, hysteresis: 0.1, delayS: 0, enabled: true },
+  },
+  {
+    key: 'ais-alert',
+    label: 'AIS-SART, MOB or EPIRB',
+    rule: { name: 'AIS-SART, MOB or EPIRB', channel: 'ais-alert', op: 'above', value: 0.5, hysteresis: 0, delayS: 0, enabled: true },
   },
 ]

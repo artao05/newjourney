@@ -11,6 +11,7 @@
 import { useEffect, useRef } from 'react'
 import { useStore } from '@/state/store'
 import { SignalKClient } from '@/lib/instruments/signalk'
+import { feedAis } from '@/state/ais'
 import { SerialNmeaSource, grantedPort } from '@/lib/instruments/webserial'
 import type { Reading } from '@/lib/instruments/nmea0183'
 import { boatStateFrom } from '@/lib/instruments/toBoat'
@@ -66,7 +67,7 @@ export function useInstruments(
         const said = applyExpAction(actionFor(p))
         useStore.getState().setInstrumentStatus({ detail: said })
       }
-      const serial = new SerialNmeaSource(grantedPort, source.baud, { onReading, onStatus, onHashLine, format: source.format })
+      const serial = new SerialNmeaSource(grantedPort, source.baud, { onReading, onStatus, onHashLine, onAisLine: (l) => feedAis(l), format: source.format })
       void serial.start()
       stop = () => void serial.stop()
     }
