@@ -1126,6 +1126,35 @@ describe('race notes are drawn on the chart and edited', () => {
   })
 })
 
+describe('laylines on the Route chart', () => {
+  it('draws both laylines to the active mark, with bounds, once there is a wind', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const fc = mapInstances[0].data.get('laylines') as GeoJSON.FeatureCollection
+    const main = fc.features.filter((f) => !(f.properties as { bound: boolean }).bound)
+    expect(main.map((f) => (f.properties as { side: string }).side).sort()).toEqual(['port', 'starboard'])
+    // A manual wind asserts 8° of uncertainty, so there are bounds either side.
+    expect(fc.features.length).toBe(6)
+    const w = useStore.getState().course.marks[0].position
+    for (const f of main) {
+      expect((f.geometry as GeoJSON.LineString).coordinates[0]).toEqual([w.lon, w.lat])
+    }
+  })
+
+  it('draws none without a wind', () => {
+    populatedStore()
+    useStore.getState().setWind(null)
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    expect(mapInstances[0].data.get('laylines')).toMatchObject({ features: [] })
+  })
+})
+
 describe('range and bearing on the Route chart', () => {
   const tap = (lat: number, lng: number) =>
     act(() => {

@@ -222,7 +222,7 @@ export function computeLaylines(o: {
  */
 const MEASURED_SOURCES: ReadonlySet<WindEstimate['source']> = new Set(['instrument', 'estimated'])
 
-function boundsFrom(wind: WindEstimate, history?: WindHistory): number {
+export function boundsFrom(wind: WindEstimate, history?: WindHistory): number {
   const nominal = Number.isFinite(wind.uncertaintyDeg) ? wind.uncertaintyDeg : 0
   const twds = (history ?? []).map((s) => s.twd).filter((d) => Number.isFinite(d))
   if (twds.length < 2) return nominal

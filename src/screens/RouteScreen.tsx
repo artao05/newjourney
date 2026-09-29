@@ -17,6 +17,8 @@ import { departureAdvice, type DepartureSweep } from '@/lib/routing/departure'
 import { depthAdvisory, type DepthAdvisory } from '@/lib/routing/depthAdvisory'
 import { nonDefaultLabels, requestParts, windHeightFactor, zonesFromNotes } from '@/lib/routing/settings'
 import { courseLegs } from '@/lib/legs'
+import { laylineLines } from '@/lib/laylineGeo'
+import { boundsFrom } from '@/lib/tactics'
 import { buildLattice } from '@/lib/polar'
 import { fmtPosition } from '@/components/MarkSheet'
 import { RaceNoteSheet } from '@/components/RaceNotes'
@@ -385,6 +387,41 @@ export function RouteScreen() {
     if (!map || !ready) return
     setSource(map, 'notes', notesFC(raceNotes))
   }, [ready, raceNotes])
+
+  // Laylines to the active mark, with the wind's oscillation either side, as
+  // Expedition draws them on its chart. Only with a wind and a polar to set them.
+  const activeMarkIndex = useStore((s) => s.activeMarkIndex)
+  const windHistory = useStore((s) => s.windHistory)
+  const activeMark = course.marks[activeMarkIndex]
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    if (!wind || !lattice || !activeMark) {
+      setSource(map, 'laylines', emptyFC())
+      return
+    }
+    const l = laylineLines({
+      mark: activeMark.position,
+      from: origin,
+      wind,
+      lattice,
+      boundsDeg: boundsFrom(wind, windHistory),
+    })
+    const line = (c: [LatLon, LatLon], side: string, bound: boolean) => ({
+      type: 'Feature' as const,
+      properties: { side, bound },
+      geometry: { type: 'LineString' as const, coordinates: c.map((p) => [p.lon, p.lat]) },
+    })
+    setSource(map, 'laylines', {
+      type: 'FeatureCollection',
+      features: [
+        line(l.port, 'port', false),
+        line(l.starboard, 'starboard', false),
+        ...l.bounds.map((b) => line(b.line, b.side, true)),
+      ],
+    })
+    // origin moves every fix; rounded, so the lines do not redraw at 1 Hz for metres.
+  }, [ready, wind, lattice, activeMark, windHistory, origin && Math.round(origin.lat * 2e4), origin && Math.round(origin.lon * 2e4)])
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
@@ -1471,7 +1508,7 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 function addEmptyLayers(map: maplibregl.Map) {
   const add = (id: string) => map.addSource(id, { type: 'geojson', data: emptyFC() })
-  ;['notes', 'draft', 'sens', 'wind', 'iso', 'riso', 'route', 'route-beat', 'marks', 'boat', 'start', 'measure'].forEach(add)
+  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'iso', 'riso', 'route', 'route-beat', 'marks', 'boat', 'start', 'measure'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
   // plain notes grey, so the colour says what the router will do with each.
@@ -1506,6 +1543,17 @@ function addEmptyLayers(map: maplibregl.Map) {
       paint: { 'circle-radius': 4, 'circle-color': noteColor },
     })
   }
+  map.addLayer({
+    id: 'layline-line',
+    type: 'line',
+    source: 'laylines',
+    paint: {
+      'line-color': ['match', ['get', 'side'], 'port', '#ff4d4d', '#35d07f'],
+      'line-width': ['case', ['get', 'bound'], 1, 1.8],
+      'line-opacity': ['case', ['get', 'bound'], 0.35, 0.85],
+      'line-dasharray': [4, 2],
+    },
+  })
   map.addLayer({
     id: 'notes-label',
     type: 'symbol',

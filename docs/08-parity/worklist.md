@@ -124,8 +124,9 @@ leaves something tested and working.
       means above the line.
 - [x] **5.2 Gates:** bearing, range, lay distances and times, gate spot, bias and
       square wind. *Accept:* tactics tests.
-- [ ] **5.3 Laylines on the chart**, with min/max bounds from wind oscillation, and
-      tide-affected laylines. *Accept:* tests and a browser check.
+- [x] **5.3 Laylines on the chart**, with min/max bounds from wind oscillation, and
+      tide-affected laylines. *Accept:* tests and a browser check. *Done without
+      the tide:* tide-affected laylines need a current field, which comes with 11.4.
 - [ ] **5.4 What-if for current**, and what-if applied to Start and Route as well.
       *Accept:* tests.
 - [ ] **5.5 Hold wind and hold current** before the start, released at the gun.
