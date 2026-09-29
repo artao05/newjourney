@@ -298,6 +298,15 @@ export interface StartNumbers {
   lineLengthM: Metres | null
   timeToPortEndS: Seconds | null
   timeToStarboardEndS: Seconds | null
+  /** The simple times to each end: at polar speed, with no current, turns or acceleration. */
+  timeToPortEndSimpleS: Seconds | null
+  timeToStarboardEndSimpleS: Seconds | null
+  /** The speed that gets the bow to each end exactly at the gun. */
+  speedToPortEndKn: Knots | null
+  speedToStarboardEndKn: Knots | null
+  /** Upwind targets from the start polar at the present wind. */
+  targetBsp: Knots | null
+  targetTwa: Degrees | null
   /** True once the bow is over the line before the gun. */
   ocs: boolean
 }

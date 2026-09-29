@@ -18,6 +18,7 @@ import {
   computeStart,
   pingPosition,
   positionAtGun,
+  simpleTimeS,
   spareTimeS,
   turnRadiusM,
   timeToPoint,
@@ -185,6 +186,43 @@ describe('line geometry and bias', () => {
     expect(short.biasLengthM).toBeCloseTo(8.7156, 3)
     expect(long.biasLengthM).toBeCloseTo(87.156, 2)
     expect(short.biasAngleDeg).toBeCloseTo(long.biasAngleDeg!, 6)
+  })
+})
+
+describe('speed to the ends, targets and the simple times', () => {
+  it('gives the speed that reaches each end exactly at the gun', () => {
+    // 60 s to the gun; the boat is 50 m below the middle of a 100 m line, so
+    // each end is 70.7 m away: 70.7 m a minute is 2.29 kn.
+    const r = computeStart({ line: lineOf(100), state: stateOf(), wind: windOf(0), boat: boatOf(), now: NOW })
+    const kn = (Math.hypot(50, 50) / 1852) * 60
+    expect(r.speedToPortEndKn).toBeCloseTo(kn, 3)
+    expect(r.speedToStarboardEndKn).toBeCloseTo(kn, 3)
+    const after = computeStart({ line: lineOf(100, NOW - 1000), state: stateOf(), wind: windOf(0), boat: boatOf(), now: NOW })
+    expect(after.speedToPortEndKn).toBeNull()
+  })
+
+  it('reads the upwind targets from the start polar', () => {
+    const r = computeStart({ line: lineOf(100), state: stateOf(), wind: windOf(0), boat: boatOf(), lattice: fakeLattice(), now: NOW })
+    expect(r.targetBsp).toBe(6)
+    expect(r.targetTwa).toBe(40)
+    const none = computeStart({ line: lineOf(100), state: stateOf(), wind: windOf(0), boat: boatOf(), now: NOW })
+    expect(none.targetBsp).toBeNull()
+  })
+
+  it('beats at target VMG to a point inside the upwind angle', () => {
+    // Dead upwind 1 nm at 6 kn and 40°: VMG 4.596 kn, so 783 s.
+    const from = off(180, 0)
+    const to = destination(from, 0, 1)
+    expect(simpleTimeS(from, to, windOf(0), fakeLattice())).toBeCloseTo(3600 / (6 * Math.cos((40 * Math.PI) / 180)), 3)
+  })
+
+  it('reaches at polar speed, and runs at downwind VMG', () => {
+    const from = off(180, 0)
+    const lattice = fakeLattice()
+    const beam = destination(from, 90, 1)
+    expect(simpleTimeS(from, beam, windOf(0), lattice)).toBeCloseTo(3600 / lattice.speed(12, 90), 3)
+    const run = destination(from, 180, 1)
+    expect(simpleTimeS(from, run, windOf(0), lattice)).toBeCloseTo(3600 / (8 * Math.cos((30 * Math.PI) / 180)), 3)
   })
 })
 

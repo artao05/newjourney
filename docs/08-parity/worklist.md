@@ -136,8 +136,9 @@ leaves something tested and working.
 - [x] **5.6c Turn circles** (from 5.6): either side of the bow, radius from the rate-of-turn model. *Done.*
 - [ ] **5.6 Start display extras:** the top-corner time with its time to burn. *Accept:* canvas tests.
 - [x] **5.7a Gun distance and stern below the line** (from 5.7): both start channels, from the bow dead-reckoned to the gun and the stern one hull length back. *Done.*
-- [ ] **5.7 The remaining start channels:** speed to ends, time to layline, and
-      the simple and pinch variants.
+- [x] **5.7b Speed to the ends, start targets and the simple times** (from 5.7). *Done.*
+- [ ] **5.7 The remaining start channels:** speed on each tack, time to layline P and S,
+      the pinch times, the reach channels, boat to pin, and gun speed as % of target.
       *Accept:* start-math tests.
 - [x] **5.8 Handicap calculator:** TCF time-on-time and time-on-distance, with
       elapsed, corrected and owed times. *Accept:* tests against hand-worked

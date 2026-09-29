@@ -49,6 +49,12 @@ const EMPTY_START_NUMBERS: StartNumbers = {
   lineLengthM: null,
   timeToPortEndS: null,
   timeToStarboardEndS: null,
+  timeToPortEndSimpleS: null,
+  timeToStarboardEndSimpleS: null,
+  speedToPortEndKn: null,
+  speedToStarboardEndKn: null,
+  targetBsp: null,
+  targetTwa: null,
   ocs: false,
 }
 

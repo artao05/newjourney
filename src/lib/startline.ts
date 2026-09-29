@@ -454,6 +454,12 @@ function emptyStart(): StartNumbers {
     lineLengthM: null,
     timeToPortEndS: null,
     timeToStarboardEndS: null,
+    timeToPortEndSimpleS: null,
+    timeToStarboardEndSimpleS: null,
+    speedToPortEndKn: null,
+    speedToStarboardEndKn: null,
+    targetBsp: null,
+    targetTwa: null,
     ocs: false,
   }
 }
@@ -580,6 +586,18 @@ export function computeStart(i: StartInputs): StartNumbers {
   // a time at each end regardless.
   out.timeToPortEndS = timeToPointOverGround(bow, P, ctx)
   out.timeToStarboardEndS = timeToPointOverGround(bow, S, ctx)
+  if (out.timeToGunS !== null && out.timeToGunS > 0) {
+    const h = out.timeToGunS / 3600
+    out.speedToPortEndKn = distance(bow, P) / h
+    out.speedToStarboardEndKn = distance(bow, S) / h
+  }
+  if (wind && ctx.lattice) {
+    const tg = ctx.lattice.targetsAt(wind.tws)
+    out.targetBsp = tg.upBsp
+    out.targetTwa = tg.upTwa
+    out.timeToPortEndSimpleS = simpleTimeS(bow, P, wind, ctx.lattice)
+    out.timeToStarboardEndSimpleS = simpleTimeS(bow, S, wind, ctx.lattice)
+  }
   if (approaches.ends) {
     if (out.timeToPortEndS !== null) candidates.push(out.timeToPortEndS)
     if (out.timeToStarboardEndS !== null) candidates.push(out.timeToStarboardEndS)
@@ -626,6 +644,25 @@ export function computeStart(i: StartInputs): StartNumbers {
   }
 
   return out
+}
+
+/**
+ * Expedition's simple time to a point: polar speed and nothing else, no current,
+ * turns, acceleration or braking. Inside the upwind angle it is a beat at the
+ * target VMG; below the downwind angle, a run at the downwind VMG. Both are
+ * exact for tacks or gybes that cost nothing: two legs at ±α cover d·cos θ/cos α.
+ */
+export function simpleTimeS(from: LatLon, to: LatLon, wind: WindEstimate, lattice: PolarLattice): Seconds | null {
+  const d = distance(from, to)
+  if (!(d > 0)) return 0
+  const twa = Math.abs(angdiff(bearing(from, to), wind.twd))
+  const tg = lattice.targetsAt(wind.tws)
+  let kn: number
+  if (twa < tg.upTwa) kn = tg.upVmg / Math.cos(twa * DEG)
+  // downVmg is signed, and negative downwind.
+  else if (twa > tg.downTwa) kn = Math.abs(tg.downVmg) / Math.abs(Math.cos(twa * DEG))
+  else kn = lattice.speed(wind.tws, twa)
+  return kn > 0.05 && Number.isFinite(kn) ? (d / kn) * 3600 : null
 }
 
 /**
