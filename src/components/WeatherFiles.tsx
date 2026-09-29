@@ -10,6 +10,8 @@ import {
   useWeatherFiles,
   type WeatherFile,
 } from '@/state/weatherFiles'
+import { GribRequestForm } from './GribRequestForm'
+import type { BBox } from '@/lib/types'
 
 const utc = (t: number) => (Number.isFinite(t) ? `${new Date(t).toISOString().slice(5, 16).replace('T', ' ')}Z` : '—')
 
@@ -110,8 +112,9 @@ function FileRow({ f }: { f: WeatherFile }) {
 }
 
 /** The list of opened files. */
-export function WeatherFilesSheet({ onClose }: { onClose: () => void }) {
+export function WeatherFilesSheet({ onClose, area }: { onClose: () => void; area?: BBox }) {
   const files = useWeatherFiles((s) => s.files)
+  const [asking, setAsking] = useState(false)
   const clear = useWeatherFiles((s) => s.clear)
   return (
     <div className="sheet sheet--tall" role="dialog" aria-label="Weather files">
@@ -128,10 +131,16 @@ export function WeatherFilesSheet({ onClose }: { onClose: () => void }) {
             Clear all
           </button>
         )}
+        {area && (
+          <button className="btn btn--sm btn--ghost" aria-pressed={asking} onClick={() => setAsking((v) => !v)}>
+            Request by email…
+          </button>
+        )}
         <button className="btn btn--sm btn--ghost" onClick={onClose} style={{ marginLeft: 'auto' }}>
           Done
         </button>
       </div>
+      {asking && area && <GribRequestForm area={area} />}
       {files.length === 0 && <p className="note">No files open.</p>}
       {files.map((f) => (
         <FileRow key={f.id} f={f} />

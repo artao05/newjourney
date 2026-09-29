@@ -109,3 +109,21 @@ describe('the weather files sheet', () => {
     expect(useWeatherFiles.getState().files.map((f) => f.name)).toEqual(['a.grb2', 'b.grb2'])
   })
 })
+
+describe('requesting a GRIB by email', () => {
+  it('starts from the chart area, and writes the Saildocs mail with its size', () => {
+    render(<WeatherFilesSheet onClose={() => {}} area={{ west: -70.6, south: 43.4, east: -69.8, north: 43.9 }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Request by email…' }))
+    const form = screen.getByRole('region', { name: 'Request a GRIB' })
+    expect(within(form).getByLabelText('Request text').textContent).toMatch(/^send gfs:43N,44N,71W,69\.5W\|0\.5,0\.5\|0,3\.\.72\|WIND,PRESS · about \d+ kB$/)
+    fireEvent.click(within(form).getByLabelText('RAIN'))
+    fireEvent.change(within(form).getByLabelText('Every h'), { target: { value: '6' } })
+    const link = within(form).getByRole('link', { name: 'Email Saildocs' }) as HTMLAnchorElement
+    expect(decodeURIComponent(link.href.split('body=')[1])).toBe('send gfs:43N,44N,71W,69.5W|0.5,0.5|0,6..72|WIND,PRESS,RAIN')
+    // A model offers only what it has.
+    fireEvent.change(within(form).getByLabelText('Model'), { target: { value: 'rtofs' } })
+    expect(within(form).getByLabelText('Request text').textContent).toMatch(/\|CURRENT · /)
+    fireEvent.click(within(form).getByLabelText('CURRENT'))
+    expect(within(form).queryByRole('link', { name: 'Email Saildocs' })).toBeNull()
+  })
+})

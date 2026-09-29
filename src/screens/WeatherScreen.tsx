@@ -1249,7 +1249,15 @@ function WeatherOverlay() {
       {showObsSheet && (
         <ObservationsSheet stations={OBS_STATIONS} obs={obs} errors={obsErrors} cube={cube} onClose={() => setShowObsSheet(false)} />
       )}
-      {showFiles && <WeatherFilesSheet onClose={() => setShowFiles(false)} />}
+      {showFiles && (
+        <WeatherFilesSheet
+          onClose={() => setShowFiles(false)}
+          area={(() => {
+            const b = map?.getBounds()
+            return b ? { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() } : PILOT_VENUE.bbox
+          })()}
+        />
+      )}
     </>
   )
 }

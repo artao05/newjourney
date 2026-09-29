@@ -275,7 +275,7 @@ leaves something tested and working.
 - [ ] **10.9b Weather-chart overlays:** OPC surface analyses and other fax charts, placed by their
       corners on the chart, as Expedition's image manager does. *Accept:* a browser check.
 - [x] **10.10 Ensemble display:** members, and mean ± SD. *Accept:* tests.
-- [ ] **10.11 A GRIB request builder:** area on the chart, model, parameters and
+- [x] **10.11 A GRIB request builder:** area on the chart, model, parameters and
       times, with a Saildocs `mailto:` and a size estimate. *Accept:* tests.
 - [ ] **10.12 NOMADS and ECMWF open-data download.** `blocked: D1`, which needs the
       proxy.
