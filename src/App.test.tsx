@@ -442,11 +442,11 @@ describe('the nav-station layout at laptop width', () => {
     vi.spyOn(window, 'matchMedia').mockImplementation(mql)
   }
 
-  it('keeps the phone layout on a narrow screen: one screen and five tabs', () => {
+  it('keeps the phone layout on a narrow screen: one screen and six tabs', () => {
     withWidth(false)
     render(<App />)
     expect(screen.queryByRole('region', { name: 'Chart' })).toBeNull()
-    expect(document.querySelectorAll('.tabbar:not(.tabbar--pane) button')).toHaveLength(5)
+    expect(document.querySelectorAll('.tabbar:not(.tabbar--pane) button')).toHaveLength(6)
   })
 
   it('shows a panel, the chart and the number boxes side by side on a wide one', async () => {

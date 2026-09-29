@@ -85,6 +85,6 @@ export function parseConfig(text: string): Partial<ConfigSource> {
   if (Array.isArray(o.numberBoxes)) out.numberBoxes = o.numberBoxes as NumberBox[]
   if (obj('manualWind')) out.manualWind = o.manualWind as ConfigSource['manualWind']
   if (o.navPanel === 'start' || o.navPanel === 'race' || o.navPanel === 'setup') out.navPanel = o.navPanel
-  if (o.navChart === 'route' || o.navChart === 'weather') out.navChart = o.navChart
+  if (o.navChart === 'route' || o.navChart === 'weather' || o.navChart === 'strip') out.navChart = o.navChart
   return out
 }

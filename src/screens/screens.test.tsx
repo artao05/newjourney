@@ -142,6 +142,7 @@ vi.mock('@/lib/weather/openmeteo', async (importOriginal) => {
 import { StartScreen } from './StartScreen'
 import { RaceScreen } from './RaceScreen'
 import { SetupScreen, tideStationLabel } from './SetupScreen'
+import { StripchartScreen } from './StripchartScreen'
 import { WeatherScreen } from './WeatherScreen'
 import { RouteScreen } from './RouteScreen'
 import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
@@ -204,6 +205,8 @@ function emptyStore() {
     phoneSensors: { on: false, trustCompass: false },
     phoneOrientation: null,
     instrumentStatus: { status: 'off', detail: null, lastAt: null },
+    playback: null,
+    strip: { panes: ['bsp', 'tws', 'twd', 'sog'], spanMin: 15 },
   })
 }
 
@@ -1824,5 +1827,39 @@ describe('the Setup screen does not claim a polar it has not loaded', () => {
     const label = tideStationLabel(PILOT_VENUE, PORTLAND_DATUM)
     expect(label).toContain(PORTLAND_DATUM.stationId)
     expect(label).toContain('Portland, ME')
+  })
+})
+
+describe('the stripchart', () => {
+  it('draws the day’s log a pane a channel, and compares two wanded sections', async () => {
+    emptyStore()
+    const store = new MemoryLogStore()
+    const T0 = new Date(2026, 8, 29, 10, 0, 0).getTime()
+    await store.append(
+      '2026-09-29',
+      Array.from({ length: 600 }, (_, i) => ({ t: T0 + i * 1000, v: { bsp: i < 300 ? 6 : 6.5, twd: 250, tws: 12, aws: 15 } })),
+    )
+    setLogStore(store)
+    useStore.setState({ strip: { panes: ['bsp', 'twd'], spanMin: 15 } })
+    render(<StripchartScreen />)
+    fireEvent.change(screen.getByLabelText('Log day'), { target: { value: '2026-09-29' } })
+    const pane = await screen.findByRole('region', { name: 'Pane Bsp' })
+    await waitFor(() => expect(pane.querySelector('polyline')).not.toBeNull())
+    expect(screen.getByLabelText('Stripchart window').textContent).toMatch(/following/)
+
+    // Wands at 0-25 % and 50-75 % of the 15-minute window, which ends at the last row.
+    const svg = within(pane).getByRole('img')
+    vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 1000, top: 0, height: 84, right: 1000, bottom: 84, x: 0, y: 0, toJSON: () => ({}) })
+    for (const x of [400, 550, 700, 950]) fireEvent.click(svg, { clientX: x })
+    await waitFor(() => expect(within(pane).getByLabelText('Section delta').textContent).toBe('Δ +0.50'))
+
+    // A pane added from the channels the log has, and one removed.
+    fireEvent.change(screen.getByLabelText('Add a pane'), { target: { value: 'aws' } })
+    expect(useStore.getState().strip.panes).toEqual(['bsp', 'twd', 'aws'])
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Twd' }))
+    expect(useStore.getState().strip.panes).toEqual(['bsp', 'aws'])
+    fireEvent.click(screen.getByRole('button', { name: '1h' }))
+    expect(useStore.getState().strip.spanMin).toBe(60)
+    setLogStore(null)
   })
 })

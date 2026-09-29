@@ -17,6 +17,7 @@ import { useInstruments, type InstrumentSource } from '@/hooks/useInstruments'
 import { StartScreen } from '@/screens/StartScreen'
 import { RaceScreen } from '@/screens/RaceScreen'
 import { SetupScreen } from '@/screens/SetupScreen'
+import { StripchartScreen } from '@/screens/StripchartScreen'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { NotForNavigationDialog } from '@/components/NotForNavigation'
 import { useTrackPersistence } from '@/state/trackPersistence'
@@ -327,6 +328,12 @@ export function App() {
             </Suspense>
           </ErrorBoundary>
         )
+      case 'strip':
+        return (
+          <ErrorBoundary name="Stripchart" key="strip">
+            <StripchartScreen />
+          </ErrorBoundary>
+        )
       case 'setup':
         return (
           <ErrorBoundary name="Setup" key="setup">
@@ -460,7 +467,7 @@ export function App() {
 }
 
 const PANEL_TABS: PanelTab[] = ['start', 'race', 'setup']
-const CHART_TABS: ChartTab[] = ['route', 'weather']
+const CHART_TABS: ChartTab[] = ['route', 'weather', 'strip']
 
 const TABS: Array<{ id: Tab; label: string; icon: ReactElement }> = [
   {
@@ -501,6 +508,16 @@ const TABS: Array<{ id: Tab; label: string; icon: ReactElement }> = [
         <path d="M3 18c6 0 4-12 10-12s5 6 8 6" strokeLinecap="round" />
         <circle cx="4" cy="18" r="2" />
         <circle cx="20" cy="12" r="2" />
+      </svg>
+    ),
+  },
+  {
+    id: 'strip',
+    label: 'Strip',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+        <path d="M3 8l4-3 4 4 4-5 6 4" strokeLinejoin="round" strokeLinecap="round" />
+        <path d="M3 18l4-2 4 1 4-3 6 2" strokeLinejoin="round" strokeLinecap="round" opacity="0.6" />
       </svg>
     ),
   },

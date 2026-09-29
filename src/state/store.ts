@@ -32,10 +32,10 @@ import { DEFAULT_PIPELINE, type Derived, type PipelineSettings } from '@/lib/ins
 import { NO_CALIBRATION, type Calibration } from '@/lib/instruments/calibration'
 import type { PhoneOrientation } from '@/lib/instruments/orientation'
 
-export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
+export type Tab = 'start' | 'race' | 'weather' | 'route' | 'strip' | 'setup'
 /** The nav station's two tab sets: panels on the left, charts in the middle. */
 export type PanelTab = 'start' | 'race' | 'setup'
-export type ChartTab = 'route' | 'weather'
+export type ChartTab = 'route' | 'weather' | 'strip'
 
 /**
  * A configurable number box: one channel, or up to ten that alternate, as
@@ -328,6 +328,9 @@ interface AppState {
    */
   playback: Playback | null
   setPlayback(p: Partial<Playback> | null): void
+  /** The stripchart's panes, one channel each, and the minutes it shows. */
+  strip: { panes: string[]; spanMin: number }
+  setStrip(patch: Partial<{ panes: string[]; spanMin: number }>): void
   instrumentStatus: { status: SignalKStatus; detail: string | null; lastAt: Millis | null }
   setInstrumentStatus(s: Partial<{ status: SignalKStatus; detail: string | null; lastAt: Millis | null }>): void
 
@@ -410,6 +413,7 @@ export function mergePersistedState(
     instruments: { ...c.instruments, ...p.instruments },
     pipeline: { ...c.pipeline, ...p.pipeline },
     phoneSensors: { ...c.phoneSensors, ...p.phoneSensors },
+    strip: { ...c.strip, ...p.strip },
     calibration: {
       ...c.calibration,
       ...p.calibration,
@@ -755,6 +759,8 @@ export const useStore = create<AppState>()(
       setPhoneSensors: (patch) => set({ phoneSensors: { ...get().phoneSensors, ...patch } }),
       phoneOrientation: null,
       setPhoneOrientation: (p) => set({ phoneOrientation: p }),
+      strip: { panes: ['bsp', 'tws', 'twd', 'sog'], spanMin: 15 },
+      setStrip: (patch) => set({ strip: { ...get().strip, ...patch } }),
       playback: null,
       setPlayback: (p) => {
         if (p === null) return set({ playback: null })
@@ -906,6 +912,7 @@ export const useStore = create<AppState>()(
         pipeline: s.pipeline,
         calibration: s.calibration,
         phoneSensors: s.phoneSensors,
+        strip: s.strip,
         routes: s.routes,
         raceNotes: s.raceNotes,
         navPanel: s.navPanel,

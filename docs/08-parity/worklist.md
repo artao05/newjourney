@@ -185,7 +185,7 @@ leaves something tested and working.
 - [x] **7.2 Log import:** CSV logs, NMEA recordings and GPX. *Accept:* fixture tests.
 - [x] **7.3 LogPlayer:** replay into the live snapshot with play, pause, speed and
       seek. Every screen works during playback. *Accept:* tests and a browser check.
-- [ ] **7.4 Stripchart:** any channels against time, with zoom, pan and wands showing
+- [x] **7.4 Stripchart:** any channels against time, with zoom, pan and wands showing
       deltas and means. *Accept:* tests and a browser check.
 - [ ] **7.5 Events and sail tests:** sail changes and notes (automatic at ping and
       gun), and tests saved from wanded spans. *Accept:* tests.
