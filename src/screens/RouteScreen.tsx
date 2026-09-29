@@ -29,6 +29,7 @@ import { encDrawFeatures, encObjectsAt } from '@/lib/charts/s52'
 import { parseSymbolKey, rasterSymbol } from '@/lib/charts/symbols'
 import { offsetCorners, offsetFeatures } from '@/lib/charts/georef'
 import { checkRoute, withEncHazards } from '@/lib/charts/encRouting'
+import { captureMap, chartCaption, chartFileName, downloadCanvas, printCanvas, withCaption } from '@/lib/mapExport'
 import type { EncFeature } from '@/lib/charts/s57'
 import { AisSheet } from '@/components/AisSheet'
 import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
@@ -465,6 +466,20 @@ export function RouteScreen() {
    * fix, the framing modes only when what they frame has left the view.
    */
   const orientation = useStore((s) => s.settings.chartOrientation)
+  // The chart as a picture, captioned: saved as a PNG or printed.
+  const exportChart = async (how: 'save' | 'print') => {
+    const map = mapRef.current
+    if (!map) return
+    try {
+      const at = new Date()
+      const caption = chartCaption(at, course.name || 'Route chart')
+      const pic = withCaption(await captureMap(map), caption)
+      if (how === 'save') await downloadCanvas(pic, chartFileName(at))
+      else printCanvas(pic, caption)
+    } catch (e) {
+      setRouteError(e instanceof Error ? e.message : String(e))
+    }
+  }
   const motion = useStore((s) => s.settings.chartMotion)
   const updateSettings = useStore((s) => s.updateSettings)
   const legFrom = course.marks[activeMarkIndex - 1]?.position ?? null
@@ -1336,6 +1351,12 @@ export function RouteScreen() {
             onClick={() => updateSettings({ chartMotion: MOTIONS[(MOTIONS.indexOf(motion) + 1) % MOTIONS.length] })}
           >
             {MOTION_LABEL[motion].toLowerCase()}
+          </button>
+          <button className="chip" onClick={() => void exportChart('save')} title="Save the chart as a picture (PNG)" aria-label="Save chart image">
+            image
+          </button>
+          <button className="chip" onClick={() => void exportChart('print')} title="Print the chart" aria-label="Print chart">
+            print
           </button>
             {/*
               A correction applied to the forecast changes every route, and nothing

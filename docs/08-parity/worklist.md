@@ -379,6 +379,8 @@ leaves something tested and working.
       Checked live against a local WebSocket server.*
 - [ ] **14.2 Sharing between devices:** marks, routes and the start line. `blocked:
       D1`.
-- [ ] **14.3 Save the display as an image, print, and a night palette** for the whole
+- [x] **14.3 Save the display as an image, print, and a night palette** for the whole
       UI. *Accept:* a browser check.
+      *Route → image or print: the chart captured at its next frame, captioned with the base map's
+      credit (lib/mapExport.ts); the moon in the top bar turns the whole app red on black.*
 - [ ] **14.4 Self-hosted basemap and glyphs.** `blocked: D1`.

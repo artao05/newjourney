@@ -1169,3 +1169,36 @@ table.results tr.beating td {
   color: var(--ink);
   pointer-events: none;
 }
+
+/*
+ * Night: the whole app, chart and all, red on black, to keep night vision.
+ * One filter over everything, so no canvas, map or picture is missed.
+ */
+html[data-palette='night'],
+html[data-palette='night'] body {
+  background: #000;
+}
+html[data-palette='night'] #root {
+  filter: grayscale(1) sepia(1) saturate(8) hue-rotate(-38deg) brightness(0.6);
+}
+/* The chart is mostly light; darker again under the red. */
+html[data-palette='night'] .maplibregl-canvas {
+  filter: brightness(0.45);
+}
+
+/* Print: the chart picture alone (lib/mapExport.ts printCanvas). */
+#print-sheet {
+  display: none;
+}
+@media print {
+  body.printing > *:not(#print-sheet) {
+    display: none !important;
+  }
+  body.printing #print-sheet {
+    display: block;
+  }
+  #print-sheet img {
+    width: 100%;
+    height: auto;
+  }
+}

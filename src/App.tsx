@@ -103,6 +103,11 @@ export function App() {
   const replaying = useStore((s) => s.playback != null)
   const hasAlarms = useStore((s) => s.alarms.length > 0)
   const channelsOutOn = useStore((s) => s.settings.channelsOut.enabled)
+  // The night palette is the whole page's: styles.css reads it from <html>.
+  const palette = useStore((s) => s.settings.palette)
+  useEffect(() => {
+    document.documentElement.dataset.palette = palette
+  }, [palette])
   usePlayback()
   const instrumentSource: InstrumentSource = settings.simulate || replaying
     ? null
@@ -386,6 +391,15 @@ export function App() {
                 ⛶
               </button>
             )}
+            <button
+              className={`chip${palette === 'night' ? ' chip--on' : ''}`}
+              onClick={() => useStore.getState().updateSettings({ palette: palette === 'night' ? 'normal' : 'night' })}
+              title="Night palette: the whole app red on black"
+              aria-label="Night palette"
+              aria-pressed={palette === 'night'}
+            >
+              ☾
+            </button>
             <button
               className={`chip ${recording ? 'chip--bad' : ''}`}
               onClick={toggleRecording}

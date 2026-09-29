@@ -593,3 +593,19 @@ describe("Expedition's keyboard shortcuts", () => {
     expect(useStore.getState().tab).toBe('weather')
   })
 })
+
+describe('the night palette', () => {
+  it('turns the whole page red on black from the top bar, and back', () => {
+    useStore.getState().updateSettings({ palette: 'normal' })
+    render(<App />)
+    expect(document.documentElement.dataset.palette).toBe('normal')
+    const moon = screen.getByRole('button', { name: 'Night palette' })
+    expect(moon.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(moon)
+    expect(useStore.getState().settings.palette).toBe('night')
+    expect(document.documentElement.dataset.palette).toBe('night')
+    expect(moon.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(moon)
+    expect(document.documentElement.dataset.palette).toBe('normal')
+  })
+})

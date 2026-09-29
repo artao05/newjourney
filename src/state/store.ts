@@ -239,6 +239,8 @@ export interface Settings {
   chartOffset: ChartOffset
   /** The channels sent out over a WebSocket (Setup → Channels out). */
   channelsOut: ChannelsOutSettings
+  /** The whole app red on black at night, to keep night vision. */
+  palette: 'normal' | 'night'
 }
 
 interface AppState {
@@ -512,6 +514,7 @@ export const DEFAULT_SETTINGS: Settings = {
   chartMotion: 'free',
   chartOffset: { northM: 0, eastM: 0 },
   channelsOut: DEFAULT_CHANNELS_OUT,
+  palette: 'normal',
 }
 
 export function mergePersistedState(
