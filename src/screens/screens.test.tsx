@@ -192,7 +192,7 @@ function emptyStore() {
     fleet: [],
     handicap: { system: 'tot', distanceNm: 0 },
     timer: { rollMin: 5, classesBefore: 0, sound: true },
-    instruments: { signalKUrl: 'ws://localhost:3000/signalk/v1/stream?subscribe=self', signalKOn: false },
+    instruments: { signalKUrl: 'ws://localhost:3000/signalk/v1/stream?subscribe=self', signalKOn: false, serialOn: false, serialBaud: 4800 },
     instrumentReading: null,
     instrumentStatus: { status: 'off', detail: null, lastAt: null },
   })
@@ -896,6 +896,26 @@ describe('Setup connects to the instruments', () => {
     expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.instruments.signalKOn).toBe(true)
     fireEvent.click(within(section).getByRole('button', { name: 'DISCONNECT' }))
     expect(useStore.getState().instruments.signalKOn).toBe(false)
+  })
+
+  it('says a serial port needs Chrome or Edge, where there is no Web Serial', () => {
+    emptyStore()
+    render(<SetupScreen />)
+    const section = screen.getByRole('region', { name: 'Instruments' })
+    expect((within(section).getByRole('button', { name: 'CONNECT SERIAL' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(section.textContent).toMatch(/needs Chrome or Edge/)
+    fireEvent.change(within(section).getByLabelText('Serial NMEA 0183 speed'), { target: { value: '38400' } })
+    expect(useStore.getState().instruments.serialBaud).toBe(38400)
+  })
+
+  it('runs one instrument source at a time', () => {
+    emptyStore()
+    const s = useStore.getState()
+    s.setInstruments({ serialOn: true })
+    s.setInstruments({ signalKOn: true })
+    expect(useStore.getState().instruments).toMatchObject({ signalKOn: true, serialOn: false })
+    s.setInstruments({ serialOn: true })
+    expect(useStore.getState().instruments).toMatchObject({ signalKOn: false, serialOn: true })
   })
 
   it('offers the instruments as a wind source', () => {

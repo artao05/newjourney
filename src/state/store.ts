@@ -282,8 +282,9 @@ interface AppState {
   reverseCourse(): void
 
   /** Where the instruments come from. Off, the phone's GPS is the source. */
-  instruments: { signalKUrl: string; signalKOn: boolean }
-  setInstruments(patch: Partial<{ signalKUrl: string; signalKOn: boolean }>): void
+  instruments: { signalKUrl: string; signalKOn: boolean; serialOn: boolean; serialBaud: number }
+  /** Signal K and serial are one source or the other: turning one on turns the other off. */
+  setInstruments(patch: Partial<{ signalKUrl: string; signalKOn: boolean; serialOn: boolean; serialBaud: number }>): void
   /** The latest instrument values, whatever sent them. Not persisted. */
   instrumentReading: Reading | null
   setInstrumentReading(r: Reading | null): void
@@ -365,6 +366,10 @@ export function mergePersistedState(
     },
     settings: { ...c.settings, ...p.settings },
     routeSettings: { ...c.routeSettings, ...p.routeSettings },
+    // Kept field by field, so a setting added later gets its default on an older save.
+    instruments: { ...c.instruments, ...p.instruments },
+    timer: { ...c.timer, ...p.timer },
+    handicap: { ...c.handicap, ...p.handicap },
   }
 }
 
@@ -684,8 +689,13 @@ export const useStore = create<AppState>()(
         set({ ...COURSE_CHANGED, course: { ...course, marks: [...course.marks].reverse() }, activeMarkIndex: 0 })
       },
 
-      instruments: { signalKUrl: DEFAULT_SIGNALK_URL, signalKOn: false },
-      setInstruments: (patch) => set({ instruments: { ...get().instruments, ...patch } }),
+      instruments: { signalKUrl: DEFAULT_SIGNALK_URL, signalKOn: false, serialOn: false, serialBaud: 4800 },
+      setInstruments: (patch) => {
+        const next = { ...get().instruments, ...patch }
+        if (patch.signalKOn) next.serialOn = false
+        if (patch.serialOn) next.signalKOn = false
+        set({ instruments: next })
+      },
       instrumentReading: null,
       setInstrumentReading: (r) => set({ instrumentReading: r }),
       instrumentStatus: { status: 'off', detail: null, lastAt: null },

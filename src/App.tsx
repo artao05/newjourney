@@ -13,7 +13,7 @@ import { LayoutContext, useWide } from '@/hooks/useWide'
 import { toggleFullscreen, useShortcuts } from '@/hooks/useShortcuts'
 import { NumberBoxes } from '@/components/NumberBoxes'
 import { useGeolocation, useSimulation, useWakeLock, useTick } from '@/hooks/useSensors'
-import { useInstruments } from '@/hooks/useInstruments'
+import { useInstruments, type InstrumentSource } from '@/hooks/useInstruments'
 import { StartScreen } from '@/screens/StartScreen'
 import { RaceScreen } from '@/screens/RaceScreen'
 import { SetupScreen } from '@/screens/SetupScreen'
@@ -93,9 +93,15 @@ export function App() {
   const forecastLon = Math.round((state?.position.lon ?? PILOT_VENUE.center.lon) * 100) / 100
 
   const instruments = useStore((s) => s.instruments)
-  const signalK = instruments.signalKOn && !settings.simulate
-  useGeolocation(!settings.simulate && !signalK)
-  useInstruments(signalK, instruments.signalKUrl)
+  const instrumentSource: InstrumentSource = settings.simulate
+    ? null
+    : instruments.signalKOn
+      ? { kind: 'signalk', url: instruments.signalKUrl }
+      : instruments.serialOn
+        ? { kind: 'serial', baud: instruments.serialBaud }
+        : null
+  useGeolocation(!settings.simulate && !instrumentSource)
+  useInstruments(instrumentSource)
   // Start the simulated boat afloat, not on the island the map centre sits on.
   useSimulation(settings.simulate, PILOT_VENUE.waterStart)
   useWakeLock(settings.keepAwake)

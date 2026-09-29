@@ -157,7 +157,7 @@ leaves something tested and working.
 - [x] **6.2 Signal K client.** WebSocket delta stream into boat state and channels,
       with a connection UI and a mixed-content warning. *Accept:* tests against a
       recorded delta stream. Live use is `Hardware`.
-- [ ] **6.3 Web Serial source** for NMEA 0183 on desktop Chromium. *Accept:* a test
+- [x] **6.3 Web Serial source** for NMEA 0183 on desktop Chromium. *Accept:* a test
       with a mocked port. Live use is `Hardware`.
 - [ ] **6.4 The instrument pipeline:** per-channel damping, true wind from apparent
       (heel and upwash corrected), the leeway coefficient, and set and drift gated on

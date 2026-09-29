@@ -39,7 +39,7 @@ afterEach(() => {
 
 describe('useInstruments', () => {
   it('puts the feed into the boat state and the wind once a second, and stops cleanly', () => {
-    const hook = renderHook(() => useInstruments(true, 'ws://pi.local:3000/signalk/v1/stream'))
+    const hook = renderHook(() => useInstruments({ kind: 'signalk', url: 'ws://pi.local:3000/signalk/v1/stream' }))
     const ws = FakeWebSocket.last!
     expect(ws.url).toBe('ws://pi.local:3000/signalk/v1/stream')
     act(() => ws.onopen?.({}))
@@ -73,7 +73,7 @@ describe('useInstruments', () => {
 
   it('leaves the wind alone when the wind mode is not instruments', () => {
     useStore.setState({ windMode: 'manual' })
-    const hook = renderHook(() => useInstruments(true, 'ws://x'))
+    const hook = renderHook(() => useInstruments({ kind: 'signalk', url: 'ws://x' }))
     act(() => {
       FakeWebSocket.last!.onmessage?.({ data: delta([
         { path: 'navigation.position', value: { latitude: 43.66, longitude: -70.25 } },
@@ -89,7 +89,7 @@ describe('useInstruments', () => {
 
   it('opens nothing when it is off', () => {
     FakeWebSocket.last = null
-    const hook = renderHook(() => useInstruments(false, 'ws://x'))
+    const hook = renderHook(() => useInstruments(null))
     expect(FakeWebSocket.last).toBeNull()
     hook.unmount()
   })
