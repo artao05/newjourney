@@ -51,6 +51,10 @@ export interface RouteSettings {
   /** Motor at this speed wherever sailing would be slower than `motorBelowKn`. Null = never. */
   motorSpeedKn: Knots | null
   motorBelowKn: Knots | null
+  /** Display only: shade water within this many minutes of the optimal route. */
+  bandMin: number
+  /** Display only: draw an isochrone every this many minutes; 0 draws every step. */
+  isoEveryMin: number
 }
 
 export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
@@ -67,6 +71,8 @@ export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
   maxTwsDownwind: null,
   motorSpeedKn: null,
   motorBelowKn: null,
+  bandMin: 10,
+  isoEveryMin: 0,
 }
 
 /**

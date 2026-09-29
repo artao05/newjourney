@@ -144,7 +144,7 @@ import { RaceScreen } from './RaceScreen'
 import { SetupScreen, tideStationLabel } from './SetupScreen'
 import { StripchartScreen } from './StripchartScreen'
 import { WeatherScreen } from './WeatherScreen'
-import { RouteScreen, keptFC } from './RouteScreen'
+import { RouteScreen, isochroneFC, keptFC, sensitivityFC } from './RouteScreen'
 import { DEFAULT_NUMBER_BOXES, useStore } from '@/state/store'
 import { alternatingIndex } from '@/components/NumberBoxes'
 import { findPolar } from '@/data/polars'
@@ -541,6 +541,32 @@ describe('earlier routes, kept to compare', () => {
     fireEvent.click(screen.getByRole('button', { name: 'SAVE AS MARKS' }))
     expect(useStore.getState().library.map((m) => m.name)).toEqual(['Start', 'Finish'])
     expect(screen.getByRole('status').textContent).toMatch(/2 turning points filed/)
+  })
+
+  it('draws an isochrone every so often, and shades the band the owner chose', () => {
+    const iso = (min: number) => ({ t: T0R + min * 60_000, points: [{ lat: 43, lon: -70 }, { lat: 43.01, lon: -70 }] })
+    const T0R = Date.UTC(2026, 8, 29, 10)
+    const isos = [0, 2, 4, 30, 32, 60, 62, 64].map(iso)
+    expect(isochroneFC(isos).features).toHaveLength(8)
+    expect(isochroneFC(isos, 30).features.map((f) => (f.properties!.t - T0R) / 60_000)).toEqual([0, 30, 60])
+    const r = route(3600)
+    r.sensitivity = { bbox: { west: -70.1, south: 43, east: -70, north: 43.1 }, nx: 2, ny: 1, loss: new Float32Array([4, 25]) } as unknown as RouteResult['sensitivity']
+    expect(sensitivityFC(r, 10).features).toHaveLength(1)
+    expect(sensitivityFC(r, 30).features).toHaveLength(2)
+  })
+
+  it('sets the band and the isochrone interval in Route SETTINGS, and the legend follows', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    act(() => useStore.getState().setRoute(route(3600)))
+    fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }))
+    fireEvent.change(screen.getByLabelText(/^Shade water within/), { target: { value: '20' } })
+    fireEvent.change(screen.getByLabelText('Draw an isochrone every'), { target: { value: '60' } })
+    expect(useStore.getState().routeSettings).toMatchObject({ bandMin: 20, isoEveryMin: 60 })
+    expect(screen.getByText(/within 20 min of optimal/)).toBeTruthy()
   })
 
   it('makes one line a kept route, and skips a route with no length', () => {

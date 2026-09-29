@@ -492,8 +492,6 @@ export function RouteScreen() {
         geometry: { type: 'LineString' as const, coordinates: c },
       })),
     })
-    setSource(map, 'iso', isochroneFC(route.isochrones))
-    setSource(map, 'sens', sensitivityFC(route))
     setSource(map, 'route-wind', windAlongRouteFC(route.legs))
 
     if (coords.length > 1) {
@@ -502,6 +500,15 @@ export function RouteScreen() {
       map.fitBounds(b, { padding: 56, maxZoom: 12, duration: 600 })
     }
   }, [ready, route])
+
+  // The isochrones and the band, redrawn when their display settings change,
+  // without refitting the map as a new route does.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !route?.ok) return
+    setSource(map, 'iso', isochroneFC(route.isochrones, routeSettings.isoEveryMin))
+    setSource(map, 'sens', sensitivityFC(route, routeSettings.bandMin))
+  }, [ready, route, routeSettings.isoEveryMin, routeSettings.bandMin])
 
   // Earlier routes, for comparison: their own source, so a new route does not refit for them.
   useEffect(() => {
@@ -1023,7 +1030,7 @@ export function RouteScreen() {
                 </div>
                 <div>
                   <span className="swatch" style={{ background: 'rgba(255,213,74,.35)' }} />
-                  within 10 min of optimal
+                  within {routeSettings.bandMin} min of optimal
                 </div>
                 {route.reverseIsochrones.length > 0 && (
                   <button
@@ -1569,10 +1576,23 @@ function marksFC(
 }
 
 /** Forward or reverse isochrones as lines, one feature per curve. */
-function isochroneFC(isochrones: Isochrone[]): FC {
+/** The isochrones, every `everyMin` minutes of the route (the first in each), or every step at 0. */
+export function isochroneFC(isochrones: Isochrone[], everyMin = 0): FC {
+  let shown = isochrones
+  if (everyMin > 0 && isochrones.length) {
+    const t0 = isochrones[0].t
+    const every = everyMin * 60_000
+    let lastBucket = -1
+    shown = isochrones.filter((iso) => {
+      const b = Math.floor((iso.t - t0 + 1000) / every)
+      if (b === lastBucket) return false
+      lastBucket = b
+      return true
+    })
+  }
   return {
     type: 'FeatureCollection',
-    features: isochrones.map((iso) => ({
+    features: shown.map((iso) => ({
       type: 'Feature' as const,
       properties: { t: iso.t },
       geometry: {
@@ -1874,8 +1894,8 @@ export function windFC(c: WeatherCube, t: Millis): FC {
   return { type: 'FeatureCollection', features }
 }
 
-/** Cells within 10 minutes of optimal, as a coarse polygon soup. */
-function sensitivityFC(route: RouteResult): FC {
+/** Cells within `bandMin` minutes of optimal, as a coarse polygon soup. */
+export function sensitivityFC(route: RouteResult, bandMin = 10): FC {
   const s = route.sensitivity
   if (!s) return emptyFC()
   const dx = lonSpan(s.bbox.west, s.bbox.east) / s.nx
@@ -1884,7 +1904,7 @@ function sensitivityFC(route: RouteResult): FC {
   for (let j = 0; j < s.ny; j++) {
     for (let i = 0; i < s.nx; i++) {
       const loss = s.loss[j * s.nx + i]
-      if (!Number.isFinite(loss) || loss > 10) continue
+      if (!Number.isFinite(loss) || loss > bandMin) continue
       const x0 = wrap180(s.bbox.west + i * dx)
       const x1 = wrap180(s.bbox.west + (i + 1) * dx)
       const y0 = s.bbox.south + j * dy

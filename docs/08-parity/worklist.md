@@ -206,7 +206,7 @@ leaves something tested and working.
 - [x] **9.3 Results parity:** current and sail columns, a meteogram along the route,
       barbs at each leg's own time, and export to the marks database. *Accept:*
       tests.
-- [ ] **9.4 Adjustable sensitivity band and isochrone drawing interval.** *Accept:*
+- [x] **9.4 Adjustable sensitivity band and isochrone drawing interval.** *Accept:*
       tests.
 - [ ] **9.5 Draw every explored path.** *Accept:* tests.
 - [ ] **9.6 Decaying wind correction:** a now-correction blended back to the forecast

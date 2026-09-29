@@ -115,6 +115,32 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
       {limit('maxTwsUpwind', 'Beating in wind above', 'kn')}
       {limit('maxTwsDownwind', 'Running in wind above', 'kn')}
 
+      <h2>Display</h2>
+      <div className="field">
+        <label htmlFor="rs-band">Shade water within <span className="note">min of the best route</span></label>
+        <input
+          id="rs-band"
+          type="number"
+          min="1"
+          max="120"
+          step="1"
+          value={s.bandMin}
+          onChange={(e) => update({ bandMin: Math.max(1, Math.min(120, Number(e.target.value) || 10)) })}
+          inputMode="numeric"
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="rs-iso-every">Draw an isochrone every</label>
+        <select id="rs-iso-every" value={s.isoEveryMin} onChange={(e) => update({ isoEveryMin: Number(e.target.value) })}>
+          <option value={0}>time step</option>
+          <option value={15}>15 min</option>
+          <option value={30}>30 min</option>
+          <option value={60}>hour</option>
+          <option value={180}>3 hours</option>
+          <option value={360}>6 hours</option>
+        </select>
+      </div>
+
       <h2>Motor</h2>
       {limit('motorBelowKn', 'Motor when sailing is slower than', 'kn')}
       {limit('motorSpeedKn', 'Motoring speed', 'kn')}
