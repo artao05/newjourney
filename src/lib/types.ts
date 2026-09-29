@@ -409,6 +409,10 @@ export interface RouteRequest {
   computeSensitivity: boolean
   /** Also return every path the search kept, to draw: slower to draw, not to compute. */
   returnExplored?: boolean
+  /** Isochrones (the default), or the grid, for a second opinion. */
+  algorithm?: 'isochrone' | 'grid'
+  /** For the grid: lay it along the great circle rather than the rhumb line. */
+  greatCircle?: boolean
 }
 
 export interface RouteLeg {

@@ -22,6 +22,7 @@
 import { bboxOf } from '../geo'
 import { sweepDepartures, type DepartureSweep } from './departure'
 import { routeIsochrone, type RouteContext } from './isochrone'
+import { routeGrid } from './grid'
 import { RasterLandMask, buildLandMask, type LandMask } from './land'
 import type {
   BBox,
@@ -234,7 +235,11 @@ export async function handleRouteMessage(
         post({ type: 'progress', id: msg.id, fraction })
       },
     }
-    post({ type: 'result', id: msg.id, result: routeIsochrone(msg.req, ctx) })
+    const result =
+      msg.req.algorithm === 'grid'
+        ? routeGrid(msg.req, { field: ctx.field, lattice: ctx.lattice, land: ctx.land ?? null }, { greatCircle: msg.req.greatCircle ?? false })
+        : routeIsochrone(msg.req, ctx)
+    post({ type: 'result', id: msg.id, result })
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     post({ type: 'result', id: msg.id, result: failedResult(`worker could not start the route: ${message}`) })

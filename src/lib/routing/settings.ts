@@ -64,6 +64,10 @@ export interface RouteSettings {
   nowDecayMin: number
   /** Speed in waves as a percentage of the polar, by height and angle to the boat; null for none. */
   waveTable: { heights: number[]; angles: number[]; pct: number[][] } | null
+  /** Which router: the isochrones, or the grid for a second opinion. */
+  algorithm: 'isochrone' | 'grid'
+  /** For the grid: along the great circle rather than the rhumb line. */
+  greatCircle: boolean
 }
 
 export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
@@ -85,6 +89,8 @@ export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
   showExplored: false,
   nowDecayMin: 0,
   waveTable: null,
+  algorithm: 'isochrone',
+  greatCircle: false,
 }
 
 /**
@@ -184,5 +190,6 @@ export function nonDefaultLabels(s: RouteSettings): string[] {
   if (s.motorSpeedKn != null && s.motorBelowKn != null) out.push(`motor ${s.motorSpeedKn} kn below ${s.motorBelowKn} kn`)
   if (s.nowDecayMin > 0) out.push(`wind now over ${s.nowDecayMin} min`)
   if (s.waveTable) out.push('wave table')
+  if (s.algorithm === 'grid') out.push(s.greatCircle ? 'grid, great circle' : 'grid')
   return out
 }

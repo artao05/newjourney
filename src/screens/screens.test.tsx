@@ -678,6 +678,18 @@ describe('the Route screen reaches every routing setting', () => {
     }
   })
 
+  it('chooses the grid, and the great circle for it', () => {
+    render(<RouteScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }))
+    expect(screen.queryByLabelText('Grid along the great circle')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Grid' }))
+    fireEvent.click(screen.getByLabelText('Grid along the great circle'))
+    expect(useStore.getState().routeSettings).toMatchObject({ algorithm: 'grid', greatCircle: true })
+    fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
+    expect(screen.getByText('grid, great circle')).toBeTruthy()
+    useStore.getState().updateRouteSettings({ algorithm: 'isochrone', greatCircle: false })
+  })
+
   it('treats a cleared limit as no limit, not as zero', () => {
     useStore.getState().updateRouteSettings({ maxTws: 25 })
     render(<RouteScreen />)

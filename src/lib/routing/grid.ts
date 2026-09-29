@@ -200,7 +200,11 @@ export function routeGrid(
   let evaluated = 0
   for (const [li, to] of req.marks.entries()) {
     const leg = gridLeg(from, to, t, ctx.field, ctx.lattice, ctx.land ?? null, polarF, o)
-    if (!leg) return failed(`leg ${li + 1} of ${req.marks.length}: the grid found no way through`)
+    if (!leg) {
+      return failed(
+        `leg ${li + 1} of ${req.marks.length}: the grid found no way through. It only moves forward along the track, so among islands it can be boxed in; the isochrones can go round.`,
+      )
+    }
     evaluated += leg.evaluated
     legs.push(...(legs.length ? leg.legs.slice(1) : leg.legs))
     t = leg.legs[leg.legs.length - 1].t

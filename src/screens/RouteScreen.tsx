@@ -620,6 +620,8 @@ export function RouteScreen() {
         constraints: { ...parts.constraints, ...zonesFromNotes(raceNotes) },
         computeSensitivity,
         returnExplored: routeSettings.showExplored,
+        algorithm: routeSettings.algorithm,
+        greatCircle: routeSettings.greatCircle,
         // The wind now, if it was measured or set, and not the forecast itself.
         scalings:
           routeSettings.nowDecayMin > 0 && liveWind && liveWind.source !== 'forecast'

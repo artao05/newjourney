@@ -136,6 +136,23 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
         and fading to the forecast over that time.
       </p>
 
+      <h2>Algorithm</h2>
+      <div className="seg" role="group" aria-label="Routing algorithm" style={{ marginBottom: 6 }}>
+        <button aria-pressed={s.algorithm === 'isochrone'} onClick={() => update({ algorithm: 'isochrone' })}>Isochrones</button>
+        <button aria-pressed={s.algorithm === 'grid'} onClick={() => update({ algorithm: 'grid' })}>Grid</button>
+      </div>
+      {s.algorithm === 'grid' && (
+        <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="checkbox" checked={s.greatCircle} aria-label="Grid along the great circle"
+            onChange={(e) => update({ greatCircle: e.target.checked })} />
+          <span>Lay the grid along the great circle, for long ocean legs.</span>
+        </label>
+      )}
+      <p className="note">
+        The grid is a second opinion: simpler, with no tack costs and no going back, so the isochrones are usually a
+        little faster. No isochrones or sensitivity band are drawn for it.
+      </p>
+
       <h2>Waves</h2>
       <p className="note">
         {s.waveTable

@@ -112,6 +112,21 @@ async function route(
   return { result: last.result, posts }
 }
 
+// ------------------------------------------------------- the grid, on request
+
+describe('the worker runs the grid when asked', () => {
+  it('routes on the grid, says it did, and runs the isochrones otherwise', async () => {
+    const grid = await route({ req: { ...request(), algorithm: 'grid' } })
+    expect(grid.result.ok, grid.result.error).toBe(true)
+    expect(grid.result.diagnostics.warnings.some((w) => /Grid route/.test(w))).toBe(true)
+    expect(grid.result.isochrones).toEqual([])
+    const iso = await route()
+    expect(iso.result.ok).toBe(true)
+    expect(iso.result.diagnostics.warnings.some((w) => /Grid route/.test(w))).toBe(false)
+    expect(Math.abs(grid.result.elapsedS! / iso.result.elapsedS! - 1)).toBeLessThan(0.1)
+  })
+})
+
 // ------------------------------------------------------- the land-mask claim
 
 describe('land avoidance is reported by the kernel, not assumed by the caller', () => {
