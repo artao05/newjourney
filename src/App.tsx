@@ -8,7 +8,9 @@
  */
 
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
-import { useStore, type Tab } from '@/state/store'
+import { useStore, type ChartTab, type PanelTab, type Tab } from '@/state/store'
+import { LayoutContext, useWide } from '@/hooks/useWide'
+import { NumberBoxes } from '@/components/NumberBoxes'
 import { useGeolocation, useSimulation, useWakeLock, useTick } from '@/hooks/useSensors'
 import { StartScreen } from '@/screens/StartScreen'
 import { RaceScreen } from '@/screens/RaceScreen'
@@ -70,6 +72,11 @@ export function App() {
   const recording = useStore((s) => s.recording)
   const toggleRecording = useStore((s) => s.toggleRecording)
   const pushTrack = useStore((s) => s.pushTrack)
+
+  const wide = useWide()
+  const navPanel = useStore((s) => s.navPanel)
+  const navChart = useStore((s) => s.navChart)
+  const setNav = useStore((s) => s.setNav)
 
   const [lazyGen, setLazyGen] = useState(0)
   const retryLazy = useCallback(() => setLazyGen((g) => g + 1), [])
@@ -213,6 +220,56 @@ export function App() {
   // Until the notice is accepted the app sits behind it, `inert` so no tap or
   // tab-key can reach a number the sailor has not yet been told how far to trust.
   const mustAccept = !settings.acceptedNotForNavigation
+
+  /**
+   * One screen, in its error boundary, the charts behind Suspense. Shared by both
+   * layouts: the phone shows one at a time, the nav station a panel and a chart.
+   */
+  const renderScreen = (id: Tab): ReactElement => {
+    const loading = (what: string) => (
+      <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
+        <span className="chip">
+          <span className="spinner" /> loading {what}…
+        </span>
+      </div>
+    )
+    switch (id) {
+      case 'start':
+        return (
+          <ErrorBoundary name="Start" key="start">
+            <StartScreen />
+          </ErrorBoundary>
+        )
+      case 'race':
+        return (
+          <ErrorBoundary name="Race" key="race">
+            <RaceScreen />
+          </ErrorBoundary>
+        )
+      case 'weather':
+        return (
+          <ErrorBoundary name="Weather" key="weather" onReset={retryLazy}>
+            <Suspense fallback={loading('map')}>
+              <WeatherScreen />
+            </Suspense>
+          </ErrorBoundary>
+        )
+      case 'route':
+        return (
+          <ErrorBoundary name="Route" key="route" onReset={retryLazy}>
+            <Suspense fallback={loading('chart')}>
+              <RouteScreen />
+            </Suspense>
+          </ErrorBoundary>
+        )
+      case 'setup':
+        return (
+          <ErrorBoundary name="Setup" key="setup">
+            <SetupScreen />
+          </ErrorBoundary>
+        )
+    }
+  }
   const windChipState = windChip(
     wind,
     manualWindSetAt,
@@ -259,64 +316,61 @@ export function App() {
           </div>
         )}
 
-        {tab === 'start' && (
-          <ErrorBoundary name="Start" key="start">
-            <StartScreen />
-          </ErrorBoundary>
+        {wide ? (
+          <LayoutContext.Provider value="station">
+            <div className="navstation">
+              <section className="navstation__panel" aria-label="Panel">
+                <nav className="tabbar tabbar--pane">
+                  {TABS.filter((t) => PANEL_TABS.includes(t.id as PanelTab)).map((t) => (
+                    <button
+                      key={t.id}
+                      aria-current={navPanel === t.id}
+                      onClick={() => setNav({ navPanel: t.id as PanelTab })}
+                    >
+                      {t.icon}
+                      {t.label}
+                    </button>
+                  ))}
+                </nav>
+                {renderScreen(navPanel)}
+              </section>
+              <section className="navstation__chart" aria-label="Chart">
+                <nav className="tabbar tabbar--pane">
+                  {TABS.filter((t) => CHART_TABS.includes(t.id as ChartTab)).map((t) => (
+                    <button
+                      key={t.id}
+                      aria-current={navChart === t.id}
+                      onClick={() => setNav({ navChart: t.id as ChartTab })}
+                    >
+                      {t.icon}
+                      {t.label}
+                    </button>
+                  ))}
+                </nav>
+                {renderScreen(navChart)}
+              </section>
+              <aside className="navstation__boxes" aria-label="Number boxes">
+                <NumberBoxes />
+              </aside>
+            </div>
+          </LayoutContext.Provider>
+        ) : (
+          <>
+            {renderScreen(tab)}
+            <nav className="tabbar">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  aria-current={tab === t.id}
+                  onClick={() => setTab(t.id)}
+                >
+                  {t.icon}
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+          </>
         )}
-        {tab === 'race' && (
-          <ErrorBoundary name="Race" key="race">
-            <RaceScreen />
-          </ErrorBoundary>
-        )}
-        {tab === 'weather' && (
-          <ErrorBoundary name="Weather" key="weather" onReset={retryLazy}>
-            <Suspense
-              fallback={
-                <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
-                  <span className="chip">
-                    <span className="spinner" /> loading map…
-                  </span>
-                </div>
-              }
-            >
-              <WeatherScreen />
-            </Suspense>
-          </ErrorBoundary>
-        )}
-        {tab === 'route' && (
-          <ErrorBoundary name="Route" key="route" onReset={retryLazy}>
-            <Suspense
-              fallback={
-                <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
-                  <span className="chip">
-                    <span className="spinner" /> loading chart…
-                  </span>
-                </div>
-              }
-            >
-              <RouteScreen />
-            </Suspense>
-          </ErrorBoundary>
-        )}
-        {tab === 'setup' && (
-          <ErrorBoundary name="Setup" key="setup">
-            <SetupScreen />
-          </ErrorBoundary>
-        )}
-
-        <nav className="tabbar">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              aria-current={tab === t.id}
-              onClick={() => setTab(t.id)}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
-        </nav>
 
         {windSheetOpen && <WindSheet onClose={() => setWindSheetOpen(false)} />}
       </div>
@@ -326,6 +380,9 @@ export function App() {
     </>
   )
 }
+
+const PANEL_TABS: PanelTab[] = ['start', 'race', 'setup']
+const CHART_TABS: ChartTab[] = ['route', 'weather']
 
 const TABS: Array<{ id: Tab; label: string; icon: ReactElement }> = [
   {

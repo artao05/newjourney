@@ -24,6 +24,9 @@ import type {
 import { DEFAULT_ROUTE_SETTINGS, type RouteSettings } from '@/lib/routing/settings'
 
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
+/** The nav station's two tab sets: panels on the left, charts in the middle. */
+export type PanelTab = 'start' | 'race' | 'setup'
+export type ChartTab = 'route' | 'weather'
 
 /**
  * A configurable number box: one channel, or up to ten that alternate, as
@@ -69,6 +72,10 @@ export interface Settings {
 interface AppState {
   tab: Tab
   setTab(t: Tab): void
+  /** What the nav-station layout shows in its panel and its chart. */
+  navPanel: PanelTab
+  navChart: ChartTab
+  setNav(patch: Partial<{ navPanel: PanelTab; navChart: ChartTab }>): void
 
   boat: Boat
   updateBoat(patch: Partial<Boat>): void
@@ -245,6 +252,9 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       tab: 'start',
       setTab: (t) => set({ tab: t }),
+      navPanel: 'race',
+      navChart: 'route',
+      setNav: (patch) => set(patch),
 
       boat: DEFAULT_BOAT,
       updateBoat: (patch) => set({ boat: { ...get().boat, ...patch } }),
@@ -458,6 +468,8 @@ export const useStore = create<AppState>()(
         routeSettings: s.routeSettings,
         routeStart: s.routeStart,
         numberBoxes: s.numberBoxes,
+        navPanel: s.navPanel,
+        navChart: s.navChart,
         activeMarkIndex: s.activeMarkIndex,
         xteOrigin: s.xteOrigin,
         // A recording that was on survives a reload too: a phone that drops the app

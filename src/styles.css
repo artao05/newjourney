@@ -135,6 +135,69 @@ button {
   height: 21px;
 }
 
+/* ------------------------------------------------------------ nav station */
+
+/*
+ * At laptop and tablet widths: a panel (Start, Race, Setup), the chart (Route,
+ * Weather) and a column of number boxes, side by side, as on a chart table. Each
+ * pane is positioned, so a sheet opened in a pane stays inside it.
+ */
+.navstation {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(340px, 400px) minmax(0, 1fr) minmax(240px, 300px);
+  gap: 1px;
+  background: var(--line);
+  padding-bottom: var(--safe-bottom);
+}
+
+.navstation__panel,
+.navstation__chart,
+.navstation__boxes {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.navstation__boxes {
+  overflow-y: auto;
+}
+
+.navstation__boxes .nboxes {
+  grid-template-columns: repeat(2, 1fr);
+  border-top: 0;
+}
+
+/* A pane's own tab bar sits at its top, and has no phone safe-area padding. */
+.tabbar--pane {
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0;
+}
+
+.tabbar--pane button {
+  flex-direction: row;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 4px 8px;
+  border-top: 0;
+  border-bottom: 2px solid transparent;
+  margin: 0 0 -1px;
+}
+
+.tabbar--pane button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tabbar--pane button[aria-current='true'] {
+  border-bottom-color: var(--accent);
+}
+
 /* ------------------------------------------------------------------ modal */
 
 /* A sibling of .app, not a child, so it stays reachable while .app is inert. */

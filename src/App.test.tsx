@@ -13,7 +13,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 
 const { FakeMap, FakeLngLatBounds } = vi.hoisted(() => {
   class FakeLngLatBounds {
@@ -418,5 +418,59 @@ describe('the wind sheet takes a compass bearing in magnetic', () => {
     act(() => screen.getByRole('button', { name: '°M' }).click())
     expect(screen.getByRole('button', { name: /^SET WIND/ }).textContent).toContain('284°M')
     useStore.getState().updateSettings({ northRef: 'true' })
+  })
+})
+
+describe('the nav-station layout at laptop width', () => {
+  /*
+   * Below 1024 px the phone shows one tab at a time. At and above it the app is a
+   * chart table: a panel, the chart and a column of number boxes, side by side.
+   */
+  function withWidth(wide: boolean) {
+    // jsdom has no matchMedia, and spyOn needs something to replace.
+    if (!('matchMedia' in window)) {
+      ;(window as unknown as { matchMedia: unknown }).matchMedia = () => ({})
+    }
+    const mql = (q: string) =>
+      ({
+        matches: wide && q.includes('min-width'),
+        media: q,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }) as unknown as MediaQueryList
+    vi.spyOn(window, 'matchMedia').mockImplementation(mql)
+  }
+
+  it('keeps the phone layout on a narrow screen: one screen and five tabs', () => {
+    withWidth(false)
+    render(<App />)
+    expect(screen.queryByRole('region', { name: 'Chart' })).toBeNull()
+    expect(document.querySelectorAll('.tabbar:not(.tabbar--pane) button')).toHaveLength(5)
+  })
+
+  it('shows a panel, the chart and the number boxes side by side on a wide one', async () => {
+    withWidth(true)
+    useStore.getState().setNav({ navPanel: 'race', navChart: 'route' })
+    render(<App />)
+    const panel = screen.getByRole('region', { name: 'Panel' })
+    const chart = screen.getByRole('region', { name: 'Chart' })
+    const boxes = screen.getByRole('complementary', { name: 'Number boxes' })
+    expect(panel.textContent).toContain('Laylines')
+    await waitFor(() => expect(chart.textContent).toContain('FORECAST'))
+    // One set of number boxes: the column. Race drops its own in the station.
+    expect(document.querySelectorAll('.nboxes')).toHaveLength(1)
+    expect(boxes.querySelector('.nboxes')).not.toBeNull()
+  })
+
+  it('switches the panel and the chart independently, and remembers them', () => {
+    withWidth(true)
+    useStore.getState().setNav({ navPanel: 'race', navChart: 'route' })
+    render(<App />)
+    const panel = screen.getByRole('region', { name: 'Panel' })
+    act(() => within(panel).getByRole('button', { name: /start/i }).click())
+    expect(useStore.getState().navPanel).toBe('start')
+    expect(useStore.getState().navChart).toBe('route')
+    const saved = JSON.parse(localStorage.getItem('newjourney.v1') ?? '{}').state
+    expect(saved.navPanel).toBe('start')
   })
 })

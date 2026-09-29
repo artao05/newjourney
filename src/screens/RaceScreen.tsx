@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
 import { NumberBoxes } from '@/components/NumberBoxes'
+import { useLayout } from '@/hooks/useWide'
 import { Tile, fmtClock } from '@/components/Tile'
 import { computeTactics } from '@/lib/tactics'
 import { buildLattice } from '@/lib/polar'
@@ -29,6 +30,7 @@ export function RaceScreen() {
   const windHistory = useStore((s) => s.windHistory)
   const activeMarkIndex = useStore((s) => s.activeMarkIndex)
   const xteOrigin = useStore((s) => s.xteOrigin)
+  const layout = useLayout()
   const resetXte = useStore((s) => s.resetXte)
   const setActiveMark = useStore((s) => s.setActiveMark)
   const addMark = useStore((s) => s.addMark)
@@ -113,10 +115,15 @@ export function RaceScreen() {
         </div>
       )}
 
-      <h2 className="panel" style={{ paddingBottom: 0 }}>
-        Number boxes
-      </h2>
-      <NumberBoxes />
+      {/* The nav station has its own column of boxes beside this panel. */}
+      {layout === 'phone' && (
+        <>
+          <h2 className="panel" style={{ paddingBottom: 0 }}>
+            Number boxes
+          </h2>
+          <NumberBoxes />
+        </>
+      )}
 
       <div className="tiles">
         <Tile label="TWD" value={t?.twd != null ? fmtDeg(t.twd) : null} unit="°"

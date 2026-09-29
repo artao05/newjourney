@@ -66,7 +66,7 @@ leaves something tested and working.
 - [x] **2.3 Number boxes.** A configurable grid of any channels, with sizes,
       alternating channels, and a layout that persists. *Accept:* screen tests for
       pick, alternate and persist.
-- [ ] **2.4 Nav-station layout at ≥1024 px.** The chart in the middle, the tabs as
+- [x] **2.4 Nav-station layout at ≥1024 px.** The chart in the middle, the tabs as
       side panes, and a number-box column. The phone layout is unchanged. *Accept:*
       screen tests at both widths, plus a browser check.
 - [ ] **2.5 Keyboard shortcuts and full-screen chart.** *Accept:* a keymap test, plus
