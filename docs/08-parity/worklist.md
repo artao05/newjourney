@@ -290,8 +290,11 @@ leaves something tested and working.
       NOAA predictions to within a stated tolerance. *2–4 mm RMS, under 7 mm worst, against NOAA's
       hourly predictions for Portland over weeks in 2026 and 2027 (checked live); a committed
       regression fixture of NOAA's numbers waits on D8.*
-- [ ] **11.2 Tide stations:** nearest-station lookup, an offline constituent pack, the
-      tide curve, and tide channels. *Accept:* tests.
+- [x] **11.2 Tide stations:** nearest-station lookup, an offline constituent pack, the
+      tide curve, and tide channels. *Accept:* tests. *Constants are kept on the device once
+      fetched rather than shipped as a pack; the channels are 11.2b.*
+- [ ] **11.2b Tide channels** (Tide left/right, port/stbd time; Tide station). `blocked: D7`: the
+      manual names them but doesn't say what they measure; what does Expedition show there?
 - [ ] **11.3 Harmonic tidal currents** and tidal diamonds on the chart. *Accept:*
       tests.
 - [ ] **11.4 Tidal streams in routing**, taking precedence over forecast current.

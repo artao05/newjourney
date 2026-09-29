@@ -73,6 +73,7 @@ import { useStore } from '@/state/store'
 import { fmtLength } from '@/lib/units'
 import { WeatherFilesSheet } from '@/components/WeatherFiles'
 import { PointMeteogram } from '@/components/PointMeteogram'
+import { TideSheet } from '@/components/TideSheet'
 import { ObservationsSheet, type ObsStation } from '@/components/ObservationsSheet'
 import { fetchCoopsObservations, type Observation } from '@/lib/weather/observations'
 import { RADAR_INDEX, SAT_TILES, latestRadar } from '@/lib/weather/overlays'
@@ -157,6 +158,7 @@ function WeatherOverlay() {
   const [moreLayers, setMoreLayers] = useState(false)
   const [meteo, setMeteo] = useState<'point' | 'boat' | null>(null)
   const [obsOn, setObsOn] = useState(false)
+  const [showTides, setShowTides] = useState(false)
   const [radarOn, setRadarOn] = useState(false)
   const ens = useEnsembleView()
   const [satOn, setSatOn] = useState(false)
@@ -962,6 +964,9 @@ function WeatherOverlay() {
               Reports…
             </button>
           )}
+          <button className="chip" onClick={() => setShowTides(true)} title="The tide at the nearest NOAA station">
+            Tides
+          </button>
           <button
             className="chip"
             disabled={!cube || (!boatNow && !probe)}
@@ -1264,6 +1269,9 @@ function WeatherOverlay() {
             Done
           </button>
         </div>
+      )}
+      {showTides && (
+        <TideSheet at={boatNow?.position ?? probe ?? PILOT_VENUE.center} onClose={() => setShowTides(false)} />
       )}
       {showObsSheet && (
         <ObservationsSheet stations={OBS_STATIONS} obs={obs} errors={obsErrors} cube={cube} onClose={() => setShowObsSheet(false)} />
