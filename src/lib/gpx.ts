@@ -228,5 +228,7 @@ export function downloadText(filename: string, text: string, mime = 'application
   a.href = url
   a.download = filename
   a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 2000)
+  // Guarded: a test harness without revokeObjectURL (jsdom) must not throw from a
+  // timer two seconds later, in the middle of some other test.
+  setTimeout(() => URL.revokeObjectURL?.(url), 2000)
 }
