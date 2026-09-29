@@ -59,6 +59,8 @@ export interface Reading {
   pitch?: number
   /** Rudder angle, degrees; negative turns the bow to port. */
   rudder?: number
+  /** Mast rotation, degrees; positive to starboard. */
+  mastAngle?: number
   /** Rate of turn, degrees a minute; negative turns the bow to port. */
   rateOfTurn?: number
   /** Cross-track error, nm, and which way to steer to get back. */
@@ -165,6 +167,7 @@ function xdr(fields: string[]): Partial<Reading> {
     const name = m.name.toUpperCase()
     if (m.type === 'A' && /HEEL|ROLL/.test(name)) out.heel = value
     else if (m.type === 'A' && /PTCH|PITCH/.test(name)) out.pitch = value
+    else if (m.type === 'A' && /MAST/.test(name)) out.mastAngle = value
     else if (m.type === 'P') out.baroHpa = m.unit === 'B' ? value * 1000 : m.unit === 'P' ? value / 100 : undefined
     else if (m.type === 'C' && /AIR/.test(name)) out.airTempC = value
     else if (m.type === 'C' && /WATER|ENV_WATER/.test(name)) out.waterTempC = value

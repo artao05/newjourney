@@ -101,6 +101,14 @@ describe('the instrument pipeline', () => {
     expect(up.gws).toBeCloseTo(9, 9)
   })
 
+  it('passes the sensor angles on with their offsets, undamped', () => {
+    const p = new InstrumentPipeline(DEFAULT_PIPELINE, {
+      bsp: null, awa: null, aws: null, twa: null, tws: null, deviation: null,
+      offsets: { heel: 0, pitch: 0.5, rudder: 1, compass: 0, mast: -3 },
+    })
+    expect(p.step({ pitch: 2, rudder: -4, mastAngle: 25 }, 0)).toMatchObject({ pitch: 2.5, rudder: -3, mastAngle: 22 })
+  })
+
   it('damps what it passes on: a jump in boat speed arrives over the time constant', () => {
     const p = new InstrumentPipeline({ ...DEFAULT_PIPELINE, dampSpeedS: 3 })
     p.step({ bsp: 5 }, 0)

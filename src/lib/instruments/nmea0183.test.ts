@@ -105,9 +105,9 @@ describe('depth, environment and the rest', () => {
   })
 
   it('reads heel, pitch and pressure out of XDR groups', () => {
-    const r = one('IIXDR,A,-12.5,D,HEEL,A,2.1,D,PTCH,P,1.0125,B,BARO')!
-    expect(r).toMatchObject({ heel: -12.5, pitch: 2.1, baroHpa: 1012.5 })
-    expect(r.xdr).toHaveLength(3)
+    const r = one('IIXDR,A,-12.5,D,HEEL,A,2.1,D,PTCH,P,1.0125,B,BARO,A,24.0,D,MAST')!
+    expect(r).toMatchObject({ heel: -12.5, pitch: 2.1, baroHpa: 1012.5, mastAngle: 24 })
+    expect(r.xdr).toHaveLength(4)
   })
 
   it('reads RSA, ROT, XTE, APB and RMB', () => {

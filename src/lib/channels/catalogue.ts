@@ -369,7 +369,7 @@ export const CHANNELS: readonly ChannelDef[] = [
   c('load-cell-port', "Load cell port", 'rig', 'load', 'instrument'),
   c('load-cell-starboard', "Load cell starboard", 'rig', 'load', 'instrument'),
   c('mainsheet', "MainSheet", 'rig', null, 'instrument'),
-  c('mast-angle', "Mast angle", 'rig', 'deg', 'instrument'),
+  c('mast-angle', "Mast angle", 'rig', 'deg', 'instrument', true),
   c('mast-butt', "Mast butt", 'rig', null, 'instrument'),
   c('mast-rake', "Mast rake", 'rig', 'deg', 'instrument'),
   c('runner-port', "Runner port", 'rig', null, 'instrument'),

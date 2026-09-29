@@ -164,7 +164,7 @@ leaves something tested and working.
       rate of turn. *Accept:* fixture tests.
 - [x] **6.5 Calibration tables:** BSP, AWA, AWS, TWA and TWS correction tables, compass
       deviation and offsets. *Accept:* tests.
-- [ ] **6.5b Mast angle** (from 6.5): read a mast-rotation sensor (XDR or Signal K) and
+- [x] **6.5b Mast angle** (from 6.5): read a mast-rotation sensor (XDR or Signal K) and
       correct it with an offset. *Accept:* tests.
 - [ ] **6.6 Phone heading and heel** from DeviceOrientation, with an honest quality
       flag. *Accept:* hook tests.

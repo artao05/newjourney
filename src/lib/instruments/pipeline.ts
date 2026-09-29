@@ -128,6 +128,10 @@ export interface Derived {
   current: { set: number; drift: number } | null
   /** Rate of turn used for the current gate, °/s: the instrument's, or from the heading. */
   rotDegS: number | null
+  /** Sensor angles with their calibration offsets, undamped. */
+  pitch?: number | null
+  rudder?: number | null
+  mastAngle?: number | null
 }
 
 const CHANNELS: Array<[keyof Derived, DampKind, 'angle' | 'speed']> = [
@@ -194,6 +198,9 @@ export class InstrumentPipeline {
       gws: null,
       current: null,
       rotDegS,
+      pitch: r.pitch ?? null,
+      rudder: r.rudder ?? null,
+      mastAngle: r.mastAngle ?? null,
     }
 
     if (out.bsp != null) out.leeway = out.heel != null ? leewayFrom({ heelDeg: out.heel, bsp: out.bsp, k: s.leewayK }) : 0

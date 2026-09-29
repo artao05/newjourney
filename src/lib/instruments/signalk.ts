@@ -108,6 +108,10 @@ export function readingFromValue(path: string, value: unknown): Partial<Reading>
       return def({ humidityPct: scaled(value, 100) })
     case 'steering.rudderAngle':
       return def({ rudder: signed(value) })
+    // No standard path for mast rotation; these are the ones plugins use.
+    case 'sails.mastAngle':
+    case 'performance.mastAngle':
+      return def({ mastAngle: signed(value) })
     default:
       return {}
   }

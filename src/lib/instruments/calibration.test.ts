@@ -61,9 +61,10 @@ describe('calibrating a reading', () => {
   it('adds the offsets, and the deviation table to the magnetic heading', () => {
     const r = calibrateRaw(
       { heel: 10, pitch: 1, rudder: -2, headingMag: 45 },
-      cal({ offsets: { heel: -1.5, pitch: 0.5, rudder: 1, compass: 2 }, deviation: [[0, 2], [90, -1]] }),
+      cal({ offsets: { heel: -1.5, pitch: 0.5, rudder: 1, compass: 2, mast: -3 }, deviation: [[0, 2], [90, -1]] }),
     )
     expect(r).toMatchObject({ heel: 8.5, pitch: 1.5, rudder: -1, headingMag: 47 })
+    expect(calibrateRaw({ mastAngle: 25 }, cal({ offsets: { ...NO_CALIBRATION.offsets, mast: -3 } })).mastAngle).toBe(22)
     expect(r.deviation).toBeCloseTo(0.5, 9)
   })
 

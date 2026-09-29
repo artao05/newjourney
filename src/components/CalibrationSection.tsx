@@ -22,6 +22,7 @@ const OFFSETS: Array<[keyof Calibration['offsets'], string]> = [
   ['pitch', 'Trim offset'],
   ['rudder', 'Rudder offset'],
   ['compass', 'Compass offset'],
+  ['mast', 'Mast angle offset'],
 ]
 
 export function CalibrationSection() {

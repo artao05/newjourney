@@ -71,7 +71,7 @@ export const PRODUCERS: Readonly<Record<string, Producer>> = {
   heading: (i) => i.state?.heading,
   bsp: (i) => i.state?.bsp,
   'heel-roll': (i) => i.state?.heelDeg,
-  'trim-pitch': (i) => i.instruments?.pitch,
+  'trim-pitch': (i) => i.derived?.pitch ?? i.instruments?.pitch,
   'log-bsp': (i) => i.instruments?.logNm,
   'instrument-trip-log': (i) => i.instruments?.tripNm,
   // straight from the instruments
@@ -87,7 +87,9 @@ export const PRODUCERS: Readonly<Record<string, Producer>> = {
   'air-temperature': (i) => i.instruments?.airTempC,
   barometer: (i) => i.instruments?.baroHpa,
   'relative-humidity': (i) => i.instruments?.humidityPct,
-  rudder: (i) => i.instruments?.rudder,
+  // With their calibration offsets, from the pipeline, where it has run.
+  rudder: (i) => i.derived?.rudder ?? i.instruments?.rudder,
+  'mast-angle': (i) => i.derived?.mastAngle ?? i.instruments?.mastAngle,
   // current
   'current-set': (i) => i.current?.set,
   'current-drift': (i) => i.current?.drift,

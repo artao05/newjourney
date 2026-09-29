@@ -65,7 +65,7 @@ function simulated(twa = 45, lineAhead = false): SnapshotInputs {
     // A Signal K feed's worth of instrument values, as the decoder hands them on.
     instruments: {
       awa: 32, aws: 15.1, hdop: 0.9, depthM: 12.4, waterTempC: 17.5, airTempC: 21, baroHpa: 1013.2,
-      humidityPct: 64, pitch: 1.5, rudder: -3, logNm: 1234.5, tripNm: 12.3,
+      humidityPct: 64, pitch: 1.5, rudder: -3, logNm: 1234.5, tripNm: 12.3, mastAngle: 22,
     },
     // And what the pipeline made of them.
     derived: {

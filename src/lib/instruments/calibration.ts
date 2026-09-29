@@ -37,7 +37,7 @@ export interface Calibration {
   tws: Table2D | null
   /** Deviation by magnetic heading: pairs of [heading, deviation east positive]. */
   deviation: Array<[number, number]> | null
-  offsets: { heel: number; pitch: number; rudder: number; compass: number }
+  offsets: { heel: number; pitch: number; rudder: number; compass: number; mast: number }
 }
 
 export const NO_CALIBRATION: Calibration = {
@@ -47,7 +47,7 @@ export const NO_CALIBRATION: Calibration = {
   twa: null,
   tws: null,
   deviation: null,
-  offsets: { heel: 0, pitch: 0, rudder: 0, compass: 0 },
+  offsets: { heel: 0, pitch: 0, rudder: 0, compass: 0, mast: 0 },
 }
 
 /** Where `x` falls in sorted `xs`: the index below and the fraction toward the next. */
@@ -95,6 +95,7 @@ export function calibrateRaw(r: Reading, cal: Calibration): Reading {
   if (out.heel != null) out.heel += o.heel
   if (out.pitch != null) out.pitch += o.pitch
   if (out.rudder != null) out.rudder += o.rudder
+  if (out.mastAngle != null) out.mastAngle += o.mast ?? 0
   if (out.headingMag != null) {
     const dev = cal.deviation ? deviationAt(cal.deviation, out.headingMag) : 0
     out.headingMag = wrap360(out.headingMag + o.compass)
