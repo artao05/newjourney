@@ -36,6 +36,10 @@ export function limitFrom(raw: string): number | null {
 export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
   const s = useStore((st) => st.routeSettings)
   const update = useStore((st) => st.updateRouteSettings)
+  // Colours are the chart's, not the router's: in the app settings, so they never make a route stale.
+  const routeColour = useStore((st) => st.settings.routeColour)
+  const markColour = useStore((st) => st.settings.markColour)
+  const updateSettings = useStore((st) => st.updateSettings)
   const [waveError, setWaveError] = useState<string | null>(null)
   const boat = useStore((st) => st.boat)
   const updateBoat = useStore((st) => st.updateBoat)
@@ -288,6 +292,14 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
         />
         <span>Draw every path the search kept, not only the best. On from the next route.</span>
       </label>
+      <div className="field">
+        <label htmlFor="rs-route-colour">Route colour</label>
+        <input id="rs-route-colour" type="color" value={routeColour} onChange={(e) => updateSettings({ routeColour: e.target.value })} />
+      </div>
+      <div className="field">
+        <label htmlFor="rs-mark-colour">Mark colour</label>
+        <input id="rs-mark-colour" type="color" value={markColour} onChange={(e) => updateSettings({ markColour: e.target.value })} />
+      </div>
 
       <h2>Motor</h2>
       {limit('motorBelowKn', 'Motor when sailing is slower than', 'kn')}

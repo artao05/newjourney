@@ -93,7 +93,8 @@ const { FakeMap, FakeLngLatBounds, mapInstances } = vi.hoisted(() => {
       return undefined
     }
     setLayoutProperty() {}
-    setPaintProperty() {}
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    setPaintProperty(_layer?: string, _prop?: string, _value?: unknown) {}
     hasImage() {
       return false
     }
@@ -643,6 +644,30 @@ describe('earlier routes, kept to compare', () => {
     r.sensitivity = { bbox: { west: -70.1, south: 43, east: -70, north: 43.1 }, nx: 2, ny: 1, loss: new Float32Array([4, 25]) } as unknown as RouteResult['sensitivity']
     expect(sensitivityFC(r, 10).features).toHaveLength(1)
     expect(sensitivityFC(r, 30).features).toHaveLength(2)
+  })
+
+  it('colours the route and the marks as set, without making the route stale', () => {
+    populatedStore()
+    const painted: Array<[string, string, unknown]> = []
+    const spy = vi.spyOn(FakeMap.prototype, 'setPaintProperty').mockImplementation((layer?: string, prop?: string, v?: unknown) => void painted.push([layer ?? '', prop ?? '', v]))
+    try {
+      render(<RouteScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      act(() => useStore.getState().setRoute(route(3600)))
+      const before = useStore.getState().routeSettingsAtLastRoute
+      fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }))
+      fireEvent.input(screen.getByLabelText('Route colour'), { target: { value: '#00e5ff' } })
+      fireEvent.input(screen.getByLabelText('Mark colour'), { target: { value: '#ff9100' } })
+      expect(useStore.getState().settings).toMatchObject({ routeColour: '#00e5ff', markColour: '#ff9100' })
+      expect(painted).toContainEqual(['route-line', 'line-color', '#00e5ff'])
+      expect(painted).toContainEqual(['marks-pt', 'circle-color', '#ff9100'])
+      expect(useStore.getState().routeSettingsAtLastRoute).toBe(before)
+    } finally {
+      spy.mockRestore()
+      act(() => useStore.getState().updateSettings({ routeColour: '#ff3ea5', markColour: '#ffd54a' }))
+    }
   })
 
   it('sets the band and the isochrone interval in Route SETTINGS, and the legend follows', () => {

@@ -400,6 +400,15 @@ export function RouteScreen() {
 
   // ------------------------------------------------------------ draw updates
   const legActive = useStore((s) => s.activeMarkIndex)
+  // The route's and the marks' colours, as set in the route settings.
+  const routeColour = useStore((s) => s.settings.routeColour)
+  const markColour = useStore((s) => s.settings.markColour)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    map.setPaintProperty('route-line', 'line-color', routeColour)
+    map.setPaintProperty('marks-pt', 'circle-color', markColour)
+  }, [ready, routeColour, markColour])
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return

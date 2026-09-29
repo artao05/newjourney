@@ -246,6 +246,9 @@ export interface Settings {
   palette: 'normal' | 'night'
   /** Move to the next mark by itself: inside the mark's range, across its bisector, both, or not. */
   autoAdvance: AdvanceMode
+  /** The optimal route's line and the course marks on the Route chart. */
+  routeColour: string
+  markColour: string
 }
 
 interface AppState {
@@ -531,6 +534,8 @@ export const DEFAULT_SETTINGS: Settings = {
   channelsOut: DEFAULT_CHANNELS_OUT,
   palette: 'normal',
   autoAdvance: 'off',
+  routeColour: '#ff3ea5',
+  markColour: '#ffd54a',
 }
 
 export function mergePersistedState(

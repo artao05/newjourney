@@ -403,11 +403,11 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       P1-263, P1-261, P1-258, P1-259, P1-255). *Accept:* tests.
       *Go here inserts the mark as the active one rather than replacing the course; a gate is
       left and right looking upwind, as the W/L wizard makes them.*
-- [ ] **15.2 Legs on the chart:** leg labels, the current-leg line, mark range
+- [x] **15.2 Legs on the chart:** leg labels, the current-leg line, mark range
       circles, mark and route colours, auto mark advance (P4-138, P4-139, P4-141,
       P4-131, P4-175). *Accept:* tests and a browser check.
-      *All but mark and route colours (P4-131) are in (tick 6): labels, the current leg, range
-      circles and auto advance (lib/legsOnChart.ts, hooks/useAutoAdvance.ts).*
+      *Labels, the current leg, range circles and auto advance (lib/legsOnChart.ts,
+      hooks/useAutoAdvance.ts); route and mark colours in Route → SETTINGS → Display.*
 - [ ] **15.3 AIS on the chart:** labels, predictor lines and trails, the CPA marker,
       a colour scheme, own-ship MMSI, an allow-list, the raw message log, a warning on
       entering an avoid area (P4-159, P4-160, P4-161, P3-106, P3-103, P3-104, P3-101,
