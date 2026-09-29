@@ -23,7 +23,7 @@ import { Tile, fmtClock } from '@/components/Tile'
 import { computeTactics } from '@/lib/tactics'
 import { angsep, fmtDeg, fmtShift } from '@/lib/angles'
 import { sailAt } from '@/lib/sailchart'
-import { distance, bearing } from '@/lib/geo'
+import { distance, bearing, destination } from '@/lib/geo'
 import { buildWLCourse } from '@/lib/wlcourse'
 import { NO_WHAT_IF, applyWhatIfCurrent, applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { gateNumbers } from '@/lib/gates'
@@ -52,6 +52,8 @@ export function RaceScreen() {
 
   const [editingMark, setEditingMark] = useState<string | null>(null)
   const { canUndo, canRedo } = useMarkHistory()
+  const [pingRange, setPingRange] = useState('')
+  const [pingBearing, setPingBearing] = useState('')
   const whatIf = useStore((s) => s.whatIf)
   const setWhatIf = useStore((s) => s.setWhatIf)
   const whatIfShift = whatIf.shiftDeg
@@ -625,6 +627,25 @@ export function RaceScreen() {
           </button>
           <button className="btn btn--sm btn--ghost" onClick={clearMarks} disabled={!marks.length}>
             CLEAR
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+          <span className="note">From the boat</span>
+          <input aria-label="Range from the boat" inputMode="decimal" placeholder="nm" value={pingRange} onChange={(e) => setPingRange(e.target.value)} style={{ width: 60 }} />
+          <span className="note">at</span>
+          <input aria-label="Bearing from the boat" inputMode="decimal" placeholder="°T" value={pingBearing} onChange={(e) => setPingBearing(e.target.value)} style={{ width: 56 }} />
+          <button
+            className="btn btn--sm btn--ghost"
+            disabled={!state || !(Number(pingRange) > 0) || pingBearing.trim() === '' || !(Number(pingBearing) >= 0 && Number(pingBearing) <= 360)}
+            onClick={() => {
+              if (!state) return
+              addMark(`Mark ${marks.length + 1}`, destination(state.position, Number(pingBearing), Number(pingRange)))
+              setPingRange('')
+              setPingBearing('')
+            }}
+            title="A mark at a range and true bearing from the boat, as off a radar or a hand-bearing compass"
+          >
+            PING AT
           </button>
         </div>
         <div className="actions" style={{ background: 'none', border: 'none', padding: 0 }}>

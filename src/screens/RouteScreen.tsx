@@ -30,6 +30,7 @@ import { parseSymbolKey, rasterSymbol } from '@/lib/charts/symbols'
 import { offsetCorners, offsetFeatures } from '@/lib/charts/georef'
 import { checkRoute, withEncHazards } from '@/lib/charts/encRouting'
 import { captureMap, chartCaption, chartFileName, downloadCanvas, printCanvas, withCaption } from '@/lib/mapExport'
+import { nearestLegInsert } from '@/lib/courseEdit'
 import type { EncFeature } from '@/lib/charts/s57'
 import { AisSheet } from '@/components/AisSheet'
 import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
@@ -1251,6 +1252,29 @@ export function RouteScreen() {
               {toPointer?.timeS != null && ` · ${fmtDuration(toPointer.timeS)}`}
             </span>
           )}
+          {pointer && picking == null && (
+            <>
+              <button
+                className="chip"
+                onClick={() => useStore.getState().insertMark('Go here', pointer, activeMarkIndex, true)}
+                title="A mark at the pointer, sailed to next: the rest of the course stays"
+              >
+                go here
+              </button>
+              {course.marks.length > 0 && (
+                <button
+                  className="chip"
+                  onClick={() => {
+                    const i = nearestLegInsert(course.marks.map((m) => m.position), pointer, origin)
+                    useStore.getState().insertMark(`Mark ${course.marks.length + 1}`, pointer, i)
+                  }}
+                  title="A mark at the pointer, put into the leg it is nearest"
+                >
+                  + into leg
+                </button>
+              )}
+            </>
+          )}
           {pointer && origin && polar && picking == null && (
             <>
               <button className="chip" onClick={() => void run(undefined, [pointer])} title="Optimal route from the boat to this point">
@@ -1571,7 +1595,19 @@ export function RouteScreen() {
           {encQuery.objects.map((o, i) => (
             <div key={i} style={{ marginTop: 4 }}>
               <b>{o.cls}</b>
-              {o.attrs.OBJNAM ? ` · ${o.attrs.OBJNAM}` : ''}
+              {o.attrs.OBJNAM ? ` · ${o.attrs.OBJNAM}` : ''}{' '}
+              <button
+                className="btn btn--sm btn--ghost"
+                aria-label={`Mark ${o.attrs.OBJNAM || o.cls}`}
+                title="A mark on this object, at the end of the course"
+                onClick={() => {
+                  const g = o.geometry
+                  const at = g?.type === 'Point' ? { lat: g.coordinates[1], lon: g.coordinates[0] } : encQuery.at
+                  useStore.getState().addMark(o.attrs.OBJNAM || o.cls, at)
+                }}
+              >
+                MARK IT
+              </button>
               <div className="note">
                 {Object.entries(o.attrs)
                   .filter(([k]) => k !== 'OBJNAM')

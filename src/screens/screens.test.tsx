@@ -1043,6 +1043,12 @@ describe('a route can start anywhere, not only at the boat', () => {
       const card = screen.getByRole('dialog', { name: 'Chart objects' })
       expect(card.textContent).toMatch(/LIGHTS · Portland Head Light/)
       expect(card.textContent).toMatch(/DEPARE.*DRVAL1 5, DRVAL2 10/)
+      // A mark on the light, where the light is.
+      const n = useStore.getState().course.marks.length
+      fireEvent.click(within(card).getByRole('button', { name: 'Mark Portland Head Light' }))
+      const mk = useStore.getState().course.marks
+      expect(mk).toHaveLength(n + 1)
+      expect(mk.at(-1)).toMatchObject({ name: 'Portland Head Light', position: { lat: 43.62, lon: -70.21 } })
       fireEvent.click(screen.getByRole('button', { name: 'Close chart objects' }))
       expect(screen.queryByRole('dialog', { name: 'Chart objects' })).toBeNull()
     } finally {
@@ -2077,6 +2083,20 @@ describe('marks can be edited, and placed on the chart', () => {
     expect(useStore.getState().course.marks).toHaveLength(n + 1)
   })
 
+  it('pings a mark at a range and bearing from the boat', () => {
+    populatedStore()
+    const n = useStore.getState().course.marks.length
+    const boat = useStore.getState().state!.position
+    render(<RaceScreen />)
+    fireEvent.change(screen.getByLabelText('Range from the boat'), { target: { value: '0.25' } })
+    fireEvent.change(screen.getByLabelText('Bearing from the boat'), { target: { value: '180' } })
+    fireEvent.click(screen.getByRole('button', { name: 'PING AT' }))
+    const m = useStore.getState().course.marks
+    expect(m).toHaveLength(n + 1)
+    expect(distance(boat, m.at(-1)!.position)).toBeCloseTo(0.25, 6)
+    expect(m.at(-1)!.position.lat).toBeLessThan(boat.lat)
+  })
+
   it('leaves the mark where it was when the position cannot be read, and says so', () => {
     populatedStore()
     const before = useStore.getState().course.marks[0].position
@@ -2494,6 +2514,31 @@ describe('range and bearing on the Route chart', () => {
     act(() => {
       for (const fn of mapInstances[0].handlers.get('click') ?? []) fn({ lngLat: { lat, lng } })
     })
+
+  it('puts a mark at the tapped point: go here sails to it next, + into leg puts it in the nearest leg', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const before = useStore.getState().course.marks.map((m) => m.position)
+    const active = useStore.getState().activeMarkIndex
+    tap(before[0].lat + 0.001, before[0].lon + 0.001)
+    fireEvent.click(screen.getByRole('button', { name: 'go here' }))
+    let s = useStore.getState()
+    expect(s.course.marks[active].name).toBe('Go here')
+    expect(s.activeMarkIndex).toBe(active)
+    expect(s.course.marks).toHaveLength(before.length + 1)
+    // Halfway along the leg from the first mark to the second.
+    const [m0, m1] = [before[0], before[1]]
+    tap((m0.lat + m1.lat) / 2, (m0.lon + m1.lon) / 2)
+    fireEvent.click(screen.getByRole('button', { name: '+ into leg' }))
+    s = useStore.getState()
+    expect(s.course.marks).toHaveLength(before.length + 2)
+    const i = s.course.marks.findIndex((m) => m.name === `Mark ${before.length + 2}`)
+    expect(s.course.marks[i - 1].position).toEqual(m0)
+    expect(s.course.marks[i + 1].position).toEqual(m1)
+  })
 
   it('reads out a tapped point: position, then range, bearing and time from the boat', () => {
     populatedStore()

@@ -273,6 +273,8 @@ interface AppState {
   setStartEnd(which: 'port' | 'starboard', at: LatLon | null): void
   setGunTime(t: Millis | null): void
   addMark(name: string, at: LatLon): void
+  /** A new mark at `index` in the course; the active mark stays the same one unless `makeActive`. */
+  insertMark(name: string, at: LatLon, index: number, makeActive?: boolean): void
   /** Replace marks without resetting a previously pinged start line. */
   replaceMarks(marks: Array<Pick<Mark, 'name' | 'position'> & Partial<Pick<Mark, 'roundTo' | 'gate'>>>): void
   removeMark(id: string): void
@@ -642,6 +644,13 @@ export const useStore = create<AppState>()(
             ],
           },
         }),
+      insertMark: (name, at, index, makeActive = false) => {
+        const { course, activeMarkIndex } = get()
+        const i = Math.max(0, Math.min(course.marks.length, Math.round(index)))
+        const marks = [...course.marks.slice(0, i), { id: `m${++markSeq}-${Date.now()}`, name, position: at, roundTo: 'port' as const }, ...course.marks.slice(i)]
+        const active = makeActive ? i : course.marks.length && i <= activeMarkIndex ? activeMarkIndex + 1 : activeMarkIndex
+        set({ ...COURSE_CHANGED, course: { ...course, marks }, activeMarkIndex: active })
+      },
       replaceMarks: (marks) =>
         set({
           ...COURSE_CHANGED,

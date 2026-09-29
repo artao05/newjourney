@@ -86,3 +86,20 @@ describe('locked marks', () => {
     expect(names()).toEqual([])
   })
 })
+
+describe('inserting a mark', () => {
+  it('keeps the active mark the same one, unless the new one is to be sailed to next', () => {
+    const s = useStore.getState()
+    s.addMark('One', A)
+    s.addMark('Two', B)
+    s.setActiveMark(1)
+    s.insertMark('Between', { lat: 43.65, lon: -70.15 }, 1)
+    expect(names()).toEqual(['One', 'Between', 'Two'])
+    expect(useStore.getState().activeMarkIndex).toBe(2)
+    s.insertMark('Go here', { lat: 43.66, lon: -70.16 }, 2, true)
+    expect(names()).toEqual(['One', 'Between', 'Go here', 'Two'])
+    expect(useStore.getState().activeMarkIndex).toBe(2)
+    s.insertMark('Last', B, 99)
+    expect(names().at(-1)).toBe('Last')
+  })
+})

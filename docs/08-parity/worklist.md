@@ -399,8 +399,8 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       bearing from the boat or a mark, insert into the nearest leg, add as a gate, go
       to the pointer, a mark from a chart object (P1-121, P1-123, P2-105, P1-128,
       P1-263, P1-261, P1-258, P1-259, P1-255). *Accept:* tests.
-      *Undo and redo, lock, and a mark at range and bearing from a mark are in (tick 6); the rest
-      is still to do.*
+      *All in (tick 6) but adding a mark as a gate (P1-258), which waits on the gate model.
+      Go here inserts the mark as the active one rather than replacing the course.*
 - [ ] **15.2 Legs on the chart:** leg labels, the current-leg line, mark range
       circles, mark and route colours, auto mark advance (P4-138, P4-139, P4-141,
       P4-131, P4-175). *Accept:* tests and a browser check.
