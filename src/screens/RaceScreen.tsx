@@ -7,6 +7,7 @@
  */
 
 import { useMemo, useState } from 'react'
+import { BoatsDatabase } from '@/components/Boats'
 import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
 import { NumberBoxes } from '@/components/NumberBoxes'
@@ -631,6 +632,7 @@ export function RaceScreen() {
         <MarksLibrary />
         <RaceNotesList />
         <HandicapCalc />
+        <BoatsDatabase />
       </div>
     </div>
   )

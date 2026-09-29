@@ -322,6 +322,25 @@ describe('every screen mounts', () => {
 
 // ------------------------------------------------------- honesty invariants
 
+describe('the boats database', () => {
+  it('keeps each boat with a colour, polar, size and the ids AIS and trackers use', () => {
+    act(() => {
+      useStore.setState({ fleet: [] })
+      useStore.getState().addFleetBoat('Wild Horses', 1)
+      useStore.getState().addFleetBoat('Sea Fever', 1.02)
+    })
+    render(<RaceScreen />)
+    const [a, b] = useStore.getState().fleet
+    expect(a.colour).not.toBe(b.colour)
+    fireEvent.change(screen.getByLabelText('Sea Fever polar'), { target: { value: 'navigation' } })
+    fireEvent.change(screen.getByLabelText('Sea Fever length'), { target: { value: '10.4' } })
+    fireEvent.change(screen.getByLabelText('Sea Fever MMSI'), { target: { value: '367000002' } })
+    fireEvent.change(screen.getByLabelText('Sea Fever sail number'), { target: { value: 'USA 7' } })
+    expect(useStore.getState().fleet[1]).toMatchObject({ name: 'Sea Fever', polarId: 'navigation', lengthM: 10.4, mmsi: 367000002, sailNumber: 'USA 7' })
+    act(() => useStore.setState({ fleet: [] }))
+  })
+})
+
 describe('a missing number renders as a dash, never as a zero', () => {
   /*
    * The rule the whole project rests on, stated in `cube.ts` and `Tile.tsx` and

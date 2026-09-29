@@ -311,7 +311,9 @@ leaves something tested and working.
       SART/MOB/EPIRB alerts. *Accept:* tests.
 - [ ] **12.3 aisstream.io source.** It needs a free key (needs §2). *Accept:* a test
       against a recorded stream.
-- [ ] **12.4 Boats database:** several boats, each with a polar, colour and size.
+      `blocked: needs §2`: aisstream.io's free key is issued to a person; will you create one
+      (github sign-in at aisstream.io) and say where the app should keep it?
+- [x] **12.4 Boats database:** several boats, each with a polar, colour and size.
       *Accept:* tests.
 - [ ] **12.5 Race-tracking import:** native, Basic, Volvo, MaxSea, GPX, YB XML and
       Vessel Finder formats, plus boat-id maps. *Accept:* parser tests.

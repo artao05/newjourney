@@ -912,7 +912,7 @@ well-formed.
 | P4-151 | Fleet tracks and track window | Draws fleet tracks (reference boat bold), optionally only within a trailing time window. | 12101-12110 | Missing | Build | A fleet track layer with a trailing time window. | The window defaults to 24 h; useful for playback. |
 | P4-152 | Advantage line | Display toggle named "Advantage line"; the manual gives no description. | 12114 | Missing | Build | A line through the boat perpendicular to TWD on the map. | Conventionally a line through the boat perpendicular to the wind (this is an inference). |
 | P4-153 | Boat winds | Per-boat damped wind data box and wind barb, for multi-boat programmes. | 12116-12125 | Missing | Hardware | Needs per-boat instrument telemetry; then a barb and data box per boat. |  |
-| P4-177 | Boat list and names | Names boats; boat 0 is own boat, others come from telemetry or AIS. | 12353-12356 | Partial | Build | Setup holds one own-boat name (src/screens/SetupScreen.tsx:125-126); there is no multi-boat list. |  |
+| P4-177 | Boat list and names | Names boats; boat 0 is own boat, others come from telemetry or AIS. | 12353-12356 | Done | Build | Race → Boats: the fleet with each boat's colour, polar (ours or a library class), length, sail number, MMSI and tracker id (components/Boats.tsx, lib/fleet.ts); AIS targets with a fleet MMSI show under her name and colour. |  |
 
 ## Logging, playback & stripchart
 

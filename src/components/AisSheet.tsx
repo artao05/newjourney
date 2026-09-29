@@ -5,6 +5,7 @@
 import { shownTargets, type AisFilter } from '@/lib/ais/targets'
 import { useAis } from '@/state/ais'
 import { useStore } from '@/state/store'
+import { boatByMmsi } from '@/lib/fleet'
 
 const f1 = (v: number | null | undefined, dp = 1) => (v == null ? '—' : v.toFixed(dp))
 const ALERT: Record<string, string> = { SART: 'AIS-SART', MOB: 'Man overboard', EPIRB: 'EPIRB' }
@@ -14,6 +15,7 @@ export function AisSheet({ onClose }: { onClose: () => void }) {
   const filter = useAis((s) => s.filter)
   const setFilter = useAis((s) => s.setFilter)
   const state = useStore((s) => s.state)
+  const fleet = useStore((s) => s.fleet)
   const own = state ? { position: state.position, sog: state.sog, cog: state.cog } : null
   const rows = shownTargets(targets, own, filter)
   const toggle = (k: keyof AisFilter, label: string) => (
@@ -68,7 +70,11 @@ export function AisSheet({ onClose }: { onClose: () => void }) {
               <tr key={t.mmsi} style={t.alert ? { color: 'var(--bad, #ff6b6b)', fontWeight: 600 } : undefined}>
                 <td>
                   {t.alert ? `${ALERT[t.alert]} · ` : ''}
-                  {t.name || t.mmsi}
+                  {(() => {
+                    // One of our fleet: her name and colour from the boats database.
+                    const b = boatByMmsi(fleet, t.mmsi)
+                    return b ? <span style={{ color: b.colour }}>{b.name}</span> : t.name || t.mmsi
+                  })()}
                   <span className="note"> {t.cls}</span>
                 </td>
                 <td style={{ textAlign: 'center' }}>{f1(t.a?.rangeNm, 2)}</td>

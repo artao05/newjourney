@@ -126,7 +126,19 @@ export interface FleetBoat {
   /** When she rounded or finished: the moment the calculator compares. */
   eventAt: Millis | null
   reference: boolean
+  /** Her polar: a class from the library by id, 'navigation' for ours, or none. */
+  polarId?: string | null
+  /** How she is drawn on the chart and in the lists. */
+  colour?: string
+  lengthM?: number | null
+  /** What AIS and the trackers know her by. */
+  mmsi?: number | null
+  sailNumber?: string
+  trackerId?: string
 }
+
+/** Colours for the fleet, far enough apart to tell on a chart at night. */
+export const FLEET_COLOURS = ['#ff8a65', '#4fc3f7', '#aed581', '#ba68c8', '#ffd54f', '#4db6ac', '#f06292', '#90a4ae', '#ffb74d', '#7986cb']
 
 /**
  * A race note: text pinned to the chart as a point, a line or an area, as
@@ -916,6 +928,8 @@ export const useStore = create<AppState>()(
               startAt: null,
               eventAt: null,
               reference: fleet.length === 0,
+              colour: FLEET_COLOURS[fleet.length % FLEET_COLOURS.length],
+              polarId: null,
             },
           ],
         })
