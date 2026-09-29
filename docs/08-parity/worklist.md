@@ -159,7 +159,7 @@ leaves something tested and working.
       recorded delta stream. Live use is `Hardware`.
 - [x] **6.3 Web Serial source** for NMEA 0183 on desktop Chromium. *Accept:* a test
       with a mocked port. Live use is `Hardware`.
-- [ ] **6.4 The instrument pipeline:** per-channel damping, true wind from apparent
+- [x] **6.4 The instrument pipeline:** per-channel damping, true wind from apparent
       (heel and upwash corrected), the leeway coefficient, and set and drift gated on
       rate of turn. *Accept:* fixture tests.
 - [ ] **6.5 Calibration tables:** BSP, AWA/TWA and TWS correction matrices, compass

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useStore } from '@/state/store'
 import { useInstruments } from './useInstruments'
+import { DEFAULT_PIPELINE } from '@/lib/instruments/pipeline'
 
 class FakeWebSocket {
   static last: FakeWebSocket | null = null
@@ -39,7 +40,7 @@ afterEach(() => {
 
 describe('useInstruments', () => {
   it('puts the feed into the boat state and the wind once a second, and stops cleanly', () => {
-    const hook = renderHook(() => useInstruments({ kind: 'signalk', url: 'ws://pi.local:3000/signalk/v1/stream' }))
+    const hook = renderHook(() => useInstruments({ kind: 'signalk', url: 'ws://pi.local:3000/signalk/v1/stream' }, DEFAULT_PIPELINE))
     const ws = FakeWebSocket.last!
     expect(ws.url).toBe('ws://pi.local:3000/signalk/v1/stream')
     act(() => ws.onopen?.({}))
@@ -73,7 +74,7 @@ describe('useInstruments', () => {
 
   it('leaves the wind alone when the wind mode is not instruments', () => {
     useStore.setState({ windMode: 'manual' })
-    const hook = renderHook(() => useInstruments({ kind: 'signalk', url: 'ws://x' }))
+    const hook = renderHook(() => useInstruments({ kind: 'signalk', url: 'ws://x' }, DEFAULT_PIPELINE))
     act(() => {
       FakeWebSocket.last!.onmessage?.({ data: delta([
         { path: 'navigation.position', value: { latitude: 43.66, longitude: -70.25 } },
@@ -89,7 +90,7 @@ describe('useInstruments', () => {
 
   it('opens nothing when it is off', () => {
     FakeWebSocket.last = null
-    const hook = renderHook(() => useInstruments(null))
+    const hook = renderHook(() => useInstruments(null, DEFAULT_PIPELINE))
     expect(FakeWebSocket.last).toBeNull()
     hook.unmount()
   })

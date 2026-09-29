@@ -21,6 +21,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_PIPELINE } from '@/lib/instruments/pipeline'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { RouteResult, WeatherCube } from '@/lib/types'
 
@@ -194,6 +195,8 @@ function emptyStore() {
     timer: { rollMin: 5, classesBefore: 0, sound: true },
     instruments: { signalKUrl: 'ws://localhost:3000/signalk/v1/stream?subscribe=self', signalKOn: false, serialOn: false, serialBaud: 4800 },
     instrumentReading: null,
+    instrumentDerived: null,
+    pipeline: { ...DEFAULT_PIPELINE },
     instrumentStatus: { status: 'off', detail: null, lastAt: null },
   })
 }
@@ -916,6 +919,18 @@ describe('Setup connects to the instruments', () => {
     expect(useStore.getState().instruments).toMatchObject({ signalKOn: true, serialOn: false })
     s.setInstruments({ serialOn: true })
     expect(useStore.getState().instruments).toMatchObject({ signalKOn: false, serialOn: true })
+  })
+
+  it('sets how the instruments are processed, and keeps it', () => {
+    emptyStore()
+    render(<SetupScreen />)
+    const section = screen.getByRole('region', { name: 'Instruments' })
+    fireEvent.click(within(section).getByRole('button', { name: "Instruments' true wind" }))
+    fireEvent.change(within(section).getByLabelText(/^Damping, angles/), { target: { value: '6' } })
+    fireEvent.change(within(section).getByLabelText(/^Leeway coefficient/), { target: { value: '8.5' } })
+    fireEvent.click(within(section).getByLabelText('Correct apparent wind for heel'))
+    expect(useStore.getState().pipeline).toMatchObject({ trueWind: 'instrument', dampAngleS: 6, leewayK: 8.5, heelCorrect: true })
+    expect(JSON.parse(localStorage.getItem('newjourney.v1') as string).state.pipeline.leewayK).toBe(8.5)
   })
 
   it('offers the instruments as a wind source', () => {

@@ -28,6 +28,7 @@ import { NO_WHAT_IF, type WhatIf } from '@/lib/whatif'
 import type { HandicapSystem } from '@/lib/handicap'
 import type { Reading } from '@/lib/instruments/nmea0183'
 import { DEFAULT_SIGNALK_URL, type SignalKStatus } from '@/lib/instruments/signalk'
+import { DEFAULT_PIPELINE, type Derived, type PipelineSettings } from '@/lib/instruments/pipeline'
 
 export type Tab = 'start' | 'race' | 'weather' | 'route' | 'setup'
 /** The nav station's two tab sets: panels on the left, charts in the middle. */
@@ -288,6 +289,11 @@ interface AppState {
   /** The latest instrument values, whatever sent them. Not persisted. */
   instrumentReading: Reading | null
   setInstrumentReading(r: Reading | null): void
+  /** The pipeline's output: damped, corrected, true wind worked out. Not persisted. */
+  instrumentDerived: Derived | null
+  setInstrumentDerived(d: Derived | null): void
+  pipeline: PipelineSettings
+  setPipeline(patch: Partial<PipelineSettings>): void
   instrumentStatus: { status: SignalKStatus; detail: string | null; lastAt: Millis | null }
   setInstrumentStatus(s: Partial<{ status: SignalKStatus; detail: string | null; lastAt: Millis | null }>): void
 
@@ -368,6 +374,7 @@ export function mergePersistedState(
     routeSettings: { ...c.routeSettings, ...p.routeSettings },
     // Kept field by field, so a setting added later gets its default on an older save.
     instruments: { ...c.instruments, ...p.instruments },
+    pipeline: { ...c.pipeline, ...p.pipeline },
     timer: { ...c.timer, ...p.timer },
     handicap: { ...c.handicap, ...p.handicap },
   }
@@ -698,6 +705,10 @@ export const useStore = create<AppState>()(
       },
       instrumentReading: null,
       setInstrumentReading: (r) => set({ instrumentReading: r }),
+      instrumentDerived: null,
+      setInstrumentDerived: (d) => set({ instrumentDerived: d }),
+      pipeline: { ...DEFAULT_PIPELINE },
+      setPipeline: (patch) => set({ pipeline: { ...get().pipeline, ...patch } }),
       instrumentStatus: { status: 'off', detail: null, lastAt: null },
       setInstrumentStatus: (s) => set({ instrumentStatus: { ...get().instrumentStatus, ...s } }),
 
@@ -839,6 +850,7 @@ export const useStore = create<AppState>()(
         fleet: s.fleet,
         handicap: s.handicap,
         instruments: s.instruments,
+        pipeline: s.pipeline,
         routes: s.routes,
         raceNotes: s.raceNotes,
         navPanel: s.navPanel,

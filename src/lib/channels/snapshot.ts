@@ -25,6 +25,7 @@ import type {
 import { CHANNELS } from './catalogue'
 import type { GateNumbers } from '@/lib/gates'
 import type { Reading } from '@/lib/instruments/nmea0183'
+import type { Derived } from '@/lib/instruments/pipeline'
 
 export interface SnapshotInputs {
   now: Millis
@@ -41,6 +42,8 @@ export interface SnapshotInputs {
   gate?: GateNumbers | null
   /** What the instruments sent, as they sent it (Signal K or NMEA). */
   instruments?: Reading | null
+  /** The same after the pipeline: damped, heel-corrected, true and ground wind worked out. */
+  derived?: Derived | null
 }
 
 /** Channel id → value in the catalogue's unit, or null when there is none. */
@@ -72,8 +75,12 @@ export const PRODUCERS: Readonly<Record<string, Producer>> = {
   'log-bsp': (i) => i.instruments?.logNm,
   'instrument-trip-log': (i) => i.instruments?.tripNm,
   // straight from the instruments
-  awa: (i) => i.instruments?.awa,
-  aws: (i) => i.instruments?.aws,
+  awa: (i) => i.derived?.awa ?? i.instruments?.awa,
+  aws: (i) => i.derived?.aws ?? i.instruments?.aws,
+  leeway: (i) => i.derived?.leeway,
+  course: (i) => i.derived?.course,
+  gwd: (i) => i.derived?.gwd,
+  gws: (i) => i.derived?.gws,
   'gps-hdop': (i) => i.instruments?.hdop,
   depth: (i) => i.instruments?.depthM,
   'sea-temperature': (i) => i.instruments?.waterTempC,

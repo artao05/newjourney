@@ -25,6 +25,9 @@ export function InstrumentsSection() {
   const status = useStore((s) => s.instrumentStatus)
   const reading = useStore((s) => s.instrumentReading)
   const simulate = useStore((s) => s.settings.simulate)
+  const pipeline = useStore((s) => s.pipeline)
+  const setPipeline = useStore((s) => s.setPipeline)
+  const derived = useStore((s) => s.instrumentDerived)
   const now = useTick(1)
   const warning = mixedContentWarning(window.location.protocol, instruments.signalKUrl)
   const age = status.lastAt != null ? Math.max(0, Math.round((now - status.lastAt) / 1000)) : null
@@ -96,6 +99,47 @@ export function InstrumentsSection() {
         {status.status === 'connected' && age != null ? ` · ${fields} values, the latest ${age} s ago` : ''}
         {status.status === 'connected' && age == null ? ' · no data yet' : ''}
       </p>
+      <div className="seg" role="group" aria-label="True wind" style={{ margin: '8px 0' }}>
+        <button aria-pressed={pipeline.trueWind === 'calculate'} onClick={() => setPipeline({ trueWind: 'calculate' })}>
+          Calculate true wind
+        </button>
+        <button aria-pressed={pipeline.trueWind === 'instrument'} onClick={() => setPipeline({ trueWind: 'instrument' })}>
+          Instruments&apos; true wind
+        </button>
+      </div>
+      <div className="field">
+        <label htmlFor="damp-angle">Damping, angles <span className="note">s</span></label>
+        <input id="damp-angle" type="number" min="0" step="1" value={pipeline.dampAngleS}
+          onChange={(e) => setPipeline({ dampAngleS: Math.max(0, Number(e.target.value) || 0) })} />
+      </div>
+      <div className="field">
+        <label htmlFor="damp-speed">Damping, speeds <span className="note">s</span></label>
+        <input id="damp-speed" type="number" min="0" step="1" value={pipeline.dampSpeedS}
+          onChange={(e) => setPipeline({ dampSpeedS: Math.max(0, Number(e.target.value) || 0) })} />
+      </div>
+      <div className="field">
+        <label htmlFor="leeway-k">Leeway coefficient <span className="note">k in k·heel/bsp²</span></label>
+        <input id="leeway-k" type="number" min="0" step="0.5" value={pipeline.leewayK}
+          onChange={(e) => setPipeline({ leewayK: Math.max(0, Number(e.target.value) || 0) })} />
+      </div>
+      <div className="field">
+        <label htmlFor="rot-gate">Set and drift only below <span className="note">°/s of turn</span></label>
+        <input id="rot-gate" type="number" min="0.5" step="0.5" value={pipeline.rotLimitDegS}
+          onChange={(e) => setPipeline({ rotLimitDegS: Math.max(0.5, Number(e.target.value) || 3) })} />
+      </div>
+      <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input type="checkbox" checked={pipeline.heelCorrect} aria-label="Correct apparent wind for heel"
+          onChange={(e) => setPipeline({ heelCorrect: e.target.checked })} />
+        <span>Correct apparent wind for heel. Leave off if the instruments already do (Nexus FDX and others): twice invents wind.</span>
+      </label>
+      {derived && (
+        <p className="note">
+          Leeway {derived.leeway != null ? `${derived.leeway.toFixed(1)}°` : '—'} · true wind{' '}
+          {derived.twd != null && derived.tws != null ? `${Math.round(derived.twd)}° ${derived.tws.toFixed(1)} kn` : '—'} ·
+          set and drift {derived.current ? `${Math.round(derived.current.set)}° ${derived.current.drift.toFixed(1)} kn` : 'held (turning, or not enough data)'}
+        </p>
+      )}
+
       <p className="note">
         A Signal K server on the boat network reads the NMEA 0183 and NMEA 2000 instruments; a
         serial adaptor reads NMEA 0183 directly, most often at 4800 (38400 for AIS). One source at

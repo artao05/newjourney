@@ -13,17 +13,20 @@ import { useStore } from '@/state/store'
 import { SignalKClient } from '@/lib/instruments/signalk'
 import { SerialNmeaSource, grantedPort } from '@/lib/instruments/webserial'
 import type { Reading } from '@/lib/instruments/nmea0183'
-import { boatStateFrom, windFrom } from '@/lib/instruments/toBoat'
+import { boatStateFrom } from '@/lib/instruments/toBoat'
+import { InstrumentPipeline, type Derived, type PipelineSettings } from '@/lib/instruments/pipeline'
 
 export type InstrumentSource =
   | { kind: 'signalk'; url: string }
   | { kind: 'serial'; baud: number }
   | null
 
-export function useInstruments(source: InstrumentSource) {
+export function useInstruments(source: InstrumentSource, settings: PipelineSettings) {
   const reading = useRef<Reading>({})
+  const derived = useRef<Derived | null>(null)
   const fresh = useRef(false)
   const key = source ? (source.kind === 'signalk' ? `sk:${source.url}` : `serial:${source.baud}`) : ''
+  const settingsKey = JSON.stringify(settings)
 
   useEffect(() => {
     const st = useStore.getState()
@@ -32,8 +35,12 @@ export function useInstruments(source: InstrumentSource) {
       return
     }
     reading.current = {}
+    derived.current = null
+    // Stepped on every reading, not once a second, so damping sees the full rate.
+    const pipeline = new InstrumentPipeline(settings)
     const onReading = (r: Partial<Reading>) => {
       Object.assign(reading.current, r)
+      derived.current = pipeline.step(reading.current, Date.now())
       fresh.current = true
     }
     const onStatus = (status: Parameters<typeof st.setInstrumentStatus>[0]['status'], detail?: string) =>
@@ -56,17 +63,28 @@ export function useInstruments(source: InstrumentSource) {
       const now = Date.now()
       const s = useStore.getState()
       const r = { ...reading.current }
+      const d = derived.current
       s.setInstrumentReading(r)
+      s.setInstrumentDerived(d)
       s.setInstrumentStatus({ lastAt: now })
       const boat = boatStateFrom(r, now)
-      if (boat) s.setBoatState(boat)
-      if (s.windMode === 'instrument') {
-        const w = windFrom(r, now)
-        if (w) {
-          s.setWind(w)
-          s.setWindError(null)
-          s.pushWind({ t: now, twd: w.twd, tws: w.tws })
-        }
+      if (boat) {
+        // The damped values, where the pipeline has them.
+        s.setBoatState({
+          ...boat,
+          cog: d?.cog ?? boat.cog,
+          sog: d?.sog ?? boat.sog,
+          heading: d?.heading ?? boat.heading,
+          bsp: d?.bsp ?? boat.bsp,
+          heelDeg: d?.heel ?? boat.heelDeg,
+        })
+      }
+      // Gated on rate of turn, so it is null mid-tack: then the last one stands.
+      if (d?.current) s.setCurrent({ ...d.current, source: 'measured' })
+      if (s.windMode === 'instrument' && d?.twd != null && d.tws != null) {
+        s.setWind({ twd: d.twd, tws: d.tws, source: 'instrument', uncertaintyDeg: 3, t: now })
+        s.setWindError(null)
+        s.pushWind({ t: now, twd: d.twd, tws: d.tws })
       }
     }, 1000)
 
@@ -74,7 +92,8 @@ export function useInstruments(source: InstrumentSource) {
       window.clearInterval(tick)
       stop()
       useStore.getState().setInstrumentReading(null)
+      useStore.getState().setInstrumentDerived(null)
     }
-    // `key` is `source` as a value: a new object each render must not reconnect.
-  }, [key])
+    // The keys are `source` and `settings` as values: new objects each render must not reconnect.
+  }, [key, settingsKey])
 }

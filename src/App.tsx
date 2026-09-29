@@ -101,7 +101,8 @@ export function App() {
         ? { kind: 'serial', baud: instruments.serialBaud }
         : null
   useGeolocation(!settings.simulate && !instrumentSource)
-  useInstruments(instrumentSource)
+  const pipeline = useStore((s) => s.pipeline)
+  useInstruments(instrumentSource, pipeline)
   // Start the simulated boat afloat, not on the island the map centre sits on.
   useSimulation(settings.simulate, PILOT_VENUE.waterStart)
   useWakeLock(settings.keepAwake)
@@ -217,7 +218,10 @@ export function App() {
   }, [windMode, forecastLat, forecastLon, setWind, setWindError, pushWind])
 
   // Estimated set & drift, gated on rate of turn — see navigation-math.md §5.
+  // With instruments connected, their pipeline does this, with leeway and the gate.
+  const instrumentsOwnCurrent = instrumentSource != null
   useEffect(() => {
+    if (instrumentsOwnCurrent) return
     if (!state || state.bsp == null || state.heading == null) {
       /*
        * Clear it. The early return used to just leave the previous value in place,
@@ -240,7 +244,7 @@ export function App() {
       bsp: state.bsp,
     })
     setCurrent(c ? { ...c, source: 'measured' } : null)
-  }, [state, setCurrent])
+  }, [state, setCurrent, instrumentsOwnCurrent])
 
   // Track recording.
   useEffect(() => {

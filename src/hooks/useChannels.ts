@@ -32,6 +32,7 @@ export function useChannelSnapshot(): ChannelValues {
   const whatIf = useStore((s) => s.whatIf)
   const startApproaches = useStore((s) => s.startApproaches)
   const instruments = useStore((s) => s.instrumentReading)
+  const derived = useStore((s) => s.instrumentDerived)
 
   const polars = usePolarLattices()
   const lattice = polars.navigation
@@ -77,6 +78,7 @@ export function useChannelSnapshot(): ChannelValues {
       activeMarkIndex,
       variationDeg: declinationAt(PILOT_VENUE.declination, now),
       instruments,
+      derived,
     })
-  }, [now, state, realWind, realCurrent, whatIf, startApproaches, boat, lattice, polars.performance, polars.start, course, activeMarkIndex, windHistory, xteOrigin, instruments])
+  }, [now, state, realWind, realCurrent, whatIf, startApproaches, boat, lattice, polars.performance, polars.start, course, activeMarkIndex, windHistory, xteOrigin, instruments, derived])
 }

@@ -67,6 +67,11 @@ function simulated(twa = 45, lineAhead = false): SnapshotInputs {
       awa: 32, aws: 15.1, hdop: 0.9, depthM: 12.4, waterTempC: 17.5, airTempC: 21, baroHpa: 1013.2,
       humidityPct: 64, pitch: 1.5, rudder: -3, logNm: 1234.5, tripNm: 12.3,
     },
+    // And what the pipeline made of them.
+    derived: {
+      awa: 31.5, aws: 15, heading: 245, bsp: 5.9, cog: 250, sog: 6.1, heel: 14, leeway: 4, course: 249,
+      twa: 44, tws: 11.8, twd: 293, gwd: 290, gws: 12.2, current: { set: 45, drift: 0.6 }, rotDegS: 0.2,
+    },
   }
 }
 
@@ -100,7 +105,7 @@ describe('the live channel snapshot', () => {
   })
 
   it('has a slot for every catalogued channel, null where nothing produces it', () => {
-    const snap = buildSnapshot({ ...simulated(), instruments: null })
+    const snap = buildSnapshot({ ...simulated(), instruments: null, derived: null })
     expect(Object.keys(snap)).toHaveLength(CHANNELS.length)
     expect(snap['backstay']).toBeNull()
     // No instruments connected: no apparent wind, rather than a made-up one.
