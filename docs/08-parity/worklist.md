@@ -56,7 +56,7 @@ leaves something tested and working.
 
 ## M2 — Channels and the nav-station layout
 
-- [ ] **2.1 The channel catalogue.** Every channel in Expedition's appendix (361 per
+- [x] **2.1 The channel catalogue.** Every channel in Expedition's appendix (361 per
       boat), with id, label, unit, group and source (computed, sensor, licence). Each
       is marked computed or not yet. *Accept:* a test checks the catalogue against
       the appendix list, with no duplicates and a valid unit on every entry.
