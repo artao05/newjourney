@@ -28,7 +28,7 @@ export default defineConfig({
     // included it the first such file was silently collected by nothing at all -
     // vitest exits 0 on "no test files matched the filter" only when it is given
     // no filter, so a whole suite can go missing without a red run.
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'bridge/**/*.test.ts'],
     // A macrotask between tests, so long synchronous suites cannot starve the
     // worker's RPC to the runner (src/test-setup.ts).
     setupFiles: ['src/test-setup.ts'],

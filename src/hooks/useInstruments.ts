@@ -13,6 +13,7 @@ import { useStore } from '@/state/store'
 import { SignalKClient } from '@/lib/instruments/signalk'
 import { feedAis } from '@/state/ais'
 import { SerialNmeaSource, grantedPort } from '@/lib/instruments/webserial'
+import { BridgeClient } from '@/lib/instruments/bridge'
 import type { Reading } from '@/lib/instruments/nmea0183'
 import { boatStateFrom } from '@/lib/instruments/toBoat'
 import { InstrumentPipeline, type Derived, type PipelineSettings } from '@/lib/instruments/pipeline'
@@ -23,6 +24,7 @@ import { applyExpAction } from '@/state/expCommands'
 export type InstrumentSource =
   | { kind: 'signalk'; url: string }
   | { kind: 'serial'; baud: number; format: 'nmea0183' | 'n2k' }
+  | { kind: 'bridge'; url: string }
   | null
 
 export function useInstruments(
@@ -33,7 +35,7 @@ export function useInstruments(
   const reading = useRef<Reading>({})
   const derived = useRef<Derived | null>(null)
   const fresh = useRef(false)
-  const key = source ? (source.kind === 'signalk' ? `sk:${source.url}` : `serial:${source.baud}:${source.format}`) : ''
+  const key = source ? (source.kind === 'signalk' ? `sk:${source.url}` : source.kind === 'bridge' ? `bridge:${source.url}` : `serial:${source.baud}:${source.format}`) : ''
   const settingsKey = JSON.stringify([settings, calibration])
 
   useEffect(() => {
@@ -54,19 +56,32 @@ export function useInstruments(
     const onStatus = (status: Parameters<typeof st.setInstrumentStatus>[0]['status'], detail?: string) =>
       useStore.getState().setInstrumentStatus({ status, detail: detail ?? null })
 
+    // Expedition's own commands can share a serial port or a network feed: the countdown, line ends, marks.
+    const onHashLine = (line: string) => {
+      const p = parseExpLine(line)
+      if (p?.kind !== 'command') return
+      const said = applyExpAction(actionFor(p))
+      useStore.getState().setInstrumentStatus({ detail: said })
+    }
     let stop: () => void
     if (source.kind === 'signalk') {
       const client = new SignalKClient(source.url, { onReading, onStatus })
       client.start()
       stop = () => client.stop()
-    } else {
-      // Expedition's own commands can share the port: the countdown, line ends, marks.
-      const onHashLine = (line: string) => {
-        const p = parseExpLine(line)
-        if (p?.kind !== 'command') return
-        const said = applyExpAction(actionFor(p))
-        useStore.getState().setInstrumentStatus({ detail: said })
+    } else if (source.kind === 'bridge') {
+      const client = new BridgeClient(source.url, {
+        onReading,
+        onStatus,
+        onHashLine,
+        onAisLine: (l) => feedAis(l),
+        onInputs: (inputs) => useStore.getState().setBridgeInputs(inputs),
+      })
+      client.start()
+      stop = () => {
+        client.stop()
+        useStore.getState().setBridgeInputs([])
       }
+    } else {
       const serial = new SerialNmeaSource(grantedPort, source.baud, { onReading, onStatus, onHashLine, onAisLine: (l) => feedAis(l), format: source.format })
       void serial.start()
       stop = () => void serial.stop()

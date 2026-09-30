@@ -35,6 +35,7 @@ import { estimateCurrent } from '@/lib/wind'
 import { fixQuality } from '@/lib/startline'
 import { variationAt } from '@/lib/magnetic'
 import { paletteForSun } from '@/lib/palette'
+import { DEFAULT_BRIDGE_URL } from '@/lib/instruments/bridge'
 import { RibbonContext, StatusBarContext } from '@/components/Ribbon'
 import { solarElevationDeg } from '@/lib/routing/isochrone'
 import type { WindEstimate } from '@/lib/types'
@@ -150,7 +151,9 @@ export function App() {
       ? { kind: 'signalk', url: instruments.signalKUrl }
       : instruments.serialOn
         ? { kind: 'serial', baud: instruments.serialBaud, format: instruments.serialFormat }
-        : null
+        : instruments.bridgeOn
+          ? { kind: 'bridge', url: instruments.bridgeUrl ?? DEFAULT_BRIDGE_URL }
+          : null
   useGeolocation(!settings.simulate && !instrumentSource && !replaying)
   const phoneSensors = useStore((s) => s.phoneSensors)
   usePhoneOrientation(phoneSensors.on && !settings.simulate && !instrumentSource && !replaying)

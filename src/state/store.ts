@@ -5,6 +5,7 @@
  */
 
 import type { ChartMotion, ChartOrientation } from '@/lib/chartView'
+import { DEFAULT_BRIDGE_URL, type BridgeInput } from '@/lib/instruments/bridge'
 import type { Palette } from '@/lib/palette'
 import type { ChartOffset } from '@/lib/charts/georef'
 import { bearing, distance, midpoint } from '@/lib/geo'
@@ -457,7 +458,13 @@ interface AppState {
     serialOn: boolean
     serialBaud: number
     serialFormat: 'nmea0183' | 'n2k'
+    /** The local bridge (bridge/bridge.ts): NMEA and AIS from UDP and TCP on the boat's network. */
+    bridgeOn: boolean
+    bridgeUrl: string
   }
+  /** The bridge's inputs as it last reported them. Not persisted. */
+  bridgeInputs: BridgeInput[]
+  setBridgeInputs(inputs: BridgeInput[]): void
   /** Signal K and serial are one source or the other: turning one on turns the other off. */
   setInstruments(patch: Partial<AppState['instruments']>): void
   /** The latest instrument values, whatever sent them. Not persisted. */
@@ -1004,11 +1011,15 @@ export const useStore = create<AppState>()(
         set({ ...COURSE_CHANGED, course: { ...course, marks: [...course.marks].reverse() }, activeMarkIndex: 0 })
       },
 
-      instruments: { signalKUrl: DEFAULT_SIGNALK_URL, signalKOn: false, serialOn: false, serialBaud: 4800, serialFormat: 'nmea0183' },
+      instruments: { signalKUrl: DEFAULT_SIGNALK_URL, signalKOn: false, serialOn: false, serialBaud: 4800, serialFormat: 'nmea0183', bridgeOn: false, bridgeUrl: DEFAULT_BRIDGE_URL },
+      bridgeInputs: [],
+      setBridgeInputs: (inputs) => set({ bridgeInputs: inputs }),
       setInstruments: (patch) => {
         const next = { ...get().instruments, ...patch }
-        if (patch.signalKOn) next.serialOn = false
-        if (patch.serialOn) next.signalKOn = false
+        // One source at a time: turning one on turns the others off.
+        if (patch.signalKOn) Object.assign(next, { serialOn: false, bridgeOn: false })
+        if (patch.serialOn) Object.assign(next, { signalKOn: false, bridgeOn: false })
+        if (patch.bridgeOn) Object.assign(next, { signalKOn: false, serialOn: false })
         set({ instruments: next })
       },
       instrumentReading: null,

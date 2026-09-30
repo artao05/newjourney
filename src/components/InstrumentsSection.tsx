@@ -38,7 +38,8 @@ export function InstrumentsSection() {
   const warning = mixedContentWarning(window.location.protocol, instruments.signalKUrl)
   const age = status.lastAt != null ? Math.max(0, Math.round((now - status.lastAt) / 1000)) : null
   const fields = reading ? Object.keys(reading).length : 0
-  const on = instruments.signalKOn || instruments.serialOn
+  const on = instruments.signalKOn || instruments.serialOn || instruments.bridgeOn
+  const bridgeInputs = useStore((s) => s.bridgeInputs)
   const serialOk = webSerialAvailable()
 
   const toggleSerial = async () => {
@@ -106,6 +107,36 @@ export function InstrumentsSection() {
       </button>
       {!serialOk && (
         <p className="note">A serial port needs Chrome or Edge on a computer. Other browsers can use Signal K.</p>
+      )}
+
+      <div className="field">
+        <label htmlFor="bridge-url">Bridge</label>
+        <input
+          id="bridge-url"
+          value={instruments.bridgeUrl}
+          spellCheck={false}
+          onChange={(e) => setInstruments({ bridgeUrl: e.target.value.trim() })}
+        />
+      </div>
+      <button
+        className={instruments.bridgeOn ? 'btn btn--sm btn--ghost' : 'btn btn--sm'}
+        onClick={() => setInstruments({ bridgeOn: !instruments.bridgeOn })}
+      >
+        {instruments.bridgeOn ? 'DISCONNECT BRIDGE' : 'CONNECT BRIDGE'}
+      </button>
+      <p className="note">
+        For NMEA and AIS over UDP or TCP on the boat&apos;s network, which a browser cannot open: run{' '}
+        <code>node bridge/bridge.ts --udp 10110</code> on this computer (see bridge/README.md).
+      </p>
+      {instruments.bridgeOn && bridgeInputs.length > 0 && (
+        <ul className="note" aria-label="Bridge inputs" style={{ margin: '0 0 8px', paddingLeft: 18 }}>
+          {bridgeInputs.map((i) => (
+            <li key={i.id}>
+              {i.kind === 'udp' ? 'UDP' : i.kind === 'tcp-client' ? 'TCP to' : 'TCP from'} {i.address} · {i.format === 'n2k' ? 'NMEA 2000' : 'NMEA 0183'} · {i.state}
+              {i.detail ? ` (${i.detail})` : ''} · {i.lines} lines
+            </li>
+          ))}
+        </ul>
       )}
 
       <p className="note" role="status">

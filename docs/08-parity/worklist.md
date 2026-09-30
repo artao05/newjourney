@@ -552,11 +552,15 @@ logo, icon artwork or manual text.
 A small Node helper, `bridge/`, with no dependencies. It runs on the nav station, and the
 app talks to it over a WebSocket on `127.0.0.1`.
 
-- [ ] **18.1 Network instruments:** NMEA 0183 and AIS over UDP (listen, broadcast, subnet)
+- [x] **18.1 Network instruments:** NMEA 0183 and AIS over UDP (listen, broadcast, subnet)
       and TCP (client and server), several at once, forwarded to the app as a Bridge
       source, with reconnect (P4-033, P3-091, P3-093, P3-094, P1-051, P1-049, P3-119,
       P3-153). *Accept:* tests with a UDP and a TCP sender, and a recording replayed over
       UDP into the running app.
+      *bridge/: a WebSocket server of our own (loopback only, local origins only), UDP (broadcast and
+      multicast), TCP client with back-off, TCP server, batching, and bridge/replay.ts. The app's
+      BridgeClient feeds the serial path's decoders. A synthetic Casco Bay recording, marked as
+      such, replayed live into the app: position, speed, apparent wind, depth and a ferry on AIS.*
 - [ ] **18.2 NMEA 2000 through the bridge:** Actisense and Yacht Devices raw over TCP, UDP
       or a serial port, into the PGN decoder (P4-053, P4-055, P4-057, P4-058, P4-059,
       P4-060). *Accept:* tests with recordings.
