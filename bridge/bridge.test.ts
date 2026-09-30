@@ -8,7 +8,7 @@ import { NmeaDecoder, type Reading } from '../src/lib/instruments/nmea0183'
 import { decodeAis } from '../src/lib/ais/decode'
 import { BridgeClient } from '../src/lib/instruments/bridge'
 import { parseArgs, startBridge, type Bridge } from './bridge'
-import { LineSplitter } from './inputs'
+import { LineSplitter, serialPath, serialSetup } from './inputs'
 import { replay } from './replay'
 import { acceptKey, decodeFrames, encodeFrame, originAllowed } from './ws'
 
@@ -254,6 +254,26 @@ describe('the bridge', () => {
       ['a.kap', 'chart'],
     ])
     expect(parseArgs(['--watch', dir + '=grib', '--scan']).watch).toEqual([{ dir, kind: 'grib', scan: true }])
+    ws.close()
+  })
+
+  it('reads a serial port as a file once the system has set its speed', async () => {
+    expect(serialPath('COM12', 'win32')).toBe('\\\\.\\COM12')
+    expect(serialPath('/dev/ttyUSB0', 'linux')).toBe('/dev/ttyUSB0')
+    expect(serialSetup('\\\\.\\COM3', 38400, 'win32')).toEqual(['mode', ['COM3:', 'BAUD=38400', 'PARITY=N', 'DATA=8', 'STOP=1']])
+    expect(serialSetup('/dev/ttyUSB0', 4800, 'linux')[1].slice(0, 3)).toEqual(['-F', '/dev/ttyUSB0', '4800'])
+    expect(parseArgs(['--serial', 'COM3@38400']).inputs[0]).toEqual({ kind: 'serial', path: 'COM3', baud: 38400, format: 'nmea0183' })
+    // A file stands in for the port: the speed tool fails on it, and the bridge reads it anyway.
+    const dir = mkdtempSync(join(tmpdir(), 'nj-serial-'))
+    const port = join(dir, 'ttyFAKE')
+    writeFileSync(port, '$PLTIT,HV,212.4,M,275.3,D,1.2,D,212.5,M*00\r\n' + RECORDING.slice(0, 3).join('\r\n') + '\r\n')
+    bridge = await startBridge({ port: 0, inputs: [{ kind: 'serial', path: port, baud: 4800 }], batchMs: 10 })
+    const { ws, got } = await client(bridge.port)
+    const lines = () => got.filter((m) => m.type === 'lines').flatMap((m) => m.lines as string[])
+    // Lines read before the app connected are not kept, so read again by reopening: the bridge does, on close.
+    await until(() => lines().length >= 4 || bridge!.inputs()[0].lines >= 4, 8000)
+    expect(bridge.inputs()[0]).toMatchObject({ kind: 'serial', address: `${port}@4800` })
+    expect(bridge.inputs()[0].lines).toBeGreaterThanOrEqual(4)
     ws.close()
   })
 

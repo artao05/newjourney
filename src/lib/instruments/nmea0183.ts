@@ -68,6 +68,8 @@ export interface Reading {
   steer?: 'L' | 'R'
   waypoint?: { id: string; lat?: number; lon?: number; rangeNm?: number; bearingTrue?: number }
   xdr?: XdrMeasurement[]
+  /** A laser rangefinder's last shot (LaserTech TruPulse $PLTIT): horizontal distance, metres; azimuth and inclination, degrees. */
+  laser?: { rangeM: number; bearing?: number; inclination?: number }
 }
 
 /** XOR of every character between `$`/`!` and `*`, as two upper-case hex digits. */
@@ -107,7 +109,8 @@ export function parseSentence(line: string): Sentence | null {
   const body = star >= 0 ? s.slice(1, star) : s.slice(1)
   const fields = body.split(',')
   const address = fields.shift() ?? ''
-  if (address.startsWith('P')) return null // proprietary
+  // Proprietary, but for LaserTech's (a TruPulse rangefinder), which decode reads.
+  if (address.startsWith('P') && address !== 'PLTIT') return null
   if (address.length !== 5) return null
   return { talker: address.slice(0, 2), type: address.slice(2), fields }
 }
@@ -179,6 +182,16 @@ function xdr(fields: string[]): Partial<Reading> {
 /** What one sentence says, or null for a sentence this decoder does not read. */
 export function decode(s: Sentence): Partial<Reading> | null {
   const f = s.fields
+  // A LaserTech TruPulse's horizontal vector: $PLTIT,HV,distance,unit,azimuth,D,inclination,D,slope,unit.
+  if (s.talker === 'PL' && s.type === 'TIT') {
+    if (f[0] !== 'HV') return null
+    const toM = { M: 1, F: 0.3048, Y: 0.9144 } as Record<string, number>
+    const hd = num(f[1])
+    if (hd == null || toM[f[2]] == null) return null
+    const az = num(f[3])
+    const inc = num(f[5])
+    return { laser: { rangeM: hd * toM[f[2]], ...(az != null ? { bearing: az } : {}), ...(inc != null ? { inclination: inc } : {}) } }
+  }
   switch (s.type) {
     case 'RMC': {
       const out: Partial<Reading> = {}

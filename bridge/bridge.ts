@@ -172,6 +172,10 @@ export function parseArgs(argv: string[]): BridgeConfig {
       const k = v.lastIndexOf(':')
       c.inputs.push({ kind: 'tcp-client', host: v.slice(0, k), port: Number(v.slice(k + 1)), format: fmt() })
     } else if (a === '--tcp-server') c.inputs.push({ kind: 'tcp-server', port: Number(next()), format: fmt() })
+    else if (a === '--serial') {
+      const [path, baud] = next().split('@')
+      c.inputs.push({ kind: 'serial', path, ...(baud ? { baud: Number(baud) } : {}), format: fmt() })
+    }
     else if (a === '--help' || a === '-h') throw new Error('help')
     else throw new Error(`not understood: ${a}`)
   }
@@ -317,6 +321,7 @@ const USAGE = `newjourney bridge: NMEA and AIS from the boat's network, to the a
   --udp PORT[@GROUP]   listen for UDP datagrams (broadcast, or a multicast group)
   --tcp HOST:PORT      connect to a TCP server (a multiplexer or gateway); reconnects
   --tcp-server PORT    accept TCP connections that send NMEA
+  --serial PORT[@BAUD] read a serial port (COM3, /dev/ttyUSB0), 4800 baud unless given
   --n2k                the next input sends NMEA 2000 as text (Actisense or Yacht Devices RAW)
   --allow ORIGIN       a page origin allowed to connect besides localhost
   --peer ws://HOST:PORT  link to the bridge on another machine, to share with the app there

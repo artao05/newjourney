@@ -147,3 +147,15 @@ describe('the streaming decoder', () => {
     expect(d.reading.headingTrue).toBe(10)
   })
 })
+
+describe('a laser rangefinder', () => {
+  it("reads a TruPulse's shot: horizontal distance in any unit, azimuth and inclination", () => {
+    const one = (body: string) => decode(parseSentence(withChecksum(body))!)
+    expect(one('PLTIT,HV,212.4,M,275.3,D,1.2,D,212.5,M')).toEqual({ laser: { rangeM: 212.4, bearing: 275.3, inclination: 1.2 } })
+    expect(one('PLTIT,HV,100.0,F,,D,,D,100.0,F')!.laser!.rangeM).toBeCloseTo(30.48, 6)
+    expect(one('PLTIT,HV,50.0,Y,90.0,D,0.0,D,50.0,Y')!.laser).toMatchObject({ rangeM: expect.closeTo(45.72, 6), bearing: 90 })
+    // Other TruPulse messages, and a shot with no distance, say nothing.
+    expect(one('PLTIT,HT,12.0,M')).toBeNull()
+    expect(one('PLTIT,HV,,M,275.3,D,1.2,D,,M')).toBeNull()
+  })
+})

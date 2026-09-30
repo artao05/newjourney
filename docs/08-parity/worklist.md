@@ -583,9 +583,12 @@ app talks to it over a WebSocket on `127.0.0.1`.
       --scan sends a folder's newest 20 to each app that connects. The app opens each by kind
       through the existing importers (GRIB, raster, ENC, tracking). P1-146 (fetching reports from
       FTP or HTTPS) goes with the backend, M20.*
-- [ ] **18.5 Serial through the bridge:** NMEA 0183 serial ports on any browser, a laser
+- [x] **18.5 Serial through the bridge:** NMEA 0183 serial ports on any browser, a laser
       rangefinder, and serial event buttons, tested on recordings (P1-026, P3-174, P1-171,
       P1-129, P3-152, P3-090). *Accept:* tests; the device check stays Hardware.
+      *--serial PORT@BAUD with no dependency: the system's mode or stty sets the speed, and the port is
+      read as a file (tested with a file for the port). A TruPulse's $PLTIT shots are read. Still to
+      do: a line end or mark from a shot (P1-171, P1-129), and contact-closure buttons (P3-152).*
 
 ## M19 — Transmit, off by default (D3)
 

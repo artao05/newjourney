@@ -4,7 +4,9 @@
  * server the instruments connect to. Each input splits its bytes into lines
  * and hands them on; a TCP client that loses its server keeps trying.
  */
+import { execFile } from 'node:child_process'
 import { createSocket, type Socket as UdpSocket } from 'node:dgram'
+import { createReadStream, type ReadStream } from 'node:fs'
 import { connect, createServer, type Server, type Socket } from 'node:net'
 
 export type InputFormat = 'nmea0183' | 'n2k'
@@ -13,6 +15,8 @@ export type InputConfig =
   | { kind: 'udp'; port: number; bind?: string; multicast?: string; format?: InputFormat; id?: string }
   | { kind: 'tcp-client'; host: string; port: number; format?: InputFormat; id?: string }
   | { kind: 'tcp-server'; port: number; bind?: string; format?: InputFormat; id?: string }
+  /** A serial port (COM3, /dev/ttyUSB0), read as a file once the system has set its speed. */
+  | { kind: 'serial'; path: string; baud?: number; format?: InputFormat; id?: string }
 
 export type InputState = 'starting' | 'listening' | 'connected' | 'reconnecting' | 'error' | 'stopped'
 
@@ -41,7 +45,20 @@ export class LineSplitter {
 
 export function inputId(c: InputConfig): string {
   if (c.id) return c.id
+  if (c.kind === 'serial') return `serial:${c.path}`
   return c.kind === 'tcp-client' ? `tcp:${c.host}:${c.port}` : `${c.kind === 'udp' ? 'udp' : 'tcp-server'}:${c.port}`
+}
+
+/** A serial port's name as the system opens it: COM10 and above need the \\.\ prefix on Windows. */
+export function serialPath(path: string, platform: string = process.platform): string {
+  return platform === 'win32' && /^COM\d+$/i.test(path) ? `\\\\.\\${path}` : path
+}
+
+/** The command that sets a serial port's speed, raw, 8 bits, no parity, one stop bit. */
+export function serialSetup(path: string, baud: number, platform: string = process.platform): [string, string[]] {
+  if (platform === 'win32') return ['mode', [`${path.replace(/^\\\\\.\\/, '')}:`, `BAUD=${baud}`, 'PARITY=N', 'DATA=8', 'STOP=1']]
+  if (platform === 'darwin') return ['stty', ['-f', path, String(baud), 'raw', '-echo', 'cs8', '-cstopb', '-parenb']]
+  return ['stty', ['-F', path, String(baud), 'raw', '-echo', 'cs8', '-cstopb', '-parenb']]
 }
 
 export interface Input {
@@ -58,7 +75,7 @@ export function startInput(c: InputConfig, onLines: (id: string, lines: string[]
     id: inputId(c),
     kind: c.kind,
     format: c.format ?? 'nmea0183',
-    address: c.kind === 'tcp-client' ? `${c.host}:${c.port}` : `${('bind' in c && c.bind) || '0.0.0.0'}:${c.port}`,
+    address: c.kind === 'serial' ? `${c.path}@${c.baud ?? 4800}` : c.kind === 'tcp-client' ? `${c.host}:${c.port}` : `${('bind' in c && c.bind) || '0.0.0.0'}:${c.port}`,
     state: 'starting',
     detail: null,
     lines: 0,
@@ -130,6 +147,42 @@ export function startInput(c: InputConfig, onLines: (id: string, lines: string[]
         stopped = true
         for (const s of clients) s.destroy()
         server.close()
+        set('stopped')
+      },
+    }
+  }
+
+  if (c.kind === 'serial') {
+    // Set the port's speed with the system's own tool, then read it as a stream. If it goes
+    // (a USB adaptor pulled out), open it again every few seconds.
+    let stream: ReadStream | null = null
+    let retry: ReturnType<typeof setTimeout> | null = null
+    const open = () => {
+      if (stopped) return
+      const [cmd, args] = serialSetup(serialPath(c.path), c.baud ?? 4800)
+      execFile(cmd, args, { windowsHide: true, timeout: 5000 }, () => {
+        // A port the tool cannot set may still read at its last speed: go on either way.
+        if (stopped) return
+        const split = new LineSplitter()
+        const s = createReadStream(serialPath(c.path), { highWaterMark: 1024 })
+        stream = s
+        s.on('open', () => set('connected'))
+        s.on('data', (d) => got(split.push(typeof d === 'string' ? d : d.toString('latin1'))))
+        s.on('error', (e) => set('reconnecting', e.message))
+        s.on('close', () => {
+          if (stopped) return
+          set('reconnecting', status.detail ?? 'closed')
+          retry = setTimeout(open, 3000)
+        })
+      })
+    }
+    open()
+    return {
+      status,
+      stop: () => {
+        stopped = true
+        if (retry) clearTimeout(retry)
+        stream?.destroy()
         set('stopped')
       },
     }
