@@ -433,9 +433,11 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
 - [x] **15.7 Stripchart:** sample rate, axis behaviour, a second trace per pane,
       configuration files (P4-206, P4-208, P4-215, P4-209). *Accept:* tests.
       *A boat per pane, and a recent-files list and drop for layouts, are still to do.*
-- [ ] **15.8 Routing views:** several optimum routes on screen, stepping through the
+- [x] **15.8 Routing views:** several optimum routes on screen, stepping through the
       routing times, the routing tooltip with DNM %, first leg only, draw paths, routes
       kept (P1-012, P1-217, P1-221, P2-193, P2-215, P2-187). *Accept:* tests.
+      *Checked on a live route (55 isochrones). The tap readout gives the isochrone and DNM % but
+      not yet the speed and weather there.*
 - [ ] **15.9 Course wizards and start extras:** Olympic triangle and trapezoid wizards,
       start line ends from marks, a separate finish mark, start time ratios (P1-165,
       P1-166, P2-107, P2-244, P1-180). *Accept:* tests.

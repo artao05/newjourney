@@ -39,6 +39,7 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
   // Colours are the chart's, not the router's: in the app settings, so they never make a route stale.
   const routeColour = useStore((st) => st.settings.routeColour)
   const markColour = useStore((st) => st.settings.markColour)
+  const keepRoutes = useStore((st) => st.settings.keepRoutes)
   const updateSettings = useStore((st) => st.updateSettings)
   const [waveError, setWaveError] = useState<string | null>(null)
   const boat = useStore((st) => st.boat)
@@ -180,6 +181,10 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
         The grid is a second opinion: simpler, with no tack costs and no going back, so the isochrones are usually a
         little faster. No isochrones or sensitivity band are drawn for it.
       </p>
+      <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input type="checkbox" checked={s.firstLegOnly} aria-label="First leg only" onChange={(e) => update({ firstLegOnly: e.target.checked })} />
+        <span>First leg only: route to the active mark, not round the whole course. Quicker, for the leg in hand.</span>
+      </label>
 
       <h2>Waves</h2>
       <p className="note">
@@ -292,6 +297,10 @@ export function RouteSettingsSheet({ onClose }: { onClose: () => void }) {
         />
         <span>Draw every path the search kept, not only the best. On from the next route.</span>
       </label>
+      <div className="field">
+        <label htmlFor="rs-keep">Keep the last <span className="note">routes, to compare</span></label>
+        <input id="rs-keep" type="number" min="1" max="10" step="1" value={keepRoutes} onChange={(e) => updateSettings({ keepRoutes: Math.max(1, Math.min(10, Number(e.target.value) || 1)) })} />
+      </div>
       <div className="field">
         <label htmlFor="rs-route-colour">Route colour</label>
         <input id="rs-route-colour" type="color" value={routeColour} onChange={(e) => updateSettings({ routeColour: e.target.value })} />

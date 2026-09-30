@@ -93,6 +93,8 @@ export interface RouteSettings {
   algorithm: 'isochrone' | 'grid'
   /** For the grid: along the great circle rather than the rhumb line. */
   greatCircle: boolean
+  /** Route only to the active mark, not the whole course: quicker, for the leg in hand. */
+  firstLegOnly: boolean
 }
 
 export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
@@ -129,6 +131,7 @@ export const DEFAULT_ROUTE_SETTINGS: RouteSettings = {
   tidalRadiusNm: 5,
   algorithm: 'isochrone',
   greatCircle: false,
+  firstLegOnly: false,
 }
 
 /**
@@ -251,5 +254,6 @@ export function nonDefaultLabels(s: RouteSettings): string[] {
   if (s.airDensity) out.push('air density')
   if (s.tidalStreams) out.push(`tidal streams within ${s.tidalRadiusNm ?? 5} nm`)
   if (s.algorithm === 'grid') out.push(s.greatCircle ? 'grid, great circle' : 'grid')
+  if (s.firstLegOnly) out.push('first leg only')
   return out
 }

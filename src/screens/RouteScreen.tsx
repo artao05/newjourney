@@ -33,6 +33,7 @@ import { captureMap, chartCaption, chartFileName, downloadCanvas, printCanvas, w
 import { cpaPoints, dangerOf, shownTargets, type Danger } from '@/lib/ais/targets'
 import { nearestLegInsert } from '@/lib/courseEdit'
 import { legFeatures } from '@/lib/legsOnChart'
+import { dnmPct, isochroneNear, isochroneThrough, routeAt, routeSteps } from '@/lib/routing/routeStep'
 import type { EncFeature } from '@/lib/charts/s57'
 import { AisSheet } from '@/components/AisSheet'
 import { currentStations, nearestCurrentStations, stationStreams, type StreamSource } from '@/lib/tides/currents'
@@ -401,6 +402,47 @@ export function RouteScreen() {
 
   // ------------------------------------------------------------ draw updates
   const legActive = useStore((s) => s.activeMarkIndex)
+  /*
+   * Stepping through the route: the time shown, from the start to each routing step. The
+   * boat's place on the route then, and the isochrone of that step, are drawn over it.
+   */
+  const [stepT, setStepT] = useState<number | null>(null)
+  useEffect(() => setStepT(null), [route])
+  const steps = useMemo(() => (route?.ok ? routeSteps(route) : []), [route])
+  const step = useCallback(
+    (by: -1 | 0 | 1) => {
+      if (!steps.length) return
+      if (by === 0) return setStepT(steps[0])
+      const i = stepT == null ? -1 : steps.findIndex((t) => t >= stepT)
+      const next = by > 0 ? steps[Math.min(steps.length - 1, i + 1)] : steps[Math.max(0, (i < 0 ? steps.length : i) - 1)]
+      setStepT(next)
+    },
+    [steps, stepT],
+  )
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.shiftKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
+      const tag = (e.target as HTMLElement | null)?.tagName
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
+      e.preventDefault()
+      step(e.key === 'ArrowUp' ? 1 : -1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [step])
+  const stepAt = route?.ok && stepT != null ? routeAt(route.legs, stepT) : null
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const features: GeoJSON.Feature[] = []
+    if (route?.ok && stepT != null && stepAt) {
+      features.push({ type: 'Feature', properties: { kind: 'boat' }, geometry: { type: 'Point', coordinates: [stepAt.position.lon, stepAt.position.lat] } })
+      const iso = isochroneNear(route.isochrones, stepT)
+      if (iso && iso.points.length > 1) features.push({ type: 'Feature', properties: { kind: 'iso' }, geometry: { type: 'LineString', coordinates: iso.points.map((p) => [p.lon, p.lat]) } })
+    }
+    setSource(map, 'route-step', { type: 'FeatureCollection', features } as FC)
+  }, [ready, route, stepT, stepAt])
+
   // The route's and the marks' colours, as set in the route settings.
   const routeColour = useStore((s) => s.settings.routeColour)
   const markColour = useStore((s) => s.settings.markColour)
@@ -591,6 +633,13 @@ export function RouteScreen() {
     setEditingNote(id)
   }
 
+  // On an isochrone of the route: its time, and how this point stands against its best (DNM %).
+  const pointerIso = useMemo(() => {
+    if (!pointer || !route?.ok || !route.isochrones.length) return null
+    const through = isochroneThrough(route.isochrones, pointer)
+    const mark = course.marks[useStore.getState().activeMarkIndex]?.position ?? route.legs.at(-1)?.position
+    return through ? { iso: through.iso, dnm: mark ? dnmPct(pointer, through.iso, mark) : null } : null
+  }, [pointer, route, course.marks])
   /** From the boat (or planned start) to the pointer: range, bearing, polar time. */
   const toPointer = pointer && origin ? courseLegs({
     start: { name: 'from', position: origin },
@@ -875,7 +924,9 @@ export function RouteScreen() {
   const polarPort = useStore((s) => s.polarPort)
   const buildRequest = useCallback(
     (startTime: Millis, computeSensitivity: boolean, marksOverride?: LatLon[]): RouteRequest | null => {
-      const marks = marksOverride ?? course.marks.map((m) => m.position)
+      // The whole course, or with first leg only, the active mark alone.
+      const active = course.marks[useStore.getState().activeMarkIndex]
+      const marks = marksOverride ?? (routeSettings.firstLegOnly ? (active ? [active.position] : []) : course.marks.map((m) => m.position))
       if (!origin || marks.length === 0) return null
       const parts = requestParts(
         routeSettings,
@@ -1299,6 +1350,7 @@ export function RouteScreen() {
               {fmtPosition(pointer)}
               {toPointer && ` · ${toPointer.distanceNm.toFixed(2)} nm ${fmtDeg(toPointer.bearing)}°T`}
               {toPointer?.timeS != null && ` · ${fmtDuration(toPointer.timeS)}`}
+              {pointerIso && ` · isochrone T+${fmtDuration((pointerIso.iso.t - (route?.legs[0]?.t ?? pointerIso.iso.t)) / 1000)}${pointerIso.dnm != null ? ` · DNM ${Math.round(pointerIso.dnm)}%` : ''}`}
             </span>
           )}
           {pointer && picking == null && (
@@ -1431,6 +1483,24 @@ export function RouteScreen() {
           <button className="chip" onClick={() => void exportChart('print')} title="Print the chart" aria-label="Print chart">
             print
           </button>
+          {route?.ok && steps.length > 1 && (
+            <>
+              <button className="chip" aria-label="Route start" title="The route's start (Shift-Up and Shift-Down step)" onClick={() => step(0)}>
+                ⏮
+              </button>
+              <button className="chip" aria-label="Previous routing step" onClick={() => step(-1)}>
+                ◀
+              </button>
+              <button className="chip" aria-label="Next routing step" onClick={() => step(1)}>
+                ▶
+              </button>
+              {stepAt && stepT != null && (
+                <span className="chip chip--on" aria-label="Route step">
+                  T+{fmtDuration((stepT - route.legs[0].t) / 1000)} · {stepAt.leg.bsp.toFixed(1)} kn · TWS {stepAt.leg.tws.toFixed(0)} · TWA {Math.round(Math.abs(stepAt.leg.twa))}°
+                </span>
+              )}
+            </>
+          )}
             {/*
               A correction applied to the forecast changes every route, and nothing
               on the map shows it. Name each one, so a wind rotated for yesterday's
@@ -2277,7 +2347,7 @@ function addEmptyLayers(map: maplibregl.Map) {
     // Shallower than the safety depth stands out; deeper recedes, as S-52 has it.
     paint: { 'text-color': ['case', ['get', 'shallow'], '#ffffff', '#7f9bb3'] as never, 'text-halo-color': '#04101c', 'text-halo-width': 1 },
   })
-  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'fleet', 'fleet-route', 'legs', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais', 'route-hazards'].forEach(add)
+  ;['laylines', 'notes', 'draft', 'sens', 'wind', 'explored', 'iso', 'riso', 'kept', 'ensemble', 'fleet', 'fleet-route', 'legs', 'route', 'route-beat', 'route-wind', 'marks', 'boat', 'start', 'measure', 'ais', 'route-hazards', 'route-step'].forEach(add)
 
   // Race notes under everything else. Keep-out areas are red, slow areas amber,
   // plain notes grey, so the colour says what the router will do with each.
@@ -2522,6 +2592,9 @@ function addEmptyLayers(map: maplibregl.Map) {
     source: 'fleet-route',
     paint: { 'line-color': ['get', 'color'] as never, 'line-width': 1.4, 'line-dasharray': [3, 2], 'line-opacity': 0.8 },
   })
+  // Stepping through the route: the isochrone of the step, bright, and the boat then.
+  map.addLayer({ id: 'route-step-iso', type: 'line', source: 'route-step', filter: ['==', ['get', 'kind'], 'iso'], paint: { 'line-color': '#ffd54a', 'line-width': 2.5, 'line-opacity': 0.9 } })
+  map.addLayer({ id: 'route-step-pt', type: 'circle', source: 'route-step', filter: ['==', ['get', 'kind'], 'boat'], paint: { 'circle-radius': 6, 'circle-color': '#ffd54a', 'circle-stroke-color': '#04101c', 'circle-stroke-width': 2 } })
   // Where the route meets a hazard on the ENC: a red ring.
   map.addLayer({ id: 'route-hazards', type: 'circle', source: 'route-hazards', paint: { 'circle-radius': 9, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#ff5252', 'circle-stroke-width': 2.5 } })
   // AIS targets: a six-minute course vector, and a dot by class, red for a distress beacon.

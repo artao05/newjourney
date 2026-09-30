@@ -559,6 +559,77 @@ describe('the Route chart can draw the reverse isochrones', () => {
   })
 })
 
+describe('stepping through a route, and reading its isochrones', () => {
+  const p = PILOT_VENUE.waterStart
+  const T0 = Date.now()
+  const leg = (i: number) => ({
+    t: T0 + i * 600_000, position: { lat: p.lat + i * 0.01, lon: p.lon }, twd: 0, tws: 12, twa: 42 + i, bsp: 6 + i, heading: 0,
+    isBeating: false, tack: 'starboard' as const, currentSet: null, currentDrift: null, distanceNm: 0.6,
+  })
+  const routed = (): RouteResult => ({
+    ok: true,
+    legs: [0, 1, 2].map(leg),
+    etaMs: T0 + 1_200_000, elapsedS: 1200, directTimeS: 1200,
+    isochrones: [0, 1, 2].map((i) => ({ t: T0 + i * 600_000, points: [-0.01, -0.005, 0, 0.005, 0.01].map((d) => ({ lat: p.lat + i * 0.01, lon: p.lon + d })) })),
+    reverseIsochrones: [], sensitivity: null,
+    diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: true, warnings: [] },
+  })
+
+  it('steps to each routing time, with the boat there and its isochrone drawn, and tells a tapped point its DNM %', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    act(() => useStore.getState().setRoute(routed()))
+    fireEvent.click(screen.getByRole('button', { name: 'Next routing step' }))
+    expect(screen.getByLabelText('Route step').textContent).toBe('T+0s · 6.0 kn · TWS 12 · TWA 42°')
+    fireEvent.click(screen.getByRole('button', { name: 'Next routing step' }))
+    expect(screen.getByLabelText('Route step').textContent).toMatch(/^T\+10m.* · 7\.0 kn/)
+    const fc = mapInstances[0].data.get('route-step') as GeoJSON.FeatureCollection
+    expect(fc.features.map((f) => f.properties!.kind)).toEqual(['boat', 'iso'])
+    expect((fc.features[0].geometry as GeoJSON.Point).coordinates[1]).toBeCloseTo(p.lat + 0.01, 9)
+    // Shift-Down steps back.
+    fireEvent.keyDown(window, { key: 'ArrowDown', shiftKey: true })
+    expect(screen.getByLabelText('Route step').textContent).toMatch(/^T\+0s/)
+    // A tapped point on the second isochrone, off its best: its time and DNM %.
+    act(() => {
+      for (const fn of mapInstances[0].handlers.get('click') ?? []) fn({ lngLat: { lat: p.lat + 0.01, lng: p.lon + 0.01 } })
+    })
+    expect(screen.getByLabelText('Pointer readout').textContent).toMatch(/isochrone T\+10m.* · DNM \d{3}%/)
+  })
+
+  it('routes the first leg only when asked', async () => {
+    populatedStore()
+    const b = PILOT_VENUE.bbox
+    stubForecast.cube = {
+      model: 'download', run: 'test-run', bbox: b, nx: 2, ny: 2, dx: b.east - b.west, dy: b.north - b.south,
+      t0: Date.now() - 3_600_000, dtMs: 3_600_000, nt: 3, params: ['u10', 'v10'],
+      data: { u10: new Float32Array(12).fill(5), v10: new Float32Array(12).fill(0) },
+    }
+    const asked: number[] = []
+    const spy = vi.spyOn(RoutingClient.prototype, 'route').mockImplementation(async (req) => {
+      asked.push(req.marks.length)
+      return routed()
+    })
+    try {
+      act(() => useStore.getState().updateRouteSettings({ firstLegOnly: true }))
+      render(<RouteScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'ROUTE' }))
+      await waitFor(() => expect(asked).toHaveLength(1))
+      expect(asked[0]).toBe(1)
+      expect(useStore.getState().course.marks.length).toBeGreaterThan(1)
+    } finally {
+      spy.mockRestore()
+      stubForecast.cube = null
+      act(() => useStore.getState().updateRouteSettings({ firstLegOnly: false }))
+    }
+  })
+})
+
 describe('earlier routes, kept to compare', () => {
   const p = PILOT_VENUE.waterStart
   const route = (elapsedS: number, dLon = 0): RouteResult => ({

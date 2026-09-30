@@ -260,6 +260,8 @@ export interface Settings {
   /** The optimal route's line and the course marks on the Route chart. */
   routeColour: string
   markColour: string
+  /** How many earlier routes are kept to compare against. */
+  keepRoutes: number
 }
 
 interface AppState {
@@ -556,6 +558,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoAdvance: 'off',
   routeColour: '#ff3ea5',
   markColour: '#ffd54a',
+  keepRoutes: MAX_KEPT_ROUTES,
 }
 
 export function mergePersistedState(
@@ -1103,7 +1106,7 @@ export const useStore = create<AppState>()(
             etaMs: prev.etaMs,
             settings: nonDefaultLabels(get().routeSettingsAtLastRoute ?? get().routeSettings),
           }
-          set({ route: r, keptRoutes: [kept, ...get().keptRoutes].slice(0, MAX_KEPT_ROUTES), routeSettingsAtLastRoute: get().routeSettings })
+          set({ route: r, keptRoutes: [kept, ...get().keptRoutes].slice(0, Math.max(1, get().settings.keepRoutes ?? MAX_KEPT_ROUTES)), routeSettingsAtLastRoute: get().routeSettings })
           return
         }
         set({ route: r, ...(r?.ok ? { routeSettingsAtLastRoute: get().routeSettings } : {}) })
