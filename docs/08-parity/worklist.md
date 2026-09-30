@@ -511,9 +511,14 @@ Expedition's look, kept simple: a light day theme, a row of text tabs with the c
 for each one, a status bar, a right-click menu, and panes that dock. Not its name,
 logo, icon artwork or manual text.
 
-- [ ] **17.1 A light day theme** as the desktop default, with black numerals, one accent
+- [x] **17.1 A light day theme** as the desktop default, with black numerals, one accent
       colour and flat panels; dusk and night stay, and switch by time of day if asked
       (P1-066, P1-067, P2-003, P4-114). *Accept:* tests and a browser check.
+      *Day is the default everywhere (an old 'normal' save becomes day). The map overlays and the
+      four canvases, drawn for the dark chart, are toned for day by one rule: lightness turned
+      over, hue kept (lib/palette.ts). The ENC draws in S-52's day colours; the base map is the
+      plain chart. By the sun follows civil twilight at the boat. Checked in the app on the real
+      Portland cell in day and dusk. P2-003 (S-52's own dusk table at night) is still to do.*
 - [ ] **17.2 A command ribbon** at desktop widths: text tabs across the top, each with its
       commands in labelled groups, so nothing hides behind a chip (P1-035, P1-059, P1-062).
       *Accept:* tests and a browser check.

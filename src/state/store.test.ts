@@ -436,6 +436,13 @@ describe('mergePersistedState deep-merges nested objects', () => {
     expect(result.settings.keepAwake).toBe(DEFAULT_SETTINGS.keepAwake)
   })
 
+  it("takes the old 'normal' palette, the only one that was not night, to the new day default", () => {
+    expect(mergePersistedState({ settings: { palette: 'normal' } } as never, defaults).settings.palette).toBe('day')
+    expect(mergePersistedState({ settings: { palette: 'night' } } as never, defaults).settings.palette).toBe('night')
+    expect(mergePersistedState({ settings: { palette: 'dusk' } } as never, defaults).settings.palette).toBe('dusk')
+    expect(mergePersistedState({}, defaults).settings.palette).toBe('day')
+  })
+
   it('preserves new boat fields when old localStorage lacks them', () => {
     const old = { boat: { id: 'me', name: 'Old name' } }
     const result = mergePersistedState(old, defaults)

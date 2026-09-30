@@ -34,6 +34,8 @@ import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
 import { fixQuality } from '@/lib/startline'
 import { variationAt } from '@/lib/magnetic'
+import { paletteForSun } from '@/lib/palette'
+import { solarElevationDeg } from '@/lib/routing/isochrone'
 import type { WindEstimate } from '@/lib/types'
 import { fetchPointForecast } from '@/lib/weather/openmeteo'
 import { PILOT_VENUE } from '@/data/venues'
@@ -114,6 +116,22 @@ export function App() {
   useAutoAdvance()
   // The night palette is the whole page's: styles.css reads it from <html>.
   const palette = useStore((s) => s.settings.palette)
+  // Night off goes back to the palette it came from.
+  const beforeNight = useRef<'day' | 'dusk'>('day')
+  // By the sun: checked now and once a minute, at the boat (or the venue before a fix).
+  const bySun = useStore((s) => s.settings.paletteBySun)
+  useEffect(() => {
+    if (!bySun) return
+    const check = () => {
+      const st = useStore.getState()
+      const at = st.state?.position ?? PILOT_VENUE.center
+      const want = paletteForSun(solarElevationDeg(at.lat, at.lon, Date.now()))
+      if (st.settings.palette !== want) st.updateSettings({ palette: want })
+    }
+    check()
+    const id = setInterval(check, 60_000)
+    return () => clearInterval(id)
+  }, [bySun])
   useEffect(() => {
     document.documentElement.dataset.palette = palette
   }, [palette])
@@ -401,8 +419,20 @@ export function App() {
               </button>
             )}
             <button
+              className={`chip${palette === 'day' ? ' chip--on' : ''}`}
+              onClick={() => useStore.getState().updateSettings({ palette: palette === 'day' ? 'dusk' : 'day', paletteBySun: false })}
+              title="Day palette: black on white, the plain chart. Off, the dark dusk chart."
+              aria-label="Day palette"
+              aria-pressed={palette === 'day'}
+            >
+              ☀
+            </button>
+            <button
               className={`chip${palette === 'night' ? ' chip--on' : ''}`}
-              onClick={() => useStore.getState().updateSettings({ palette: palette === 'night' ? 'normal' : 'night' })}
+              onClick={() => {
+                if (palette !== 'night') beforeNight.current = palette
+                useStore.getState().updateSettings({ palette: palette === 'night' ? beforeNight.current : 'night', paletteBySun: false })
+              }}
               title="Night palette: the whole app red on black"
               aria-label="Night palette"
               aria-pressed={palette === 'night'}

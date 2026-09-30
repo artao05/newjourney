@@ -9,6 +9,8 @@
  */
 
 import { useEffect, useRef } from 'react'
+import { tonedContext } from '@/lib/palette'
+import { useStore } from '@/state/store'
 import { LocalFrame, fromPolar, nmToM, mToNm } from '@/lib/geo'
 import { courseFor, fmtDeg, wrap360 } from '@/lib/angles'
 import { fmtClock } from '@/components/Tile'
@@ -39,6 +41,8 @@ interface Props {
 }
 
 export function StartCanvas(props: Props) {
+  // Drawn for the dark chart, and toned for the day palette as it draws.
+  const palette = useStore((s) => s.settings.palette)
   const ref = useRef<HTMLCanvasElement>(null)
   // The end being dragged, and the view it was picked up in. The view is held for
   // the whole drag: re-fitting around a moving end would slide it out from under
@@ -82,14 +86,14 @@ export function StartCanvas(props: Props) {
       const ctx = cv.getContext('2d')
       if (!ctx) return
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      render(ctx, w, h, props, drag.current?.view ?? null)
+      render(tonedContext(ctx, palette), w, h, props, drag.current?.view ?? null)
     }
 
     draw()
     const ro = new ResizeObserver(draw)
     ro.observe(parent)
     return () => ro.disconnect()
-  }, [props])
+  }, [props, palette])
 
   const pointAt = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect()

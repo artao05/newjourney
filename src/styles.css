@@ -31,6 +31,107 @@
   color-scheme: dark;
 }
 
+/*
+ * Day, the default: the plain nav-station look. Black on white, thin grey rules,
+ * square corners and one blue accent, so the numbers and the chart carry the
+ * page. Dusk is :root above; night is dusk under a red filter (end of file).
+ */
+html[data-palette='day'] {
+  --bg: #ffffff;
+  --bg-raised: #f5f6f8;
+  --bg-sunk: #eceef1;
+  --line: #d6dae0;
+  --line-bright: #aeb6bf;
+
+  --ink: #111417;
+  --ink-dim: #47515c;
+  --ink-faint: #737e89;
+
+  --stbd: #0f7a37;
+  --port: #c62828;
+  --wind: #0a66b0;
+  --warn: #9a5b00;
+  --accent: #1d5fc4;
+
+  --r: 3px;
+
+  color-scheme: light;
+}
+
+html[data-palette='day'] .tabbar button[aria-current='true'] {
+  background: linear-gradient(to bottom, rgba(29, 95, 196, 0.08), transparent 70%);
+}
+html[data-palette='day'] .chip {
+  border-radius: 3px;
+}
+html[data-palette='day'] .chip--good {
+  border-color: rgba(15, 122, 55, 0.45);
+}
+html[data-palette='day'] .chip--warn {
+  border-color: rgba(154, 91, 0, 0.45);
+}
+html[data-palette='day'] .chip--bad {
+  border-color: rgba(198, 40, 40, 0.45);
+}
+html[data-palette='day'] .chip--on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+html[data-palette='day'] .btn:active {
+  background: #dfe7f3;
+}
+html[data-palette='day'] .btn--port {
+  border-color: rgba(198, 40, 40, 0.5);
+  color: #b3261e;
+}
+html[data-palette='day'] .btn--stbd {
+  border-color: rgba(15, 122, 55, 0.5);
+  color: #0c6a2f;
+}
+html[data-palette='day'] .btn--primary {
+  color: #fff;
+}
+html[data-palette='day'] .warnbox {
+  border-color: rgba(154, 91, 0, 0.45);
+  background: #fff6e5;
+  color: #6b3f00;
+}
+html[data-palette='day'] .errbox {
+  border-color: rgba(198, 40, 40, 0.45);
+  background: #fdecec;
+  color: #8e1b1b;
+}
+html[data-palette='day'] .sailchart td {
+  color: #111417;
+}
+html[data-palette='day'] .modal {
+  background: rgba(17, 20, 23, 0.45);
+}
+html[data-palette='day'] .legend {
+  background: rgba(255, 255, 255, 0.92);
+}
+html[data-palette='day'] .sheet {
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.16);
+}
+html[data-palette='day'] .alarmbar {
+  background: #fdebe4;
+  border-bottom-color: #e0673a;
+  color: #7a2410;
+}
+html[data-palette='day'] .alarmbar--loud {
+  background: #f9d2d2;
+  border-bottom-color: var(--port);
+  animation-name: alarm-pulse-day;
+}
+@keyframes alarm-pulse-day {
+  from { background: #f9d2d2; }
+  to { background: #f3b1b1; }
+}
+html[data-palette='day'] .nbox__value {
+  font-weight: 400;
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -349,6 +450,11 @@ button {
 .chip--bad {
   color: var(--port);
   border-color: rgba(255, 77, 77, 0.4);
+}
+/* A chip that is a switch, when on. */
+.chip--on {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .dot {

@@ -23,7 +23,7 @@ export function RouteMeteogram({ legs }: { legs: RouteLeg[] }) {
   return (
     <figure style={{ margin: '0 0 12px', position: 'relative' }}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" role="img" aria-label="Wind and boat speed along the route">
-        <polyline points={line((l) => l.tws)} fill="none" stroke="#4fc3f7" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+        <polyline points={line((l) => l.tws)} fill="none" style={{ stroke: 'var(--wind)' }} strokeWidth={2} vectorEffect="non-scaling-stroke" />
         <polyline points={line((l) => l.bsp)} fill="none" stroke="#ff3ea5" strokeWidth={2} vectorEffect="non-scaling-stroke" />
       </svg>
       {/* HTML, not SVG: the stretched chart would skew a rotated arrow. A down arrow
@@ -39,7 +39,7 @@ export function RouteMeteogram({ legs }: { legs: RouteLeg[] }) {
         </span>
       ))}
       <figcaption className="note">
-        <span style={{ color: '#4fc3f7' }}>TWS</span> and <span style={{ color: '#ff3ea5' }}>boat speed</span>, 0 to{' '}
+        <span style={{ color: 'var(--wind)' }}>TWS</span> and <span style={{ color: '#ff3ea5' }}>boat speed</span>, 0 to{' '}
         {Math.round(vmax)} kn, arrows downwind. Along the route, at the time the boat is there.
       </figcaption>
     </figure>

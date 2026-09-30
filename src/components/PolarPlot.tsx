@@ -7,6 +7,8 @@
  */
 
 import { useEffect, useRef } from 'react'
+import { tonedContext } from '@/lib/palette'
+import { useStore } from '@/state/store'
 import type { PolarLattice } from '@/lib/types'
 import type { PolarPoint } from '@/lib/logging/logger'
 
@@ -25,6 +27,8 @@ const COLOURS = ['#4fc3f7', '#35d07f', '#ffd54a', '#ff8a4a', '#ff4d4d']
 const NO_POINTS: PolarPoint[] = []
 
 export function PolarPlot({ lattice, speeds = DEFAULT_SPEEDS, height = 230, points = NO_POINTS }: Props) {
+  // Drawn for the dark chart, and toned for the day palette as it draws.
+  const palette = useStore((s) => s.settings.palette)
   const ref = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -59,14 +63,14 @@ export function PolarPlot({ lattice, speeds = DEFAULT_SPEEDS, height = 230, poin
       const ctx = cv.getContext('2d')
       if (!ctx) return
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      render(ctx, w, h, lattice, speeds, points)
+      render(tonedContext(ctx, palette), w, h, lattice, speeds, points)
     }
 
     draw()
     const ro = new ResizeObserver(draw)
     ro.observe(parent)
     return () => ro.disconnect()
-  }, [lattice, speeds, height, points])
+  }, [lattice, speeds, height, points, palette])
 
   if (!lattice) return null
   return (

@@ -712,6 +712,23 @@ function DisplaySection() {
     <section aria-label="Display">
       <h2>Display</h2>
       <div className="field">
+        <label>Palette</label>
+        <div className="seg" role="group" aria-label="Palette">
+          {(['day', 'dusk', 'night'] as const).map((p) => (
+            <button key={p} aria-pressed={!settings.paletteBySun && settings.palette === p} onClick={() => updateSettings({ palette: p, paletteBySun: false })}>
+              {p === 'day' ? 'Day' : p === 'dusk' ? 'Dusk' : 'Night'}
+            </button>
+          ))}
+          <button aria-pressed={!!settings.paletteBySun} onClick={() => updateSettings({ paletteBySun: true })}>
+            By the sun
+          </button>
+        </div>
+      </div>
+      <p className="note">
+        Day is black on white, the plain chart. Dusk is the dark chart. Night is red on black, to keep night vision.
+        By the sun, it follows the sun where the boat is: day while it is up, dusk to 6° below the horizon, then night.
+      </p>
+      <div className="field">
         <label htmlFor="disp-text">Chart text</label>
         <select id="disp-text" value={settings.chartTextScale ?? 1} onChange={(e) => updateSettings({ chartTextScale: Number(e.target.value) })}>
           <option value={0.8}>small</option>

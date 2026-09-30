@@ -10,8 +10,22 @@ import type { EncCell, EncFeature, EncFeature as Feature } from './s57'
 import { symbolFor, symbolKey } from './symbols'
 
 /** Dark-palette depth shades, from drying to deep. */
-export const DEPTH_SHADES = { drying: '#2f4a2c', shallow: '#1f5f8b', medium: '#15466a', deep: '#0a2438' } as const
+export const DEPTH_SHADES = { drying: '#2f4a2c', shallow: '#1f5f8b', medium: '#15466a', mediumDeep: '#15466a', deep: '#0a2438' } as const
 export const LAND = '#3a3426'
+
+/**
+ * The day chart, after S-52's DAY colour table: the shoal water blue and the deep
+ * water near white, buff land, grey contours and coast, magenta lights.
+ */
+export const DAY = {
+  shades: { drying: '#9ec8a0', shallow: '#73b6ef', medium: '#98c5f2', mediumDeep: '#bad5e1', deep: '#e8f3f5' },
+  land: '#e3d6a4',
+  contour: '#7d898c',
+  coast: '#525a5c',
+  light: '#c545c3',
+  danger: '#c62828',
+  leg: '#525a5c',
+} as const
 
 /** Buoy and beacon colours by S-57 COLOUR code (the first listed). */
 const COLOURS: Record<string, string> = { '1': '#f5f5f5', '2': '#212121', '3': '#e53935', '4': '#43a047', '5': '#1e88e5', '6': '#fdd835', '11': '#fb8c00' }
@@ -43,6 +57,8 @@ export interface EncStyleOptions {
   category?: DisplayCategory
   /** The night palette: dimmer everything, for dark adaptation. */
   night?: boolean
+  /** The day chart (S-52 DAY), for the app's day palette; else the dark chart. */
+  day?: boolean
   /** Light descriptions (Fl(2)G 5s 8m 5M) beside lights. */
   lightText?: boolean
   /** Sector arcs and their limit lines for sectored lights. */
@@ -127,12 +143,13 @@ export interface DrawFeature {
 }
 
 function depthShade(drval1: number, o: EncStyleOptions): string {
-  if (drval1 < 0) return DEPTH_SHADES.drying
-  if (o.twoShades) return drval1 < o.safetyDepthM ? DEPTH_SHADES.shallow : DEPTH_SHADES.deep
-  if (drval1 < Math.min(o.shallowM ?? o.safetyDepthM, o.safetyDepthM)) return DEPTH_SHADES.shallow
-  if (drval1 < o.safetyDepthM) return DEPTH_SHADES.medium
-  if (drval1 < (o.deepM ?? Math.max(10, 2 * o.safetyDepthM))) return DEPTH_SHADES.medium
-  return DEPTH_SHADES.deep
+  const S = o.day ? DAY.shades : DEPTH_SHADES
+  if (drval1 < 0) return S.drying
+  if (o.twoShades) return drval1 < o.safetyDepthM ? S.shallow : S.deep
+  if (drval1 < Math.min(o.shallowM ?? o.safetyDepthM, o.safetyDepthM)) return S.shallow
+  if (drval1 < o.safetyDepthM) return S.medium
+  if (drval1 < (o.deepM ?? Math.max(10, 2 * o.safetyDepthM))) return S.mediumDeep
+  return S.deep
 }
 
 /** The night palette: each colour at a third of its brightness. */
@@ -174,12 +191,12 @@ export function encDrawFeatures(cells: EncCell[], o: EncStyleOptions): DrawFeatu
         const d1 = Number(f.attrs.DRVAL1 ?? 0)
         out.push({ type: 'Feature', properties: { layer: 'area', cls: f.cls, color: depthShade(Number.isFinite(d1) ? d1 : 0, o), order: 0 }, geometry: f.geometry })
       } else if (f.cls === 'LNDARE') {
-        out.push({ type: 'Feature', properties: { layer: 'area', cls: f.cls, color: LAND, order: 1 }, geometry: f.geometry })
+        out.push({ type: 'Feature', properties: { layer: 'area', cls: f.cls, color: o.day ? DAY.land : LAND, order: 1 }, geometry: f.geometry })
       } else if (f.cls === 'DEPCNT') {
         const v = Number(f.attrs.VALDCO)
-        out.push({ type: 'Feature', properties: { layer: 'line', cls: f.cls, color: '#6f9dbf', width: v === safety ? 2.4 : 0.8, safety: v === safety }, geometry: f.geometry })
+        out.push({ type: 'Feature', properties: { layer: 'line', cls: f.cls, color: o.day ? DAY.contour : '#6f9dbf', width: v === safety ? 2.4 : 0.8, safety: v === safety }, geometry: f.geometry })
       } else if (f.cls === 'COALNE' || f.cls === 'SLCONS') {
-        out.push({ type: 'Feature', properties: { layer: 'line', cls: f.cls, color: '#c8b98a', width: 1.4, safety: false }, geometry: f.geometry })
+        out.push({ type: 'Feature', properties: { layer: 'line', cls: f.cls, color: o.day ? DAY.coast : '#c8b98a', width: 1.4, safety: false }, geometry: f.geometry })
       } else if (f.prim === 1) {
         const colour = COLOURS[(f.attrs.COLOUR ?? '').split(',')[0]] ?? '#b0bec5'
         const danger = f.cls === 'UWTROC' || f.cls === 'WRECKS' || f.cls === 'OBSTRN'
@@ -187,7 +204,7 @@ export function encDrawFeatures(cells: EncCell[], o: EncStyleOptions): DrawFeatu
         const sym = symbolFor(f, o.night)
         out.push({
           type: 'Feature',
-          properties: { layer: 'point', cls: f.cls, color: f.cls === 'LIGHTS' ? '#e040fb' : danger ? '#ff5252' : colour, radius: f.cls === 'LIGHTS' ? 3.5 : 5, name, ...(sym ? { icon: symbolKey(sym) } : {}) },
+          properties: { layer: 'point', cls: f.cls, color: f.cls === 'LIGHTS' ? (o.day ? DAY.light : '#e040fb') : danger ? (o.day ? DAY.danger : '#ff5252') : colour, radius: f.cls === 'LIGHTS' ? 3.5 : 5, name, ...(sym ? { icon: symbolKey(sym) } : {}) },
           geometry: f.geometry,
         })
         // Text: a light's description, and other objects' names, each group on its own switch.
@@ -197,7 +214,7 @@ export function encDrawFeatures(cells: EncCell[], o: EncStyleOptions): DrawFeatu
           const sec = lightSector(f, o)
           if (sec) {
             out.push({ type: 'Feature', properties: { layer: 'sector', color: sec.colour, part: 'arc' }, geometry: { type: 'LineString', coordinates: sec.arc as Array<[number, number]> } })
-            for (const leg of sec.legs) out.push({ type: 'Feature', properties: { layer: 'sector', color: '#b0bec5', part: 'leg' }, geometry: { type: 'LineString', coordinates: leg as Array<[number, number]> } })
+            for (const leg of sec.legs) out.push({ type: 'Feature', properties: { layer: 'sector', color: o.day ? DAY.leg : '#b0bec5', part: 'leg' }, geometry: { type: 'LineString', coordinates: leg as Array<[number, number]> } })
           }
         }
       }

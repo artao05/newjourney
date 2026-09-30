@@ -47,6 +47,7 @@ import { applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { boundsFrom } from '@/lib/tactics'
 import { buildLattice } from '@/lib/polar'
 import { fmtPosition } from '@/components/MarkSheet'
+import { CHART_BASE, followPalette } from '@/lib/palette'
 import { fmtVariation, trueToMagnetic, variationAt } from '@/lib/magnetic'
 import { variationHere } from '@/hooks/useVariation'
 import { RaceNoteSheet } from '@/components/RaceNotes'
@@ -126,6 +127,9 @@ const STYLE: maplibregl.StyleSpecification = {
 const SWEEP_HOURS = 12
 
 export function RouteScreen() {
+  const palette = useStore((s) => s.settings.palette)
+  const paletteFollower = useRef<ReturnType<typeof followPalette> | null>(null)
+  useEffect(() => paletteFollower.current?.apply(), [palette])
   const mapRef = useRef<maplibregl.Map | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const clientRef = useRef<RoutingClient | null>(null)
@@ -231,6 +235,8 @@ export function RouteScreen() {
       zoom: PILOT_VENUE.defaultZoom,
       attributionControl: { compact: true },
     })
+    // The chart follows the palette from its first frame: every overlay toned for day, and the base map plain.
+    paletteFollower.current = followPalette(map, () => useStore.getState().settings.palette, { osm: CHART_BASE })
     map.on('load', () => {
       addEmptyLayers(map)
       setReady(true)
@@ -327,6 +333,8 @@ export function RouteScreen() {
     })
     mapRef.current = map
     return () => {
+      paletteFollower.current?.stop()
+      paletteFollower.current = null
       map.remove()
       mapRef.current = null
       setReady(false)
@@ -777,12 +785,12 @@ export function RouteScreen() {
     const b = encCells.find((c) => c.bounds)?.bounds
     // The scale shown, for anti-clutter and for drawing sector arcs a set size on screen.
     const scale = scaleAtZoom(encZoom, b ? (b.south + b.north) / 2 : 45)
-    const features = offsetFeatures([...encDrawFeatures(encCells, { safetyDepthM, ...encDisplay, scale }), ...outlines] as Array<{ geometry: { type: string; coordinates: unknown } | null }>, chartOffset, b ? (b.south + b.north) / 2 : 45)
+    const features = offsetFeatures([...encDrawFeatures(encCells, { safetyDepthM, ...encDisplay, scale, day: palette === 'day' }), ...outlines] as Array<{ geometry: { type: string; coordinates: unknown } | null }>, chartOffset, b ? (b.south + b.north) / 2 : 45)
     setSource(map, 'enc', { type: 'FeatureCollection', features } as unknown as FC)
     const big = (encDisplay.largeText ? 1.4 : 1) * textScale
     map.setLayoutProperty('enc-sounding', 'text-size', 10 * big)
     map.setLayoutProperty('enc-text', 'text-size', 10 * big)
-  }, [ready, encCells, safetyDepthM, encDisplay, chartOffset, encZoom, textScale])
+  }, [ready, encCells, safetyDepthM, encDisplay, chartOffset, encZoom, textScale, palette])
 
   // The fleet's tracks from tracking files, in each boat's colour.
   const fleetTracks = useTracking((s) => s.tracks)

@@ -594,11 +594,11 @@ describe("Expedition's keyboard shortcuts", () => {
   })
 })
 
-describe('the night palette', () => {
-  it('turns the whole page red on black from the top bar, and back', () => {
-    useStore.getState().updateSettings({ palette: 'normal' })
+describe('the palettes', () => {
+  it('turns the whole page red on black from the top bar, and back to the palette it came from', () => {
+    useStore.getState().updateSettings({ palette: 'dusk' })
     render(<App />)
-    expect(document.documentElement.dataset.palette).toBe('normal')
+    expect(document.documentElement.dataset.palette).toBe('dusk')
     const moon = screen.getByRole('button', { name: 'Night palette' })
     expect(moon.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(moon)
@@ -606,7 +606,42 @@ describe('the night palette', () => {
     expect(document.documentElement.dataset.palette).toBe('night')
     expect(moon.getAttribute('aria-pressed')).toBe('true')
     fireEvent.click(moon)
-    expect(document.documentElement.dataset.palette).toBe('normal')
+    expect(document.documentElement.dataset.palette).toBe('dusk')
+  })
+
+  it('follows the sun at the boat when asked, until a palette is picked by hand', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    try {
+      // 02:00 in Portland, the sun far below the horizon.
+      vi.setSystemTime(Date.UTC(2026, 5, 21, 6, 0))
+      useStore.getState().updateSettings({ palette: 'day', paletteBySun: true })
+      render(<App />)
+      expect(useStore.getState().settings.palette).toBe('night')
+      // Noon: day, at the next minute's check.
+      vi.setSystemTime(Date.UTC(2026, 5, 21, 16, 0))
+      act(() => vi.advanceTimersByTime(60_000))
+      expect(useStore.getState().settings.palette).toBe('day')
+      fireEvent.click(screen.getByRole('button', { name: 'Day palette' }))
+      expect(useStore.getState().settings).toMatchObject({ palette: 'dusk', paletteBySun: false })
+    } finally {
+      vi.useRealTimers()
+      useStore.getState().updateSettings({ paletteBySun: false })
+    }
+  })
+
+  it('switches between day, black on white, and the dark dusk chart', () => {
+    useStore.getState().updateSettings({ palette: 'day' })
+    render(<App />)
+    expect(document.documentElement.dataset.palette).toBe('day')
+    const sun = screen.getByRole('button', { name: 'Day palette' })
+    expect(sun.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(sun)
+    expect(document.documentElement.dataset.palette).toBe('dusk')
+    fireEvent.click(screen.getByRole('button', { name: 'Night palette' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Night palette' }))
+    expect(useStore.getState().settings.palette).toBe('dusk')
+    fireEvent.click(sun)
+    expect(useStore.getState().settings.palette).toBe('day')
   })
 })
 

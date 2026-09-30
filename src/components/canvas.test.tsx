@@ -29,6 +29,8 @@ import { DepartureChart } from './DepartureChart'
 import { findPolar } from '@/data/polars'
 import { computeStart } from '@/lib/startline'
 import { buildLattice } from '@/lib/polar'
+import { dayTone } from '@/lib/palette'
+import { useStore } from '@/state/store'
 import type {
   Boat,
   BoatState,
@@ -173,6 +175,8 @@ class NoopResizeObserver {
 }
 
 beforeEach(() => {
+  // The drawings are written for the dark chart; the day palette tones them (tested below).
+  useStore.getState().updateSettings({ palette: 'dusk' })
   ctx = new RecordingContext()
   ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = NoopResizeObserver
   // jsdom returns null from getContext; hand back the recorder instead, and give
@@ -604,6 +608,17 @@ describe('StartCanvas', () => {
 // ------------------------------------------------------------------ PolarPlot
 
 describe('PolarPlot', () => {
+  it('draws on the day palette in the same colours, each toned for a white ground', () => {
+    render(<PolarPlot lattice={lattice} />)
+    const dusk = [...ctx.styles]
+    cleanup()
+    useStore.getState().updateSettings({ palette: 'day' })
+    ctx = new RecordingContext()
+    render(<PolarPlot lattice={lattice} />)
+    expect(dusk.length).toBeGreaterThan(5)
+    expect(ctx.styles).toEqual(dusk.map(dayTone))
+  })
+
   it('draws a polar without passing anything undrawable', () => {
     render(<PolarPlot lattice={lattice} />)
     expect(ctx.calls.length).toBeGreaterThan(10)

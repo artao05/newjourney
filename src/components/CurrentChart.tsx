@@ -16,6 +16,8 @@
  */
 
 import { useEffect, useRef } from 'react'
+import { tonedContext } from '@/lib/palette'
+import { useStore } from '@/state/store'
 import type { CurrentPrediction } from '@/lib/tides/coops'
 import type { Millis } from '@/lib/types'
 
@@ -59,6 +61,8 @@ function readTheme(): Theme {
 const HOUR = 3_600_000
 
 export function CurrentChart({ prediction, t, windowHours = 12, height = 132 }: Props) {
+  // Drawn for the dark chart, and toned for the day palette as it draws.
+  const palette = useStore((s) => s.settings.palette)
   const ref = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -78,14 +82,14 @@ export function CurrentChart({ prediction, t, windowHours = 12, height = 132 }: 
       const ctx = cv.getContext('2d')
       if (!ctx) return
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      render(ctx, w, height, prediction, t, windowHours)
+      render(tonedContext(ctx, palette), w, height, prediction, t, windowHours)
     }
 
     draw()
     const ro = new ResizeObserver(draw)
     ro.observe(parent)
     return () => ro.disconnect()
-  }, [prediction, t, windowHours, height])
+  }, [prediction, t, windowHours, height, palette])
 
   return <canvas ref={ref} style={{ display: 'block' }} />
 }

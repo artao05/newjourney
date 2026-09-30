@@ -27,6 +27,7 @@ import {
   type ReactNode,
 } from 'react'
 import maplibregl from 'maplibre-gl'
+import { followPalette, type BasePaint } from '@/lib/palette'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useStore } from '@/state/store'
 import { PILOT_VENUE } from '@/data/venues'
@@ -71,6 +72,12 @@ const STYLE: maplibregl.StyleSpecification = {
       },
     },
   ],
+}
+
+/** The weather chart's base map on each palette: grey, so the colours on it are the weather's. */
+const WEATHER_BASE: BasePaint = {
+  day: { 'raster-opacity': 1, 'raster-saturation': -1, 'raster-brightness-max': 0.92, 'raster-contrast': -0.1 },
+  dusk: { 'raster-opacity': 0.62, 'raster-saturation': -0.85, 'raster-brightness-max': 0.72, 'raster-contrast': 0.2 },
 }
 
 export const emptyFC = () => ({ type: 'FeatureCollection' as const, features: [] })
@@ -158,6 +165,9 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
 
   const boatState = useStore((s) => s.state)
   const stepMin = useStore((s) => s.settings.weatherStepMin) ?? null
+  const palette = useStore((s) => s.settings.palette)
+  const paletteFollower = useRef<ReturnType<typeof followPalette> | null>(null)
+  useEffect(() => paletteFollower.current?.apply(), [palette])
 
   // ------------------------------------------------------------------ map init
   useEffect(() => {
@@ -178,6 +188,8 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
       ;(window as unknown as Record<string, unknown>).__wx = { map: m }
     }
 
+    // Quiet on every palette, from the first frame: on day a light grey chart under the weather, on dusk a dark one.
+    paletteFollower.current = followPalette(m, () => useStore.getState().settings.palette, { osm: WEATHER_BASE })
     m.on('load', () => {
       const sc = new ScalarLayer({ id: 'wx-scalar' })
       const pt = new ParticleLayer({ id: 'wx-particles' })
@@ -216,6 +228,8 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
     m.on('error', (e) => setError(e.error?.message ?? 'map error'))
 
     return () => {
+      paletteFollower.current?.stop()
+      paletteFollower.current = null
       m.remove()
       mapRef.current = null
       setMap(null)

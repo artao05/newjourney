@@ -23,6 +23,8 @@
  */
 
 import { useEffect, useRef } from 'react'
+import { tonedContext } from '@/lib/palette'
+import { useStore } from '@/state/store'
 import type { DepartureSweep } from '@/lib/routing/departure'
 import type { Millis } from '@/lib/types'
 
@@ -60,6 +62,8 @@ function readTheme(): Theme {
 }
 
 export function DepartureChart({ sweep, selected = null, height = 148 }: Props) {
+  // Drawn for the dark chart, and toned for the day palette as it draws.
+  const palette = useStore((s) => s.settings.palette)
   const ref = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -79,14 +83,14 @@ export function DepartureChart({ sweep, selected = null, height = 148 }: Props) 
       const ctx = cv.getContext('2d')
       if (!ctx) return
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      render(ctx, w, height, sweep, selected)
+      render(tonedContext(ctx, palette), w, height, sweep, selected)
     }
 
     draw()
     const ro = new ResizeObserver(draw)
     ro.observe(parent)
     return () => ro.disconnect()
-  }, [sweep, selected, height])
+  }, [sweep, selected, height, palette])
 
   return <canvas ref={ref} style={{ display: 'block' }} />
 }

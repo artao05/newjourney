@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEPTH_SHADES, LAND, dim, encDrawFeatures, encObjectsAt } from './s52'
+import { DAY, DEPTH_SHADES, LAND, dim, encDrawFeatures, encObjectsAt } from './s52'
 import { decodeS57, type EncCell } from './s57'
 import { cell } from './fixtures/cell'
 
@@ -13,6 +13,13 @@ describe('ENC display', () => {
     expect(f.filter((x) => x.properties.cls === 'DEPARE').map((x) => x.properties.color)).toEqual([DEPTH_SHADES.drying, DEPTH_SHADES.shallow, DEPTH_SHADES.medium, DEPTH_SHADES.deep])
     // The shallowest contour at or below the safety depth: 5 m for a 3 m boat.
     expect(f.filter((x) => x.properties.cls === 'DEPCNT').map((x) => [x.properties.safety, x.properties.width])).toEqual([[false, 0.8], [true, 2.4], [false, 0.8]])
+  })
+
+  it("draws the day chart in S-52's day colours: shoal water blue, deep water near white, buff land", () => {
+    const f = encDrawFeatures([made([area(-1), area(1), area(4), area(6), area(30), { objl: 71, cls: 'LNDARE', prim: 3, attrs: {}, geometry: area(0).geometry }, contour(5)])], { safetyDepthM: 3, deepM: 10, day: true })
+    expect(f.filter((x) => x.properties.cls === 'DEPARE').map((x) => x.properties.color)).toEqual([DAY.shades.drying, DAY.shades.shallow, DAY.shades.mediumDeep, DAY.shades.mediumDeep, DAY.shades.deep])
+    expect(f.find((x) => x.properties.cls === 'LNDARE')!.properties.color).toBe(DAY.land)
+    expect(f.find((x) => x.properties.cls === 'DEPCNT')!.properties.color).toBe(DAY.contour)
   })
 
   it('splits soundings, marking those shallower than the safety depth, and colours points by kind', () => {

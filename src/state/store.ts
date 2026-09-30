@@ -5,6 +5,7 @@
  */
 
 import type { ChartMotion, ChartOrientation } from '@/lib/chartView'
+import type { Palette } from '@/lib/palette'
 import type { ChartOffset } from '@/lib/charts/georef'
 import { bearing, distance, midpoint } from '@/lib/geo'
 import { angdiff, wrap360 } from '@/lib/angles'
@@ -253,8 +254,8 @@ export interface Settings {
   chartOffset: ChartOffset
   /** The channels sent out over a WebSocket (Setup → Channels out). */
   channelsOut: ChannelsOutSettings
-  /** The whole app red on black at night, to keep night vision. */
-  palette: 'normal' | 'night'
+  /** Day (black on white, the nav-station look), dusk (the dark chart) or night (red on black, to keep night vision). */
+  palette: Palette
   /** Move to the next mark by itself: inside the mark's range, across its bisector, both, or not. */
   autoAdvance: AdvanceMode
   /** The optimal route's line and the course marks on the Route chart. */
@@ -266,6 +267,8 @@ export interface Settings {
   weatherPresets: Array<WeatherPreset | null>
   /** Chart label size, as a multiple of the usual. */
   chartTextScale: number
+  /** The palette set by the sun at the boat: day with it up, dusk in civil twilight, night below. A palette picked by hand turns it off. */
+  paletteBySun: boolean
   /** The layout locked: number boxes cannot be edited, added or removed by a stray tap. */
   layoutLocked: boolean
   /** Named layouts: the number boxes and the nav station's panes. */
@@ -578,13 +581,14 @@ export const DEFAULT_SETTINGS: Settings = {
   chartMotion: 'free',
   chartOffset: { northM: 0, eastM: 0 },
   channelsOut: DEFAULT_CHANNELS_OUT,
-  palette: 'normal',
+  palette: 'day',
   autoAdvance: 'off',
   routeColour: '#ff3ea5',
   markColour: '#ffd54a',
   keepRoutes: MAX_KEPT_ROUTES,
   weatherPresets: Array(9).fill(null),
   chartTextScale: 1,
+  paletteBySun: false,
   layoutLocked: false,
   layouts: [],
 }
@@ -604,7 +608,14 @@ export function mergePersistedState(
       ...p.course,
       startLine: { ...c.course.startLine, ...p.course?.startLine },
     },
-    settings: { ...c.settings, ...p.settings, contours: { ...c.settings.contours, ...p.settings?.contours } },
+    settings: {
+      ...c.settings,
+      ...p.settings,
+      contours: { ...c.settings.contours, ...p.settings?.contours },
+      // Before there was a day palette the one that was not night was 'normal', the dark chart; no one
+      // chose it, it was the only other, so it becomes the new default.
+      palette: (p.settings?.palette as string | undefined) === 'normal' ? 'day' : (p.settings?.palette ?? c.settings.palette),
+    },
     routeSettings: { ...c.routeSettings, ...p.routeSettings },
     // Kept field by field, so a setting added later gets its default on an older save.
     instruments: { ...c.instruments, ...p.instruments },

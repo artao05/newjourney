@@ -47,10 +47,10 @@ export function PointMeteogram({ cube, at, t, place }: { cube: WeatherCube; at: 
     <div>
       <figure style={{ margin: '0 0 8px', position: 'relative' }}>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" role="img" aria-label={`Wind, gust and pressure at ${place}`}>
-          {pressures.length > 1 && <polyline points={line((s) => s.prmsl, yp)} fill="none" stroke="#b0b8c4" strokeWidth={1.5} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />}
-          <polyline points={line((s) => s.gust, y)} fill="none" stroke="#ffb74d" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-          <polyline points={line((s) => s.tws, y)} fill="none" stroke="#4fc3f7" strokeWidth={2.2} vectorEffect="non-scaling-stroke" />
-          {t >= t0 && t <= t0 + span && <line x1={x(t)} x2={x(t)} y1={0} y2={H} stroke="#ffffff" strokeOpacity={0.5} vectorEffect="non-scaling-stroke" />}
+          {pressures.length > 1 && <polyline points={line((s) => s.prmsl, yp)} fill="none" style={{ stroke: 'var(--ink-dim)' }} strokeWidth={1.5} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />}
+          <polyline points={line((s) => s.gust, y)} fill="none" style={{ stroke: 'var(--warn)' }} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+          <polyline points={line((s) => s.tws, y)} fill="none" style={{ stroke: 'var(--wind)' }} strokeWidth={2.2} vectorEffect="non-scaling-stroke" />
+          {t >= t0 && t <= t0 + span && <line x1={x(t)} x2={x(t)} y1={0} y2={H} style={{ stroke: 'var(--ink)' }} strokeOpacity={0.5} vectorEffect="non-scaling-stroke" />}
         </svg>
         {steps.map((s, i) =>
           i % every === 0 && s.twd != null ? (
@@ -60,11 +60,11 @@ export function PointMeteogram({ cube, at, t, place }: { cube: WeatherCube; at: 
           ) : null,
         )}
         <figcaption className="note">
-          <span style={{ color: '#4fc3f7' }}>TWS</span> · <span style={{ color: '#ffb74d' }}>gust</span>
+          <span style={{ color: 'var(--wind)' }}>TWS</span> · <span style={{ color: 'var(--warn)' }}>gust</span>
           {pressures.length > 1 ? (
             <>
               {' '}
-              · <span style={{ color: '#b0b8c4' }}>MSLP {plo.toFixed(0)}–{phi.toFixed(0)} hPa</span>
+              · <span style={{ color: 'var(--ink-dim)' }}>MSLP {plo.toFixed(0)}–{phi.toFixed(0)} hPa</span>
             </>
           ) : null}{' '}
           · 0–{vmax.toFixed(0)} kn · {hhmm(t0)} to {hhmm(t0 + span)}

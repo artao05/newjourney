@@ -21,7 +21,8 @@ import { useTick } from '@/hooks/useSensors'
 const SPANS = [5, 15, 30, 60, 180]
 const NAMES = new Map(CHANNELS.map((c) => [c.id, c.name]))
 const PANE_H = 84
-const WAND_COLOURS = ['#ffd54a', '#ffd54a', '#4fc3f7', '#4fc3f7']
+/** The wands' colours, from the palette: the first pair the accent, the second the wind colour. */
+const WAND_COLOURS = ['var(--accent)', 'var(--accent)', 'var(--wind)', 'var(--wind)']
 
 const hm = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 const fmt = (v: number | null) => (v == null ? '—' : Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2))
@@ -208,7 +209,7 @@ export function StripchartScreen() {
               {sections.map((s, i) =>
                 s ? (
                   <rect key={i} x={x(Math.min(...s))} width={Math.abs(x(s[1]) - x(s[0]))} y={0} height={PANE_H}
-                    fill={WAND_COLOURS[i * 2]} opacity={0.08} />
+                    style={{ fill: WAND_COLOURS[i * 2] }} opacity={0.08} />
                 ) : null,
               )}
               {inWindow.map((ev) => (
@@ -218,7 +219,7 @@ export function StripchartScreen() {
                 </line>
               ))}
               {wands.map((w, i) => (
-                <line key={i} x1={x(w)} x2={x(w)} y1={0} y2={PANE_H} stroke={WAND_COLOURS[i]} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+                <line key={i} x1={x(w)} x2={x(w)} y1={0} y2={PANE_H} style={{ stroke: WAND_COLOURS[i] }} strokeWidth={2} vectorEffect="non-scaling-stroke" />
               ))}
               {pts2.length > 1 && (
                 <polyline
