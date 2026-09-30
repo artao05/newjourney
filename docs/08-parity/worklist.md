@@ -561,9 +561,13 @@ app talks to it over a WebSocket on `127.0.0.1`.
       multicast), TCP client with back-off, TCP server, batching, and bridge/replay.ts. The app's
       BridgeClient feeds the serial path's decoders. A synthetic Casco Bay recording, marked as
       such, replayed live into the app: position, speed, apparent wind, depth and a ferry on AIS.*
-- [ ] **18.2 NMEA 2000 through the bridge:** Actisense and Yacht Devices raw over TCP, UDP
+- [x] **18.2 NMEA 2000 through the bridge:** Actisense and Yacht Devices raw over TCP, UDP
       or a serial port, into the PGN decoder (P4-053, P4-055, P4-057, P4-058, P4-059,
       P4-060). *Accept:* tests with recordings.
+      *Any bridge input marked --n2k goes to the NMEA 2000 decoder, which now also reads Actisense
+      N2K ASCII (W2K-1) and iKonvert !PDGY, both whole messages that skip fast-packet joining. Tested
+      through the bridge over TCP; the NGT-1's binary serial form waits on 18.5, and throttling
+      (P4-060) is the gateway's, since the bridge only listens.*
 - [ ] **18.3 App to app:** instruments, marks, routes and the start line shared between
       copies of the app through the bridge, with channel filters, a repeater mode, and
       reconnect (P3-095, P1-029, P4-116, P1-050, P1-236). *Accept:* tests and two copies

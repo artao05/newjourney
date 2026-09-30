@@ -166,6 +166,26 @@ describe('the bridge', () => {
     app.stop()
   })
 
+  it('passes NMEA 2000 from a gateway, as text, to the app’s NMEA 2000 decoder', async () => {
+    bridge = await startBridge({ port: 0, inputs: [{ kind: 'tcp-server', port: 0, bind: '127.0.0.1', format: 'n2k' }], batchMs: 10 })
+    await until(() => bridge!.inputs()[0].state === 'listening')
+    const reading: Reading = {}
+    let connected = false
+    const app = new BridgeClient(`ws://127.0.0.1:${bridge.port}`, { onReading: (r) => Object.assign(reading, r), onStatus: (s) => (connected = s === 'connected') })
+    app.start()
+    await until(() => connected)
+    const port = Number(bridge.inputs()[0].address.split(':')[1])
+    // Apparent wind 7.72 m/s at 330° as a Yacht Devices RAW frame, and water depth 12.4 m as Actisense N2K ASCII.
+    const gateway = connect(port, '127.0.0.1', () =>
+      gateway.write(['17:33:21.107 R 09FD0223 00 04 03 FC E0 FA FF FF', 'A173321.107 23FF3 1F50B 00D8040000' + '0CFEFF'].join('\r\n') + '\r\n'),
+    )
+    await until(() => reading.awa != null && reading.depthM != null)
+    expect(reading.awa).toBeCloseTo(-30, 1)
+    expect(reading.depthM).toBeCloseTo(12.4, 6)
+    gateway.destroy()
+    app.stop()
+  })
+
   it('turns away a web page from anywhere else', async () => {
     bridge = await startBridge({ port: 0, inputs: [] })
     const status = await new Promise<number>((resolve) => {

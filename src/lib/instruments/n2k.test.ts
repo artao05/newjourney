@@ -115,6 +115,24 @@ describe('fast packets', () => {
     0,
   ]
 
+  it('reads the same messages whole, as an Actisense W2K-1 and a Digital Yacht iKonvert send them', () => {
+    const wind = [0, ...le(772, 2), ...le(rad(330), 2), 0xfa, 0xff, 0xff]
+    const actisense = (pgn: number, src: number, bytes: number[]) =>
+      `A173321.107 ${src.toString(16).padStart(2, '0').toUpperCase()}FF2 ${pgn.toString(16).toUpperCase().padStart(5, '0')} ${bytes.map((b) => b.toString(16).padStart(2, '0').toUpperCase()).join('')}`
+    const ikonvert = (pgn: number, src: number, bytes: number[]) => `!PDGY,${pgn},2,${src},255,0.000,${btoa(String.fromCharCode(...bytes))}`
+    const fromYd = new N2kDecoder().line(yd(130306, 0x23, wind))
+    expect(fromYd).toMatchObject({ awa: expect.closeTo(-30, 2) })
+    expect(new N2kDecoder().line(actisense(130306, 0x23, wind))).toEqual(fromYd)
+    expect(new N2kDecoder().line(ikonvert(130306, 0x23, wind))).toEqual(fromYd)
+    expect(parseN2kLine(actisense(130306, 0x23, wind))).toMatchObject({ pgn: 130306, src: 0x23, priority: 2, whole: true })
+    // A fast-packet PGN comes in one line, already put together.
+    const r = new N2kDecoder().line(actisense(129029, 0x23, gnss))!
+    expect(r.lat).toBeCloseTo(43.6591, 9)
+    expect(new N2kDecoder().line(ikonvert(129029, 0x23, gnss))!.lon).toBeCloseTo(-70.2468, 9)
+    // The iKonvert's own status lines are not frames.
+    expect(parseN2kLine('$PDGY,000000,4,,5,482,1,0')).toBeNull()
+  })
+
   it('puts a GNSS position back together from its frames', () => {
     const d = new N2kDecoder()
     const lines = frames(129029, gnss)

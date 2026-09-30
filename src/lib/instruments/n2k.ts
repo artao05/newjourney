@@ -1,15 +1,20 @@
 /**
  * NMEA 2000: CAN frames from a gateway, decoded into the same `Reading`.
  *
- * Two text forms carry the frames:
+ * Four text forms carry them:
  *
  *   Yacht Devices RAW    17:33:21.107 R 09F80115 A0 7D E6 18 00 00 00 00
- *                        (what a YDNU-02 sends over USB serial in RAW mode)
+ *                        (a YDNU-02 over USB in RAW mode; a YDWG-02 over Wi-Fi, TCP or UDP)
  *   canboat CSV          2026-09-29-10:00:00.000,2,127250,7,255,8,00,ff,7f,...
  *                        (Actisense NGT-1 logs, as canboat's tools write them)
+ *   Actisense N2K ASCII  A173321.107 23FF7 1F503 3F9FDCFFFFFFFFFF
+ *                        (an Actisense W2K-1 over Wi-Fi: source, destination and priority, PGN, data)
+ *   iKonvert             !PDGY,130306,2,35,255,0.000,AAQD+AL///8=
+ *                        (Digital Yacht iKonvert and NavLink2: PGN, priority, source, destination, time, data in base64)
  *
- * Messages over 8 bytes arrive as fast packets, several frames with a sequence
- * counter, and are put back together before decoding. A field holding its
+ * The first two are CAN frames: messages over 8 bytes arrive as fast packets,
+ * several frames with a sequence counter, and are put back together before
+ * decoding. The gateways send the last two whole, so they skip that step. A field holding its
  * "not available" pattern (all ones, or the top value of a signed field)
  * decodes to nothing, never to a number.
  */
@@ -26,6 +31,17 @@ export interface Frame {
   src: number
   priority: number
   data: Uint8Array
+  /** A whole message, as a gateway sends it once it has put the fast packets together. */
+  whole?: boolean
+}
+
+function base64Bytes(b64: string): Uint8Array | null {
+  try {
+    const bin = atob(b64)
+    return Uint8Array.from(bin, (c) => c.charCodeAt(0))
+  } catch {
+    return null
+  }
 }
 
 /** A 29-bit CAN id into PGN, source and priority (ISO 11783 addressing). */
@@ -47,6 +63,22 @@ export function parseN2kLine(line: string): Frame | null {
     const data = Uint8Array.from(yd[2].trim().split(' ').map((b) => parseInt(b, 16)))
     return { ...fromCanId(id), data }
   }
+  // Actisense N2K ASCII: A + time, then SSDDP, the PGN and the data, all hex.
+  const act = /^A\d{6}\.\d{3} ([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-7]) ([0-9A-Fa-f]{5,6}) ((?:[0-9A-Fa-f]{2})*)$/.exec(s)
+  if (act) {
+    const hex = act[5]
+    const data = Uint8Array.from({ length: hex.length / 2 }, (_, i) => parseInt(hex.slice(2 * i, 2 * i + 2), 16))
+    return { pgn: parseInt(act[4], 16), src: parseInt(act[1], 16), priority: Number(act[3]), data, whole: true }
+  }
+  // iKonvert: !PDGY,pgn,priority,source,destination,time,base64. ($PDGY lines are its own status.)
+  if (s.startsWith('!PDGY,')) {
+    const p = s.split(',')
+    if (p.length < 7) return null
+    const [pgn, prio, src] = p.slice(1, 4).map(Number)
+    const data = base64Bytes(p[6])
+    if (!data || ![pgn, prio, src].every(Number.isFinite)) return null
+    return { pgn, src, priority: prio, data, whole: true }
+  }
   const f = s.split(',')
   if (f.length >= 7) {
     const [prio, pgn, src, , len] = f.slice(1, 6).map(Number)
@@ -66,7 +98,7 @@ export class FastPacketAssembler {
   private partial = new Map<string, { seq: number; len: number; bytes: number[]; next: number }>()
 
   push(f: Frame): Frame | null {
-    if (!FAST_PACKET.has(f.pgn)) return f
+    if (f.whole || !FAST_PACKET.has(f.pgn)) return f
     const key = `${f.pgn}:${f.src}`
     const seq = f.data[0] >> 5
     const index = f.data[0] & 0x1f
