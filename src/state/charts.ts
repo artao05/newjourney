@@ -8,7 +8,7 @@ import type { EncCell } from '@/lib/charts/s57'
 import type { DisplayCategory } from '@/lib/charts/s52'
 import { cellStore, groupCellFiles, mergeCell, type StoredCell } from '@/lib/charts/library'
 import { openEncCell } from '@/lib/charts/s57Client'
-import { openRasterChart, type OpenedRaster } from '@/lib/charts/bsbOpen'
+import { openRasterChart, rasterTiles, type OpenedRaster } from '@/lib/charts/bsbOpen'
 
 export interface EncDisplay {
   category: DisplayCategory
@@ -31,7 +31,8 @@ export interface RasterChart {
   name: string
   number: string
   scale: number
-  url: string
+  /** The picture in tiles, each placed by its own corners (bsbOpen's grid); the whole chart's corners are `corners`. */
+  tiles: Array<{ url: string; corners: OpenedRaster['corners'] }>
   corners: OpenedRaster['corners']
   opacity: number
   on: boolean
@@ -75,7 +76,7 @@ export const useCharts = create<ChartsState>()((set) => ({
   removeRaster: (id) =>
     set((s) => {
       const gone = s.rasters.find((r) => r.id === id)
-      if (gone) URL.revokeObjectURL(gone.url)
+      for (const t of gone?.tiles ?? []) URL.revokeObjectURL(t.url)
       return { rasters: s.rasters.filter((r) => r.id !== id) }
     }),
   safetyDepthM: 3,
@@ -185,14 +186,22 @@ export async function openRasterFile(name: string, bytes: Uint8Array, palette = 
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('this browser cannot draw the chart picture')
   ctx.putImageData(new ImageData(new Uint8ClampedArray(r.rgba), r.width, r.height), 0, 0)
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-  if (!blob) throw new Error('this browser cannot draw the chart picture')
+  const tiles: RasterChart['tiles'] = []
+  for (const t of rasterTiles(r)) {
+    const tile = document.createElement('canvas')
+    tile.width = t.w
+    tile.height = t.h
+    tile.getContext('2d')?.drawImage(canvas, t.x, t.y, t.w, t.h, 0, 0, t.w, t.h)
+    const blob = await new Promise<Blob | null>((resolve) => tile.toBlob(resolve, 'image/png'))
+    if (!blob) throw new Error('this browser cannot draw the chart picture')
+    tiles.push({ url: URL.createObjectURL(blob), corners: t.corners })
+  }
   const chart: RasterChart = {
     id: `rnc-${Date.now().toString(36)}-${rasterSeq++}`,
     name: r.name || name,
     number: r.number,
     scale: r.scale,
-    url: URL.createObjectURL(blob),
+    tiles,
     corners: r.corners,
     opacity: 1,
     on: true,

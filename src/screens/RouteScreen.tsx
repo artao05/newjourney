@@ -721,29 +721,35 @@ export function RouteScreen() {
   }, [ready])
   const rasters = useCharts((s) => s.rasters)
   const chartOffset = useStore((s) => s.settings.chartOffset)
-  // Raster charts: an image source each, under the ENC cells and everything else.
-  const shownRasters = useRef(new Map<string, { opacity: number; offset: typeof chartOffset }>())
+  // Raster charts: an image source a tile, under the ENC cells and everything else.
+  const shownRasters = useRef(new Map<string, { opacity: number; offset: typeof chartOffset; tiles: number }>())
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
     const shown = shownRasters.current
-    for (const [id] of [...shown]) {
+    const tileId = (id: string, k: number) => `${id}:${k}`
+    for (const [id, was] of [...shown]) {
       if (rasters.some((r) => r.id === id && r.on)) continue
-      if (map.getLayer(id)) map.removeLayer(id)
-      if (map.getSource(id)) map.removeSource(id)
+      for (let k = 0; k < was.tiles; k++) {
+        if (map.getLayer(tileId(id, k))) map.removeLayer(tileId(id, k))
+        if (map.getSource(tileId(id, k))) map.removeSource(tileId(id, k))
+      }
       shown.delete(id)
     }
     for (const r of rasters) {
       if (!r.on) continue
       const was = shown.get(r.id)
-      if (!was) {
-        map.addSource(r.id, { type: 'image', url: r.url, coordinates: offsetCorners(r.corners, chartOffset) })
-        map.addLayer({ id: r.id, type: 'raster', source: r.id, paint: { 'raster-opacity': r.opacity } }, 'enc-area')
-      } else {
-        if (was.opacity !== r.opacity) map.setPaintProperty(r.id, 'raster-opacity', r.opacity)
-        if (was.offset !== chartOffset) (map.getSource(r.id) as maplibregl.ImageSource | undefined)?.setCoordinates(offsetCorners(r.corners, chartOffset))
-      }
-      shown.set(r.id, { opacity: r.opacity, offset: chartOffset })
+      r.tiles.forEach((t, k) => {
+        const id = tileId(r.id, k)
+        if (!was) {
+          map.addSource(id, { type: 'image', url: t.url, coordinates: offsetCorners(t.corners, chartOffset) })
+          map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-opacity': r.opacity, 'raster-fade-duration': 0 } }, 'enc-area')
+        } else {
+          if (was.opacity !== r.opacity) map.setPaintProperty(id, 'raster-opacity', r.opacity)
+          if (was.offset !== chartOffset) (map.getSource(id) as maplibregl.ImageSource | undefined)?.setCoordinates(offsetCorners(t.corners, chartOffset))
+        }
+      })
+      shown.set(r.id, { opacity: r.opacity, offset: chartOffset, tiles: r.tiles.length })
     }
   }, [ready, rasters, chartOffset])
   // Installed cells come back once a session.

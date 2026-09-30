@@ -107,9 +107,9 @@ describe('BSB/KAP raster charts', () => {
   })
 
   it('uses the polynomials for a chart not on Mercator', () => {
-    // Longitude = -70.3 + 0.0005·x, latitude = 43.7 - 0.0005·y, and back.
+    // Pixel to world (PWX, PWY): longitude = -70.3 + 0.0005·x, latitude = 43.7 - 0.0005·y; WPX and WPY go back.
     const h = parseBsbHeader(
-      ['KNP/SC=5000,PR=TRANSVERSE MERCATOR', 'REF/1,0,0,43.7,-70.3', 'REF/2,100,100,43.65,-70.25', 'WPX/1,-70.3,0.0005,0', 'WPY/1,43.7,0,-0.0005', 'PWX/1,140600,2000,0', 'PWY/1,87400,0,-2000'].join('\n'),
+      ['KNP/SC=5000,PR=TRANSVERSE MERCATOR', 'REF/1,0,0,43.7,-70.3', 'REF/2,100,100,43.65,-70.25', 'PWX/1,-70.3,0.0005,0', 'PWY/1,43.7,0,-0.0005', 'WPX/1,140600,2000,0', 'WPY/1,87400,0,-2000'].join('\n'),
     )
     const geo = bsbGeoref(h)
     expect(geo.method).toBe('polynomial')

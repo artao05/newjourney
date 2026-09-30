@@ -38,7 +38,7 @@ export interface BsbHeader {
   border: LatLon[]
   /** Datum shift in seconds of arc, added to positions from the chart. */
   dtm: { lat: number; lon: number }
-  /** Pixel to longitude and latitude, and back, when the header has them. */
+  /** World to pixel (WPX, WPY: pixel x and y from longitude and latitude) and pixel to world (PWX, PWY), when the header has them. */
   wpx: BsbPolynomial | null
   wpy: BsbPolynomial | null
   pwx: BsbPolynomial | null
@@ -64,7 +64,11 @@ function records(text: string): Array<{ tag: string; body: string }> {
   for (const raw of text.split(/\r?\n/)) {
     if (!raw.trim() || raw.startsWith('!')) continue
     if (/^\s/.test(raw) && out.length) {
-      out[out.length - 1].body += raw.trim()
+      // A continuation is the record's next item. NOAA's charts wrap between items
+      // without a comma at either end, so one is put back when neither side has it.
+      const prev = out[out.length - 1]
+      const more = raw.trim()
+      prev.body += prev.body.endsWith(',') || more.startsWith(',') ? more : `,${more}`
       continue
     }
     const m = /^([A-Z0-9]{3})\/(.*)$/.exec(raw.trim())
@@ -254,8 +258,8 @@ export function bsbGeoref(h: BsbHeader): BsbGeoref {
   let method: BsbGeoref['method']
   if (usePoly) {
     method = 'polynomial'
-    toLatLon = (x, y) => ({ lat: poly(h.wpy!, x, y) + sh.lat, lon: poly(h.wpx!, x, y) + sh.lon })
-    toPixel = (p) => ({ x: poly(h.pwx!, p.lon - sh.lon, p.lat - sh.lat), y: poly(h.pwy!, p.lon - sh.lon, p.lat - sh.lat) })
+    toLatLon = (x, y) => ({ lat: poly(h.pwy!, x, y) + sh.lat, lon: poly(h.pwx!, x, y) + sh.lon })
+    toPixel = (p) => ({ x: poly(h.wpx!, p.lon - sh.lon, p.lat - sh.lat), y: poly(h.wpy!, p.lon - sh.lon, p.lat - sh.lat) })
   } else {
     const merc = h.projection === 'MERCATOR' || !h.projection
     method = merc ? 'mercator' : 'linear'

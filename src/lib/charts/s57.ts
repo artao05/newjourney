@@ -17,17 +17,44 @@
  */
 import { parse8211, type Field, type Value } from './iso8211'
 
-/** Object classes by code, the ones a sailor's chart draws most. */
+/** Object classes by code: the whole S-57 3.1 catalogue (IHO S-57 Appendix A, chapter 1). */
 export const OBJECT_CLASSES: Record<number, string> = {
-  4: 'ACHARE', 5: 'BCNCAR', 6: 'BCNISD', 7: 'BCNLAT', 8: 'BCNSAW', 9: 'BCNSPP', 11: 'BRIDGE', 14: 'BOYCAR', 15: 'BOYINB', 16: 'BOYISD', 17: 'BOYLAT', 18: 'BOYSAW', 19: 'BOYSPP',
-  30: 'COALNE', 39: 'DAYMAR', 42: 'DEPARE', 46: 'DRGARE', 43: 'DEPCNT', 71: 'LNDARE', 74: 'LNDMRK', 75: 'LIGHTS', 76: 'LITFLT', 77: 'LITVES', 86: 'OBSTRN', 112: 'RESARE', 122: 'SLCONS',
-  129: 'SOUNDG', 144: 'TOPMAR', 153: 'UWTROC', 159: 'WRECKS', 302: 'M_COVR', 308: 'M_QUAL',
+  1: 'ADMARE', 2: 'AIRARE', 3: 'ACHBRT', 4: 'ACHARE', 5: 'BCNCAR', 6: 'BCNISD', 7: 'BCNLAT', 8: 'BCNSAW', 9: 'BCNSPP', 10: 'BERTHS', 11: 'BRIDGE', 12: 'BUISGL',
+  13: 'BUAARE', 14: 'BOYCAR', 15: 'BOYINB', 16: 'BOYISD', 17: 'BOYLAT', 18: 'BOYSAW', 19: 'BOYSPP', 20: 'CBLARE', 21: 'CBLOHD', 22: 'CBLSUB', 23: 'CANALS', 24: 'CANBNK',
+  25: 'CTSARE', 26: 'CAUSWY', 27: 'CTNARE', 28: 'CHKPNT', 29: 'CGUSTA', 30: 'COALNE', 31: 'CONZNE', 32: 'COSARE', 33: 'CTRPNT', 34: 'CONVYR', 35: 'CRANES', 36: 'CURENT',
+  37: 'CUSZNE', 38: 'DAMCON', 39: 'DAYMAR', 40: 'DWRTCL', 41: 'DWRTPT', 42: 'DEPARE', 43: 'DEPCNT', 44: 'DISMAR', 45: 'DOCARE', 46: 'DRGARE', 47: 'DRYDOC', 48: 'DMPGRD',
+  49: 'DYKCON', 50: 'EXEZNE', 51: 'FAIRWY', 52: 'FNCLNE', 53: 'FERYRT', 54: 'FSHZNE', 55: 'FSHFAC', 56: 'FSHGRD', 57: 'FLODOC', 58: 'FOGSIG', 59: 'FORSTC', 60: 'FRPARE',
+  61: 'GATCON', 62: 'GRIDRN', 63: 'HRBARE', 64: 'HRBFAC', 65: 'HULKES', 66: 'ICEARE', 67: 'ICNARE', 68: 'ISTZNE', 69: 'LAKARE', 70: 'LAKSHR', 71: 'LNDARE', 72: 'LNDELV',
+  73: 'LNDRGN', 74: 'LNDMRK', 75: 'LIGHTS', 76: 'LITFLT', 77: 'LITVES', 78: 'LOCMAG', 79: 'LOKBSN', 80: 'LOGPON', 81: 'MAGVAR', 82: 'MARCUL', 83: 'MIPARE', 84: 'MORFAC',
+  85: 'NAVLNE', 86: 'OBSTRN', 87: 'OFSPLF', 88: 'OSPARE', 89: 'OILBAR', 90: 'PILPNT', 91: 'PILBOP', 92: 'PIPARE', 93: 'PIPOHD', 94: 'PIPSOL', 95: 'PONTON', 96: 'PRCARE',
+  97: 'PRDARE', 98: 'PYLONS', 99: 'RADLNE', 100: 'RADRNG', 101: 'RADRFL', 102: 'RADSTA', 103: 'RTPBCN', 104: 'RDOCAL', 105: 'RDOSTA', 106: 'RAILWY', 107: 'RAPIDS', 108: 'RCRTCL',
+  109: 'RECTRC', 110: 'RCTLPT', 111: 'RSCSTA', 112: 'RESARE', 113: 'RETRFL', 114: 'RIVERS', 115: 'RIVBNK', 116: 'ROADWY', 117: 'RUNWAY', 118: 'SNDWAV', 119: 'SEAARE', 120: 'SPLARE',
+  121: 'SBDARE', 122: 'SLCONS', 123: 'SISTAT', 124: 'SISTAW', 125: 'SILTNK', 126: 'SLOTOP', 127: 'SLOGRD', 128: 'SMCFAC', 129: 'SOUNDG', 130: 'SPRING', 131: 'SQUARE', 132: 'STSLNE',
+  133: 'SUBTLN', 134: 'SWPARE', 135: 'TESARE', 136: 'TS_PRH', 137: 'TS_PNH', 138: 'TS_PAD', 139: 'TS_TIS', 140: 'T_HMON', 141: 'T_NHMN', 142: 'T_TIMS', 143: 'TIDEWY', 144: 'TOPMAR',
+  145: 'TSELNE', 146: 'TSSBND', 147: 'TSSCRS', 148: 'TSSLPT', 149: 'TSSRON', 150: 'TSEZNE', 151: 'TUNNEL', 152: 'TWRTPT', 153: 'UWTROC', 154: 'UNSARE', 155: 'VEGATN', 156: 'WATTUR',
+  157: 'WATFAL', 158: 'WEDKLP', 159: 'WRECKS', 160: 'TS_FEB', 300: 'M_ACCY', 301: 'M_CSCL', 302: 'M_COVR', 303: 'M_HDAT', 304: 'M_HOPA', 305: 'M_NPUB', 306: 'M_NSYS', 307: 'M_PROD',
+  308: 'M_QUAL', 309: 'M_SDAT', 310: 'M_SREL', 311: 'M_UNIT', 312: 'M_VDAT', 400: 'C_AGGR', 401: 'C_ASSO', 402: 'C_STAC',
 }
 
-/** Attributes by code: the ones the display and the depth checks need. */
+/** Attributes by code: the whole S-57 3.1 catalogue (Appendix A, chapter 2), national and spatial ones included. */
 export const ATTRIBUTES: Record<number, string> = {
-  2: 'BCNSHP', 4: 'BOYSHP', 13: 'CATCAM', 35: 'CATLMK', 36: 'CATLAM', 37: 'CATLIT', 75: 'COLOUR', 76: 'COLPAT', 87: 'DRVAL1', 88: 'DRVAL2', 95: 'HEIGHT', 107: 'LITCHR', 108: 'LITVIS', 116: 'OBJNAM', 117: 'ORIENT', 133: 'SCAMIN',
-  136: 'SECTR1', 137: 'SECTR2', 141: 'SIGGRP', 142: 'SIGPER', 171: 'TOPSHP', 174: 'VALDCO', 178: 'VALNMR', 179: 'VALSOU',
+  1: 'AGENCY', 2: 'BCNSHP', 3: 'BUISHP', 4: 'BOYSHP', 5: 'BURDEP', 6: 'CALSGN', 7: 'CATAIR', 8: 'CATACH', 9: 'CATBRG', 10: 'CATBUA', 11: 'CATCBL', 12: 'CATCAN',
+  13: 'CATCAM', 14: 'CATCHP', 15: 'CATCOA', 16: 'CATCTR', 17: 'CATCON', 18: 'CATCOV', 19: 'CATCRN', 20: 'CATDAM', 21: 'CATDIS', 22: 'CATDOC', 23: 'CATDPG', 24: 'CATFNC',
+  25: 'CATFRY', 26: 'CATFIF', 27: 'CATFOG', 28: 'CATFOR', 29: 'CATGAT', 30: 'CATHAF', 31: 'CATHLK', 32: 'CATICE', 33: 'CATINB', 34: 'CATLND', 35: 'CATLMK', 36: 'CATLAM',
+  37: 'CATLIT', 38: 'CATMFA', 39: 'CATMPA', 40: 'CATMOR', 41: 'CATNAV', 42: 'CATOBS', 43: 'CATOFP', 44: 'CATOLB', 45: 'CATPLE', 46: 'CATPIL', 47: 'CATPIP', 48: 'CATPRA',
+  49: 'CATPYL', 50: 'CATQUA', 51: 'CATRAS', 52: 'CATRTB', 53: 'CATROS', 54: 'CATTRK', 55: 'CATRSC', 56: 'CATREA', 57: 'CATROD', 58: 'CATRUN', 59: 'CATSEA', 60: 'CATSLC',
+  61: 'CATSIT', 62: 'CATSIW', 63: 'CATSIL', 64: 'CATSLO', 65: 'CATSCF', 66: 'CATSPM', 67: 'CATTSS', 68: 'CATVEG', 69: 'CATWAT', 70: 'CATWED', 71: 'CATWRK', 72: 'CATZOC',
+  73: '$SPACE', 74: '$CHARS', 75: 'COLOUR', 76: 'COLPAT', 77: 'COMCHA', 78: '$CSIZE', 79: 'CPDATE', 80: 'CSCALE', 81: 'CONDTN', 82: 'CONRAD', 83: 'CONVIS', 84: 'CURVEL',
+  85: 'DATEND', 86: 'DATSTA', 87: 'DRVAL1', 88: 'DRVAL2', 89: 'DUNITS', 90: 'ELEVAT', 91: 'ESTRNG', 92: 'EXCLIT', 93: 'EXPSOU', 94: 'FUNCTN', 95: 'HEIGHT', 96: 'HUNITS',
+  97: 'HORACC', 98: 'HORCLR', 99: 'HORLEN', 100: 'HORWID', 101: 'ICEFAC', 102: 'INFORM', 103: 'JRSDTN', 104: '$JUSTH', 105: '$JUSTV', 106: 'LIFCAP', 107: 'LITCHR', 108: 'LITVIS',
+  109: 'MARSYS', 110: 'MLTYLT', 111: 'NATION', 112: 'NATCON', 113: 'NATSUR', 114: 'NATQUA', 115: 'NMDATE', 116: 'OBJNAM', 117: 'ORIENT', 118: 'PEREND', 119: 'PERSTA', 120: 'PICREP',
+  121: 'PILDST', 122: 'PRCTRY', 123: 'PRODCT', 124: 'PUBREF', 125: 'QUASOU', 126: 'RADWAL', 127: 'RADIUS', 128: 'RECDAT', 129: 'RECIND', 130: 'RYRMGV', 131: 'RESTRN', 132: 'SCAMAX',
+  133: 'SCAMIN', 134: 'SCVAL1', 135: 'SCVAL2', 136: 'SECTR1', 137: 'SECTR2', 138: 'SHIPAM', 139: 'SIGFRQ', 140: 'SIGGEN', 141: 'SIGGRP', 142: 'SIGPER', 143: 'SIGSEQ', 144: 'SOUACC',
+  145: 'SDISMX', 146: 'SDISMN', 147: 'SORDAT', 148: 'SORIND', 149: 'STATUS', 150: 'SURATH', 151: 'SUREND', 152: 'SURSTA', 153: 'SURTYP', 154: '$SCALE', 155: '$SCODE', 156: 'TECSOU',
+  157: '$TXSTR', 158: 'TXTDSC', 159: 'TS_TSP', 160: 'TS_TSV', 161: 'T_ACWL', 162: 'T_HWLW', 163: 'T_MTOD', 164: 'T_THDF', 165: 'T_TINT', 166: 'T_TSVL', 167: 'T_VAHC', 168: 'TIMEND',
+  169: 'TIMSTA', 170: '$TINTS', 171: 'TOPSHP', 172: 'TRAFIC', 173: 'VALACM', 174: 'VALDCO', 175: 'VALLMA', 176: 'VALMAG', 177: 'VALMXR', 178: 'VALNMR', 179: 'VALSOU', 180: 'VERACC',
+  181: 'VERCCL', 182: 'VERCLR', 183: 'VERCOP', 184: 'VERCSA', 185: 'VERDAT', 186: 'VERLEN', 187: 'WATLEV', 188: 'CAT_TS', 189: 'PUNITS', 300: 'NINFOM', 301: 'NOBJNM', 302: 'NPLDST',
+  303: '$NTXST', 304: 'NTXTDS', 400: 'HORDAT', 401: 'POSACC', 402: 'QUAPOS',
 }
 
 export type Geometry =
@@ -169,8 +196,12 @@ function readDataset(rec: Field[], into: { name: string; edition: string; update
 export function readS57(input: Uint8Array | ArrayBuffer): S57Records {
   const f = parse8211(input)
   const r: S57Records = { name: '', edition: '', update: '', comf: 10_000_000, somf: 10, scale: 0, vectors: new Map(), features: new Map(), warnings: [] }
+  let declared: { features: number; vectors: number } | null = null
   for (const rec of f.records) {
     readDataset(rec, r)
+    // The cell's own count of its records (DSSI), to check the read against.
+    const dssi = field(rec, 'DSSI')?.groups[0]
+    if (dssi) declared = { features: n(dssi.NOMR) + n(dssi.NOCR) + n(dssi.NOGR) + n(dssi.NOLR), vectors: n(dssi.NOIN) + n(dssi.NOCN) + n(dssi.NOED) + n(dssi.NOFA) }
     const vrid = field(rec, 'VRID')?.groups[0]
     if (vrid) {
       const c = coordsOf(rec)
@@ -181,6 +212,8 @@ export function readS57(input: Uint8Array | ArrayBuffer): S57Records {
       r.features.set(`${n(frid.RCNM)}:${n(frid.RCID)}`, { rver: n(frid.RVER), prim: n(frid.PRIM), objl: n(frid.OBJL), attrs: attrsOf(rec), pointers: featPointers(rec) })
     }
   }
+  if (declared && Number.isFinite(declared.features) && (declared.features !== r.features.size || declared.vectors !== r.vectors.size))
+    r.warnings.push(`the cell lists ${declared.features} features and ${declared.vectors} vectors; ${r.features.size} and ${r.vectors.size} were read`)
   return r
 }
 

@@ -238,9 +238,11 @@ leaves something tested and working.
 - [x] **10.1 GRIB2 decoder** in a worker, starting with simple and complex packing
       with spatial differencing, which covers GFS. *Accept:* fixture tests on a real
       GFS subset.
-- [ ] **10.1b Check the GRIB2 decoder on a real GFS file.** 10.1 is tested on messages
+- [x] **10.1b Check the GRIB2 decoder on a real GFS file.** 10.1 is tested on messages
       built byte by byte to the WMO layout, because there is no GRIB file here. Unblocked 2026-09-30
       (D8: download them); worked in M16.
+      *Whole global GFS messages in NCEP's complex packing with second-order spatial differencing
+      decode exactly as NOAA's wgrib2 does at every shared point (grib2.real.test.ts).*
 - [x] **10.2 GRIB2 PNG packing**, then **GRIB1**. *Accept:* fixture tests. *PNG with a
       small inflate of our own (src/lib/inflate.ts); GRIB1 with NCEP and ECMWF tables.*
 - [x] **10.3 Open GRIB files** by picker or drag-drop, several at once, with a
@@ -288,8 +290,8 @@ leaves something tested and working.
 
 - [x] **11.1 Harmonic tide engine** from NOAA constituents. *Accept:* agreement with
       NOAA predictions to within a stated tolerance. *2–4 mm RMS, under 7 mm worst, against NOAA's
-      hourly predictions for Portland over weeks in 2026 and 2027 (checked live); a committed
-      regression fixture of NOAA's numbers waits on D8.*
+      hourly predictions for Portland over weeks in 2026 and 2027 (checked live); the committed
+      regression is a week of NOAA's numbers, 2.0 mm RMS and 4.0 mm at worst (harmonic.real.test.ts).*
 - [x] **11.2 Tide stations:** nearest-station lookup, an offline constituent pack, the
       tide curve, and tide channels. *Accept:* tests. *Constants are kept on the device once
       fetched rather than shipped as a pack; the channels are 11.2b.*
@@ -331,8 +333,12 @@ leaves something tested and working.
 
 - [x] **13.1 ISO 8211 reader.** *Accept:* it parses a NOAA ENC cell fixture. *Tested on records built to
       the ISO 8211 layout with S-57-shaped fields; a real cell is 13.1b.*
-- [ ] **13.1b Check the reader on a real NOAA ENC cell.** Unblocked 2026-09-30 (D8); worked
+- [x] **13.1b Check the reader on a real NOAA ENC cell.** Unblocked 2026-09-30 (D8); worked
       in M16.
+      *US5PWMDC with update 1: the records read equal the cell's own DSSI counts (1,568 features
+      and 3,945 vectors, then 1,570), and it drew in the app. It showed that most object classes and
+      attributes had no names; the whole S-57 catalogue is in now. A cell whose counts disagree
+      with its DSSI now says so.*
 - [x] **13.2 S-57 decoder** to features in a worker. *Accept:* feature counts match
       GDAL's on the same cell.
       *On a cell built to the layout; feature counts against a real cell wait on 13.1b (D8).*
@@ -360,8 +366,12 @@ leaves something tested and working.
 - [x] **13.8 BSB/KAP raster charts.** *Accept:* it decodes a NOAA RNC fixture.
       *Decoder, georeferencing and display on the Route chart, on charts built to the layout
       (lib/charts/fixtures/bsb.ts); the real-chart check is 13.8b.*
-- [ ] **13.8b Check the raster reader on a real BSB/KAP chart.** Unblocked 2026-09-30 (D8); worked
+- [x] **13.8b Check the raster reader on a real BSB/KAP chart.** Unblocked 2026-09-30 (D8); worked
       in M16.
+      *NOAA's 14983 found two bugs: wrapped header lines were joined without their comma, so the
+      polynomials read as nothing, and pixel-to-world and world-to-pixel were swapped. Its reference
+      points now land within a pixel. It also showed that one four-corner warp is 23 m out across a
+      Lambert chart, so charts now draw in tiles, each within 2 m.*
 - [x] **13.9 Georeferenced custom images, and GPS chart offset.** *Accept:* tests.
       *Images placed by two or more control points (Mercator or lat/lon); a chart offset in metres
       moves the ENC and raster charts (lib/charts/georef.ts). The base map cannot be moved.*
@@ -478,10 +488,12 @@ then the Partial rows; then the Hardware rows, tested against recordings.
       complex packing, WMM2025 with NCEI's test values, ENC US5PWMDC with its update, RNC 14983
       (the Internet Archive's copy of NOAA's file, since NOAA withdrew RNCs), and CO-OPS
       constants, datums and a week of predictions. Checked in src/realFiles.test.ts.*
-- [ ] **16.2 Real-file checks:** 10.1b (GFS through the GRIB2 decoder, values against the
+- [x] **16.2 Real-file checks:** 10.1b (GFS through the GRIB2 decoder, values against the
       NOMADS listing), 13.1b (the ENC cell's feature counts), 13.8b (the KAP's size, palette
       and corners), and the 11.1 regression fixture. Fix whatever the real files show.
       *Accept:* tests on the real files.
+      *All four, with the fixes each found (10.1b, 13.1b, 13.8b above). Checked in the app: the
+      Portland cell with Spring Point Ledge Light's sectors, and chart 14983 drawn in 30 tiles.*
 - [ ] **16.3 Position-aware magnetic variation (11.5)** from WMM-2025: variation at the boat,
       the pointer and each mark, with a date. *Accept:* agreement with NOAA's published
       test values.
