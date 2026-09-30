@@ -438,7 +438,7 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       kept (P1-012, P1-217, P1-221, P2-193, P2-215, P2-187). *Accept:* tests.
       *Checked on a live route (55 isochrones). The tap readout gives the isochrone and DNM % but
       not yet the speed and weather there.*
-- [ ] **15.9 Course wizards and start extras:** Olympic triangle and trapezoid wizards,
+- [x] **15.9 Course wizards and start extras:** Olympic triangle and trapezoid wizards,
       start line ends from marks, a separate finish mark, start time ratios (P1-165,
       P1-166, P2-107, P2-244, P1-180). *Accept:* tests.
 - [ ] **15.10 Weather presets and info:** display presets 1–9, hide all weather,

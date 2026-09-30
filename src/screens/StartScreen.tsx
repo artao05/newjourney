@@ -10,7 +10,7 @@ import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
 import { StartCanvas } from '@/components/StartCanvas'
 import { Tile, fmtAgo, fmtClock, fmtSigned } from '@/components/Tile'
-import { COG_TRUSTED_KN, computeStart, fixQuality, pingPosition, spareTimeS } from '@/lib/startline'
+import { COG_TRUSTED_KN, computeStart, fixQuality, pingPosition, spareTimeS, timeRatio } from '@/lib/startline'
 import { usePolarLattices } from '@/hooks/usePolars'
 import { applyWhatIfCurrent, applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { LineSheet } from '@/components/LineSheet'
@@ -505,6 +505,7 @@ function DetailSheet({
       <div className="rows">
         {row('Time to gun', fmtClock(numbers.timeToGunS))}
         {row('Time to line', s(numbers.timeToLineS, 0, ' s'))}
+        {row('Time ratio (gun ÷ line)', s(timeRatio(numbers.timeToGunS, numbers.timeToLineS), 2))}
         {row(
           'Spare time (burn)',
           fmtSigned(numbers.timeToBurnS == null ? null : -numbers.timeToBurnS),

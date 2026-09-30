@@ -24,7 +24,7 @@ import { computeTactics } from '@/lib/tactics'
 import { angsep, fmtDeg, fmtShift } from '@/lib/angles'
 import { sailAt } from '@/lib/sailchart'
 import { distance, bearing, destination } from '@/lib/geo'
-import { buildWLCourse } from '@/lib/wlcourse'
+import { buildTrapezoidCourse, buildTriangleCourse, buildWLCourse } from '@/lib/wlcourse'
 import { NO_WHAT_IF, applyWhatIfCurrent, applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { gateNumbers } from '@/lib/gates'
 import { declinationAt, magneticToTrue, trueToMagnetic } from '@/lib/magnetic'
@@ -68,6 +68,11 @@ export function RaceScreen() {
   const [wlLaps, setWlLaps] = useState(2)
   const [wlAbove, setWlAbove] = useState<'committee' | 'middle' | 'pin'>('middle')
   const [wlLeave, setWlLeave] = useState<'port' | 'starboard'>('port')
+  const [shape, setShape] = useState<'wl' | 'triangle' | 'trapezoid'>('wl')
+  const [wingDeg, setWingDeg] = useState(60)
+  const [triOrder, setTriOrder] = useState<'triangle' | 'olympic'>('olympic')
+  const [reachShare, setReachShare] = useState(0.67)
+  const [finishNm, setFinishNm] = useState<number | null>(null)
   const northRef = useStore((s) => s.settings.northRef)
 
   const lineMid = useMemo(() => {
@@ -446,12 +451,19 @@ export function RaceScreen() {
           </button>
         )}
 
-        <h2>Windward / leeward course</h2>
+        <h2>Course wizard</h2>
         <p className="note">
-          Builds a course around the start line you already pinged, as Expedition&apos;s
-          W/L wizard does. A positive leeward distance puts the leeward mark above the
-          line, the usual modern course; negative puts it below.
+          Builds a course around the start line you already pinged: windward-leeward, an
+          Olympic triangle, or a trapezoid. A positive leeward distance puts the leeward mark
+          above the line, the usual modern course; negative puts it below.
         </p>
+        <div className="seg" role="group" aria-label="Course shape" style={{ marginBottom: 6 }}>
+          {(['wl', 'triangle', 'trapezoid'] as const).map((k) => (
+            <button key={k} aria-pressed={shape === k} onClick={() => setShape(k)}>
+              {k === 'wl' ? 'W/L' : k === 'triangle' ? 'Triangle' : 'Trapezoid'}
+            </button>
+          ))}
+        </div>
         <div className="field">
           <label htmlFor="wl-axis">
             Axis <span className="note">°{northRef === 'magnetic' ? 'M' : 'T'}</span>
@@ -475,7 +487,36 @@ export function RaceScreen() {
           <input id="wl-down" type="number" step="0.05" value={wlDown}
             onChange={(e) => setWlDown(Number(e.target.value))} inputMode="decimal" />
         </div>
+        {shape === 'triangle' && (
+          <>
+            <div className="seg" role="group" aria-label="Triangle angle" style={{ marginBottom: 6 }}>
+              {[60, 45].map((a) => (
+                <button key={a} aria-pressed={wingDeg === a} onClick={() => setWingDeg(a)}>
+                  {a === 60 ? '60° equilateral' : '45° square at the wing'}
+                </button>
+              ))}
+            </div>
+            <div className="seg" role="group" aria-label="Triangle order" style={{ marginBottom: 6 }}>
+              <button aria-pressed={triOrder === 'olympic'} onClick={() => setTriOrder('olympic')}>Olympic 1-2-3-1-3</button>
+              <button aria-pressed={triOrder === 'triangle'} onClick={() => setTriOrder('triangle')}>Triangles 1-2-3</button>
+            </div>
+          </>
+        )}
+        {shape === 'trapezoid' && (
+          <div className="field">
+            <label htmlFor="tz-reach">Reach <span className="note">as a share of the beat</span></label>
+            <input id="tz-reach" type="number" step="0.05" min="0.2" max="1.5" value={reachShare}
+              onChange={(e) => setReachShare(Math.max(0.2, Math.min(1.5, Number(e.target.value) || 0.67)))} inputMode="decimal" />
+          </div>
+        )}
         <div className="field">
+          <label htmlFor="wl-finish">
+            Finish mark <span className="note">nm up from the line, blank to finish at the line</span>
+          </label>
+          <input id="wl-finish" type="number" step="0.05" placeholder="the line" value={finishNm ?? ''}
+            onChange={(e) => setFinishNm(e.target.value.trim() === '' || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value))} inputMode="decimal" />
+        </div>
+        {shape === 'wl' && <div className="field">
           <label htmlFor="wl-gate">
             Leeward gate <span className="note">m wide, blank for a mark</span>
           </label>
@@ -484,20 +525,20 @@ export function RaceScreen() {
               const v = Number(e.target.value)
               setWlGate(e.target.value.trim() === '' || !(v > 0) ? null : v)
             }} inputMode="numeric" />
-        </div>
+        </div>}
         <div className="field">
           <label htmlFor="wl-laps">Laps</label>
           <input id="wl-laps" type="number" step="1" min="1" max="10" value={wlLaps}
             onChange={(e) => setWlLaps(Math.max(1, Math.min(10, Math.round(Number(e.target.value)) || 1)))}
             inputMode="numeric" />
         </div>
-        <div className="seg" role="group" aria-label="Leeward mark above" style={{ marginBottom: 6 }}>
+        {shape === 'wl' && <div className="seg" role="group" aria-label="Leeward mark above" style={{ marginBottom: 6 }}>
           {(['committee', 'middle', 'pin'] as const).map((a) => (
             <button key={a} aria-pressed={wlAbove === a} onClick={() => setWlAbove(a)}>
               {a === 'committee' ? 'Above RC' : a === 'middle' ? 'Mid-line' : 'Above pin'}
             </button>
           ))}
-        </div>
+        </div>}
         <div className="seg" role="group" aria-label="Leave marks to" style={{ marginBottom: 6 }}>
           {(['port', 'starboard'] as const).map((r) => (
             <button key={r} aria-pressed={wlLeave === r} onClick={() => setWlLeave(r)}>
@@ -514,17 +555,23 @@ export function RaceScreen() {
               if (!port || !starboard) return
               const axisTrue =
                 northRef === 'magnetic' ? magneticToTrue(wlAxis, declinationAt(PILOT_VENUE.declination, now)) : wlAxis
+              const line = { port, starboard }
               replaceMarks(
-                buildWLCourse({
-                  line: { port, starboard },
-                  axisTrue,
-                  windwardNm: wlUp,
-                  leewardNm: wlDown,
-                  leewardAbove: wlAbove,
-                  gateWidthM: wlGate,
-                  leaveTo: wlLeave,
-                  laps: wlLaps,
-                }),
+                shape === 'triangle'
+                  ? buildTriangleCourse({ line, axisTrue, windwardNm: wlUp, leewardNm: wlDown, wingDeg, leaveTo: wlLeave, order: triOrder, laps: wlLaps, finishNm })
+                  : shape === 'trapezoid'
+                    ? buildTrapezoidCourse({ line, axisTrue, windwardNm: wlUp, leewardNm: wlDown, reachShare, reachDeg: 60, leaveTo: wlLeave, laps: wlLaps, finishNm })
+                    : buildWLCourse({
+                        line,
+                        axisTrue,
+                        windwardNm: wlUp,
+                        leewardNm: wlDown,
+                        leewardAbove: wlAbove,
+                        gateWidthM: wlGate,
+                        leaveTo: wlLeave,
+                        laps: wlLaps,
+                        finishNm,
+                      }),
               )
             }}
           >

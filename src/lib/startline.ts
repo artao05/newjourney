@@ -784,3 +784,12 @@ function crossingPoint(
 export function spareTimeS(n: Pick<StartNumbers, 'timeToBurnS'>): Seconds | null {
   return n.timeToBurnS == null || !Number.isFinite(n.timeToBurnS) ? null : -n.timeToBurnS
 }
+
+/**
+ * Time to the gun over time to the line: above 1 there is time in hand, below 1 the
+ * boat will be late. Null until both are known and the gun is still to come.
+ */
+export function timeRatio(toGunS: number | null, toLineS: number | null): number | null {
+  if (toGunS == null || toLineS == null || !(toGunS > 0) || !(toLineS > 0)) return null
+  return toGunS / toLineS
+}

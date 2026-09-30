@@ -2294,6 +2294,30 @@ describe('marks can be edited, and placed on the chart', () => {
 })
 
 describe("the W/L wizard builds Expedition's course", () => {
+  it('builds an Olympic triangle, or a trapezoid, with a finish mark of its own', () => {
+    populatedStore()
+    render(<RaceScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'Triangle' }))
+    fireEvent.change(screen.getByLabelText('Laps'), { target: { value: '1' } })
+    fireEvent.change(screen.getByLabelText(/^Finish mark/), { target: { value: '0.2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'BUILD COURSE' }))
+    expect(useStore.getState().course.marks.map((m) => m.name)).toEqual(['Windward', 'Wing', 'Leeward', 'Windward', 'Leeward', 'Finish'])
+    fireEvent.click(screen.getByRole('button', { name: 'Trapezoid' }))
+    fireEvent.click(screen.getByRole('button', { name: 'BUILD COURSE' }))
+    expect(useStore.getState().course.marks.map((m) => m.name)).toEqual(['Windward', 'Offset top', 'Offset bottom', 'Leeward', 'Finish'])
+  })
+
+  it('makes a mark the pin or the committee end of the line', () => {
+    populatedStore()
+    const w = useStore.getState().course.marks[0]
+    render(<RaceScreen />)
+    fireEvent.click(screen.getByRole('button', { name: `Edit mark ${w.name}` }))
+    fireEvent.click(screen.getByRole('button', { name: 'MAKE PIN END' }))
+    expect(useStore.getState().course.startLine.port).toEqual(w.position)
+    fireEvent.click(screen.getByRole('button', { name: 'MAKE RC END' }))
+    expect(useStore.getState().course.startLine.starboard).toEqual(w.position)
+  })
+
   it('lays a gate above the line and laps, with every mark rounded on the chosen side', () => {
     populatedStore()
     render(<RaceScreen />)

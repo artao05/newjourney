@@ -29,6 +29,7 @@ export function MarkSheet({ mark, index, count, onClose }: {
   const moveMark = useStore((s) => s.moveMark)
   const removeMark = useStore((s) => s.removeMark)
   const addMark = useStore((s) => s.addMark)
+  const setStartEnd = useStore((s) => s.setStartEnd)
   const [posText, setPosText] = useState(fmtPosition(mark.position))
   const parsed = parseLatLon(posText)
   const [rangeNm, setRangeNm] = useState('')
@@ -156,6 +157,14 @@ export function MarkSheet({ mark, index, count, onClose }: {
           </button>
         </div>
       )}
+      <div className="actions">
+        <button className="btn btn--sm btn--ghost" onClick={() => setStartEnd('port', mark.position)} title="This mark's position as the start line's pin end">
+          MAKE PIN END
+        </button>
+        <button className="btn btn--sm btn--ghost" onClick={() => setStartEnd('starboard', mark.position)} title="This mark's position as the start line's committee end">
+          MAKE RC END
+        </button>
+      </div>
       <div className="actions">
         <button className="btn btn--sm btn--ghost" aria-pressed={locked} onClick={() => updateMark(mark.id, { locked: !locked })} title="A locked mark cannot be moved or deleted">
           {locked ? '🔒 LOCKED' : 'LOCK'}

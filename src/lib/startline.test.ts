@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { wrap180 } from './angles'
 import { bearing, destination, distance, mToNm } from './geo'
 import {
+  timeRatio,
   COG_TRUSTED_KN,
   fixQuality,
   DEFAULT_TURN_MODEL,
@@ -904,5 +905,14 @@ describe('fixQuality: a fix judged against the boat', () => {
     expect(fixQuality(null, 7)).toBeNull()
     expect(fixQuality(Number.NaN, 7)).toBeNull()
     expect(fixQuality(3, 0)).toBeNull()
+  })
+})
+
+describe('the start time ratio', () => {
+  it('is time to gun over time to line, above 1 with time in hand', () => {
+    expect(timeRatio(90, 60)).toBe(1.5)
+    expect(timeRatio(30, 60)).toBe(0.5)
+    expect(timeRatio(-5, 60)).toBeNull()
+    expect(timeRatio(90, null)).toBeNull()
   })
 })
