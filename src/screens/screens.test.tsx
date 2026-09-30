@@ -2320,6 +2320,8 @@ describe('marks can be edited, and placed on the chart', () => {
     const w = useStore.getState().course.marks[0]
     expect(w.position.lat).toBeCloseTo(43 + 40 / 60, 9)
     expect(w.position.lon).toBeCloseTo(-(70 + 10 / 60), 9)
+    // And the variation there, from the World Magnetic Model.
+    expect(screen.getByText(/Variation there 1[45]\.\d°W \(WMM-2025\)/)).toBeTruthy()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Windward' } })
     expect(useStore.getState().course.marks[0].name).toBe('Windward')
   })
@@ -2861,6 +2863,11 @@ describe('range and bearing on the Route chart', () => {
     expect(readout).toMatch(/1\.00 nm 0°T/)
     // A wind and a polar are set in the populated store, so there is a time.
     expect(readout).toMatch(/nm 0°T · \d/)
+    // Variation there, from the World Magnetic Model: about 14.4° W off Portland in 2026.
+    expect(readout).toMatch(/ · var 1[45]\.\d°W$/)
+    // With Setup on magnetic, the bearing is what the compass reads: west variation, magnetic best.
+    act(() => useStore.getState().updateSettings({ northRef: 'magnetic' }))
+    expect(screen.getByLabelText('Pointer readout').textContent).toMatch(/1\.00 nm 1[45]°M/)
   })
 
   it('measures between two tapped points with the dividers', () => {

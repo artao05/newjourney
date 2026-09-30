@@ -14,6 +14,7 @@ import { parseLatLon } from '@/lib/latlon'
 import { fmtDmm } from '@/lib/channels/format'
 import { bearing, destination, midpoint } from '@/lib/geo'
 import type { Mark, RoundingSide } from '@/lib/types'
+import { fmtVariation, variationAt } from '@/lib/magnetic'
 
 export function fmtPosition(p: { lat: number; lon: number }): string {
   return `${fmtDmm(p.lat, false)} ${fmtDmm(p.lon, true)}`
@@ -71,7 +72,9 @@ export function MarkSheet({ mark, index, count, onClose }: {
         />
       </div>
       {parsed ? (
-        <p className="note">Reads as {fmtPosition(parsed)}.</p>
+        <p className="note">
+          Reads as {fmtPosition(parsed)}. Variation there {fmtVariation(variationAt(parsed, Date.now()))} (WMM-2025).
+        </p>
       ) : (
         <div className="warnbox">
           Cannot read that as a position, so the mark has not moved. Try

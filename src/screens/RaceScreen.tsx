@@ -27,9 +27,9 @@ import { distance, bearing, destination } from '@/lib/geo'
 import { buildTrapezoidCourse, buildTriangleCourse, buildWLCourse } from '@/lib/wlcourse'
 import { NO_WHAT_IF, applyWhatIfCurrent, applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { gateNumbers } from '@/lib/gates'
-import { declinationAt, magneticToTrue, trueToMagnetic } from '@/lib/magnetic'
-import { PILOT_VENUE } from '@/data/venues'
+import { magneticToTrue, trueToMagnetic } from '@/lib/magnetic'
 import type { TacticalNumbers, WindEstimate } from '@/lib/types'
+import { variationHere } from '@/hooks/useVariation'
 
 export function RaceScreen() {
   const now = useTick(1)
@@ -554,7 +554,7 @@ export function RaceScreen() {
               const { port, starboard } = course.startLine
               if (!port || !starboard) return
               const axisTrue =
-                northRef === 'magnetic' ? magneticToTrue(wlAxis, declinationAt(PILOT_VENUE.declination, now)) : wlAxis
+                northRef === 'magnetic' ? magneticToTrue(wlAxis, variationHere(now)) : wlAxis
               const line = { port, starboard }
               replaceMarks(
                 shape === 'triangle'
@@ -585,7 +585,7 @@ export function RaceScreen() {
               setWlAxis(
                 Math.round(
                   northRef === 'magnetic'
-                    ? trueToMagnetic(wind.twd, declinationAt(PILOT_VENUE.declination, now))
+                    ? trueToMagnetic(wind.twd, variationHere(now))
                     : wind.twd,
                 ),
               )

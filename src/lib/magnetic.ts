@@ -12,7 +12,8 @@
  */
 
 import { wrap360 } from './angles'
-import type { Degrees, Millis } from './types'
+import type { Degrees, LatLon, Millis } from './types'
+import { magneticField } from './wmm'
 
 export interface Declination {
   /** East positive, at `epochYear`. */
@@ -34,6 +35,19 @@ export function decimalYear(t: Millis): number {
 /** The declination carried to time `t` by its annual change. */
 export function declinationAt(d: Declination, t: Millis): Degrees {
   return d.deg + d.perYearDeg * (decimalYear(t) - d.epochYear)
+}
+
+/**
+ * Magnetic variation (declination) at a place and time, east positive, from the
+ * World Magnetic Model (WMM-2025) at sea level.
+ */
+export function variationAt(p: LatLon, t: Millis): Degrees {
+  return magneticField(p.lat, p.lon, 0, decimalYear(t)).decl
+}
+
+/** Variation as a sailor writes it: 14.5°W. */
+export function fmtVariation(declEast: Degrees): string {
+  return `${Math.abs(declEast).toFixed(1)}°${declEast < 0 ? 'W' : 'E'}`
 }
 
 export function trueToMagnetic(bearingT: Degrees, declEast: Degrees): Degrees {

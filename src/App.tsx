@@ -33,7 +33,7 @@ import { usePlayback } from '@/hooks/usePlayback'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
 import { fixQuality } from '@/lib/startline'
-import { declinationAt } from '@/lib/magnetic'
+import { variationAt } from '@/lib/magnetic'
 import type { WindEstimate } from '@/lib/types'
 import { fetchPointForecast } from '@/lib/weather/openmeteo'
 import { PILOT_VENUE } from '@/data/venues'
@@ -371,7 +371,7 @@ export function App() {
     wind,
     manualWindSetAt,
     now,
-    settings.northRef === 'magnetic' ? declinationAt(PILOT_VENUE.declination, now) : null,
+    settings.northRef === 'magnetic' ? variationAt(state?.position ?? PILOT_VENUE.center, now) : null,
   )
 
   return (

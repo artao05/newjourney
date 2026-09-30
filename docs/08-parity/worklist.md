@@ -301,9 +301,10 @@ leaves something tested and working.
       tests.
 - [x] **11.4 Tidal streams in routing**, taking precedence over forecast current.
       *Accept:* kernel tests.
-- [ ] **11.5 Position-aware magnetic variation** (WMM). *Accept:* tests against NOAA
+- [x] **11.5 Position-aware magnetic variation** (WMM). *Accept:* tests against NOAA
       calculator values.
       Unblocked 2026-09-30 (D8); worked in M16.
+      *Done as 16.3.*
 
 ## M12 — AIS, boats and race tracking
 
@@ -494,9 +495,15 @@ then the Partial rows; then the Hardware rows, tested against recordings.
       *Accept:* tests on the real files.
       *All four, with the fixes each found (10.1b, 13.1b, 13.8b above). Checked in the app: the
       Portland cell with Spring Point Ledge Light's sectors, and chart 14983 drawn in 30 tiles.*
-- [ ] **16.3 Position-aware magnetic variation (11.5)** from WMM-2025: variation at the boat,
+- [x] **16.3 Position-aware magnetic variation (11.5)** from WMM-2025: variation at the boat,
       the pointer and each mark, with a date. *Accept:* agreement with NOAA's published
       test values.
+      *A WMM of our own (lib/wmm.ts) with NOAA's coefficients embedded and checked against the
+      file. It matches all of NCEI's WMM2025 test values (the field to 0.01 nT, the angles to their
+      rounding, and each one's annual change) and NOAA's calculator at Portland. The fixed venue
+      value is gone: variation is taken at the boat's fix for the channels, the wind and line
+      sheets, the W/L axis and the phone compass; at the pointer in the Route readout, which also
+      gives °M in magnetic mode; and at each mark in its sheet.*
 
 ## M17 — A plain nav-station look
 

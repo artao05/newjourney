@@ -35,6 +35,7 @@ import { CalibrationSection } from '@/components/CalibrationSection'
 import { GpsSection } from '@/components/GpsSection'
 import { LogsSection } from '@/components/LogsSection'
 import { AlarmsSection } from '@/components/Alarms'
+import { useVariation } from '@/hooks/useVariation'
 
 /**
  * How to name the tide station on the venue panel.
@@ -61,6 +62,7 @@ export function fileStamp(ms: number): string {
 }
 
 export function SetupScreen() {
+  const variation = useVariation()
   const boat = useStore((s) => s.boat)
   const updateBoat = useStore((s) => s.updateBoat)
   const polarId = useStore((s) => s.polarId)
@@ -527,9 +529,8 @@ export function SetupScreen() {
         </div>
         <p className="note">
           Magnetic is what a compass reads. With it on, the wind sheet takes a compass bearing
-          and the wind chip shows one, marked M. Variation at {PILOT_VENUE.name} is{' '}
-          {Math.abs(PILOT_VENUE.declination.deg).toFixed(1)}°{' '}
-          {PILOT_VENUE.declination.deg < 0 ? 'W' : 'E'} (NOAA {PILOT_VENUE.declination.model}).
+          and the wind chip shows one, marked M. Variation where the boat is, from NOAA's World
+          Magnetic Model (WMM-2025), is {Math.abs(variation).toFixed(1)}° {variation < 0 ? 'W' : 'E'}.
           Every other bearing in the app stays true.
         </p>
         <div className="field">

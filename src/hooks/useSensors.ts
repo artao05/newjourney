@@ -12,8 +12,7 @@ import { BoatSim } from '@/lib/sim'
 import { buildLattice } from '@/lib/polar'
 import type { BoatState, LatLon } from '@/lib/types'
 import { fromOrientationEvent, phoneAdditions, type OrientationEventLike } from '@/lib/instruments/orientation'
-import { declinationAt } from '@/lib/magnetic'
-import { PILOT_VENUE } from '@/data/venues'
+import { variationAt } from '@/lib/magnetic'
 
 /** Watch the real GPS and push `BoatState` into the store. */
 export function useGeolocation(enabled: boolean) {
@@ -37,7 +36,7 @@ export function useGeolocation(enabled: boolean) {
         // The phone's heel, and its compass if trusted and good, joined to the fix.
         const st = useStore.getState()
         const phone = st.phoneSensors.on
-          ? phoneAdditions(st.phoneOrientation, Date.now(), st.phoneSensors.trustCompass, declinationAt(PILOT_VENUE.declination, pos.timestamp))
+          ? phoneAdditions(st.phoneOrientation, Date.now(), st.phoneSensors.trustCompass, variationAt({ lat: c.latitude, lon: c.longitude }, pos.timestamp))
           : { heading: null, heelDeg: null }
         const state: BoatState = {
           t: pos.timestamp,

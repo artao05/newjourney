@@ -11,8 +11,8 @@
 import { useState } from 'react'
 import { useStore } from '@/state/store'
 import { fmtDeg, wrap360 } from '@/lib/angles'
-import { declinationAt, magneticToTrue, trueToMagnetic } from '@/lib/magnetic'
-import { PILOT_VENUE } from '@/data/venues'
+import { magneticToTrue, trueToMagnetic } from '@/lib/magnetic'
+import { useVariation } from '@/hooks/useVariation'
 
 const DIR_STEPS = [-10, -5, -1, 1, 5, 10]
 
@@ -25,7 +25,7 @@ export function WindSheet({ onClose }: { onClose: () => void }) {
   const wind = useStore((s) => s.wind)
   const magnetic = useStore((s) => s.settings.northRef === 'magnetic')
   const updateSettings = useStore((s) => s.updateSettings)
-  const decl = declinationAt(PILOT_VENUE.declination, Date.now())
+  const decl = useVariation()
 
   // A first guess to step from: a set manual wind, else the forecast in use, else
   // the placeholder - which the sailor still has to confirm before it counts.
@@ -93,7 +93,7 @@ export function WindSheet({ onClose }: { onClose: () => void }) {
       {magnetic && (
         <p className="note">
           = {fmtDeg(magneticToTrue(dir, decl))}°T. Variation {Math.abs(decl).toFixed(1)}°{' '}
-          {decl < 0 ? 'W' : 'E'} here (NOAA {PILOT_VENUE.declination.model}).
+          {decl < 0 ? 'W' : 'E'} here (WMM-2025).
         </p>
       )}
       <div className="wind-sheet__steps">

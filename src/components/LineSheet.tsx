@@ -9,8 +9,8 @@
 import { useState } from 'react'
 import { useStore, DEFAULT_APPROACHES, type StartApproaches } from '@/state/store'
 import { endFromOther, nudgeUpwind } from '@/lib/lineAdjust'
-import { declinationAt, magneticToTrue } from '@/lib/magnetic'
-import { PILOT_VENUE } from '@/data/venues'
+import { magneticToTrue } from '@/lib/magnetic'
+import { variationHere } from '@/hooks/useVariation'
 
 const APPROACH_LABELS: Array<[keyof StartApproaches, string]> = [
   ['ends', 'Line ends'],
@@ -34,7 +34,7 @@ export function LineSheet({ onClose }: { onClose: () => void }) {
   const other = end === 'port' ? line.starboard : line.port
   const self = end === 'port' ? line.port : line.starboard
   const toTrue = (b: number) =>
-    northRef === 'magnetic' ? magneticToTrue(b, declinationAt(PILOT_VENUE.declination, Date.now())) : b
+    northRef === 'magnetic' ? magneticToTrue(b, variationHere()) : b
 
   return (
     <div className="sheet sheet--tall" role="dialog" aria-label="Adjust the start line">

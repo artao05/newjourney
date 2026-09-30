@@ -13,7 +13,7 @@ import { useTick } from '@/hooks/useSensors'
 import { usePolarLattices } from '@/hooks/usePolars'
 import { computeTactics } from '@/lib/tactics'
 import { computeStart } from '@/lib/startline'
-import { declinationAt } from '@/lib/magnetic'
+import { variationAt } from '@/lib/magnetic'
 import { PILOT_VENUE } from '@/data/venues'
 import { buildSnapshot, type ChannelValues } from '@/lib/channels/snapshot'
 import { gateNumbers } from '@/lib/gates'
@@ -77,7 +77,7 @@ export function useChannelSnapshot(): ChannelValues {
       start,
       course,
       activeMarkIndex,
-      variationDeg: declinationAt(PILOT_VENUE.declination, now),
+      variationDeg: variationAt(state?.position ?? PILOT_VENUE.center, now),
       instruments,
       derived,
       raceNotes,

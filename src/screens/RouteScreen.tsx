@@ -47,6 +47,8 @@ import { applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { boundsFrom } from '@/lib/tactics'
 import { buildLattice } from '@/lib/polar'
 import { fmtPosition } from '@/components/MarkSheet'
+import { fmtVariation, trueToMagnetic, variationAt } from '@/lib/magnetic'
+import { variationHere } from '@/hooks/useVariation'
 import { RaceNoteSheet } from '@/components/RaceNotes'
 import { fmtLength } from '@/lib/units'
 import { RouteSettingsSheet } from '@/components/RouteSettingsSheet'
@@ -721,6 +723,7 @@ export function RouteScreen() {
   }, [ready])
   const rasters = useCharts((s) => s.rasters)
   const chartOffset = useStore((s) => s.settings.chartOffset)
+  const northRef = useStore((s) => s.settings.northRef)
   // Raster charts: an image source a tile, under the ENC cells and everything else.
   const shownRasters = useRef(new Map<string, { opacity: number; offset: typeof chartOffset; tiles: number }>())
   useEffect(() => {
@@ -1360,11 +1363,13 @@ export function RouteScreen() {
             boat or planned start, the range, true bearing and polar time to it.
           */}
           {pointer && picking !== 'measure' && (
-            <span className="chip" aria-label="Pointer readout" title="Pointer: position, then range, bearing and polar time from the boat">
+            <span className="chip" aria-label="Pointer readout" title="Pointer: position, then range, bearing and polar time from the boat, and the magnetic variation there">
               {fmtPosition(pointer)}
-              {toPointer && ` · ${toPointer.distanceNm.toFixed(2)} nm ${fmtDeg(toPointer.bearing)}°T`}
+              {toPointer &&
+                ` · ${toPointer.distanceNm.toFixed(2)} nm ${northRef === 'magnetic' ? `${fmtDeg(trueToMagnetic(toPointer.bearing, variationHere()))}°M` : `${fmtDeg(toPointer.bearing)}°T`}`}
               {toPointer?.timeS != null && ` · ${fmtDuration(toPointer.timeS)}`}
               {pointerIso && ` · isochrone T+${fmtDuration((pointerIso.iso.t - (route?.legs[0]?.t ?? pointerIso.iso.t)) / 1000)}${pointerIso.dnm != null ? ` · DNM ${Math.round(pointerIso.dnm)}%` : ''}`}
+              {` · var ${fmtVariation(variationAt(pointer, Date.now()))}`}
             </span>
           )}
           {pointer && picking == null && (
