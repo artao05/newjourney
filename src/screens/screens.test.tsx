@@ -2825,6 +2825,70 @@ describe('range and bearing on the Route chart', () => {
       for (const fn of mapInstances[0].handlers.get('click') ?? []) fn({ lngLat: { lat, lng } })
     })
 
+  it('opens a menu on a right-click: a mark there, go here, route here, measure, and where the chart looks', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const rightClick = (lat: number, lng: number) =>
+      act(() => {
+        for (const fn of mapInstances[0].handlers.get('contextmenu') ?? []) fn({ lngLat: { lat, lng }, point: { x: 120, y: 80 }, preventDefault: () => undefined })
+      })
+    const before = useStore.getState().course.marks.length
+    const at = { lat: 43.66, lon: -70.2 }
+    rightClick(at.lat, at.lon)
+    const menu = screen.getByRole('menu', { name: 'Chart menu' })
+    const items = within(menu).getAllByRole('menuitem').map((b) => b.textContent)
+    expect(items).toEqual(expect.arrayContaining(['Mark here', 'Go here', 'Into the nearest leg', 'Route here', 'Plan from here', 'Measure from here', 'Race note from here', 'Centre here', 'Zoom in here']))
+    // The pointer moved there too.
+    expect(screen.getByLabelText('Pointer readout').textContent).toMatch(/^43°39\.600'N 070°12\.000'W/)
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark here' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    const marks = useStore.getState().course.marks
+    expect(marks).toHaveLength(before + 1)
+    expect(marks[marks.length - 1].position).toEqual(at)
+    // Escape closes it without doing anything.
+    rightClick(at.lat, at.lon)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    // Measure from here starts the dividers at the point.
+    rightClick(at.lat, at.lon)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Measure from here' }))
+    expect(screen.getByRole('button', { name: /tap the second point/ })).toBeTruthy()
+  })
+
+  it("names the chart under a right-click, and shows a raster chart there that is hidden", async () => {
+    populatedStore()
+    const { decodeS57 } = await import('@/lib/charts/s57')
+    const c = decodeS57(encCell())
+    act(() => {
+      useCharts.getState().clear()
+      useCharts.getState().add(c)
+      useCharts.getState().addRaster({ id: 'rnc-t', name: 'TEST HARBOR', number: '99', scale: 20000, tiles: [], corners: [[c.bounds!.west - 0.1, c.bounds!.north + 0.1], [c.bounds!.east + 0.1, c.bounds!.north + 0.1], [c.bounds!.east + 0.1, c.bounds!.south - 0.1], [c.bounds!.west - 0.1, c.bounds!.south - 0.1]], opacity: 1, on: false, warnings: [] })
+    })
+    try {
+      render(<RouteScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      const at = { lat: (c.bounds!.south + c.bounds!.north) / 2, lng: (c.bounds!.west + c.bounds!.east) / 2 }
+      act(() => {
+        for (const fn of mapInstances[0].handlers.get('contextmenu') ?? []) fn({ lngLat: at, point: { x: 50, y: 50 }, preventDefault: () => undefined })
+      })
+      const menu = screen.getByRole('menu', { name: 'Chart menu' })
+      expect(menu.textContent).toContain(`ed. ${c.edition} upd. ${c.update}`)
+      expect(menu.textContent).toContain('WGS 84')
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Show chart 99' }))
+      expect(useCharts.getState().rasters.find((r) => r.id === 'rnc-t')!.on).toBe(true)
+    } finally {
+      act(() => {
+        useCharts.getState().clear()
+        useCharts.getState().removeRaster('rnc-t')
+      })
+    }
+  })
+
   it('puts a mark at the tapped point: go here sails to it next, + into leg puts it in the nearest leg', () => {
     populatedStore()
     render(<RouteScreen />)

@@ -128,6 +128,17 @@ const STYLE: maplibregl.StyleSpecification = {
  */
 const SWEEP_HOURS = 12
 
+/** Whether a point lies inside a chart picture's four corners ([lon, lat], in order round the edge). */
+function inCorners(corners: Array<[number, number]>, p: LatLon): boolean {
+  let inside = false
+  for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
+    const [xi, yi] = corners[i]
+    const [xj, yj] = corners[j]
+    if (yi > p.lat !== yj > p.lat && p.lon < ((xj - xi) * (p.lat - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
 export function RouteScreen() {
   const palette = useStore((s) => s.settings.palette)
   const paletteFollower = useRef<ReturnType<typeof followPalette> | null>(null)
@@ -214,6 +225,8 @@ export function RouteScreen() {
   const raceNotes = useStore((s) => s.raceNotes)
   /** Dividers: two tapped points, and the range and bearing between them. */
   const [measure, setMeasure] = useState<{ a: LatLon; b: LatLon | null } | null>(null)
+  // The chart's own menu, opened by a right-click: where, on screen and on the chart.
+  const [chartMenu, setChartMenu] = useState<{ x: number; y: number; at: LatLon } | null>(null)
   const measureRef = useRef(measure)
   measureRef.current = measure
   /** Where the pointer is over the chart (desktop), or the last tapped point (touch). */
@@ -322,6 +335,17 @@ export function RouteScreen() {
       if (mode === 'start') s.setRouteStart(at)
       else s.addMark(`Mark ${s.course.marks.length + 1}`, at)
       setPicking(null)
+    })
+    // A right-click opens the chart's menu there, and moves the pointer to it.
+    map.on('contextmenu', (e: maplibregl.MapMouseEvent) => {
+      e.preventDefault?.()
+      const at = { lat: e.lngLat.lat, lon: e.lngLat.lng }
+      setPointer(at)
+      setChartMenu({ x: e.point.x, y: e.point.y, at })
+    })
+    // Moving the chart by hand closes it; the chart following the boat does not.
+    map.on('movestart', (e: { originalEvent?: unknown }) => {
+      if (e.originalEvent) setChartMenu(null)
     })
     // The pointer readout follows the mouse, at most once a frame.
     let frame = 0
@@ -1305,6 +1329,76 @@ export function RouteScreen() {
     })
   }, [route, depthGrid, levels, boat.draftMetres])
 
+  // What the chart's menu offers at a point: the tap's commands, and where the chart looks.
+  const chartMenuItems = (at: LatLon): Array<{ label: string; title: string; run: () => void }> => {
+    const map = mapRef.current
+    const s = useStore.getState()
+    const free = () => s.settings.chartMotion !== 'free' && s.updateSettings({ chartMotion: 'free' })
+    return [
+      { label: 'Mark here', title: 'A new mark at this point, at the end of the course', run: () => s.addMark(`Mark ${s.course.marks.length + 1}`, at) },
+      { label: 'Go here', title: 'A mark here, sailed to next: the rest of the course stays', run: () => s.insertMark('Go here', at, activeMarkIndex, true) },
+      ...(course.marks.length > 0
+        ? [{ label: 'Into the nearest leg', title: 'A mark here, put into the leg it is nearest', run: () => s.insertMark(`Mark ${course.marks.length + 1}`, at, nearestLegInsert(course.marks.map((m) => m.position), at, origin)) }]
+        : []),
+      ...(origin && polar ? [{ label: 'Route here', title: 'The optimal route from the boat to this point', run: () => void run(undefined, [at]) }] : []),
+      { label: 'Plan from here', title: 'Route from this point rather than the boat', run: () => s.setRouteStart(at) },
+      {
+        label: 'Measure from here',
+        title: 'Dividers from this point: tap the second',
+        run: () => {
+          setPicking('measure')
+          setMeasure({ a: at, b: null })
+        },
+      },
+      {
+        label: 'Race note from here',
+        title: 'A race note starting at this point',
+        run: () => {
+          setPicking('note')
+          setDraft((d) => ({ ...d, points: [at] }))
+        },
+      },
+      ...(encCells.length > 0
+        ? [{ label: 'Chart objects here', title: 'What the ENC cells have at this point', run: () => setEncQuery({ at, objects: encObjectsAt(encCells, at) }) }]
+        : []),
+      // A raster chart that covers the point but is hidden, shown.
+      ...useCharts
+        .getState()
+        .rasters.filter((r) => !r.on && inCorners(r.corners, at))
+        .map((r) => ({ label: `Show chart ${r.number || r.name}`, title: `${r.name}, 1:${r.scale.toLocaleString('en-US')}`, run: () => useCharts.getState().updateRaster(r.id, { on: true }) })),
+      {
+        label: 'Centre here',
+        title: 'Move the chart to put this point in the middle',
+        run: () => {
+          free()
+          map?.easeTo({ center: [at.lon, at.lat] })
+        },
+      },
+      {
+        label: 'Zoom in here',
+        title: 'Centre here and zoom in a step',
+        run: () => {
+          free()
+          map?.easeTo({ center: [at.lon, at.lat], zoom: (map.getZoom?.() ?? 12) + 1 })
+        },
+      },
+    ]
+  }
+  // Escape, or a press anywhere else, closes it.
+  useEffect(() => {
+    if (!chartMenu) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setChartMenu(null)
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target instanceof Element) || !e.target.closest('.ctxmenu')) setChartMenu(null)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('mousedown', onDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('mousedown', onDown)
+    }
+  }, [chartMenu])
+
   // The chart's commands and the routing buttons: over the chart on the phone, in the ribbon on the nav station.
   const ribbon = useRibbon()
   const station = useContext(LayoutContext) === 'station'
@@ -1672,6 +1766,42 @@ export function RouteScreen() {
       */}
       <div className="chart-area" onDragOver={gribDrop.onDragOver} onDrop={gribDrop.onDrop}>
         <div ref={containerRef} className="map" />
+        {chartMenu && (
+          <div
+            className="ctxmenu"
+            role="menu"
+            aria-label="Chart menu"
+            style={{
+              left: Math.max(0, Math.min(chartMenu.x, (containerRef.current?.clientWidth ?? 9999) - 200)),
+              top: Math.max(0, Math.min(chartMenu.y, (containerRef.current?.clientHeight ?? 9999) - 320)),
+            }}
+          >
+            <div className="ctxmenu__head">
+              {fmtPosition(chartMenu.at)}
+              {encCells
+                .filter((c) => c.bounds && chartMenu.at.lat >= c.bounds.south && chartMenu.at.lat <= c.bounds.north && chartMenu.at.lon >= c.bounds.west && chartMenu.at.lon <= c.bounds.east)
+                .map((c) => (
+                  <div key={c.name}>
+                    {cellKey(c.name)} ed. {c.edition} upd. {c.update}
+                    {c.scale ? ` · 1:${c.scale.toLocaleString('en-US')}` : ''} · {c.hdat == null || c.hdat === 2 ? 'WGS 84' : `datum ${c.hdat}`}
+                  </div>
+                ))}
+            </div>
+            {chartMenuItems(chartMenu.at).map((item) => (
+              <button
+                key={item.label}
+                role="menuitem"
+                title={item.title}
+                onClick={() => {
+                  setChartMenu(null)
+                  item.run()
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="canvas-overlay">
           {!ribbon && (

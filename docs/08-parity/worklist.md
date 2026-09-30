@@ -533,9 +533,12 @@ logo, icon artwork or manual text.
       *Along the foot of the nav station. The Route chips that were status, not commands, went
       there from the ribbon, through a portal of their own. It leads with NO POSITION FIX and
       not logging, and names the ENC datum. Checked in the app with a pointer set.*
-- [ ] **17.4 A right-click menu on the chart:** mark here, go here, range and bearing, zoom
+- [x] **17.4 A right-click menu on the chart:** mark here, go here, range and bearing, zoom
       and centre, chart details, image at pointer, route from here (P1-251, P1-113, P2-018,
       P1-252, P2-100). *Accept:* tests.
+      *Checked in the app: the menu opens at the pointer and stays while the chart follows the
+      boat, which at first it did not (any move closed it; now only a move by hand). Image at
+      pointer covers raster charts only so far.*
 - [ ] **17.5 Panes:** show, hide, auto-hide and drag to rearrange; hover tooltips on the
       chart, marks, AIS, the track and the weather (P1-062, P1-064, P1-083, P4-163, P4-140,
       P4-164, P4-165). *Accept:* tests and a browser check.

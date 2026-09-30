@@ -401,6 +401,40 @@ button {
   border-color: currentColor;
 }
 
+/* The chart's right-click menu. */
+.ctxmenu {
+  position: absolute;
+  z-index: 20;
+  min-width: 190px;
+  padding: 3px 0;
+  background: var(--bg);
+  border: 1px solid var(--line-bright);
+  border-radius: 3px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+}
+
+.ctxmenu__head {
+  padding: 4px 14px 5px;
+  font-size: 11px;
+  color: var(--ink-faint);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 2px;
+}
+
+.ctxmenu button {
+  text-align: left;
+  padding: 5px 14px;
+  font-size: 13px;
+}
+
+.ctxmenu button:hover,
+.ctxmenu button:focus-visible {
+  background: var(--bg-sunk);
+  outline: none;
+}
+
 /* The status bar: what the chart is working from and where the pointer is, in one quiet line. */
 .statusbar {
   flex-shrink: 0;
