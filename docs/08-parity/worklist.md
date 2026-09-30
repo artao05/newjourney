@@ -430,8 +430,9 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       *Analysis, the summary and the best 24 hours are in (Stripchart → Analysis). Still to do: the
       live Tack/gybe loss channels, and a track point to the stripchart (P1-272), which waits on our
       own track being drawn on the chart.*
-- [ ] **15.7 Stripchart:** sample rate, axis behaviour, a second trace per pane,
+- [x] **15.7 Stripchart:** sample rate, axis behaviour, a second trace per pane,
       configuration files (P4-206, P4-208, P4-215, P4-209). *Accept:* tests.
+      *A boat per pane, and a recent-files list and drop for layouts, are still to do.*
 - [ ] **15.8 Routing views:** several optimum routes on screen, stepping through the
       routing times, the routing tooltip with DNM %, first leg only, draw paths, routes
       kept (P1-012, P1-217, P1-221, P2-193, P2-215, P2-187). *Accept:* tests.

@@ -2993,6 +2993,37 @@ describe('the stripchart', () => {
     }
   })
 
+  it('adds a second trace with its mean and SD, sets the rate and the axis, and loads a layout', async () => {
+    emptyStore()
+    const store = new MemoryLogStore()
+    const T0 = new Date(2026, 8, 29, 10, 0, 0).getTime()
+    await store.append('2026-09-29', Array.from({ length: 600 }, (_, i) => ({ t: T0 + i * 1000, v: { bsp: 6, tws: i % 2 ? 11 : 13, twd: 250 } })))
+    setLogStore(store)
+    try {
+      useStore.setState({ strip: { panes: ['bsp'], spanMin: 15 } })
+      render(<StripchartScreen />)
+      fireEvent.change(screen.getByLabelText('Log day'), { target: { value: '2026-09-29' } })
+      await screen.findByRole('region', { name: 'Pane Bsp' })
+      await waitFor(() => expect(screen.getByLabelText('Second trace for Bsp').querySelectorAll('option').length).toBeGreaterThan(1))
+      fireEvent.change(screen.getByLabelText('Second trace for Bsp'), { target: { value: 'tws' } })
+      expect(screen.getByLabelText('Second trace').textContent).toBe('Tws (12.00 ± 1.00)')
+      expect(screen.getByLabelText('second trace line')).toBeTruthy()
+      fireEvent.change(screen.getByLabelText('Sample rate'), { target: { value: '2' } })
+      fireEvent.change(screen.getByLabelText('Axis for Bsp'), { target: { value: 'roll' } })
+      expect(useStore.getState().strip).toMatchObject({ rateHz: 2, second: { bsp: 'tws' }, axes: { bsp: 'roll' } })
+      expect(screen.getByLabelText('Stripchart window').textContent).toMatch(/at 2 Hz/)
+      // A saved layout loads back.
+      const layout = JSON.stringify({ app: 'newjourney', kind: 'stripchart', v: 1, strip: { panes: ['twd', 'tws'], spanMin: 60, rateHz: 1 } })
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Stripchart layout to load'), { target: { files: [new File([layout], 'race.json')] } })
+        await new Promise((r) => setTimeout(r, 20))
+      })
+      expect(useStore.getState().strip).toMatchObject({ panes: ['twd', 'tws'], spanMin: 60, rateHz: 1 })
+    } finally {
+      setLogStore(null)
+    }
+  })
+
   it('draws the day’s log a pane a channel, and compares two wanded sections', async () => {
     emptyStore()
     const store = new MemoryLogStore()

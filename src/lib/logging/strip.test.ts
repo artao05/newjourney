@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { angleKind, meanBetween, sectionDelta, series, valueRange } from './strip'
+import { angleKind, meanBetween, meanSd, nextAxis, resample, sectionDelta, series, valueRange } from './strip'
 import type { LogRow } from './logger'
 
 const rows: LogRow[] = Array.from({ length: 10 }, (_, i) => ({ t: i * 1000, v: { bsp: 5 + i * 0.1, twd: i % 2 ? 355 : 5, twa: i < 5 ? 40 : -40 } }))
@@ -37,5 +37,35 @@ describe('the stripchart’s arithmetic', () => {
     expect(valueRange([])).toEqual([0, 1])
     const [lo, hi] = valueRange([[0, 5], [1, 5]])
     expect(hi - lo).toBeCloseTo(1, 9)
+  })
+})
+
+describe('stripchart display', () => {
+  it('resamples to the rate chosen, keeping the last value in each slot', () => {
+    const pts: Array<[number, number]> = Array.from({ length: 10 }, (_, i) => [i * 500, i])
+    expect(resample(pts, 1).map((p) => p[1])).toEqual([1, 3, 5, 7, 9])
+    expect(resample(pts, 0.5).map((p) => p[1])).toEqual([3, 7, 9])
+    expect(resample(pts, 5)).toHaveLength(10)
+  })
+
+  it('gives a second trace its mean and SD, on the circle for angles', () => {
+    const s = meanSd('bsp', [[0, 5], [1, 7]])!
+    expect(s.mean).toBe(6)
+    expect(s.sd).toBe(1)
+    const a = meanSd('twd', [[0, 350], [1, 10]])!
+    expect(a.mean).toBeCloseTo(0, 6)
+    expect(a.sd).toBeCloseTo(10.02, 1)
+  })
+
+  it('fits, rolls or shifts a pane’s axis', () => {
+    const pts: Array<[number, number]> = [[0, 10], [1, 12]]
+    expect(nextAxis(null, pts, 'roll')).toEqual(valueRange(pts))
+    // Roll: the span kept, slid only when the newest value nears an edge.
+    expect(nextAxis([8, 14], pts, 'roll')).toEqual([8, 14])
+    expect(nextAxis([8, 14], [[0, 10], [1, 13.9]], 'roll')).toEqual([10.9, 16.9])
+    // Shift: toward the fit by at most the step.
+    const [lo, hi] = nextAxis([0, 20], pts, 'shift', 2)
+    expect(lo).toBe(2)
+    expect(hi).toBe(18)
   })
 })

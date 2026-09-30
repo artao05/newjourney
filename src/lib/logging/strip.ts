@@ -73,3 +73,59 @@ export function valueRange(pts: Array<[number, number]>): [number, number] {
   const pad = Math.max((hi - lo) * 0.08, 0.5)
   return [lo - pad, hi + pad]
 }
+
+/** The points resampled to `hz`: the last value in each 1/hz-second slot. */
+export function resample(pts: Array<[number, number]>, hz: number): Array<[number, number]> {
+  if (!(hz > 0) || pts.length === 0) return pts
+  const slot = 1000 / hz
+  const out: Array<[number, number]> = []
+  let cur = -Infinity
+  for (const p of pts) {
+    const k = Math.floor(p[0] / slot)
+    if (k === cur) out[out.length - 1] = p
+    else {
+      out.push(p)
+      cur = k
+    }
+  }
+  return out
+}
+
+/** Mean and standard deviation of a channel's points, on the circle for angles. */
+export function meanSd(id: string, pts: Array<[number, number]>): { mean: number; sd: number } | null {
+  if (!pts.length) return null
+  const kind = angleKind(id)
+  if (!kind) {
+    const m = pts.reduce((a, [, v]) => a + v, 0) / pts.length
+    return { mean: m, sd: Math.sqrt(pts.reduce((a, [, v]) => a + (v - m) ** 2, 0) / pts.length) }
+  }
+  const r = Math.PI / 180
+  const x = pts.reduce((a, [, v]) => a + Math.cos(v * r), 0) / pts.length
+  const y = pts.reduce((a, [, v]) => a + Math.sin(v * r), 0) / pts.length
+  const R = Math.min(1, Math.hypot(x, y))
+  const deg = Math.atan2(y, x) / r
+  // The circular standard deviation: sqrt(−2 ln R), in degrees.
+  return { mean: kind === 'bearing' ? (deg + 360) % 360 : deg, sd: R > 0 ? Math.sqrt(-2 * Math.log(R)) / r : 180 }
+}
+
+export type AxisMode = 'auto' | 'roll' | 'shift'
+
+/**
+ * A pane's value axis from the last one drawn. Auto fits the data each time.
+ * Roll keeps the span and slides it, only when the newest value nears an
+ * edge, to put it back in the middle. Shift moves toward the fit by no more
+ * than `shiftMax` a step, so a spike does not throw the scale about.
+ */
+export function nextAxis(prev: [number, number] | null, pts: Array<[number, number]>, mode: AxisMode, shiftMax = 1): [number, number] {
+  const fit = valueRange(pts)
+  if (!prev || mode === 'auto' || !pts.length) return fit
+  if (mode === 'roll') {
+    const span = prev[1] - prev[0]
+    const last = pts[pts.length - 1][1]
+    const edge = span * 0.1
+    if (last > prev[0] + edge && last < prev[1] - edge) return prev
+    return [last - span / 2, last + span / 2]
+  }
+  const step = (from: number, to: number) => from + Math.max(-shiftMax, Math.min(shiftMax, to - from))
+  return [step(prev[0], fit[0]), step(prev[1], fit[1])]
+}

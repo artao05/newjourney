@@ -450,8 +450,17 @@ interface AppState {
   playback: Playback | null
   setPlayback(p: Partial<Playback> | null): void
   /** The stripchart's panes, one channel each, and the minutes it shows. */
-  strip: { panes: string[]; spanMin: number }
-  setStrip(patch: Partial<{ panes: string[]; spanMin: number }>): void
+  strip: {
+    panes: string[]
+    spanMin: number
+    /** Display rate, samples a second. */
+    rateHz?: number
+    /** A second channel drawn in a pane, by pane channel. */
+    second?: Record<string, string>
+    /** How each pane's value axis follows the data, by pane channel. */
+    axes?: Record<string, 'auto' | 'roll' | 'shift'>
+  }
+  setStrip(patch: Partial<AppState['strip']>): void
   /** Alarm rules, kept; their states are this session's only. */
   alarms: AlarmRule[]
   addAlarm(rule: Omit<AlarmRule, 'id'>): void

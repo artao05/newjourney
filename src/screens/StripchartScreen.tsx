@@ -9,11 +9,11 @@
  * read.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '@/state/store'
 import { logStore } from '@/lib/logging/idbStore'
 import { dayOf, type LogRow } from '@/lib/logging/logger'
-import { meanBetween, sectionDelta, series, valueRange } from '@/lib/logging/strip'
+import { meanBetween, meanSd, nextAxis, resample, sectionDelta, series, type AxisMode } from '@/lib/logging/strip'
 import { bestRun, findManoeuvres, performanceReport, type BestRun } from '@/lib/logging/analysis'
 import { CHANNELS } from '@/lib/channels/catalogue'
 import { useTick } from '@/hooks/useSensors'
@@ -49,6 +49,7 @@ export function StripchartScreen() {
   const [eventText, setEventText] = useState('')
   const [testSails, setTestSails] = useState('')
   const [testNote, setTestNote] = useState('')
+  const [layoutError, setLayoutError] = useState<string | null>(null)
 
   useEffect(() => {
     void logStore()
@@ -85,6 +86,9 @@ export function StripchartScreen() {
   ]
 
   const pan = (by: number) => setEnd(Math.min(latest, right + by * spanMs))
+  const rate = strip.rateHz ?? 1
+  // Each pane's last value axis, for roll and shift to follow on from.
+  const axes = useRef(new Map<string, [number, number]>())
   const inWindow = events.filter((e) => e.t >= left && e.t <= right)
   const dayEvents = events.filter((e) => dayOf(e.t) === day)
   const dayTests = sailTests.filter((x) => x.day === day)
@@ -120,6 +124,11 @@ export function StripchartScreen() {
             </button>
           ))}
         </div>
+        <select aria-label="Sample rate" value={rate} onChange={(e) => setStrip({ rateHz: Number(e.target.value) })}>
+          {[0.5, 1, 2, 5].map((hz) => (
+            <option key={hz} value={hz}>{hz} Hz</option>
+          ))}
+        </select>
         <button className="btn btn--sm btn--ghost" aria-label="Back in time" onClick={() => pan(-0.5)}>◀</button>
         <button className="btn btn--sm btn--ghost" aria-label="On in time" onClick={() => pan(0.5)}>▶</button>
         <button className="btn btn--sm btn--ghost" aria-pressed={end == null} onClick={() => setEnd(null)}>
@@ -132,12 +141,19 @@ export function StripchartScreen() {
       <p className="note" aria-label="Stripchart window">
         {rows.length === 0
           ? `No log for ${day}. Turn on REC to log, or pick another day.`
-          : `${hm(left)} to ${hm(right)}${end == null && !playback ? ', following' : ''}. Tap a pane to drop a wand (${wands.length}/4).`}
+          : `${hm(left)} to ${hm(right)}${end == null && !playback ? ', following' : ''} at ${rate} Hz. Tap a pane to drop a wand (${wands.length}/4).`}
       </p>
 
       {strip.panes.map((id) => {
-        const pts = series(rows, id, left, right)
-        const [lo, hi] = valueRange(pts)
+        const pts = resample(series(rows, id, left, right, 3000), rate)
+        const mode: AxisMode = strip.axes?.[id] ?? 'auto'
+        const [lo, hi] = nextAxis(axes.current.get(id) ?? null, pts, mode, Math.max(0.5, (axes.current.get(id)?.[1] ?? 1) - (axes.current.get(id)?.[0] ?? 0)) * 0.1)
+        axes.current.set(id, [lo, hi])
+        const second = strip.second?.[id]
+        const pts2 = second ? resample(series(rows, second, left, right, 3000), rate) : []
+        const [lo2, hi2] = nextAxis(null, pts2, 'auto')
+        const y2 = (v: number) => PANE_H - ((v - lo2) / (hi2 - lo2)) * PANE_H
+        const stats2 = second ? meanSd(second, pts2) : null
         const x = (t: number) => ((t - left) / spanMs) * 1000
         const y = (v: number) => PANE_H - ((v - lo) / (hi - lo)) * PANE_H
         const m = sections.map((s) => (s ? meanBetween(rows, id, s[0], s[1]) : null))
@@ -151,6 +167,22 @@ export function StripchartScreen() {
               {m[0] != null && <span style={{ color: WAND_COLOURS[0] }}>mean {fmt(m[0])}</span>}
               {m[1] != null && <span style={{ color: WAND_COLOURS[2] }}>mean {fmt(m[1])}</span>}
               {delta != null && <span aria-label="Section delta">Δ {delta > 0 ? '+' : ''}{fmt(delta)}</span>}
+              {second && (
+                <span aria-label="Second trace" style={{ color: '#4fc3f7' }}>
+                  {NAMES.get(second) ?? second} ({stats2 ? `${fmt(stats2.mean)} ± ${fmt(stats2.sd)}` : '—'})
+                </span>
+              )}
+              <select aria-label={`Axis for ${NAMES.get(id) ?? id}`} value={mode} onChange={(e) => setStrip({ axes: { ...strip.axes, [id]: e.target.value as AxisMode } })}>
+                <option value="auto">fit</option>
+                <option value="roll">roll</option>
+                <option value="shift">shift max</option>
+              </select>
+              <select aria-label={`Second trace for ${NAMES.get(id) ?? id}`} value={second ?? ''} onChange={(e) => setStrip({ second: { ...strip.second, [id]: e.target.value } })}>
+                <option value="">+ trace</option>
+                {CHANNELS.filter((c) => c.id !== id && rows.some((r) => Number.isFinite(r.v[c.id]))).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
               <button
                 className="btn btn--sm btn--ghost"
                 aria-label={`Remove ${NAMES.get(id) ?? id}`}
@@ -188,6 +220,16 @@ export function StripchartScreen() {
               {wands.map((w, i) => (
                 <line key={i} x1={x(w)} x2={x(w)} y1={0} y2={PANE_H} stroke={WAND_COLOURS[i]} strokeWidth={2} vectorEffect="non-scaling-stroke" />
               ))}
+              {pts2.length > 1 && (
+                <polyline
+                  fill="none"
+                  stroke="#4fc3f7"
+                  strokeWidth={1.2}
+                  vectorEffect="non-scaling-stroke"
+                  aria-label="second trace line"
+                  points={pts2.map(([t, v]) => `${x(t).toFixed(1)},${y2(v).toFixed(1)}`).join(' ')}
+                />
+              )}
               {pts.length > 1 && (
                 <polyline
                   fill="none"
@@ -286,6 +328,42 @@ export function StripchartScreen() {
           </select>
         </div>
       )}
+      <div className="actions" style={{ background: 'none', border: 'none', padding: '4px 0' }}>
+        <button
+          className="btn btn--sm btn--ghost"
+          onClick={async () => {
+            const { downloadText } = await import('@/lib/gpx')
+            downloadText('stripchart.json', JSON.stringify({ app: 'newjourney', kind: 'stripchart', v: 1, strip }, null, 2), 'application/json')
+          }}
+        >
+          SAVE LAYOUT
+        </button>
+        <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+          LOAD LAYOUT
+          <input
+            type="file"
+            accept=".json,application/json"
+            aria-label="Stripchart layout to load"
+            style={{ display: 'none' }}
+            onChange={async (e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (!f) return
+              try {
+                const j = JSON.parse(await f.text())
+                const l = j?.strip
+                if (j?.kind === 'stripchart' && l && Array.isArray(l.panes) && l.panes.every((x: unknown) => typeof x === 'string') && Number.isFinite(l.spanMin)) {
+                  setStrip({ panes: l.panes, spanMin: l.spanMin, rateHz: l.rateHz, second: l.second, axes: l.axes })
+                  setLayoutError(null)
+                } else setLayoutError('Not a stripchart layout.')
+              } catch {
+                setLayoutError('Not a stripchart layout.')
+              }
+            }}
+          />
+        </label>
+        {layoutError && <span className="warnbox">{layoutError}</span>}
+      </div>
       <Analysis rows={rows} days={days} />
     </div>
   )
