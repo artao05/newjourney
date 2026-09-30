@@ -469,11 +469,15 @@ then the Partial rows; then the Hardware rows, tested against recordings.
 
 ## M16 — Real files (D8)
 
-- [ ] **16.1 Download the public test files** and commit them with a `SOURCES.md` that gives
+- [x] **16.1 Download the public test files** and commit them with a `SOURCES.md` that gives
       each file's URL, date and licence: a small GFS subset from the NOMADS filter, NOAA's
       WMM-2025 `WMM.COF`, one NOAA ENC cell for Portland, one archived NOAA KAP, and a week
       of NOAA tide predictions for Portland (8418150). *Accept:* the files, their sources,
       and a test that each one opens.
+      *In `fixtures/real/` (890 KB): GFS subsets plus two whole global messages in NCEP's own
+      complex packing, WMM2025 with NCEI's test values, ENC US5PWMDC with its update, RNC 14983
+      (the Internet Archive's copy of NOAA's file, since NOAA withdrew RNCs), and CO-OPS
+      constants, datums and a week of predictions. Checked in src/realFiles.test.ts.*
 - [ ] **16.2 Real-file checks:** 10.1b (GFS through the GRIB2 decoder, values against the
       NOMADS listing), 13.1b (the ENC cell's feature counts), 13.8b (the KAP's size, palette
       and corners), and the 11.1 regression fixture. Fix whatever the real files show.
