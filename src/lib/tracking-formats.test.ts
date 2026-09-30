@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest'
-import { parseBasicPositions, parseExpeditionPositions, parseMaxSeaPositions, parseTrackingFile, parseVolvoPositions } from './tracking'
+import { parseBasicPositions, parseBoatIds, parseExpeditionPositions, parseMaxSeaPositions, parseTrackingFile, parseVolvoPositions, schedsTime } from './tracking'
 
 // Lines in the layouts the manual gives for each format.
 const EXP = ['12,43.60,-70.20', '15,43.58,-70.22,2609291405,2', 'not a line'].join('\n')
@@ -15,7 +15,8 @@ describe('the race-office tracking formats', () => {
     const t = parseExpeditionPositions(EXP, null, 'fleet2609291400.txt')
     expect(t.map((x) => [x.key, x.points[0]])).toEqual([
       ['12', { t: Date.UTC(2026, 8, 29, 14, 0), lat: 43.6, lon: -70.2 }],
-      ['15', { t: Date.UTC(2026, 8, 29, 14, 5), lat: 43.58, lon: -70.22 }],
+      // After the time, COG (then SOG, TWD and TWS).
+      ['15', { t: Date.UTC(2026, 8, 29, 14, 5), lat: 43.58, lon: -70.22, cog: 2 }],
     ])
     // With no time anywhere a line is not placed.
     expect(parseExpeditionPositions('12,43.60,-70.20')).toEqual([])
@@ -52,5 +53,23 @@ describe('the race-office tracking formats', () => {
     expect(parseTrackingFile(BASIC)[0].key).toBe('Wild Horses')
     expect(parseTrackingFile(EXP, 'fleet2609291400.txt').map((x) => x.key)).toEqual(['12', '15'])
     expect(parseTrackingFile('boat,time,lat,lon\nA,2026-09-29T14:00:00Z,43.6,-70.2')[0].key).toBe('A')
+  })
+})
+
+describe('scheds files and boat ids', () => {
+  it('takes the time from any form of scheds file name, and reads COG and SOG', () => {
+    const t = Date.UTC(2026, 8, 29, 14, 30)
+    expect(schedsTime('scheds_2609291430.csv')).toBe(t)
+    expect(schedsTime('Scheds_260929_1430.csv')).toBe(t)
+    expect(schedsTime('Scheds_26092914.csv')).toBe(Date.UTC(2026, 8, 29, 14, 0))
+    const tracks = parseTrackingFile('EXPEDITION\n7,43.60,-70.20,,215,6.5,190,14\n', 'Scheds_260929_1430.csv')
+    expect(tracks[0].points[0]).toEqual({ t, lat: 43.6, lon: -70.2, cog: 215, sog: 6.5 })
+  })
+
+  it('reads BoatId.csv: id and name, with class and handicap where given', () => {
+    expect(parseBoatIds('id,name,class,handicap\n7,Wild Horses,J/109,0.998\n12,Sea Fever\n,no id\n')).toEqual([
+      { id: '7', name: 'Wild Horses', className: 'J/109', handicap: 0.998 },
+      { id: '12', name: 'Sea Fever' },
+    ])
   })
 })

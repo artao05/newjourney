@@ -122,15 +122,32 @@ function compact(s: string): number {
 }
 
 /**
+ * The UTC time a scheds file's name gives: scheds_yymmddhhmm, scheds_yymmdd_hhmm,
+ * or with the minutes left off, scheds_yymmddhh.
+ */
+export function schedsTime(fileName: string): number {
+  const split = /(\d{6})_(\d{4})(?!\d)/.exec(fileName)
+  if (split) return compact(split[1] + split[2])
+  const full = /(\d{10,12})/.exec(fileName)
+  if (full) return compact(full[1])
+  const hours = /(\d{8})(?!\d)/.exec(fileName)
+  return hours ? compact(hours[1] + '00') : NaN
+}
+
+/**
  * Expedition's own position lines: boat id, latitude, longitude in signed
- * decimal degrees, and optionally a YYMMDDhhmm[ss] time that overrides the
- * file's (from its name, or `fallback`).
+ * decimal degrees, then optionally a YYMMDDhhmm[ss] time that overrides the
+ * file's (from its name, or `fallback`), and COG and SOG (TWD and TWS may
+ * follow, and are passed over). A first line EXPEDITION, as the scheduler
+ * writes, is passed over too.
  */
 export function parseExpeditionPositions(text: string, fallback: number | null = null, fileName = ''): FleetTrack[] {
-  const fromName = compact(/(\d{10,12})/.exec(fileName)?.[1] ?? '')
+  const fromName = schedsTime(fileName)
   const base = Number.isFinite(fromName) ? fromName : fallback
   const out: Array<{ key: string } & FleetFix> = []
+  const num = (v: string | undefined) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : undefined)
   for (const line of text.split(/\r?\n/)) {
+    if (/^\s*EXPEDITION\s*$/i.test(line)) continue
     const f = line.split(',').map((x) => x.trim())
     if (f.length < 3) continue
     const lat = Number(f[1])
@@ -138,9 +155,23 @@ export function parseExpeditionPositions(text: string, fallback: number | null =
     const own = f[3] ? compact(f[3]) : NaN
     const t = Number.isFinite(own) ? own : base
     if (!f[0] || !Number.isFinite(lat) || !Number.isFinite(lon) || t == null || !Number.isFinite(t)) continue
-    out.push({ key: f[0], t, lat, lon })
+    const cog = num(f[4])
+    const sog = num(f[5])
+    out.push({ key: f[0], t, lat, lon, ...(cog != null ? { cog } : {}), ...(sog != null ? { sog } : {}) })
   }
   return group(out)
+}
+
+/** Expedition's BoatId.csv: id,name[,class,handicap], a boat a line, the names kept apart from the reports. */
+export function parseBoatIds(text: string): Array<{ id: string; name: string; className?: string; handicap?: number }> {
+  const out: Array<{ id: string; name: string; className?: string; handicap?: number }> = []
+  for (const line of text.split(/\r?\n/)) {
+    const f = line.split(',').map((x) => x.trim())
+    if (f.length < 2 || !f[0] || !f[1] || /^id$/i.test(f[0])) continue
+    const h = f[3] != null && f[3] !== '' && Number.isFinite(Number(f[3])) ? Number(f[3]) : undefined
+    out.push({ id: f[0], name: f[1], ...(f[2] ? { className: f[2] } : {}), ...(h != null ? { handicap: h } : {}) })
+  }
+  return out
 }
 
 /**
@@ -220,6 +251,7 @@ export function parseMaxSeaPositions(text: string): FleetTrack[] {
 export function parseTrackingFile(text: string, fileName = '', opts: { dateOrder?: 'dmy' | 'mdy'; fallbackTime?: number | null } = {}): FleetTrack[] {
   const first = text.split(/\r?\n/).find((l) => l.trim())?.trim() ?? ''
   if (/<gpx[\s>]/i.test(text)) return parseGpxFleet(text)
+  if (/^EXPEDITION$/i.test(first)) return parseExpeditionPositions(text, opts.fallbackTime ?? null, fileName)
   if (/^POSRELEASE/i.test(first) || /^\d+;[^;]+;\d+,\d/.test(first)) return parseVolvoPositions(text)
   if (/^POSREPORT/i.test(first) || /^rank;\s*boat id/i.test(first)) return parseMaxSeaPositions(text)
   if (/^[^,]+,\s*\d{1,2}\/\d{1,2}\/\d{4}\s/.test(first)) return parseBasicPositions(text, opts.dateOrder)

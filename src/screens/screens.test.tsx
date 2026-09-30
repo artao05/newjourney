@@ -365,6 +365,54 @@ describe('the boats database', () => {
     act(() => useStore.setState({ fleet: [] }))
   })
 
+  it('names the fleet from a BoatId.csv, and exports the fleet table as text', async () => {
+    act(() => {
+      useStore.setState({ fleet: [] })
+      useStore.getState().addFleetBoat('Wild Horses', 1)
+    })
+    render(<RaceScreen />)
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Boat id file to import'), { target: { files: [new File(['id,name,class,handicap\n7,Wild Horses,J/109,0.998\n12,Sea Fever,J/105,1.02\n'], 'BoatId.csv')] } })
+      await new Promise((r) => setTimeout(r, 20))
+    })
+    const fleet = useStore.getState().fleet
+    expect(fleet.map((b) => [b.name, b.trackerId, b.rating])).toEqual([
+      ['Wild Horses', '7', 0.998],
+      ['Sea Fever', '12', 1.02],
+    ])
+    expect(screen.getByLabelText('Tracks').textContent).toBe('2 boat ids: 1 boat added, 1 named')
+    act(() => useStore.setState({ fleet: [] }))
+  })
+
+  it('opens race notes from text and GeoJSON, saves them, and clears them', async () => {
+    act(() => useStore.setState({ raceNotes: [] }))
+    const saved: { blob?: Blob } = {}
+    const original = URL.createObjectURL
+    URL.createObjectURL = ((b: Blob) => ((saved.blob = b), 'blob:notes')) as typeof URL.createObjectURL
+    try {
+      render(<RaceScreen />)
+      const text = ['No-go zone', '43.60,-70.20', '43.60,-70.19', '43.61,-70.19'].join('\n')
+      const gj = JSON.stringify({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { text: 'Committee boat' }, geometry: { type: 'Point', coordinates: [-70.2, 43.6] } }] })
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Race note files to open'), { target: { files: [new File([text], 'areas.txt'), new File([gj], 'rc.geojson')] } })
+        await new Promise((r) => setTimeout(r, 20))
+      })
+      expect(useStore.getState().raceNotes.map((n) => [n.kind, n.text])).toEqual([
+        ['area', 'No-go zone'],
+        ['point', 'Committee boat'],
+      ])
+      expect(screen.getByLabelText('Race notes file').textContent).toBe('2 notes added.')
+      fireEvent.click(screen.getByRole('button', { name: 'SAVE NOTES' }))
+      await waitFor(() => expect(saved.blob).toBeTruthy())
+      expect(JSON.parse(await saved.blob!.text()).features).toHaveLength(2)
+      fireEvent.click(screen.getByRole('button', { name: 'CLEAR NOTES' }))
+      expect(useStore.getState().raceNotes).toEqual([])
+    } finally {
+      URL.createObjectURL = original
+      act(() => useStore.setState({ raceNotes: [] }))
+    }
+  })
+
   it('imports a tracking file, matches its boats, and draws their tracks in their colours', async () => {
     act(() => {
       useStore.setState({ fleet: [] })

@@ -446,9 +446,11 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       P4-168, P2-173, P2-170). *Accept:* tests.
       *The GRIB file info before download and the model run time stay partial: the first cannot be
       known before a Saildocs reply, the second needs the NOMADS listings (D1).*
-- [ ] **15.11 Files:** race-note files and areas from text, tracking to text,
+- [x] **15.11 Files:** race-note files and areas from text, tracking to text,
       BoatId.csv and scheds CSV, an XTide reader (P1-161, P1-162, P2-282, P2-286,
       P2-287, P4-202). *Accept:* tests.
+      *All but the XTide reader (P4-202), which is a port of libtcd; NOAA harmonics already feed
+      the tide engine.*
 - [ ] **15.12 Shell:** an error log, hover tooltips, chart text size, layout presets and
       locked panes, Fahrenheit, user-channel names (P1-042, P4-163, P4-133, P1-065,
       P1-063, P4-111, P4-184). *Accept:* tests and a browser check.

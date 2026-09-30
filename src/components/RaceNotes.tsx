@@ -9,6 +9,7 @@
 
 import { useState } from 'react'
 import { useStore, type RaceNote } from '@/state/store'
+import { notesFromGeoJSON, notesFromText, notesToGeoJSON } from '@/lib/raceNotesFile'
 
 export function RaceNoteSheet({ note, onClose }: { note: RaceNote; onClose: () => void }) {
   const update = useStore((s) => s.updateRaceNote)
@@ -93,6 +94,25 @@ export function describeNote(n: RaceNote): string {
 export function RaceNotesList() {
   const notes = useStore((s) => s.raceNotes)
   const [editing, setEditing] = useState<string | null>(null)
+  const [fileMsg, setFileMsg] = useState<string | null>(null)
+  // Opening adds to the notes there are: files merge, as Expedition's do.
+  const open = async (files: File[]) => {
+    const add = useStore.getState().addRaceNote
+    let n = 0
+    const bad: string[] = []
+    for (const f of files) {
+      const text = await f.text()
+      try {
+        const got = /^\s*[{[]/.test(text) ? notesFromGeoJSON(text) : notesFromText(text).notes
+        for (const note of got) add(note)
+        n += got.length
+        if (!got.length) bad.push(f.name)
+      } catch {
+        bad.push(f.name)
+      }
+    }
+    setFileMsg(`${n} note${n === 1 ? '' : 's'} added${bad.length ? `; nothing read from ${bad.join(', ')}` : ''}.`)
+  }
   const note = notes.find((n) => n.id === editing) ?? null
   return (
     <section aria-label="Race notes">
@@ -115,6 +135,38 @@ export function RaceNotesList() {
           </button>
         </div>
       ))}
+      <div className="actions" style={{ background: 'none', border: 'none', padding: '4px 0' }}>
+        <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+          OPEN NOTES
+          <input
+            type="file"
+            multiple
+            accept=".geojson,.json,.txt,.csv"
+            aria-label="Race note files to open"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const files = [...(e.target.files ?? [])]
+              e.target.value = ''
+              void open(files)
+            }}
+          />
+        </label>
+        <button
+          className="btn btn--sm btn--ghost"
+          disabled={!notes.length}
+          onClick={async () => {
+            const { downloadText } = await import('@/lib/gpx')
+            downloadText('race-notes.geojson', notesToGeoJSON(notes), 'application/geo+json')
+          }}
+        >
+          SAVE NOTES
+        </button>
+        <button className="btn btn--sm btn--ghost" disabled={!notes.length} onClick={() => useStore.setState({ raceNotes: [] })}>
+          CLEAR NOTES
+        </button>
+      </div>
+      {fileMsg && <p className="note" aria-label="Race notes file">{fileMsg}</p>}
+      <p className="note">Open GeoJSON, or a text list of areas: a name line, then one position line a corner.</p>
       {note && <RaceNoteSheet note={note} onClose={() => setEditing(null)} />}
     </section>
   )

@@ -4,7 +4,7 @@
  */
 import { POLAR_LIBRARY } from '@/data/polars'
 import { useEffect, useState } from 'react'
-import { leaderboard } from '@/lib/tracking'
+import { leaderboard, parseBoatIds } from '@/lib/tracking'
 import { useStore } from '@/state/store'
 import { importTrackingFiles, useTracking } from '@/state/tracking'
 
@@ -30,6 +30,34 @@ function ImportTracks() {
             if (!files.length) return
             const r = await importTrackingFiles(files, fleet)
             setNote(`${r.tracks} track${r.tracks === 1 ? '' : 's'}, ${r.matched} matched to the boats here${r.errors.length ? `; ${r.errors.join('; ')}` : ''}`)
+          }}
+        />
+      </label>
+      <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }} title="Expedition's BoatId.csv: id,name[,class,handicap], naming the boats the reports give by id">
+        IMPORT BOAT IDS
+        <input
+          type="file"
+          accept=".csv,.txt,text/csv"
+          aria-label="Boat id file to import"
+          style={{ display: 'none' }}
+          onChange={async (e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (!f) return
+            const ids = parseBoatIds(await f.text())
+            const s = useStore.getState()
+            let added = 0
+            for (const b of ids) {
+              // A boat with that tracker id, or else that name, takes it; any other is added.
+              const have = s.fleet.find((x) => x.trackerId === b.id) ?? useStore.getState().fleet.find((x) => x.name === b.name)
+              if (!have) {
+                s.addFleetBoat(b.name, b.handicap ?? 1)
+                added++
+              }
+              const boat = have ?? useStore.getState().fleet.at(-1)!
+              useStore.getState().updateFleetBoat(boat.id, { name: b.name, trackerId: b.id, ...(b.handicap != null ? { rating: b.handicap } : {}) })
+            }
+            setNote(`${ids.length} boat id${ids.length === 1 ? '' : 's'}: ${added} boat${added === 1 ? '' : 's'} added, ${ids.length - added} named`)
           }}
         />
       </label>
@@ -59,7 +87,18 @@ function FleetNow() {
   const rows = leaderboard(tracks, now, own, mark)
   if (!rows.length) return null
   const f = (v: number | null, dp: number) => (v == null ? '—' : v.toFixed(dp))
+  // The table as plain text, to print for the deck or send on.
+  const exportText = async () => {
+    const { downloadText } = await import('@/lib/gpx')
+    const head = 'boat,to mark nm,ahead nm,range nm,bearing,fix min'
+    const lines = rows.map((r) => [fleet.find((x) => x.id === r.boatId)?.name ?? r.key, f(r.toMarkNm, 2), r.aheadNm == null ? '' : r.aheadNm.toFixed(2), f(r.rangeNm, 2), f(r.bearing, 0), Math.round(r.ageMin)].join(','))
+    downloadText(`fleet-${new Date(now).toISOString().slice(0, 16).replace(/[-:T]/g, '')}.csv`, [head, ...lines].join('\n') + '\n', 'text/csv')
+  }
   return (
+    <>
+    <button className="btn btn--sm btn--ghost" onClick={() => void exportText()} style={{ marginTop: 8 }}>
+      EXPORT FLEET
+    </button>
     <table className="targets" aria-label="Fleet now" style={{ width: '100%', marginTop: 8 }}>
       <thead>
         <tr>
@@ -89,6 +128,7 @@ function FleetNow() {
         })}
       </tbody>
     </table>
+    </>
   )
 }
 
