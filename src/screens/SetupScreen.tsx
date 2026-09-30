@@ -336,6 +336,22 @@ export function SetupScreen() {
             inputMode="numeric"
           />
         </div>
+        <div className="field">
+          <label htmlFor="wind-weight">Wind weight <span className="note">×, heavier air over 1</span></label>
+          <input
+            id="wind-weight"
+            type="number"
+            step="0.01"
+            min="0.7"
+            max="1.3"
+            value={boat.windWeight ?? 1}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              if (v >= 0.7 && v <= 1.3) updateBoat({ windWeight: v })
+            }}
+            inputMode="decimal"
+          />
+        </div>
         <p className="note">
           How well are you actually sailing today? 100% is the book. Most crews
           most of the time are somewhere between 88 and 96.

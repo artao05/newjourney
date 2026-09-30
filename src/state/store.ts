@@ -310,6 +310,9 @@ interface AppState {
   /** Which sail at which TWA and TWS (src/lib/sailchart.ts). */
   sailChart: SailChart | null
   setSailChart(chart: SailChart | null): void
+  /** The sail inventory: every sail, and whether it is on board today. */
+  sails: Array<{ name: string; onBoard: boolean }>
+  setSails(sails: Array<{ name: string; onBoard: boolean }>): void
 
   course: Course
   setStartEnd(which: 'port' | 'starboard', at: LatLon | null): void
@@ -682,6 +685,8 @@ export const useStore = create<AppState>()(
       setPolarRole: (role, id) => set({ polarRoles: { ...get().polarRoles, [role]: id } }),
       sailChart: null,
       setSailChart: (chart) => set({ sailChart: chart }),
+      sails: [],
+      setSails: (sails) => set({ sails }),
 
       course: EMPTY_COURSE,
       setStartEnd: (which, at) =>
@@ -1182,6 +1187,7 @@ export const useStore = create<AppState>()(
         polar: s.polarId === 'custom' ? s.polar : null,
         polarRoles: s.polarRoles,
         sailChart: s.sailChart,
+        sails: s.sails,
         startApproaches: s.startApproaches,
         timer: s.timer,
         course: s.course,

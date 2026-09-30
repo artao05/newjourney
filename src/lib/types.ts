@@ -72,6 +72,11 @@ export interface Boat {
   polarPct: number
   /** Polar scaling between civil dusk and dawn, percent. */
   polarPctNight: number
+  /**
+   * Wind weight: the day's air heavier (over 1) or lighter than the polar's, from
+   * density or shear. It scales the polar's speeds, targets and routing alike.
+   */
+  windWeight?: number
   /** Seconds lost per tack. */
   tackPenaltyS: Seconds
   /** Seconds lost per gybe. */

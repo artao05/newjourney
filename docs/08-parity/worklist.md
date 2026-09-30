@@ -456,5 +456,5 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       P1-063, P4-111, P4-184). *Accept:* tests and a browser check.
       *Hover tooltips (P4-163) and user-channel names (P4-184) are still to do, and °F reaches the
       channels but not yet the Weather probe and meteogram.*
-- [ ] **15.13 Sails:** the sail inventory editor, the sail chart and its cell editing,
+- [x] **15.13 Sails:** the sail inventory editor, the sail chart and its cell editing,
       wind weight (P1-140, P1-073, P3-011, P1-283, P3-073). *Accept:* tests.

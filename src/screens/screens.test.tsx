@@ -2982,6 +2982,33 @@ describe('the targets table', () => {
 describe('the sail chart', () => {
   const CHART = ['TWS\\TWA\t40\t90\t150', '8\tJ1\tC0\tA2', '14\tJ2\tC0\tA4'].join('\n')
 
+  it('keeps a sail inventory, starts a chart, and sets a cell from the sails on board', () => {
+    populatedStore()
+    act(() => useStore.setState({ sailChart: null, sails: [] }))
+    render(<SetupScreen />)
+    for (const n of ['J1', 'J2', 'A2']) {
+      fireEvent.change(screen.getByLabelText('New sail'), { target: { value: n } })
+      fireEvent.click(screen.getByRole('button', { name: 'ADD SAIL' }))
+    }
+    // A2 ashore today.
+    fireEvent.click(within(screen.getByRole('table', { name: 'Sail inventory' })).getAllByRole('checkbox')[2])
+    expect(useStore.getState().sails).toEqual([{ name: 'J1', onBoard: true }, { name: 'J2', onBoard: true }, { name: 'A2', onBoard: false }])
+    fireEvent.click(screen.getByRole('button', { name: 'NEW SAIL CHART' }))
+    fireEvent.click(screen.getByLabelText('Sail at 10 kn, 40°'))
+    const pick = within(screen.getByLabelText('Pick a sail')).getByRole('combobox')
+    expect([...pick.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['no sail', 'J1', 'J2'])
+    fireEvent.change(pick, { target: { value: 'J2' } })
+    const c = useStore.getState().sailChart!
+    expect(c.cells[c.tws.indexOf(10)][c.twa.indexOf(40)]).toBe('J2')
+    // Wind weight, beside the polar %.
+    fireEvent.change(screen.getByLabelText(/^Wind weight/), { target: { value: '1.05' } })
+    expect(useStore.getState().boat.windWeight).toBe(1.05)
+    act(() => {
+      useStore.setState({ sailChart: null, sails: [] })
+      useStore.getState().updateBoat({ windWeight: 1 })
+    })
+  })
+
   it('loads in Setup, shows each sail by colour, and marks the wind now', async () => {
     populatedStore()
     render(<SetupScreen />)

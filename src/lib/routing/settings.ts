@@ -160,7 +160,7 @@ export function windHeightFactor(
  */
 export function requestParts(
   settings: RouteSettings,
-  boat: Pick<Boat, 'polarPct' | 'polarPctNight' | 'tackPenaltyS' | 'gybePenaltyS'>,
+  boat: Pick<Boat, 'polarPct' | 'polarPctNight' | 'tackPenaltyS' | 'gybePenaltyS' | 'windWeight'>,
   avoidLand: boolean,
   heightFactor = 1,
 ): { constraints: RouteConstraints; scalings: RouteScalings; resolution: RouteResolution } {
@@ -182,8 +182,9 @@ export function requestParts(
   return {
     constraints,
     scalings: {
-      polarPct: boat.polarPct,
-      polarPctNight: boat.polarPctNight,
+      // The wind weight scales the polar as the polar % does.
+      polarPct: boat.polarPct * (boat.windWeight ?? 1),
+      polarPctNight: boat.polarPctNight * (boat.windWeight ?? 1),
       windScalePct: settings.windScalePct * heightFactor,
       windRotateDeg: settings.windRotateDeg,
       windTimeShiftS: settings.windTimeShiftMin * 60,

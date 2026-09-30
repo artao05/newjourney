@@ -12,6 +12,12 @@ import { findPolar } from '@/data/polars'
 import { buildLattice } from '@/lib/polar'
 import type { PolarLattice, PolarTable } from '@/lib/types'
 
+/** The polar with its speeds scaled by the wind weight; the same table at 1. */
+export function weighted(table: PolarTable | null | undefined, weight: number): PolarTable | null | undefined {
+  if (!table || !(weight > 0) || weight === 1) return table
+  return { ...table, rows: table.rows.map((r) => ({ ...r, bsp: r.bsp.map((v) => v * weight) })) }
+}
+
 function latticeOf(table: PolarTable | null | undefined): PolarLattice | null {
   if (!table) return null
   try {
@@ -34,14 +40,15 @@ export function usePolarLattices(): {
 } {
   const polar = useStore((s) => s.polar)
   const roles = useStore((s) => s.polarRoles)
-  const navigation = useMemo(() => latticeOf(polar), [polar])
+  const weight = useStore((s) => s.boat.windWeight ?? 1)
+  const navigation = useMemo(() => latticeOf(weighted(polar, weight)), [polar, weight])
   const performance = useMemo(
-    () => (roles.performance === 'navigation' ? navigation : latticeOf(roleTable(roles.performance, polar))),
-    [roles.performance, navigation, polar],
+    () => (roles.performance === 'navigation' ? navigation : latticeOf(weighted(roleTable(roles.performance, polar), weight))),
+    [roles.performance, navigation, polar, weight],
   )
   const start = useMemo(
-    () => (roles.start === 'navigation' ? navigation : latticeOf(roleTable(roles.start, polar))),
-    [roles.start, navigation, polar],
+    () => (roles.start === 'navigation' ? navigation : latticeOf(weighted(roleTable(roles.start, polar), weight))),
+    [roles.start, navigation, polar, weight],
   )
   return { navigation, performance, start }
 }
