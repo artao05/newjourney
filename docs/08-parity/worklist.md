@@ -174,7 +174,7 @@ leaves something tested and working.
       including the checksum.
 - [x] **6.9 NMEA 2000 PGN decoding** from Actisense or YD raw formats. *Accept:*
       fixture tests. Live use is `Hardware`.
-- [ ] **6.10 Output to instruments.** `blocked: D3`.
+- [ ] **6.10 Output to instruments.** Unblocked 2026-09-30 (D3: build it, off by default); worked as M19.
 
 ## M7 — Logging, playback and stripchart
 
@@ -225,8 +225,9 @@ leaves something tested and working.
 - [x] **9.12 Fleet routing:** every boat with its own polar (after 13.4). *Accept:*
       tests.
 - [ ] **9.13 World land avoidance** from a tiled OSM land pack. *Accept:* a route
-      outside Portland goes round land. `blocked: D1`: building the pack means downloading
-      OSM's land polygons (about 700 MB, ODbL) and hosting the world tiles; may I, and where?
+      outside Portland goes round land. D1 is decided (a local backend), which
+      answers "where". Worked as 20.7, which still asks one thing: may I download OSM's
+      simplified land polygons (about 25 MB, ODbL, with credit)?
 - [x] **9.14 Asymmetric port and starboard polars**, moved here from 4.5 because it
       needs a second set of target tables in the hot loop. *Accept:* the kernel uses
       the right side on each tack, with a test.
@@ -238,10 +239,8 @@ leaves something tested and working.
       with spatial differencing, which covers GFS. *Accept:* fixture tests on a real
       GFS subset.
 - [ ] **10.1b Check the GRIB2 decoder on a real GFS file.** 10.1 is tested on messages
-      built byte by byte to the WMO layout, because there is no GRIB file here. `blocked: D8`:
-      may I download a small GFS subset from the NOMADS filter (one run, 10 m wind and
-      MSLP, a 5° box, about 20 KB) and commit it as a test fixture? Or drop one in
-      `src/lib/weather/fixtures/`.
+      built byte by byte to the WMO layout, because there is no GRIB file here. Unblocked 2026-09-30
+      (D8: download them); worked in M16.
 - [x] **10.2 GRIB2 PNG packing**, then **GRIB1**. *Accept:* fixture tests. *PNG with a
       small inflate of our own (src/lib/inflate.ts); GRIB1 with NCEP and ECMWF tables.*
 - [x] **10.3 Open GRIB files** by picker or drag-drop, several at once, with a
@@ -269,7 +268,8 @@ leaves something tested and working.
       with their latest wind, and a station's recent reports against the forecast there.
       *Accept:* tests and a browser check.
 - [ ] **10.8c Buoys and METARs on the chart.** Parsed already; a browser can't fetch them
-      (NDBC and aviationweather.gov send no CORS headers). `blocked: D1`: they need the proxy.
+      (NDBC and aviationweather.gov send no CORS headers). Unblocked 2026-09-30 (D1: build the
+      backend locally); worked as 20.3.
 - [x] **10.9 Radar and satellite overlays:** RainViewer's latest frame and GOES-East GeoColor from
       NASA GIBS. *Accept:* a browser check.
 - [x] **10.9b Weather-chart overlays:** OPC surface analyses and other fax charts, placed by their
@@ -278,8 +278,8 @@ leaves something tested and working.
 - [x] **10.10 Ensemble display:** members, and mean ± SD. *Accept:* tests.
 - [x] **10.11 A GRIB request builder:** area on the chart, model, parameters and
       times, with a Saildocs `mailto:` and a size estimate. *Accept:* tests.
-- [ ] **10.12 NOMADS and ECMWF open-data download.** `blocked: D1`, which needs the
-      proxy.
+- [ ] **10.12 NOMADS and ECMWF open-data download.** Unblocked 2026-09-30 (D1); worked
+      as 20.2.
 - [x] **10.2c GRIB2 JPEG 2000 packing** (5.40, used by NAM and Canada's GEM). A decoder
       of its own: codestream, tier-2 packets, the MQ coder and EBCOT, and the 5/3 and 9/7
       wavelets. Last in M10 because GFS, HRRR and ECMWF don't need it. *Accept:* fixture tests.
@@ -301,7 +301,7 @@ leaves something tested and working.
       *Accept:* kernel tests.
 - [ ] **11.5 Position-aware magnetic variation** (WMM). *Accept:* tests against NOAA
       calculator values.
-      `blocked: D8`: may I download NOAA's WMM-2025 coefficient file (WMM.COF, public domain)?
+      Unblocked 2026-09-30 (D8); worked in M16.
 
 ## M12 — AIS, boats and race tracking
 
@@ -331,8 +331,8 @@ leaves something tested and working.
 
 - [x] **13.1 ISO 8211 reader.** *Accept:* it parses a NOAA ENC cell fixture. *Tested on records built to
       the ISO 8211 layout with S-57-shaped fields; a real cell is 13.1b.*
-- [ ] **13.1b Check the reader on a real NOAA ENC cell.** `blocked: D8`: may I download one small
-      public-domain cell for the venue (US5ME11M or similar, a few hundred KB) as a fixture?
+- [ ] **13.1b Check the reader on a real NOAA ENC cell.** Unblocked 2026-09-30 (D8); worked
+      in M16.
 - [x] **13.2 S-57 decoder** to features in a worker. *Accept:* feature counts match
       GDAL's on the same cell.
       *On a cell built to the layout; feature counts against a real cell wait on 13.1b (D8).*
@@ -360,9 +360,8 @@ leaves something tested and working.
 - [x] **13.8 BSB/KAP raster charts.** *Accept:* it decodes a NOAA RNC fixture.
       *Decoder, georeferencing and display on the Route chart, on charts built to the layout
       (lib/charts/fixtures/bsb.ts); the real-chart check is 13.8b.*
-- [ ] **13.8b Check the raster reader on a real BSB/KAP chart.** `blocked: D8`: NOAA has withdrawn
-      its RNCs; may I download one archived NOAA KAP (public domain), or will you drop any real
-      `.kap` into `src/lib/charts/fixtures/`?
+- [ ] **13.8b Check the raster reader on a real BSB/KAP chart.** Unblocked 2026-09-30 (D8); worked
+      in M16.
 - [x] **13.9 Georeferenced custom images, and GPS chart offset.** *Accept:* tests.
       *Images placed by two or more control points (Mercator or lat/lon); a chart offset in metres
       moves the ENC and raster charts (lib/charts/georef.ts). The base map cannot be moved.*
@@ -377,13 +376,13 @@ leaves something tested and working.
       *Setup → Channels out: newjourney JSON (hello, channels, subscribe, ping) or Signal K deltas
       to a WebSocket the user names, reconnecting with back-off (docs/09-api/channels-out.md).
       Checked live against a local WebSocket server.*
-- [ ] **14.2 Sharing between devices:** marks, routes and the start line. `blocked:
-      D1`.
+- [ ] **14.2 Sharing between devices:** marks, routes and the start line. Unblocked
+      2026-09-30 (D1); worked as 20.4.
 - [x] **14.3 Save the display as an image, print, and a night palette** for the whole
       UI. *Accept:* a browser check.
       *Route → image or print: the chart captured at its next frame, captioned with the base map's
       credit (lib/mapExport.ts); the moon in the top bar turns the whole app red on black.*
-- [ ] **14.4 Self-hosted basemap and glyphs.** `blocked: D1`.
+- [ ] **14.4 Self-hosted basemap and glyphs.** Unblocked 2026-09-30 (D1); worked as 20.6.
 
 ## M15 — The matrix, row by row (added in tick 6)
 
@@ -458,3 +457,178 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
       channels but not yet the Weather probe and meteogram.*
 - [x] **15.13 Sails:** the sail inventory editor, the sail chart and its cell editing,
       wind weight (P1-140, P1-073, P3-011, P1-283, P3-073). *Accept:* tests.
+
+## M16 onward: working functionality first (the owner's decisions, 2026-09-30)
+
+The owner asked for the same capabilities with as much of them working as possible. The
+look may follow Expedition's if it stays simple and minimalist. D8, D4, D3 and D1 were
+answered yes (see [needs.md](needs.md)). So the order is: real files, to prove the
+decoders on real data; then the plain nav-station look; then the bridge, transmit
+and the backend, which unlock the Bridge rows; then every Build row still missing;
+then the Partial rows; then the Hardware rows, tested against recordings.
+
+## M16 — Real files (D8)
+
+- [ ] **16.1 Download the public test files** and commit them with a `SOURCES.md` that gives
+      each file's URL, date and licence: a small GFS subset from the NOMADS filter, NOAA's
+      WMM-2025 `WMM.COF`, one NOAA ENC cell for Portland, one archived NOAA KAP, and a week
+      of NOAA tide predictions for Portland (8418150). *Accept:* the files, their sources,
+      and a test that each one opens.
+- [ ] **16.2 Real-file checks:** 10.1b (GFS through the GRIB2 decoder, values against the
+      NOMADS listing), 13.1b (the ENC cell's feature counts), 13.8b (the KAP's size, palette
+      and corners), and the 11.1 regression fixture. Fix whatever the real files show.
+      *Accept:* tests on the real files.
+- [ ] **16.3 Position-aware magnetic variation (11.5)** from WMM-2025: variation at the boat,
+      the pointer and each mark, with a date. *Accept:* agreement with NOAA's published
+      test values.
+
+## M17 — A plain nav-station look
+
+Expedition's look, kept simple: a light day theme, a row of text tabs with the commands
+for each one, a status bar, a right-click menu, and panes that dock. Not its name,
+logo, icon artwork or manual text.
+
+- [ ] **17.1 A light day theme** as the desktop default, with black numerals, one accent
+      colour and flat panels; dusk and night stay, and switch by time of day if asked
+      (P1-066, P1-067, P2-003, P4-114). *Accept:* tests and a browser check.
+- [ ] **17.2 A command ribbon** at desktop widths: text tabs across the top, each with its
+      commands in labelled groups, so nothing hides behind a chip (P1-035, P1-059, P1-062).
+      *Accept:* tests and a browser check.
+- [ ] **17.3 A status bar:** pointer position, variation, range and bearing from the boat,
+      chart scale, and safety warnings, with the fields chosen in Setup (P1-275, P1-276,
+      P1-278, P4-170). *Accept:* tests and a browser check.
+- [ ] **17.4 A right-click menu on the chart:** mark here, go here, range and bearing, zoom
+      and centre, chart details, image at pointer, route from here (P1-251, P1-113, P2-018,
+      P1-252, P2-100). *Accept:* tests.
+- [ ] **17.5 Panes:** show, hide, auto-hide and drag to rearrange; hover tooltips on the
+      chart, marks, AIS, the track and the weather (P1-062, P1-064, P1-083, P4-163, P4-140,
+      P4-164, P4-165). *Accept:* tests and a browser check.
+
+## M18 — The local bridge (D4)
+
+A small Node helper, `bridge/`, with no dependencies. It runs on the nav station, and the
+app talks to it over a WebSocket on `127.0.0.1`.
+
+- [ ] **18.1 Network instruments:** NMEA 0183 and AIS over UDP (listen, broadcast, subnet)
+      and TCP (client and server), several at once, forwarded to the app as a Bridge
+      source, with reconnect (P4-033, P3-091, P3-093, P3-094, P1-051, P1-049, P3-119,
+      P3-153). *Accept:* tests with a UDP and a TCP sender, and a recording replayed over
+      UDP into the running app.
+- [ ] **18.2 NMEA 2000 through the bridge:** Actisense and Yacht Devices raw over TCP, UDP
+      or a serial port, into the PGN decoder (P4-053, P4-055, P4-057, P4-058, P4-059,
+      P4-060). *Accept:* tests with recordings.
+- [ ] **18.3 App to app:** instruments, marks, routes and the start line shared between
+      copies of the app through the bridge, with channel filters, a repeater mode, and
+      reconnect (P3-095, P1-029, P4-116, P1-050, P1-236). *Accept:* tests and two copies
+      of the app in the browser.
+- [ ] **18.4 Watched folders:** position reports, raster charts and GRIB folders, picked up
+      as files land (P1-056, P2-277, P1-146, P2-028, P2-141). *Accept:* tests.
+- [ ] **18.5 Serial through the bridge:** NMEA 0183 serial ports on any browser, a laser
+      rangefinder, and serial event buttons, tested on recordings (P1-026, P3-174, P1-171,
+      P1-129, P3-152, P3-090). *Accept:* tests; the device check stays Hardware.
+
+## M19 — Transmit, off by default (D3)
+
+Nothing is sent until a master switch is turned on, and each output has its own switch
+too. Every sentence sent is logged. Tests prove that nothing goes out while a switch is off.
+
+- [ ] **19.1 The transmit switch,** per-output switches, a rate limit and the send log.
+      *Accept:* tests.
+- [ ] **19.2 NMEA 0183 out:** sentence selection, echo, wind from the active source, XDR
+      type G, and the active route as RTE/WPL with APB/RMB/BWC for a pilot (P3-110, P4-049,
+      P4-050, P4-051, P4-052, P4-034, P1-134, P4-042). *Accept:* tests against recordings.
+- [ ] **19.3 The Expedition protocol out** with channel filters, and rebroadcast over UDP
+      on its own port (P3-142, P3-081, P3-092, P3-151). *Accept:* tests.
+- [ ] **19.4 NMEA 2000 out:** navigation, wind, heading, speed and environment PGNs, with
+      per-PGN selection (P4-073, P4-074, P4-075, P4-076, P4-077, P4-061). *Accept:* tests
+      that decode what was encoded.
+
+## M20 — The backend, run locally (D1)
+
+A Node server, `server/`, that the owner can deploy later. Until then it runs on this
+machine, and the app is pointed at it in Setup.
+
+- [ ] **20.1 The proxy:** an allow-list of hosts (NOMADS, ECMWF open data, NDBC,
+      aviationweather.gov, CO-OPS, OPC), a cache, and a Setup field for the server.
+      *Accept:* tests, and a browser check through the local server.
+- [ ] **20.2 NOMADS and ECMWF open-data GRIB download (10.12),** with model run times and
+      the previous run (P2-170, P2-167, P1-196). *Accept:* tests and a live download.
+- [ ] **20.3 Buoys and METARs on the chart (10.8c)** through the proxy. *Accept:* a browser
+      check.
+- [ ] **20.4 Sharing between devices (14.2)** through a relay on the server: marks, routes,
+      the start line and fleet positions. *Accept:* tests and two browsers.
+- [ ] **20.5 Downloads:** OPC fax charts fetched, a download manager that resumes, and
+      time-outs (P1-202, P1-061, P2-171, P4-100, P4-096, P2-166). *Accept:* tests.
+- [ ] **20.6 Self-hosted glyphs (14.4),** so the chart stops calling `demotiles.maplibre.org`.
+      *Accept:* a browser check with that host blocked.
+- [ ] **20.7 World land avoidance (9.13)** from OSM's simplified land polygons, tiled by the
+      server. `blocked: download`: may I download them (about 25 MB, ODbL, credit shown)?
+
+## M21 — The Build rows still missing
+
+Taken area by area, most used first. Each item names its rows.
+
+- [ ] **21.1 Start and race:** laylines from the boat and from instrument performance, the
+      opposite-tack predictor, rate of turn in laylines, the first mark from the starboard
+      end, gybe approaches, time-to-burn labels, the countdown past laylines, turns over
+      180°, display switches at the gun, the advantage line (P4-144, P1-154, P4-146,
+      P2-242, P3-043, P1-168, P1-179, P3-039, P3-044, P3-049, P3-051, P3-053, P4-152).
+- [ ] **21.2 Chart display:** lat/lon grid, depth contour labels, nature of seabed, over-zoom
+      hatching, a boat range circle, the boat's name, a compass rose, auto-pan (P2-052,
+      P2-066, P2-055, P2-041, P4-134, P4-157, P4-154, P4-115).
+- [ ] **21.3 Chart library:** ENCs or RNCs only, a name filter, a chart that stays up,
+      quilting, the image index, image valid times, information and quality objects, the
+      datum warning (P1-303, P2-015, P2-019, P1-307, P2-012, P2-032, P1-253, P1-096,
+      P2-004, P2-075).
+- [ ] **21.4 Chart presentation:** S-52 or greyscale palettes, simplified boundaries,
+      international or US, Easy View, enhanced anti-clutter, coastal land colours, land
+      declutter, label language (P1-304, P2-079, P1-312, P2-051, P2-050, P2-089, P2-090,
+      P2-091, P2-043, P2-069).
+- [ ] **21.5 Marks and routes:** a running fix from bearing lines, reverse divider bearings,
+      the Cowes Week SMS course, route folders, looping routes, always draw or don't draw
+      (P1-132, P1-133, P1-139, P2-096, P2-097, P2-106).
+- [ ] **21.6 Routing options:** tack and gybe preference, grid resolution, the route colour,
+      shading by weather, turns only at routing steps, sail polars in routing, routes
+      reloaded at start, routing on a weather boat's data (P1-225, P2-186, P2-188, P2-189,
+      P2-195, P2-198, P2-205, P2-209).
+- [ ] **21.7 Polars and sail tests:** heel polar, custom polars, sail tests overlaid,
+      normalised and coloured, the sail polar overlay, per-sail analysis, a polar and sail
+      chart built from it, the polar range circle (P2-258, P2-259, P2-260, P2-272, P2-273,
+      P2-274, P3-016, P3-022, P3-023, P4-148, P1-243, P1-241).
+- [ ] **21.8 Weather:** NetCDF, a GRIB from observed winds or from logs, wind scaling per
+      model, Skew-T, Saildocs check, clearing old GRIBs, a colour per model, radar
+      settings, fading, currents and SST always on, observation colours, AIS met winds
+      (P1-010, P2-181, P1-057, P1-242, P2-136, P2-144, P1-270, P2-146, P2-148, P1-187,
+      P1-204, P2-030, P2-122, P2-131, P4-132, P4-162, P2-173).
+- [ ] **21.9 Tides:** tide-model laylines, secondary stations, a stream time shift, the tide
+      source, the XTide reader (P4-145, P4-194, P4-197, P4-198, P4-202, P1-210, P4-200).
+- [ ] **21.10 Fleet:** several boats' data, the latest report, a report time picker, manual
+      positions, a tracking database per race, Blue Water Tracks (P1-082, P1-149, P2-280,
+      P2-281, P2-283, P4-125, P1-147).
+- [ ] **21.11 Logs and instruments:** the logged channel list, track colour and width, COG and
+      SOG between wands, a track point to the stripchart, trip reset, the braking table, the
+      raw data monitor, the clock from GPS, user-channel names (P4-178, P4-185, P4-188,
+      P4-216, P1-272, P1-235, P3-065, P3-080, P1-234, P4-184, P4-221, P3-180).
+- [ ] **21.12 Files and the shell:** the data folder, a backup at start, converters, the
+      database editor, the scheduler, port mode, the sail graphic, MyImage and MyGrib files
+      (P1-040, P1-041, P1-053, P1-157, P4-126, P4-127, P4-123, P4-108, P1-055, P1-249,
+      P1-074, P3-017).
+- [ ] **21.13 Downloads and satcom:** connection type, plain HTTP on satellite, a host
+      allow-list, bzip2, halved resolution, Saildocs by web through the server (P4-094,
+      P4-098, P4-107, P2-169, P2-168, P2-147).
+- [ ] **21.14 The rest:** the AIS pane's columns, marine-mammal reports and overlay, the
+      Hong Kong and New Zealand tide data (P3-098, P1-155, P1-156, P4-169).
+
+## M22 — Partial rows finished
+
+The 214 Partial Build rows, area by area after M21: each item closes the gap its row
+names. The tick that reaches M22 writes its items from the matrix, as tick 6 wrote M15.
+
+## M23 — Hardware rows, against recordings
+
+- [ ] **23.0 Reconcile the Hardware rows** with the decoders that exist (NMEA 0183 sentences,
+      NMEA 2000 PGNs, the Expedition protocol). A row decoded and fixture-tested becomes
+      Partial, with the device check named. *Accept:* each changed row names its evidence.
+- [ ] **23.1 onward:** the vendor links (B&G, Ockam, NKE, Garmin/Nexus FDX, Bravo, Cosworth,
+      KVH), each tested against the protocol as documented. Radar comes last: it needs a
+      radar and an unlock key to be worth anything.

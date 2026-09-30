@@ -12,13 +12,20 @@ with Expedition" as a non-goal. This branch reverses that on the owner's instruc
 
 ## What "1:1" means here
 
-- **Capability parity, not a copy.** Every capability in the manual either works in
-  newjourney or has a row in [needs.md](needs.md) naming what is missing: a licence,
-  hardware, a data account, a native helper, or an owner decision. Expedition's name,
-  logo, icons, manual text and ribbon trade dress are not copied. Formats that others
-  interoperate with are fair game, because reading them is how a sailor moves across:
-  polar text files, marks CSV, GPX, NMEA 0183/2000, GRIB, S-57 and Expedition's simple
-  serial protocol.
+- **Capability parity, and as much of it working as possible.** Every capability in
+  the manual either works in newjourney or has a row in [needs.md](needs.md) naming
+  what is missing: a licence, hardware, a data account, or an owner decision. Formats
+  that others interoperate with are fair game, because reading them is how a sailor
+  moves across: polar text files, marks CSV, GPX, NMEA 0183/2000, GRIB, S-57 and
+  Expedition's simple serial protocol.
+- **The look may follow Expedition's, kept simple and minimalist.** The owner decided
+  this on 2026-09-30: a plain nav-station layout, dense number boxes, a flat chart and
+  few colours are fine to copy. Expedition's name, logo, icon artwork and manual text
+  are still not copied.
+- **Owner decisions of 2026-09-30.** Download the public test files (D8). Build the
+  local Node bridge for UDP/TCP, app-to-app sharing and watched folders (D4). Build
+  the transmit outputs, tested against recordings and off by default (D3). Build the
+  backend and run it locally, while deploying it stays with the owner (D1).
 - **One codebase, two layouts.** The owner chose this on 2026-09-28. The phone keeps
   its four tabs. At laptop and tablet widths the same app becomes a nav station:
   chart in the middle, then panes for marks, routes and race, then number boxes, a
