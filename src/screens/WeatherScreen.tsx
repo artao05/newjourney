@@ -715,7 +715,13 @@ function WeatherOverlay() {
   useEffect(() => {
     if (!map || !ready) return
     for (const id of OWNED_LAYERS) {
-      if (!map.getLayer(id)) continue
+      let has = false
+      try {
+        has = !!map.getLayer(id)
+      } catch {
+        return // the map was removed
+      }
+      if (!has) continue
       if (hideWx) {
         if (!hiddenWas.has(id)) hiddenWas.set(id, (map.getLayoutProperty(id, 'visibility') as string | undefined) ?? 'visible')
         map.setLayoutProperty(id, 'visibility', 'none')
@@ -741,7 +747,12 @@ function WeatherOverlay() {
           ...fileCubes.flatMap((f) => (f.cube ? [box(f.cube.bbox, f.name, '#ffb020')] : [])),
         ]
       : []
-    ;(map.getSource('wx-coverage') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features })
+    // The files can change as the chart closes, after the map is gone: a removed map has no sources.
+    try {
+      ;(map.getSource('wx-coverage') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features })
+    } catch {
+      /* the map was removed */
+    }
   }, [map, ready, showCoverage, cube, fileCubes, modelLabel])
 
   // Presets: the layer shown and how, the overlays, contours and colours, in nine slots.

@@ -9,6 +9,7 @@
  */
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { recordError } from '@/lib/errorLog'
 
 interface Props {
   children: ReactNode
@@ -37,6 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
     // telemetry in this app and there should not be one for a tracking product.
     this.setState({ info: info.componentStack ?? null })
     console.error(`[${this.props.name}]`, error, info.componentStack)
+    recordError(this.props.name, error)
   }
 
   reset = () => {

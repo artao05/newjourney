@@ -6,6 +6,7 @@
  * and nothing here blocks the start screen.
  */
 
+import { clearErrors, errorsText, readErrors } from '@/lib/errorLog'
 import { useChannelsOutStatus } from '@/components/ChannelsOutBridge'
 import { useMemo, useState } from 'react'
 import { MAX_TRACK_POINTS, useStore } from '@/state/store'
@@ -588,7 +589,11 @@ export function SetupScreen() {
           </button>
         </div>
 
+        <DisplaySection />
+
         <ChannelsOutSection />
+
+        <ErrorLogSection />
 
         <h2>Keyboard</h2>
         <div className="rows" aria-label="Keyboard shortcuts">
@@ -663,6 +668,122 @@ function ChannelsOutSection() {
         network. The JSON form sends a hello with the channel list, then the channels at the rate set; the far end may subscribe to
         some of them. The schema is in docs/09-api/channels-out.md.
       </p>
+    </section>
+  )
+}
+
+/** Setup → Display: chart label size, the layout lock, and named layouts. */
+function DisplaySection() {
+  const settings = useStore((s) => s.settings)
+  const updateSettings = useStore((s) => s.updateSettings)
+  const [name, setName] = useState('')
+  const layouts = settings.layouts ?? []
+  const save = () => {
+    const s = useStore.getState()
+    const n = name.trim() || `Layout ${layouts.length + 1}`
+    const entry = { name: n, numberBoxes: s.numberBoxes.map((b) => ({ ...b, channels: [...b.channels] })), navPanel: s.navPanel, navChart: s.navChart }
+    updateSettings({ layouts: [...layouts.filter((l) => l.name !== n), entry] })
+    setName('')
+  }
+  const load = (i: number) => {
+    const l = layouts[i]
+    if (!l) return
+    useStore.setState({ numberBoxes: l.numberBoxes.map((b) => ({ ...b, channels: [...b.channels] })) })
+    useStore.getState().setNav({ navPanel: l.navPanel, navChart: l.navChart })
+  }
+  return (
+    <section aria-label="Display">
+      <h2>Display</h2>
+      <div className="field">
+        <label htmlFor="disp-text">Chart text</label>
+        <select id="disp-text" value={settings.chartTextScale ?? 1} onChange={(e) => updateSettings({ chartTextScale: Number(e.target.value) })}>
+          <option value={0.8}>small</option>
+          <option value={1}>normal</option>
+          <option value={1.25}>large</option>
+          <option value={1.5}>larger</option>
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor="disp-lock">Lock the layout</label>
+        <input id="disp-lock" type="checkbox" checked={!!settings.layoutLocked} onChange={(e) => updateSettings({ layoutLocked: e.target.checked })} style={{ width: 26, height: 26 }} />
+      </div>
+      <p className="note">Locked, the number boxes cannot be edited, added or removed by a stray tap in a seaway.</p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input aria-label="Layout name" placeholder="e.g. Pre-start" value={name} onChange={(e) => setName(e.target.value)} style={{ flex: 1, minWidth: 120 }} />
+        <button className="btn btn--sm btn--ghost" onClick={save}>
+          SAVE LAYOUT
+        </button>
+      </div>
+      {layouts.length > 0 && (
+        <table className="targets" aria-label="Layouts" style={{ width: '100%' }}>
+          <tbody>
+            {layouts.map((l, i) => (
+              <tr key={l.name}>
+                <td>{l.name}</td>
+                <td className="note">{l.numberBoxes.length} boxes</td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  <button className="btn btn--sm btn--ghost" aria-label={`Load layout ${l.name}`} onClick={() => load(i)}>
+                    LOAD
+                  </button>
+                  <button className="btn btn--sm btn--ghost" aria-label={`Delete layout ${l.name}`} onClick={() => updateSettings({ layouts: layouts.filter((_, j) => j !== i) })}>
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  )
+}
+
+/** Setup → Error log: what went wrong on this device, the last 60 days, to read or send on. */
+function ErrorLogSection() {
+  const [entries, setEntries] = useState(() => readErrors())
+  return (
+    <section aria-label="Error log">
+      <h2>Error log</h2>
+      {entries.length === 0 ? (
+        <p className="note">Nothing has gone wrong that the app caught.</p>
+      ) : (
+        <ul aria-label="Errors" style={{ fontSize: 12, maxHeight: 160, overflow: 'auto' }}>
+          {entries
+            .slice(-20)
+            .reverse()
+            .map((e, i) => (
+              <li key={i}>
+                {new Date(e.t).toLocaleString()} [{e.where}] {e.message}
+              </li>
+            ))}
+        </ul>
+      )}
+      <div className="actions" style={{ background: 'none', border: 'none', padding: 0 }}>
+        <button className="btn btn--sm btn--ghost" onClick={() => setEntries(readErrors())}>
+          REFRESH
+        </button>
+        <button
+          className="btn btn--sm btn--ghost"
+          disabled={!entries.length}
+          onClick={async () => {
+            const { downloadText } = await import('@/lib/gpx')
+            downloadText('newjourney-errors.txt', errorsText(entries), 'text/plain')
+          }}
+        >
+          EXPORT
+        </button>
+        <button
+          className="btn btn--sm btn--ghost"
+          disabled={!entries.length}
+          onClick={() => {
+            clearErrors()
+            setEntries([])
+          }}
+        >
+          CLEAR
+        </button>
+      </div>
+      <p className="note">Kept on this device only, for 60 days. Nothing is sent anywhere unless you export it.</p>
     </section>
   )
 }

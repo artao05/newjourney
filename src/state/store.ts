@@ -264,6 +264,12 @@ export interface Settings {
   keepRoutes: number
   /** The Weather chart's nine display presets; null for an empty slot. */
   weatherPresets: Array<WeatherPreset | null>
+  /** Chart label size, as a multiple of the usual. */
+  chartTextScale: number
+  /** The layout locked: number boxes cannot be edited, added or removed by a stray tap. */
+  layoutLocked: boolean
+  /** Named layouts: the number boxes and the nav station's panes. */
+  layouts: Array<{ name: string; numberBoxes: NumberBox[]; navPanel: PanelTab; navChart: ChartTab }>
 }
 
 /** What a Weather display preset keeps: the layer shown and how, and the overlays. */
@@ -575,6 +581,9 @@ export const DEFAULT_SETTINGS: Settings = {
   markColour: '#ffd54a',
   keepRoutes: MAX_KEPT_ROUTES,
   weatherPresets: Array(9).fill(null),
+  chartTextScale: 1,
+  layoutLocked: false,
+  layouts: [],
 }
 
 export function mergePersistedState(

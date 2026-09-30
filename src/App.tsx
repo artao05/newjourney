@@ -26,6 +26,7 @@ import { ChannelLogRecorder } from '@/components/ChannelLogRecorder'
 import { ChannelsOutBridge } from '@/components/ChannelsOutBridge'
 import { startMarkHistory } from '@/state/markHistory'
 import { useAutoAdvance } from '@/hooks/useAutoAdvance'
+import { installErrorLog } from '@/lib/errorLog'
 import { PlaybackBar } from '@/components/PlaybackBar'
 import { AlarmBanner, AlarmWatcher } from '@/components/Alarms'
 import { usePlayback } from '@/hooks/usePlayback'
@@ -41,6 +42,8 @@ import { beep } from '@/lib/beep'
 
 // Undo and redo for the marks record from the first change on.
 startMarkHistory()
+// What goes wrong is kept on the device (Setup → Error log).
+installErrorLog()
 
 const FORECAST_REFRESH_MS = 15 * 60_000
 

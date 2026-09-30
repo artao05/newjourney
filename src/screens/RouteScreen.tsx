@@ -443,6 +443,14 @@ export function RouteScreen() {
     setSource(map, 'route-step', { type: 'FeatureCollection', features } as FC)
   }, [ready, route, stepT, stepAt])
 
+  // Chart labels at the size set in Setup.
+  const textScale = useStore((s) => s.settings.chartTextScale ?? 1)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    for (const [id, size] of [['marks-label', 11], ['legs-label', 10], ['ais-label', 10], ['route-wind-label', 10]] as const) if (map.getLayer(id)) map.setLayoutProperty(id, 'text-size', size * textScale)
+  }, [ready, textScale])
+
   // The route's and the marks' colours, as set in the route settings.
   const routeColour = useStore((s) => s.settings.routeColour)
   const markColour = useStore((s) => s.settings.markColour)
@@ -762,10 +770,10 @@ export function RouteScreen() {
     const scale = scaleAtZoom(encZoom, b ? (b.south + b.north) / 2 : 45)
     const features = offsetFeatures([...encDrawFeatures(encCells, { safetyDepthM, ...encDisplay, scale }), ...outlines] as Array<{ geometry: { type: string; coordinates: unknown } | null }>, chartOffset, b ? (b.south + b.north) / 2 : 45)
     setSource(map, 'enc', { type: 'FeatureCollection', features } as unknown as FC)
-    const big = encDisplay.largeText ? 1.4 : 1
+    const big = (encDisplay.largeText ? 1.4 : 1) * textScale
     map.setLayoutProperty('enc-sounding', 'text-size', 10 * big)
     map.setLayoutProperty('enc-text', 'text-size', 10 * big)
-  }, [ready, encCells, safetyDepthM, encDisplay, chartOffset, encZoom])
+  }, [ready, encCells, safetyDepthM, encDisplay, chartOffset, encZoom, textScale])
 
   // The fleet's tracks from tracking files, in each boat's colour.
   const fleetTracks = useTracking((s) => s.tracks)

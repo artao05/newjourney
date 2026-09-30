@@ -32,6 +32,7 @@ export function NumberBoxes() {
   const units = useStore((s) => s.settings.units)
   const snap = useChannelSnapshot()
   const [editing, setEditing] = useState<string | null>(null)
+  const locked = useStore((s) => s.settings.layoutLocked)
   const now = snap['time'] ?? Date.now()
   // Each damped channel's recent values, a point a snapshot.
   const history = useRef(new Map<string, Array<[number, number]>>())
@@ -62,7 +63,7 @@ export function NumberBoxes() {
               key={box.id}
               role="listitem"
               className={`nbox nbox--${box.size}${value ? '' : ' nbox--null'}`}
-              onClick={() => setEditing(box.id)}
+              onClick={() => !locked && setEditing(box.id)}
               aria-label={`${def?.name ?? 'unknown channel'}: ${value ? `${value.text} ${value.unit}` : 'no value'}`}
             >
               <span className="nbox__label">
@@ -83,9 +84,11 @@ export function NumberBoxes() {
             </button>
           )
         })}
-        <button className="nbox nbox--add" onClick={() => addNumberBox('sog')} aria-label="Add a number box">
-          + BOX
-        </button>
+        {!locked && (
+          <button className="nbox nbox--add" onClick={() => addNumberBox('sog')} aria-label="Add a number box">
+            + BOX
+          </button>
+        )}
       </div>
       {editing && (
         <NumberBoxSheet

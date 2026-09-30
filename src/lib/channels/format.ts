@@ -63,7 +63,14 @@ export function formatChannel(
   if (decimals != null && def.unit && DECIMAL_UNITS.has(def.unit)) {
     const base = formatChannel(def, value, units)
     if (!base) return null
-    const v = def.unit === 'm' ? toLength(value, units) : def.unit === 'deg' && !isSignedAngle(def.id) ? ((value % 360) + 360) % 360 : value
+    const v =
+      def.unit === 'm'
+        ? toLength(value, units)
+        : def.unit === 'degC' && units === 'imperial'
+          ? (value * 9) / 5 + 32
+          : def.unit === 'deg' && !isSignedAngle(def.id)
+            ? ((value % 360) + 360) % 360
+            : value
     const text = fmtFixed(v, decimals)
     return { text: def.unit === 'deg' && isSignedAngle(def.id) && v > 0 ? `+${text}` : text, unit: base.unit }
   }
@@ -94,7 +101,8 @@ export function formatChannel(
     case 'pct':
       return { text: fmtFixed(value, 0), unit: '%' }
     case 'degC':
-      return { text: fmtFixed(value, 1), unit: '°C' }
+      // Imperial units read temperatures in Fahrenheit.
+      return units === 'imperial' ? { text: fmtFixed((value * 9) / 5 + 32, 1), unit: '°F' } : { text: fmtFixed(value, 1), unit: '°C' }
     case 'hPa':
       return { text: fmtFixed(value, 0), unit: 'hPa' }
     case 'kPa':

@@ -2236,6 +2236,36 @@ describe('Setup keeps a port-tack polar for a boat whose tacks differ', () => {
   })
 })
 
+describe('Setup keeps layouts, locks them, and shows the error log', () => {
+  it('saves a named layout and loads it back, locks the boxes, and lists errors', async () => {
+    emptyStore()
+    const { recordError, clearErrors } = await import('@/lib/errorLog')
+    clearErrors()
+    recordError('Route', new Error('something broke'))
+    act(() => useStore.setState({ numberBoxes: [{ id: 'a', channels: ['sog'], size: 'md' }] }))
+    const view = render(<SetupScreen />)
+    const display = screen.getByRole('region', { name: 'Display' })
+    fireEvent.change(within(display).getByLabelText('Layout name'), { target: { value: 'Pre-start' } })
+    fireEvent.click(within(display).getByRole('button', { name: 'SAVE LAYOUT' }))
+    expect(useStore.getState().settings.layouts.map((l) => l.name)).toEqual(['Pre-start'])
+    act(() => useStore.setState({ numberBoxes: [] }))
+    fireEvent.click(within(display).getByRole('button', { name: 'Load layout Pre-start' }))
+    expect(useStore.getState().numberBoxes.map((b) => b.channels)).toEqual([['sog']])
+    fireEvent.change(within(display).getByLabelText('Chart text'), { target: { value: '1.25' } })
+    fireEvent.click(within(display).getByLabelText('Lock the layout'))
+    expect(useStore.getState().settings).toMatchObject({ chartTextScale: 1.25, layoutLocked: true })
+    expect(within(screen.getByRole('region', { name: 'Error log' })).getByRole('list', { name: 'Errors' }).textContent).toMatch(/\[Route\] something broke/)
+    view.unmount()
+    // Locked: no adding boxes, and a tap does not open the editor.
+    render(<RaceScreen />)
+    expect(screen.queryByRole('button', { name: 'Add a number box' })).toBeNull()
+    fireEvent.click(screen.getAllByRole('listitem')[0])
+    expect(screen.queryByRole('dialog', { name: 'Edit number box' })).toBeNull()
+    act(() => useStore.getState().updateSettings({ layoutLocked: false, chartTextScale: 1, layouts: [] }))
+    clearErrors()
+  })
+})
+
 describe('Setup sends the channels out', () => {
   it('turns channels out on, to an address, in a form and at a rate, and says how the link is', () => {
     emptyStore()
