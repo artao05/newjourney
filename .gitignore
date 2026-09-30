@@ -47,3 +47,5 @@ research/raw/**
 *.tcd
 *.zip
 *.pdf
+# ...except the small real files tests read, each named in fixtures/real/SOURCES.md.
+!fixtures/real/**
