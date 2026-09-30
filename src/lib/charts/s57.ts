@@ -88,6 +88,8 @@ export interface EncCell {
   somf: number
   /** Compilation scale, 1:n (DSPM CSCL); 0 when the cell does not say. */
   scale: number
+  /** Horizontal datum (DSPM HDAT): 2 is WGS 84, which every ENC should be; absent when the cell does not say. */
+  hdat?: number
   /** Where the cell's geometry lies; null for a cell with none. */
   bounds: EncBounds | null
   features: EncFeature[]
@@ -137,6 +139,7 @@ export interface S57Records {
   comf: number
   somf: number
   scale: number
+  hdat?: number
   vectors: Map<string, VecRecord>
   features: Map<string, FeatRecord>
   warnings: string[]
@@ -177,7 +180,7 @@ function splice<T>(list: T[], op: number, index: number, count: number, items: T
   return list
 }
 
-function readDataset(rec: Field[], into: { name: string; edition: string; update: string; comf: number; somf: number; scale: number }) {
+function readDataset(rec: Field[], into: { name: string; edition: string; update: string; comf: number; somf: number; scale: number; hdat?: number }) {
   const dsid = field(rec, 'DSID')?.groups[0]
   if (dsid) {
     into.name = String(dsid.DSNM ?? '')
@@ -189,6 +192,7 @@ function readDataset(rec: Field[], into: { name: string; edition: string; update
     into.comf = n(dspm.COMF) || into.comf
     into.somf = n(dspm.SOMF) || into.somf
     into.scale = n(dspm.CSCL) || into.scale
+    if (Number.isFinite(n(dspm.HDAT))) into.hdat = n(dspm.HDAT)
   }
 }
 
@@ -363,7 +367,7 @@ export function assembleS57(r: S57Records): EncCell {
   }
   const counts: Record<string, number> = {}
   for (const x of features) counts[x.cls] = (counts[x.cls] ?? 0) + 1
-  return { name: r.name, edition: r.edition, update: r.update, comf, somf, scale: r.scale, bounds: boundsOf(features), features, counts, warnings }
+  return { name: r.name, edition: r.edition, update: r.update, comf, somf, scale: r.scale, hdat: r.hdat, bounds: boundsOf(features), features, counts, warnings }
 }
 
 function boundsOf(features: EncFeature[]): EncBounds | null {

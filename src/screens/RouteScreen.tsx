@@ -6,7 +6,8 @@
  * treating the route as truth, so the sensitivity envelope is shown by default.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { LayoutContext } from '@/hooks/useWide'
 import { RouteMeteogram } from '@/components/RouteMeteogram'
 import { memberRoute, summariseEnsemble, type MemberRoute } from '@/lib/routing/ensemble'
 import { fetchEnsembleCubes } from '@/lib/weather/openmeteo'
@@ -14,7 +15,7 @@ import { turningPoints, windAlongRouteFC } from '@/lib/routing/results'
 import { sailAt } from '@/lib/sailchart'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { NOTE_MIN_POINTS, useStore, type RaceNote } from '@/state/store'
+import { NOTE_MIN_POINTS, useStore, type RaceNote, type StatusField } from '@/state/store'
 import { cubeNotes, fetchWindCube } from '@/lib/weather/openmeteo'
 import { sampleCube } from '@/lib/weather/cube'
 import { gribDrop, useWeatherFiles } from '@/state/weatherFiles'
@@ -47,7 +48,7 @@ import { applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { boundsFrom } from '@/lib/tactics'
 import { buildLattice } from '@/lib/polar'
 import { fmtPosition } from '@/components/MarkSheet'
-import { RibbonGroup, RibbonGroups, useRibbon } from '@/components/Ribbon'
+import { RibbonGroup, RibbonGroups, StatusItems, useRibbon } from '@/components/Ribbon'
 import { CHART_BASE, followPalette } from '@/lib/palette'
 import { fmtVariation, trueToMagnetic, variationAt } from '@/lib/magnetic'
 import { variationHere } from '@/hooks/useVariation'
@@ -720,10 +721,15 @@ export function RouteScreen() {
   const encCells = useCharts((s) => s.cells)
   // The zoom to a whole level, so the chart is redrawn for its scale only when that changes.
   const [encZoom, setEncZoom] = useState(12)
+  // And to a hundredth, for the scale in the status bar.
+  const [chartZoom, setChartZoom] = useState(12)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    const on = () => setEncZoom(Math.round(map.getZoom()))
+    const on = () => {
+      setEncZoom(Math.round(map.getZoom()))
+      setChartZoom(Math.round(map.getZoom() * 100) / 100)
+    }
     on()
     map.on('zoomend', on)
     return () => {
@@ -1301,23 +1307,12 @@ export function RouteScreen() {
 
   // The chart's commands and the routing buttons: over the chart on the phone, in the ribbon on the nav station.
   const ribbon = useRibbon()
+  const station = useContext(LayoutContext) === 'station'
+  // A readout turned off in Setup is off in the status bar only; over the phone's chart it all shows.
+  const statusHidden = useStore((s) => s.settings.statusHidden)
+  const show = (f: StatusField) => !station || !(statusHidden ?? []).includes(f)
   const chartCommands = (
     <>
-      {(() => {
-        // What the next route will sail on, by the source chosen in SETTINGS.
-        const s = pickSources(cube)
-        const label = !s ? 'no forecast' : `${s.cube.model}${s.cube === cube ? ` · ${cube.nt}h` : ''}`
-        const more = s?.extraCubes.length ?? 0
-        return (
-          <span className={`chip ${s ? 'chip--good' : ''}`} title={`Route on: ${routeSource}`}>
-            <span className="dot" />
-            {label}
-            {more ? ` + ${more} GRIB file${more === 1 ? '' : 's'}` : ''}
-            {routeSource !== 'merged' ? ` · ${routeSource === 'download' ? 'download only' : 'files only'}` : ''}
-          </span>
-        )
-      })()}
-      <span className="chip">{PILOT_VENUE.name}</span>
       <button className={`chip${encCells.length ? ' chip--good' : ''}`} onClick={() => setShowEnc(true)} style={{ pointerEvents: 'auto' }}>
         ENC{encCells.length ? ` · ${encCells.length}` : ''}
       </button>
@@ -1356,20 +1351,6 @@ export function RouteScreen() {
       <button className="chip" onClick={() => setPicking('mark')} title="Tap the chart to add a mark">
         + mark
       </button>
-                )}
-                {/*
-      The pointer readout: where the mouse is (or the last tap), and from the
-      boat or planned start, the range, true bearing and polar time to it.
-                */}
-                {pointer && picking !== 'measure' && (
-      <span className="chip" aria-label="Pointer readout" title="Pointer: position, then range, bearing and polar time from the boat, and the magnetic variation there">
-        {fmtPosition(pointer)}
-        {toPointer &&
-          ` · ${toPointer.distanceNm.toFixed(2)} nm ${northRef === 'magnetic' ? `${fmtDeg(trueToMagnetic(toPointer.bearing, variationHere()))}°M` : `${fmtDeg(toPointer.bearing)}°T`}`}
-        {toPointer?.timeS != null && ` · ${fmtDuration(toPointer.timeS)}`}
-        {pointerIso && ` · isochrone T+${fmtDuration((pointerIso.iso.t - (route?.legs[0]?.t ?? pointerIso.iso.t)) / 1000)}${pointerIso.dnm != null ? ` · DNM ${Math.round(pointerIso.dnm)}%` : ''}`}
-        {` · var ${fmtVariation(variationAt(pointer, Date.now()))}`}
-      </span>
                 )}
                 {pointer && picking == null && (
       <>
@@ -1519,6 +1500,55 @@ export function RouteScreen() {
         )}
       </>
                 )}
+    </>
+  )
+  // What the chart and routing are working from, and what to watch: in the status bar on the nav station.
+  const chartStatus = (
+    <>
+      {show('source') && (() => {
+        // What the next route will sail on, by the source chosen in SETTINGS.
+        const s = pickSources(cube)
+        const label = !s ? 'no forecast' : `${s.cube.model}${s.cube === cube ? ` · ${cube.nt}h` : ''}`
+        const more = s?.extraCubes.length ?? 0
+        return (
+          <span className={`chip ${s ? 'chip--good' : ''}`} title={`Route on: ${routeSource}`}>
+            <span className="dot" />
+            {label}
+            {more ? ` + ${more} GRIB file${more === 1 ? '' : 's'}` : ''}
+            {routeSource !== 'merged' ? ` · ${routeSource === 'download' ? 'download only' : 'files only'}` : ''}
+          </span>
+        )
+      })()}
+      {show('venue') && <span className="chip">{PILOT_VENUE.name}</span>}
+                {/*
+      The pointer readout: where the mouse is (or the last tap), and from the
+      boat or planned start, the range, true bearing and polar time to it.
+                */}
+                {pointer && picking !== 'measure' && show('pointer') && (
+      <span className="chip" aria-label="Pointer readout" title="Pointer: position, then range, bearing and polar time from the boat, and the magnetic variation there">
+        {fmtPosition(pointer)}
+        {toPointer &&
+          ` · ${toPointer.distanceNm.toFixed(2)} nm ${northRef === 'magnetic' ? `${fmtDeg(trueToMagnetic(toPointer.bearing, variationHere()))}°M` : `${fmtDeg(toPointer.bearing)}°T`}`}
+        {toPointer?.timeS != null && ` · ${fmtDuration(toPointer.timeS)}`}
+        {pointerIso && ` · isochrone T+${fmtDuration((pointerIso.iso.t - (route?.legs[0]?.t ?? pointerIso.iso.t)) / 1000)}${pointerIso.dnm != null ? ` · DNM ${Math.round(pointerIso.dnm)}%` : ''}`}
+        {` · var ${fmtVariation(variationAt(pointer, Date.now()))}`}
+      </span>
+                )}
+      {/* The charts' datum: an ENC is on WGS 84; one that says otherwise is not where GPS puts it. */}
+      {encCells.length > 0 &&
+        (() => {
+          const off = encCells.filter((c) => c.hdat != null && c.hdat !== 2)
+          return (
+            <span className={`chip${off.length ? ' chip--bad' : ''}`} title="The horizontal datum of the ENC cells on the chart">
+              {off.length ? `UNKNOWN DATUM: ${off.map((c) => cellKey(c.name)).join(', ')}` : 'datum WGS 84'}
+            </span>
+          )
+        })()}
+      {station && show('scale') && (
+        <span className="chip" aria-label="Chart scale" title="The scale shown, at the boat's latitude">
+          1:{(Math.round(scaleAtZoom(chartZoom, state?.position.lat ?? PILOT_VENUE.center.lat) / 100) * 100).toLocaleString('en-US')}
+        </span>
+      )}
       {/*
         A correction applied to the forecast changes every route, and nothing
         on the map shows it. Name each one, so a wind rotated for yesterday's
@@ -1551,14 +1581,15 @@ export function RouteScreen() {
           {label}
         </span>
       ))}
-      {legNm != null && <span className="chip">{legNm.toFixed(1)} nm rhumb</span>}
-      {landPack ? (
-        <span className="chip chip--good" title={landPack.meta.attribution}>
-          land pack {Math.round(landPack.meta.cellDeg * 111000)} m
-        </span>
-      ) : (
-        <span className="chip chip--bad">{landError ? 'land pack failed' : 'no land pack'}</span>
-      )}
+      {legNm != null && show('distance') && <span className="chip">{legNm.toFixed(1)} nm rhumb</span>}
+      {show('land') &&
+        (landPack ? (
+          <span className="chip chip--good" title={landPack.meta.attribution}>
+            land pack {Math.round(landPack.meta.cellDeg * 111000)} m
+          </span>
+        ) : (
+          <span className="chip chip--bad">{landError ? 'land pack failed' : 'no land pack'}</span>
+        ))}
       {/*
         Say which departure the drawn route belongs to whenever it is not
         "now". A route solved for 14:00 looks identical to one solved for the
@@ -1643,7 +1674,12 @@ export function RouteScreen() {
         <div ref={containerRef} className="map" />
 
         <div className="canvas-overlay">
-          {!ribbon && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{chartCommands}</div>}
+          {!ribbon && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {chartCommands}
+              {chartStatus}
+            </div>
+          )}
 
           <div>
             {forecastNotes.map((note) => (
@@ -1705,6 +1741,7 @@ export function RouteScreen() {
         <RibbonGroup label="Chart">{chartCommands}</RibbonGroup>
         <RibbonGroup label="Routing">{routingCommands}</RibbonGroup>
       </RibbonGroups>
+      <StatusItems>{chartStatus}</StatusItems>
 
       {!polar && (
         <div className="warnbox" style={{ position: 'absolute', left: 12, right: 12, bottom: 74, zIndex: 3 }}>

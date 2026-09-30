@@ -401,6 +401,49 @@ button {
   border-color: currentColor;
 }
 
+/* The status bar: what the chart is working from and where the pointer is, in one quiet line. */
+.statusbar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  min-height: 24px;
+  padding: 2px 8px calc(2px + var(--safe-bottom));
+  background: var(--bg-sunk);
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+
+.statusbar__slot {
+  display: contents;
+}
+
+.statusbar .chip {
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  padding: 1px 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.statusbar__slot > .chip:last-child {
+  border-right: 0;
+}
+
+.statusbar .chip--good,
+.statusbar .chip--warn,
+.statusbar .chip--bad {
+  font-weight: 600;
+}
+
+.navstation {
+  padding-bottom: 0;
+}
+
 /* A pane's own tab bar sits at its top, and has no phone safe-area padding. */
 .tabbar--pane {
   border-top: 0;

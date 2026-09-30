@@ -228,6 +228,9 @@ export const DEFAULT_CONTOURS: Record<ContourKind, ContourSetting> = {
   rain: { on: false, step: 0.5, bold: null },
 }
 
+/** The status bar's readouts that can be turned off. */
+export type StatusField = 'pointer' | 'scale' | 'source' | 'venue' | 'distance' | 'land'
+
 export interface Settings {
   /** Contour lines on the Weather chart. */
   contours: Record<ContourKind, ContourSetting>
@@ -267,6 +270,8 @@ export interface Settings {
   weatherPresets: Array<WeatherPreset | null>
   /** Chart label size, as a multiple of the usual. */
   chartTextScale: number
+  /** Status-bar readouts turned off on the nav station (its warnings always show). */
+  statusHidden: StatusField[]
   /** The palette set by the sun at the boat: day with it up, dusk in civil twilight, night below. A palette picked by hand turns it off. */
   paletteBySun: boolean
   /** The layout locked: number boxes cannot be edited, added or removed by a stray tap. */
@@ -589,6 +594,7 @@ export const DEFAULT_SETTINGS: Settings = {
   weatherPresets: Array(9).fill(null),
   chartTextScale: 1,
   paletteBySun: false,
+  statusHidden: [],
   layoutLocked: false,
   layouts: [],
 }

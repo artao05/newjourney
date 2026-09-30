@@ -35,7 +35,7 @@ import { estimateCurrent } from '@/lib/wind'
 import { fixQuality } from '@/lib/startline'
 import { variationAt } from '@/lib/magnetic'
 import { paletteForSun } from '@/lib/palette'
-import { RibbonContext } from '@/components/Ribbon'
+import { RibbonContext, StatusBarContext } from '@/components/Ribbon'
 import { solarElevationDeg } from '@/lib/routing/isochrone'
 import type { WindEstimate } from '@/lib/types'
 import { fetchPointForecast } from '@/lib/weather/openmeteo'
@@ -119,6 +119,8 @@ export function App() {
   const palette = useStore((s) => s.settings.palette)
   // The ribbon's command row, once it is in the page, for the chart screen to put its commands in.
   const [ribbonSlot, setRibbonSlot] = useState<HTMLElement | null>(null)
+  // And the status bar's, for its readouts.
+  const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null)
   // Night off goes back to the palette it came from.
   const beforeNight = useRef<'day' | 'dusk'>('day')
   // By the sun: checked now and once a minute, at the boat (or the venue before a fix).
@@ -493,6 +495,7 @@ export function App() {
               <div className="ribbon__commands" ref={setRibbonSlot} role="toolbar" aria-label="Commands" />
             </div>
             <RibbonContext.Provider value={ribbonSlot}>
+              <StatusBarContext.Provider value={statusSlot}>
               <div className="navstation">
                 <section className="navstation__panel" aria-label="Panel">
                   {renderScreen(navPanel)}
@@ -504,6 +507,17 @@ export function App() {
                   <NumberBoxes />
                 </aside>
               </div>
+              <footer className="statusbar" aria-label="Status">
+                {/* The warnings a navigator must not miss, before the chart's own readouts. */}
+                {!state && !replaying && <span className="chip chip--bad">NO POSITION FIX</span>}
+                {!recording && (
+                  <span className="chip" title="Nothing is being logged: turn on rec in the top bar">
+                    not logging
+                  </span>
+                )}
+                <span className="statusbar__slot" ref={setStatusSlot} />
+              </footer>
+              </StatusBarContext.Provider>
             </RibbonContext.Provider>
           </LayoutContext.Provider>
         ) : (

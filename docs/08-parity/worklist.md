@@ -527,9 +527,12 @@ logo, icon artwork or manual text.
       stay over the chart. Route: Chart and Routing; Weather: Layer and Display. The panel screens
       (Start, Race, Setup) keep their controls in the pane. The status chips (forecast, rhumb
       distance, land pack) go to the status bar in 17.3.*
-- [ ] **17.3 A status bar:** pointer position, variation, range and bearing from the boat,
+- [x] **17.3 A status bar:** pointer position, variation, range and bearing from the boat,
       chart scale, and safety warnings, with the fields chosen in Setup (P1-275, P1-276,
       P1-278, P4-170). *Accept:* tests and a browser check.
+      *Along the foot of the nav station. The Route chips that were status, not commands, went
+      there from the ribbon, through a portal of their own. It leads with NO POSITION FIX and
+      not logging, and names the ENC datum. Checked in the app with a pointer set.*
 - [ ] **17.4 A right-click menu on the chart:** mark here, go here, range and bearing, zoom
       and centre, chart details, image at pointer, route from here (P1-251, P1-113, P2-018,
       P1-252, P2-100). *Accept:* tests.

@@ -18,7 +18,7 @@ describe("NOAA's Portland Harbor cell", () => {
   })
 
   it('applies update 1: three features in, one out', () => {
-    expect([cell.name, cell.edition, cell.update, cell.scale]).toEqual(['US5PWMDC.000', '5', '1', 12000])
+    expect([cell.name, cell.edition, cell.update, cell.scale, cell.hdat]).toEqual(['US5PWMDC.000', '5', '1', 12000, 2])
     expect(cell.features.length).toBe(1568 + 3 - 1)
     expect(cell.warnings).toEqual([])
   })

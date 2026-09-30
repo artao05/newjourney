@@ -467,6 +467,28 @@ describe('the nav-station layout at laptop width', () => {
     expect(boxes.querySelector('.nboxes')).not.toBeNull()
   })
 
+  it('says what the chart is working from in a status bar along the foot, as Setup chooses', async () => {
+    withWidth(true)
+    useStore.getState().setNav({ navPanel: 'race', navChart: 'route' })
+    useStore.getState().updateSettings({ statusHidden: [] })
+    render(<App />)
+    const status = screen.getByRole('contentinfo', { name: 'Status' })
+    await waitFor(() => expect(status.textContent).toContain('Portland & Casco Bay'))
+    expect(within(status).getByLabelText('Chart scale').textContent).toMatch(/^1:[\d,]+$/)
+    expect(status.textContent).toMatch(/forecast|land pack/)
+    // The warnings Expedition puts there: no fix, and nothing logging.
+    act(() => useStore.setState({ state: null, recording: false }))
+    expect(status.textContent).toContain('NO POSITION FIX')
+    expect(status.textContent).toContain('not logging')
+    // Status is not a command: none of it in the ribbon's Chart group.
+    const chart = within(screen.getByRole('toolbar', { name: 'Commands' })).getByRole('group', { name: 'Chart' })
+    expect(chart.textContent).not.toContain('Portland & Casco Bay')
+    act(() => useStore.getState().updateSettings({ statusHidden: ['venue', 'scale'] }))
+    expect(status.textContent).not.toContain('Portland & Casco Bay')
+    expect(within(status).queryByLabelText('Chart scale')).toBeNull()
+    act(() => useStore.getState().updateSettings({ statusHidden: [] }))
+  })
+
   it('switches the panel and the chart independently, and remembers them', () => {
     withWidth(true)
     useStore.getState().setNav({ navPanel: 'race', navChart: 'route' })

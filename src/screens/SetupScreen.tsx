@@ -9,7 +9,7 @@
 import { clearErrors, errorsText, readErrors } from '@/lib/errorLog'
 import { useChannelsOutStatus } from '@/components/ChannelsOutBridge'
 import { useMemo, useState } from 'react'
-import { MAX_TRACK_POINTS, useStore } from '@/state/store'
+import { MAX_TRACK_POINTS, useStore, type StatusField } from '@/state/store'
 import { POLAR_LIBRARY, findPolar } from '@/data/polars'
 import { buildLattice, parsePolar, serialiseExpeditionPolar, validatePolar } from '@/lib/polar'
 import { PolarWithLog } from '@/components/PolarWithLog'
@@ -60,6 +60,16 @@ export function fileStamp(ms: number): string {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`
 }
+
+/** The status bar's readouts, as Setup names them. */
+const STATUS_FIELDS: Array<[StatusField, string]> = [
+  ['pointer', 'Pointer'],
+  ['scale', 'Chart scale'],
+  ['source', 'Forecast'],
+  ['venue', 'Venue'],
+  ['distance', 'Rhumb distance'],
+  ['land', 'Land pack'],
+]
 
 export function SetupScreen() {
   const variation = useVariation()
@@ -728,6 +738,25 @@ function DisplaySection() {
         Day is black on white, the plain chart. Dusk is the dark chart. Night is red on black, to keep night vision.
         By the sun, it follows the sun where the boat is: day while it is up, dusk to 6° below the horizon, then night.
       </p>
+      <div className="field field--wide">
+        <label>Status bar</label>
+        <div role="group" aria-label="Status bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+          {STATUS_FIELDS.map(([f, name]) => {
+            const hidden = settings.statusHidden ?? []
+            return (
+              <label key={f} style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={!hidden.includes(f)}
+                  onChange={(e) => updateSettings({ statusHidden: e.target.checked ? hidden.filter((x) => x !== f) : [...hidden, f] })}
+                />
+                {name}
+              </label>
+            )
+          })}
+        </div>
+      </div>
+      <p className="note">What the status bar along the foot of the nav station shows. Its warnings always show.</p>
       <div className="field">
         <label htmlFor="disp-text">Chart text</label>
         <select id="disp-text" value={settings.chartTextScale ?? 1} onChange={(e) => updateSettings({ chartTextScale: Number(e.target.value) })}>
