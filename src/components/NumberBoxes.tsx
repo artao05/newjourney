@@ -33,6 +33,10 @@ export function NumberBoxes() {
   const snap = useChannelSnapshot()
   const [editing, setEditing] = useState<string | null>(null)
   const locked = useStore((s) => s.settings.layoutLocked)
+  const moveNumberBox = useStore((s) => s.moveNumberBox)
+  // Dragging a box to another place: which it is, and where it would land.
+  const [dragFrom, setDragFrom] = useState<number | null>(null)
+  const [dropAt, setDropAt] = useState<number | null>(null)
   const now = snap['time'] ?? Date.now()
   // Each damped channel's recent values, a point a snapshot.
   const history = useRef(new Map<string, Array<[number, number]>>())
@@ -50,7 +54,7 @@ export function NumberBoxes() {
   return (
     <>
       <div className="nboxes" role="list" aria-label="Number boxes">
-        {boxes.map((box) => {
+        {boxes.map((box, i) => {
           const k = box.situation ? situationIndex(situationOf(snap, box.reachBandDeg ?? 10), box.channels.length) : alternatingIndex(box.channels.length, now)
           const def = channel(box.channels[k])
           const damped = def && (box.dampS ?? 0) > 0
@@ -62,8 +66,29 @@ export function NumberBoxes() {
             <button
               key={box.id}
               role="listitem"
-              className={`nbox nbox--${box.size}${value ? '' : ' nbox--null'}`}
+              className={`nbox nbox--${box.size}${value ? '' : ' nbox--null'}${dropAt === i && dragFrom !== i ? ' nbox--drop' : ''}`}
               onClick={() => !locked && setEditing(box.id)}
+              draggable={!locked}
+              onDragStart={(e) => {
+                setDragFrom(i)
+                e.dataTransfer?.setData('text/plain', String(i))
+              }}
+              onDragOver={(e) => {
+                if (dragFrom == null) return
+                e.preventDefault()
+                setDropAt(i)
+              }}
+              onDragLeave={() => setDropAt((d) => (d === i ? null : d))}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (dragFrom != null) moveNumberBox(dragFrom, i)
+                setDragFrom(null)
+                setDropAt(null)
+              }}
+              onDragEnd={() => {
+                setDragFrom(null)
+                setDropAt(null)
+              }}
               aria-label={`${def?.name ?? 'unknown channel'}: ${value ? `${value.text} ${value.unit}` : 'no value'}`}
             >
               <span className="nbox__label">

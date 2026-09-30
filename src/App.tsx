@@ -117,6 +117,9 @@ export function App() {
   useAutoAdvance()
   // The night palette is the whole page's: styles.css reads it from <html>.
   const palette = useStore((s) => s.settings.palette)
+  // The side panes: away, or folded to the edges.
+  const navHidden = useStore((s) => s.settings.navHidden) ?? { panel: false, boxes: false }
+  const navAutoHide = useStore((s) => !!s.settings.navAutoHide)
   // The ribbon's command row, once it is in the page, for the chart screen to put its commands in.
   const [ribbonSlot, setRibbonSlot] = useState<HTMLElement | null>(null)
   // And the status bar's, for its readouts.
@@ -479,7 +482,15 @@ export function App() {
               <nav className="ribbon__tabs" aria-label="Screens">
                 <span className="ribbon__tabset" role="group" aria-label="Panel screens">
                   {TABS.filter((t) => PANEL_TABS.includes(t.id as PanelTab)).map((t) => (
-                    <button key={t.id} aria-current={navPanel === t.id} onClick={() => setNav({ navPanel: t.id as PanelTab })}>
+                    <button
+                      key={t.id}
+                      aria-current={!navHidden.panel && navPanel === t.id}
+                      onClick={() => {
+                        setNav({ navPanel: t.id as PanelTab })
+                        // A panel screen picked while the panel is away brings it back.
+                        if (navHidden.panel) updateSettings({ navHidden: { ...navHidden, panel: false } })
+                      }}
+                    >
                       {t.label}
                     </button>
                   ))}
@@ -490,22 +501,37 @@ export function App() {
                       {t.label}
                     </button>
                   ))}
+                  <span className="ribbon__panes" role="group" aria-label="Panes">
+                    <button aria-pressed={!navHidden.panel} onClick={() => updateSettings({ navHidden: { ...navHidden, panel: !navHidden.panel } })} title="Show or hide the panel on the left">
+                      Panel
+                    </button>
+                    <button aria-pressed={!navHidden.boxes} onClick={() => updateSettings({ navHidden: { ...navHidden, boxes: !navHidden.boxes } })} title="Show or hide the number boxes on the right">
+                      Boxes
+                    </button>
+                    <button aria-pressed={navAutoHide} onClick={() => updateSettings({ navAutoHide: !navAutoHide })} title="Fold the side panes to the edges; they slide out over the chart under the pointer">
+                      Auto-hide
+                    </button>
+                  </span>
                 </span>
               </nav>
               <div className="ribbon__commands" ref={setRibbonSlot} role="toolbar" aria-label="Commands" />
             </div>
             <RibbonContext.Provider value={ribbonSlot}>
               <StatusBarContext.Provider value={statusSlot}>
-              <div className="navstation">
-                <section className="navstation__panel" aria-label="Panel">
-                  {renderScreen(navPanel)}
-                </section>
+              <div className={`navstation${navHidden.panel ? ' navstation--nopanel' : ''}${navHidden.boxes ? ' navstation--noboxes' : ''}${navAutoHide ? ' navstation--autohide' : ''}`}>
+                {!navHidden.panel && (
+                  <section className="navstation__panel" aria-label="Panel" data-label={TABS.find((t) => t.id === navPanel)?.label}>
+                    {renderScreen(navPanel)}
+                  </section>
+                )}
                 <section className="navstation__chart" aria-label="Chart">
                   {renderScreen(navChart)}
                 </section>
-                <aside className="navstation__boxes" aria-label="Number boxes">
-                  <NumberBoxes />
-                </aside>
+                {!navHidden.boxes && (
+                  <aside className="navstation__boxes" aria-label="Number boxes" data-label="Boxes">
+                    <NumberBoxes />
+                  </aside>
+                )}
               </div>
               <footer className="statusbar" aria-label="Status">
                 {/* The warnings a navigator must not miss, before the chart's own readouts. */}

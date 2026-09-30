@@ -57,7 +57,7 @@ import { fmtLength } from '@/lib/units'
 import { RouteSettingsSheet } from '@/components/RouteSettingsSheet'
 import { fetchWaterLevelPrediction, type WaterLevelPrediction } from '@/lib/tides/coops'
 import { PORTLAND_DATUM, datumNote } from '@/lib/tides/datum'
-import { bboxOf, destination, distance, lonSpan } from '@/lib/geo'
+import { bboxOf, bearing, destination, distance, lonSpan } from '@/lib/geo'
 import { angdiff, fmtDeg, wrap180 } from '@/lib/angles'
 import { MOTIONS, MOTION_LABEL, ORIENTATIONS, ORIENTATION_LABEL, motionTarget, shouldReframe, steadyBearing, upBearing } from '@/lib/chartView'
 import type { Isochrone, LatLon, Millis, RouteRequest, RouteResult, WeatherCube } from '@/lib/types'
@@ -219,6 +219,9 @@ export function RouteScreen() {
   const [picking, setPicking] = useState<'start' | 'mark' | 'measure' | 'note' | null>(null)
   const pickingRef = useRef<'start' | 'mark' | 'measure' | 'note' | null>(null)
   pickingRef.current = picking
+  // What is under the mouse, said beside it: set by the map's mousemove, which outlives renders.
+  const [hover, setHover] = useState<{ x: number; y: number; lines: string[] } | null>(null)
+  const hoverRef = useRef<(p: { x: number; y: number }) => string[] | null>(() => null)
   /** A race note being drawn: its kind, and the points tapped so far. */
   const [draft, setDraft] = useState<{ kind: RaceNote['kind']; points: LatLon[] }>({ kind: 'area', points: [] })
   const [editingNote, setEditingNote] = useState<string | null>(null)
@@ -347,6 +350,19 @@ export function RouteScreen() {
     map.on('movestart', (e: { originalEvent?: unknown }) => {
       if (e.originalEvent) setChartMenu(null)
     })
+    // A tooltip for what is under the mouse, at most once a frame.
+    let hoverFrame = 0
+    map.on('mousemove', (e: maplibregl.MapMouseEvent) => {
+      if (!e.point) return
+      const point = { x: e.point.x, y: e.point.y }
+      if (hoverFrame) cancelAnimationFrame(hoverFrame)
+      hoverFrame = requestAnimationFrame(() => {
+        hoverFrame = 0
+        const lines = hoverRef.current(point)
+        setHover(lines?.length ? { ...point, lines } : null)
+      })
+    })
+    map.on('mouseout', () => setHover(null))
     // The pointer readout follows the mouse, at most once a frame.
     let frame = 0
     map.on('mousemove', (e: maplibregl.MapMouseEvent) => {
@@ -1329,6 +1345,57 @@ export function RouteScreen() {
     })
   }, [route, depthGrid, levels, boat.draftMetres])
 
+  // What a tooltip says about the feature under the mouse, read fresh from the stores each time.
+  hoverRef.current = (point) => {
+    const map = mapRef.current
+    if (!map) return null
+    const layers = ['marks-pt', 'ais-pt', 'fleet-pt', 'enc-symbol', 'enc-point', 'route-line'].filter((id) => map.getLayer?.(id))
+    if (!layers.length) return null
+    const f = map.queryRenderedFeatures([[point.x - 5, point.y - 5], [point.x + 5, point.y + 5]], { layers })[0]
+    if (!f) return null
+    const p = (f.properties ?? {}) as Record<string, unknown>
+    const s = useStore.getState()
+    const from = s.state?.position ?? null
+    const rangeFrom = (to: LatLon) => (from ? `${distance(from, to).toFixed(2)} nm ${fmtDeg(bearing(from, to))}°T from the boat` : null)
+    switch (f.layer.id) {
+      case 'marks-pt': {
+        const m = s.course.marks.find((x) => x.id === p.id)
+        if (!m) return [String(p.name ?? 'Mark')]
+        return [m.name, m.comment ?? '', fmtPosition(m.position), rangeFrom(m.position) ?? ''].filter(Boolean)
+      }
+      case 'ais-pt': {
+        const own = s.state && Number.isFinite(s.state.sog) && Number.isFinite(s.state.cog) ? { position: s.state.position, sog: s.state.sog, cog: s.state.cog } : null
+        const t = shownTargets(useAis.getState().targets, own, useAis.getState().filter).find((x) => x.mmsi === p.mmsi)
+        if (!t) return null
+        return [
+          t.name ?? `MMSI ${t.mmsi}`,
+          `MMSI ${t.mmsi} · class ${t.cls}`,
+          t.sog != null ? `${t.sog.toFixed(1)} kn${t.cog != null ? ` ${fmtDeg(t.cog)}°T` : ''}` : '',
+          t.a ? `CPA ${t.a.cpaNm.toFixed(2)} nm in ${Math.round(t.a.tcpaMin)} min` : '',
+          t.position ? rangeFrom(t.position) ?? '' : '',
+        ].filter(Boolean)
+      }
+      case 'fleet-pt':
+        return [String(p.name ?? 'Boat'), 'last report']
+      case 'enc-symbol':
+      case 'enc-point':
+        return [`${p.cls ?? 'Object'}${p.name ? `: ${p.name}` : ''}`]
+      case 'route-line': {
+        const legs = route?.ok ? route.legs : []
+        if (!legs.length) return null
+        const at = map.unproject([point.x, point.y])
+        const here = { lat: at.lat, lon: at.lng }
+        const leg = legs.reduce((a, b) => (distance(b.position, here) < distance(a.position, here) ? b : a))
+        return [
+          `Route: T+${fmtDuration((leg.t - legs[0].t) / 1000)} · ${fmtLocalHm(leg.t)}`,
+          `TWS ${leg.tws.toFixed(1)} kn · TWA ${Math.abs(Math.round(leg.twa))}° ${leg.twa < 0 ? 'port' : 'stbd'}`,
+          `BSP ${leg.bsp.toFixed(1)} kn · ${fmtDeg(leg.heading)}°T`,
+        ]
+      }
+    }
+    return null
+  }
+
   // What the chart's menu offers at a point: the tap's commands, and where the chart looks.
   const chartMenuItems = (at: LatLon): Array<{ label: string; title: string; run: () => void }> => {
     const map = mapRef.current
@@ -1766,6 +1833,15 @@ export function RouteScreen() {
       */}
       <div className="chart-area" onDragOver={gribDrop.onDragOver} onDrop={gribDrop.onDrop}>
         <div ref={containerRef} className="map" />
+        {hover && !chartMenu && (
+          <div className="maptip" role="tooltip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
+            {hover.lines.map((l, i) => (
+              <div key={i} className={i === 0 ? 'maptip__head' : undefined}>
+                {l}
+              </div>
+            ))}
+          </div>
+        )}
         {chartMenu && (
           <div
             className="ctxmenu"

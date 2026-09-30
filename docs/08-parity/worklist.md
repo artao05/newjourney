@@ -539,9 +539,13 @@ logo, icon artwork or manual text.
       *Checked in the app: the menu opens at the pointer and stays while the chart follows the
       boat, which at first it did not (any move closed it; now only a move by hand). Image at
       pointer covers raster charts only so far.*
-- [ ] **17.5 Panes:** show, hide, auto-hide and drag to rearrange; hover tooltips on the
+- [x] **17.5 Panes:** show, hide, auto-hide and drag to rearrange; hover tooltips on the
       chart, marks, AIS, the track and the weather (P1-062, P1-064, P1-083, P4-163, P4-140,
       P4-164, P4-165). *Accept:* tests and a browser check.
+      *Panel and Boxes switches and Auto-hide in the ribbon's tab row; number boxes dragged into
+      place; tooltips for marks (with a new comment field), AIS, fleet boats, ENC objects and the
+      route. Checked in the app with auto-hide on. Still to do: tooltips on our own track and a
+      hover readout on the Weather chart.*
 
 ## M18 — The local bridge (D4)
 

@@ -216,6 +216,8 @@ export interface Mark {
   locked?: boolean
   /** A range circle drawn around it, nautical miles; inside it, auto advance counts it done. */
   rangeNm?: number
+  /** A note on it, shown when the pointer is over it. */
+  comment?: string
 }
 
 export interface StartLine {

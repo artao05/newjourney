@@ -270,6 +270,10 @@ export interface Settings {
   weatherPresets: Array<WeatherPreset | null>
   /** Chart label size, as a multiple of the usual. */
   chartTextScale: number
+  /** The nav station's side panes taken away, to give the chart the room. */
+  navHidden: { panel: boolean; boxes: boolean }
+  /** The side panes folded to a strip at the edge, and out over the chart while the pointer is on them. */
+  navAutoHide: boolean
   /** Status-bar readouts turned off on the nav station (its warnings always show). */
   statusHidden: StatusField[]
   /** The palette set by the sun at the boat: day with it up, dusk in civil twilight, night below. A palette picked by hand turns it off. */
@@ -332,7 +336,7 @@ interface AppState {
   replaceMarks(marks: Array<Pick<Mark, 'name' | 'position'> & Partial<Pick<Mark, 'roundTo' | 'gate'>>>): void
   removeMark(id: string): void
   /** Rename, move, lock, or change the rounding side of one mark. A locked mark does not move. */
-  updateMark(id: string, patch: Partial<Pick<Mark, 'name' | 'position' | 'roundTo' | 'locked' | 'rangeNm'>>): void
+  updateMark(id: string, patch: Partial<Pick<Mark, 'name' | 'position' | 'roundTo' | 'locked' | 'rangeNm' | 'comment'>>): void
   /** Put the marks back as they were (undo and redo). */
   restoreMarks(marks: Mark[], activeMarkIndex: number): void
   /**
@@ -533,6 +537,8 @@ interface AppState {
   addNumberBox(channelId: string): void
   updateNumberBox(id: string, patch: Partial<Omit<NumberBox, 'id'>>): void
   removeNumberBox(id: string): void
+  /** Move a number box to another place in the list: dragged there. */
+  moveNumberBox(from: number, to: number): void
 
   /** Expedition's optimal-routing options: corrections, limits and resolution. */
   routeSettings: RouteSettings
@@ -595,6 +601,8 @@ export const DEFAULT_SETTINGS: Settings = {
   chartTextScale: 1,
   paletteBySun: false,
   statusHidden: [],
+  navHidden: { panel: false, boxes: false },
+  navAutoHide: false,
   layoutLocked: false,
   layouts: [],
 }
@@ -1114,6 +1122,13 @@ export const useStore = create<AppState>()(
             { id: `nb-${Date.now()}-${++markSeq}`, channels: [channelId], size: 'md' },
           ],
         }),
+      moveNumberBox: (from, to) => {
+        const list = [...get().numberBoxes]
+        if (from < 0 || from >= list.length || to < 0 || to >= list.length || from === to) return
+        const [box] = list.splice(from, 1)
+        list.splice(to, 0, box)
+        set({ numberBoxes: list })
+      },
       updateNumberBox: (id, patch) =>
         set({
           numberBoxes: get().numberBoxes.map((b) =>

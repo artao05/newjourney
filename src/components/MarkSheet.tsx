@@ -57,6 +57,15 @@ export function MarkSheet({ mark, index, count, onClose }: {
         />
       </div>
       <div className="field field--wide">
+        <label htmlFor="mark-comment">Comment</label>
+        <input
+          id="mark-comment"
+          placeholder="e.g. leave to port, then bear away"
+          value={mark.comment ?? ''}
+          onChange={(e) => updateMark(mark.id, { comment: e.target.value || undefined })}
+        />
+      </div>
+      <div className="field field--wide">
         <label htmlFor="mark-pos">Position</label>
         <input
           id="mark-pos"

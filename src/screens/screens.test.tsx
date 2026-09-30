@@ -2056,6 +2056,26 @@ describe('number boxes show any channel, alternate, and persist', () => {
     expect(screen.getAllByRole('listitem')[0].textContent).toMatch(/upwind/)
   })
 
+  it('moves a box by dragging it onto another, unless the layout is locked', () => {
+    render(<RaceScreen />)
+    const ids = () => useStore.getState().numberBoxes.map((b) => b.id)
+    const before = ids()
+    const drag = (from: number, to: number) => {
+      const items = screen.getAllByRole('listitem')
+      fireEvent.dragStart(items[from])
+      fireEvent.dragOver(items[to])
+      fireEvent.drop(items[to])
+    }
+    drag(0, 2)
+    expect(ids()).toEqual([before[1], before[2], before[0], ...before.slice(3)])
+    act(() => useStore.getState().updateSettings({ layoutLocked: true }))
+    try {
+      expect(screen.getAllByRole('listitem')[0].getAttribute('draggable')).toBe('false')
+    } finally {
+      act(() => useStore.getState().updateSettings({ layoutLocked: false }))
+    }
+  })
+
   it('adds and removes boxes', () => {
     render(<RaceScreen />)
     const before = useStore.getState().numberBoxes.length
@@ -2856,6 +2876,33 @@ describe('range and bearing on the Route chart', () => {
     rightClick(at.lat, at.lon)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Measure from here' }))
     expect(screen.getByRole('button', { name: /tap the second point/ })).toBeTruthy()
+  })
+
+  it('says what is under the mouse: a mark with its comment and range from the boat, and the route there', async () => {
+    populatedStore()
+    const mark = useStore.getState().course.marks[0]
+    act(() => useStore.getState().updateMark(mark.id, { comment: 'leave to port, then bear away' }))
+    render(<RouteScreen />)
+    act(() => {
+      for (const m of mapInstances) m.fire('load')
+    })
+    const map = mapInstances[0] as unknown as Record<string, unknown>
+    let under: unknown[] = [{ layer: { id: 'marks-pt' }, properties: { id: mark.id, name: mark.name } }]
+    map.getLayer = () => ({})
+    map.queryRenderedFeatures = () => under
+    const move = () =>
+      act(() => {
+        for (const fn of mapInstances[0].handlers.get('mousemove') ?? []) fn({ point: { x: 100, y: 60 }, lngLat: { lat: mark.position.lat, lng: mark.position.lon } })
+      })
+    move()
+    const tip = await screen.findByRole('tooltip')
+    expect(tip.textContent).toContain(mark.name)
+    expect(tip.textContent).toContain('leave to port, then bear away')
+    expect(tip.textContent).toMatch(/nm \d+°T from the boat/)
+    // Nothing under it, no tooltip.
+    under = []
+    move()
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
   })
 
   it("names the chart under a right-click, and shows a raster chart there that is hidden", async () => {

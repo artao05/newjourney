@@ -489,6 +489,27 @@ describe('the nav-station layout at laptop width', () => {
     act(() => useStore.getState().updateSettings({ statusHidden: [] }))
   })
 
+  it('takes the side panes away, brings them back, and folds them to the edges', () => {
+    withWidth(true)
+    useStore.getState().setNav({ navPanel: 'race', navChart: 'route' })
+    useStore.getState().updateSettings({ navHidden: { panel: false, boxes: false }, navAutoHide: false })
+    render(<App />)
+    const panes = screen.getByRole('group', { name: 'Panes' })
+    fireEvent.click(within(panes).getByRole('button', { name: 'Panel' }))
+    expect(screen.queryByRole('region', { name: 'Panel' })).toBeNull()
+    fireEvent.click(within(panes).getByRole('button', { name: 'Boxes' }))
+    expect(screen.queryByRole('complementary', { name: 'Number boxes' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Chart' })).toBeTruthy()
+    // Picking a panel screen brings the panel back with it.
+    fireEvent.click(within(screen.getByRole('group', { name: 'Panel screens' })).getByRole('button', { name: /start/i }))
+    expect(screen.getByRole('region', { name: 'Panel' })).toBeTruthy()
+    expect(useStore.getState().navPanel).toBe('start')
+    fireEvent.click(within(panes).getByRole('button', { name: 'Auto-hide' }))
+    expect(document.querySelector('.navstation')!.className).toContain('navstation--autohide')
+    expect(screen.getByRole('region', { name: 'Panel' }).dataset.label).toBe('Start')
+    useStore.getState().updateSettings({ navHidden: { panel: false, boxes: false }, navAutoHide: false })
+  })
+
   it('switches the panel and the chart independently, and remembers them', () => {
     withWidth(true)
     useStore.getState().setNav({ navPanel: 'race', navChart: 'route' })
