@@ -262,6 +262,21 @@ export interface Settings {
   markColour: string
   /** How many earlier routes are kept to compare against. */
   keepRoutes: number
+  /** The Weather chart's nine display presets; null for an empty slot. */
+  weatherPresets: Array<WeatherPreset | null>
+}
+
+/** What a Weather display preset keeps: the layer shown and how, and the overlays. */
+export interface WeatherPreset {
+  layerId: string
+  mode: string
+  windOverlay: boolean
+  obsOn: boolean
+  streamsOn: boolean
+  radarOn: boolean
+  satOn: boolean
+  contours: Settings['contours']
+  displayModes: Settings['displayModes']
 }
 
 interface AppState {
@@ -559,6 +574,7 @@ export const DEFAULT_SETTINGS: Settings = {
   routeColour: '#ff3ea5',
   markColour: '#ffd54a',
   keepRoutes: MAX_KEPT_ROUTES,
+  weatherPresets: Array(9).fill(null),
 }
 
 export function mergePersistedState(

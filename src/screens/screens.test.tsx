@@ -1580,6 +1580,44 @@ describe('the Weather screen states its provenance', () => {
     }
   })
 
+  it('saves a weather display as a preset and loads it back, outlines coverage, and hides all weather', async () => {
+    const g = gfsGrid(44, 289, 5, 4, 0.5)
+    const bytes = file(
+      message({ category: 2, number: 2, levelType: 103, levelValue: 10, grid: g, values: over(g, () => 6), packing: 'simple' }),
+      message({ category: 2, number: 3, levelType: 103, levelValue: 10, grid: g, values: over(g, () => -1), packing: 'simple' }),
+    )
+    await openWeatherFiles([new File([bytes], 'saildocs.grb2')])
+    try {
+      act(() => useStore.getState().updateSettings({ weatherPresets: Array(9).fill(null) }))
+      render(<WeatherScreen />)
+      act(() => {
+        for (const m of mapInstances) m.fire('load')
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Radar' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Presets' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save preset 3' }))
+      expect(useStore.getState().settings.weatherPresets[2]).toMatchObject({ radarOn: true, layerId: 'wind' })
+      expect(within(screen.getByRole('table', { name: 'Preset slots' })).getAllByRole('row')[2].textContent).toMatch(/radar/)
+      fireEvent.click(screen.getByRole('button', { name: 'DEFAULTS' }))
+      expect(screen.getByRole('button', { name: 'Radar' }).getAttribute('aria-pressed')).toBe('false')
+      fireEvent.click(screen.getByRole('button', { name: 'Presets' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Load preset 3' }))
+      expect(screen.getByRole('button', { name: 'Radar' }).getAttribute('aria-pressed')).toBe('true')
+      // The GRIB file's coverage, outlined.
+      fireEvent.click(screen.getByRole('button', { name: 'Coverage' }))
+      const cov = mapInstances[0].data.get('wx-coverage') as GeoJSON.FeatureCollection
+      expect(cov.features.map((f) => f.properties!.name)).toContain('saildocs.grb2')
+      // All weather off and back.
+      fireEvent.click(screen.getByRole('button', { name: 'Hide weather' }))
+      expect(screen.getByRole('button', { name: 'Show weather' }).getAttribute('aria-pressed')).toBe('true')
+    } finally {
+      act(() => {
+        useWeatherFiles.setState({ files: [] })
+        useStore.getState().updateSettings({ weatherPresets: Array(9).fill(null) })
+      })
+    }
+  })
+
   it('lays a chart image on the map by its edges, and takes it off when unticked', () => {
     URL.createObjectURL = (() => 'blob:fax') as typeof URL.createObjectURL
     render(<WeatherScreen />)

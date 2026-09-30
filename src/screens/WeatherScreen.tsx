@@ -117,6 +117,8 @@ const MODES: Array<{ id: VectorMode; label: string }> = [
  * to remove a source that a layer still references.
  */
 const OWNED_LAYERS = [
+  'wx-coverage-line',
+  'wx-coverage-label',
   'wx-diamond-arrow',
   'wx-diamond-label',
   'wx-sat',
@@ -131,7 +133,7 @@ const OWNED_LAYERS = [
   'wx-station-pt',
   'wx-station-label',
 ]
-const OWNED_SOURCES = ['wx-symbols', 'wx-station', 'wx-contours', 'wx-obs', 'wx-sat', 'wx-radar', 'wx-diamonds']
+const OWNED_SOURCES = ['wx-symbols', 'wx-station', 'wx-contours', 'wx-obs', 'wx-sat', 'wx-radar', 'wx-diamonds', 'wx-coverage']
 
 export function WeatherScreen() {
   return (
@@ -169,6 +171,10 @@ function WeatherOverlay() {
   const [radarOn, setRadarOn] = useState(false)
   const ens = useEnsembleView()
   const [satOn, setSatOn] = useState(false)
+  // Everything of the weather off at once, and back as it was.
+  const [hideWx, setHideWx] = useState(false)
+  const [showPresets, setShowPresets] = useState(false)
+  const [showCoverage, setShowCoverage] = useState(false)
   const [radar, setRadar] = useState<{ tiles: string; time: number } | null>(null)
   const [radarError, setRadarError] = useState<string | null>(null)
   const [showObsSheet, setShowObsSheet] = useState(false)
@@ -218,6 +224,10 @@ function WeatherOverlay() {
   useEffect(() => {
     if (!map || !ready) return
 
+    // What the weather covers: the forecast's area and each GRIB file's, outlined.
+    map.addSource('wx-coverage', { type: 'geojson', data: emptyFC() })
+    map.addLayer({ id: 'wx-coverage-line', type: 'line', source: 'wx-coverage', paint: { 'line-color': ['get', 'color'] as never, 'line-width': 1.2, 'line-dasharray': [4, 3], 'line-opacity': 0.8 } })
+    map.addLayer({ id: 'wx-coverage-label', type: 'symbol', source: 'wx-coverage', layout: { 'text-field': ['get', 'name'] as never, 'text-size': 10, 'symbol-placement': 'line', 'text-font': ['Open Sans Regular'] }, paint: { 'text-color': ['get', 'color'] as never, 'text-halo-color': '#04101c', 'text-halo-width': 1 } })
     // Contours under everything else of ours: a line with its level along it, the bold level heavier.
     map.addSource('wx-contours', { type: 'geojson', data: emptyFC() })
     map.addLayer(
@@ -666,7 +676,7 @@ function WeatherOverlay() {
   useEffect(() => {
     if (!ready || !scalar) return
 
-    if (!isVector && scalarCube) {
+    if (!isVector && scalarCube && !hideWx) {
       scalar.setParam(layer.params[0], layer.domain)
       scalar.setColorRamp(rampToLUT(ramp, layer.domain))
       scalar.setData(scalarCube, scalarT)
@@ -674,12 +684,12 @@ function WeatherOverlay() {
     } else {
       scalar.setVisible(false)
     }
-  }, [ready, scalar, scalarCube, scalarT, layer, ramp, isVector])
+  }, [ready, scalar, scalarCube, scalarT, layer, ramp, isVector, hideWx])
 
   useEffect(() => {
     if (!ready || !cube || !particles) return
 
-    if (showParticles) {
+    if (showParticles && !hideWx) {
       const speedLayer = isVector ? layer : LAYERS.wind
       particles.setOptions({
         params: particleParams,
@@ -698,7 +708,74 @@ function WeatherOverlay() {
     } else {
       particles.setVisible(false)
     }
-  }, [ready, particles, cube, t, layer, isVector, showParticles, particleParams, shown, windShown])
+  }, [ready, particles, cube, t, layer, isVector, showParticles, particleParams, shown, windShown, hideWx])
+
+  // Hidden, our own layers go too; shown again, each goes back to what it was.
+  const hiddenWas = useMemo(() => new Map<string, string>(), [])
+  useEffect(() => {
+    if (!map || !ready) return
+    for (const id of OWNED_LAYERS) {
+      if (!map.getLayer(id)) continue
+      if (hideWx) {
+        if (!hiddenWas.has(id)) hiddenWas.set(id, (map.getLayoutProperty(id, 'visibility') as string | undefined) ?? 'visible')
+        map.setLayoutProperty(id, 'visibility', 'none')
+      } else if (hiddenWas.has(id)) {
+        map.setLayoutProperty(id, 'visibility', hiddenWas.get(id)!)
+        hiddenWas.delete(id)
+      }
+    }
+  }, [map, ready, hideWx, hiddenWas])
+
+  // The coverage outlines, when asked for.
+  const fileCubes = useWeatherFiles((s) => s.files)
+  useEffect(() => {
+    if (!map || !ready) return
+    const box = (b: { west: number; south: number; east: number; north: number }, name: string, color: string) => ({
+      type: 'Feature' as const,
+      properties: { name, color },
+      geometry: { type: 'LineString' as const, coordinates: [[b.west, b.south], [b.east, b.south], [b.east, b.north], [b.west, b.north], [b.west, b.south]] },
+    })
+    const features = showCoverage
+      ? [
+          ...(cube ? [box(cube.bbox, `${modelLabel ?? cube.model} forecast`, '#4fc3f7')] : []),
+          ...fileCubes.flatMap((f) => (f.cube ? [box(f.cube.bbox, f.name, '#ffb020')] : [])),
+        ]
+      : []
+    ;(map.getSource('wx-coverage') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features })
+  }, [map, ready, showCoverage, cube, fileCubes, modelLabel])
+
+  // Presets: the layer shown and how, the overlays, contours and colours, in nine slots.
+  const presets = useStore((s) => s.settings.weatherPresets) ?? Array(9).fill(null)
+  const savePreset = (i: number) => {
+    const s = useStore.getState().settings
+    const next = [...presets]
+    next[i] = { layerId, mode, windOverlay, obsOn, streamsOn, radarOn, satOn, contours: s.contours, displayModes: s.displayModes }
+    updateSettings({ weatherPresets: next })
+  }
+  const loadPreset = (i: number) => {
+    const p = presets[i]
+    if (!p) return
+    setLayerId(p.layerId)
+    setMode(p.mode as VectorMode)
+    setWindOverlay(p.windOverlay)
+    setObsOn(p.obsOn)
+    setStreamsOn(p.streamsOn)
+    setRadarOn(p.radarOn)
+    setSatOn(p.satOn)
+    updateSettings({ contours: p.contours, displayModes: p.displayModes })
+    setHideWx(false)
+  }
+  const defaults = () => {
+    setLayerId('wind')
+    setMode('particles')
+    setWindOverlay(true)
+    setObsOn(false)
+    setStreamsOn(false)
+    setRadarOn(false)
+    setSatOn(false)
+    updateSettings({ contours: DEFAULT_CONTOURS, displayModes: {} })
+    setHideWx(false)
+  }
 
   /*
    * Station current prediction, fetched only when the Current layer is open.
@@ -1033,6 +1110,20 @@ function WeatherOverlay() {
               ))}
             </select>
           )}
+          <button className={`chip${hideWx ? ' chip--warn' : ''}`} aria-pressed={hideWx} onClick={() => setHideWx((v) => !v)} title="All the weather off, and back as it was">
+            {hideWx ? 'Show weather' : 'Hide weather'}
+          </button>
+          <button className="chip" onClick={() => setShowPresets(true)} title="Nine saved weather displays">
+            Presets
+          </button>
+          <button className={`chip${showCoverage ? ' chip--good' : ''}`} aria-pressed={showCoverage} onClick={() => setShowCoverage((v) => !v)} title="Outline what the forecast and the GRIB files cover">
+            Coverage
+          </button>
+          {cube && (
+            <span className="chip" aria-label="Forecast hours" title="Open-Meteo does not say which run it serves; this is the last hour it has">
+              to +{Math.round(((cube.t0 + (cube.nt - 1) * cube.dtMs - Date.now()) / 3_600_000))} h
+            </span>
+          )}
           <button className={`chip${radarOn ? ' chip--good' : ''}`} aria-pressed={radarOn} onClick={() => setRadarOn((v) => !v)}>
             Radar
           </button>
@@ -1274,6 +1365,38 @@ function WeatherOverlay() {
                 separate ocean model and will disagree — they do not resolve tide.
               </p>
             )}
+          </div>
+        </div>
+      )}
+      {showPresets && (
+        <div className="sheet" role="dialog" aria-label="Weather presets">
+          <div className="sheet__grip" onClick={() => setShowPresets(false)} />
+          <h2>Weather presets</h2>
+          <table className="targets" aria-label="Preset slots" style={{ width: '100%' }}>
+            <tbody>
+              {presets.map((p, i) => (
+                <tr key={i}>
+                  <td>{i + 1}</td>
+                  <td>{p ? `${layerById(p.layerId)?.label ?? p.layerId}${p.radarOn ? ', radar' : ''}${p.satOn ? ', satellite' : ''}${p.obsOn ? ', observations' : ''}${p.streamsOn ? ', streams' : ''}` : <span className="note">empty</span>}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="btn btn--sm btn--ghost" aria-label={`Save preset ${i + 1}`} onClick={() => savePreset(i)}>
+                      SAVE
+                    </button>
+                    <button className="btn btn--sm btn--ghost" aria-label={`Load preset ${i + 1}`} disabled={!p} onClick={() => (loadPreset(i), setShowPresets(false))}>
+                      LOAD
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="actions">
+            <button className="btn btn--sm btn--ghost" onClick={() => (defaults(), setShowPresets(false))}>
+              DEFAULTS
+            </button>
+            <button className="btn btn--sm" onClick={() => setShowPresets(false)}>
+              Done
+            </button>
           </div>
         </div>
       )}

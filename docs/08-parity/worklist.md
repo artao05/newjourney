@@ -441,9 +441,11 @@ the Build rows still Missing, cheapest and most used first. Each item names its 
 - [x] **15.9 Course wizards and start extras:** Olympic triangle and trapezoid wizards,
       start line ends from marks, a separate finish mark, start time ratios (P1-165,
       P1-166, P2-107, P2-244, P1-180). *Accept:* tests.
-- [ ] **15.10 Weather presets and info:** display presets 1–9, hide all weather,
+- [x] **15.10 Weather presets and info:** display presets 1–9, hide all weather,
       forecast coverage outlines, GRIB file and run-time info (P1-185, P2-119, P1-188,
       P4-168, P2-173, P2-170). *Accept:* tests.
+      *The GRIB file info before download and the model run time stay partial: the first cannot be
+      known before a Saildocs reply, the second needs the NOMADS listings (D1).*
 - [ ] **15.11 Files:** race-note files and areas from text, tracking to text,
       BoatId.csv and scheds CSV, an XTide reader (P1-161, P1-162, P2-282, P2-286,
       P2-287, P4-202). *Accept:* tests.
