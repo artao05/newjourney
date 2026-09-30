@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { request } from 'node:http'
 import { createServer, connect, type Socket } from 'node:net'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -218,6 +220,41 @@ describe('the bridge', () => {
     } finally {
       await Promise.all([a.stop(), b2.stop(), c.stop()])
     }
+  })
+
+  it('sends a file that lands in a watched folder, once it has stopped changing, and not the ones already there', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'nj-watch-'))
+    writeFileSync(join(dir, 'old.grb2'), 'already here')
+    bridge = await startBridge({ port: 0, inputs: [], watch: [{ dir }] })
+    const { ws, got } = await client(bridge.port)
+    await until(() => got.some((m) => m.type === 'hello'))
+    const bytes = Buffer.from([0x47, 0x52, 0x49, 0x42, 1, 2, 3, 250])
+    writeFileSync(join(dir, 'gfs.t06z.f003.grb2'), bytes.subarray(0, 4))
+    writeFileSync(join(dir, 'gfs.t06z.f003.grb2'), bytes)
+    const files = () => got.filter((m) => m.type === 'file')
+    await until(() => files().length > 0, 5000)
+    await new Promise((r) => setTimeout(r, 900))
+    expect(files()).toHaveLength(1)
+    expect(files()[0]).toMatchObject({ name: 'gfs.t06z.f003.grb2', kind: 'auto', size: 8 })
+    expect(Buffer.from(files()[0].data as string, 'base64')).toEqual(bytes)
+    expect(bridge.watches()[0]).toMatchObject({ state: 'watching', files: 1 })
+    ws.close()
+  })
+
+  it('sends a scanned folder’s files, newest first, to each app as it connects', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'nj-scan-'))
+    writeFileSync(join(dir, 'a.kap'), 'older')
+    await new Promise((r) => setTimeout(r, 30))
+    writeFileSync(join(dir, 'b.kap'), 'newer')
+    bridge = await startBridge({ port: 0, inputs: [], watch: [{ dir, kind: 'chart', scan: true }] })
+    const { ws, got } = await client(bridge.port)
+    await until(() => got.filter((m) => m.type === 'file').length === 2)
+    expect(got.filter((m) => m.type === 'file').map((m) => [m.name, m.kind])).toEqual([
+      ['b.kap', 'chart'],
+      ['a.kap', 'chart'],
+    ])
+    expect(parseArgs(['--watch', dir + '=grib', '--scan']).watch).toEqual([{ dir, kind: 'grib', scan: true }])
+    ws.close()
   })
 
   it('turns away a web page from anywhere else', async () => {

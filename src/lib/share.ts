@@ -37,8 +37,34 @@ type SocketLike = {
   onerror: ((ev: unknown) => void) | null
 }
 
+/** A file from a folder the bridge watches (bridge/watch.ts). */
+export interface WatchedFile {
+  watch: string
+  name: string
+  kind: 'auto' | 'grib' | 'chart' | 'tracking'
+  size: number
+  mtime: number
+  bytes: Uint8Array
+}
+
+/** What a file is, by its name, for a folder watched as 'auto'. */
+export function fileKind(name: string): 'grib' | 'chart' | 'tracking' | null {
+  const n = name.toLowerCase()
+  if (/\.kap$/.test(n) || /\.\d{3}$/.test(n) || /\.zip$/.test(n)) return 'chart'
+  if (/\.(gpx|csv|txt|xml|json)$/.test(n)) return 'tracking'
+  if (/\.(grb2?|grib2?|grb1|grib1|bin)$/.test(n) || /grb|grib/.test(n)) return 'grib'
+  return null
+}
+
+function fromBase64(b64: string): Uint8Array {
+  const bin = atob(b64)
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0))
+}
+
 export interface ShareOptions {
   onShared: (m: Shared) => void
+  /** Files from the bridge's watched folders. */
+  onFile?: (f: WatchedFile) => void
   onStatus?: (s: SignalKStatus, detail?: string) => void
   socket?: (url: string) => SocketLike
   retryMs?: number
@@ -109,6 +135,11 @@ export class ShareLink {
       try {
         m = JSON.parse(ev.data)
       } catch {
+        return
+      }
+      if (m.type === 'file') {
+        const f = m as unknown as Omit<WatchedFile, 'bytes'> & { data?: string }
+        if (typeof f.data === 'string' && typeof f.name === 'string') this.opts.onFile?.({ watch: f.watch, name: f.name, kind: f.kind ?? 'auto', size: f.size, mtime: f.mtime, bytes: fromBase64(f.data) })
         return
       }
       if (m.type !== 'shared' || typeof m.topic !== 'string' || m.from === this.id) return

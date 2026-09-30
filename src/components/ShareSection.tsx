@@ -76,6 +76,39 @@ export function ShareSection() {
         {status.detail && status.status !== 'connected' ? ` (${status.detail})` : ''}
         {share.on && status.status === 'connected' ? ` · sent ${ago(status.lastOut)}, taken in ${ago(status.lastIn)}` : ''}
       </p>
+      <WatchedFolders />
     </section>
+  )
+}
+
+/** Files from the folders the bridge watches, opened as they land. */
+function WatchedFolders() {
+  const watch = useStore((s) => s.settings.watchFolders)
+  const log = useStore((s) => s.watchLog)
+  const updateSettings = useStore((s) => s.updateSettings)
+  const url = useStore((s) => s.settings.share.url)
+  return (
+    <div aria-label="Watched folders" role="group">
+      <h3 style={{ fontSize: 13, margin: '14px 0 6px' }}>Watched folders</h3>
+      <p className="note">
+        GRIB files, raster charts, ENC cells and position reports that land in a folder the bridge watches
+        (<code>node bridge/bridge.ts --watch C:\Downloads\grib</code>) open here as they arrive.
+      </p>
+      <button
+        className={watch?.on ? 'btn btn--sm btn--ghost' : 'btn btn--sm'}
+        onClick={() => updateSettings({ watchFolders: { on: !watch?.on, url: watch?.url || url } })}
+      >
+        {watch?.on ? 'STOP TAKING FILES' : 'TAKE FILES FROM THE BRIDGE'}
+      </button>
+      {log.length > 0 && (
+        <ul className="note" aria-label="Files taken in" style={{ paddingLeft: 18 }}>
+          {log.map((e) => (
+            <li key={`${e.name}-${e.at}`} style={e.ok ? undefined : { color: 'var(--port)' }}>
+              {new Date(e.at).toLocaleTimeString()} {e.name}: {e.kind}, {e.detail}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }

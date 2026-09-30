@@ -37,6 +37,7 @@ import { variationAt } from '@/lib/magnetic'
 import { paletteForSun } from '@/lib/palette'
 import { DEFAULT_BRIDGE_URL } from '@/lib/instruments/bridge'
 import { useShare } from '@/hooks/useShare'
+import { useWatchedFolders } from '@/hooks/useWatchedFolders'
 import { RibbonContext, StatusBarContext } from '@/components/Ribbon'
 import { solarElevationDeg } from '@/lib/routing/isochrone'
 import type { WindEstimate } from '@/lib/types'
@@ -126,8 +127,9 @@ export function App() {
   const [ribbonSlot, setRibbonSlot] = useState<HTMLElement | null>(null)
   // And the status bar's, for its readouts.
   const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null)
-  // Sharing with other copies of the app, through the bridge.
+  // Sharing with other copies of the app, through the bridge; and the folders it watches.
   useShare()
+  useWatchedFolders()
   // Night off goes back to the palette it came from.
   const beforeNight = useRef<'day' | 'dusk'>('day')
   // By the sun: checked now and once a minute, at the boat (or the venue before a fix).

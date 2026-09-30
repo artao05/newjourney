@@ -47,6 +47,22 @@ A connection from another machine gets nothing until it gives the key. Each mess
 on once, even round a circle of links. A copy that takes in instruments uses them as its own:
 a repeater, for the deck or a coach boat.
 
+## Watched folders
+
+A file that lands in a watched folder goes to the app, which opens it as if it had been picked:
+a GRIB from a satellite download, a raster chart or ENC cell, a tracker's position report.
+The bridge waits until the file stops changing, so it never sends one half written, and sends
+it again only if it changes. Turn it on in the app under **Setup → Sharing → Watched folders**.
+
+```
+node bridge/bridge.ts --watch C:\Downloads\grib=grib --watch C:\Race\reports=tracking
+node bridge/bridge.ts --watch C:\Charts\RNC=chart --scan        # and the charts already there, to each app that connects
+```
+
+Without `=KIND`, each file is known by its name. `--scan` also sends a folder's existing
+files, the newest 20, to each copy of the app as it connects. That works like a chart
+library, or a GRIB folder opened in one go. Files over 25 MB are not sent.
+
 ## Safety
 
 - **It only listens.** Nothing goes to the boat. Transmitting is worklist M19, behind a

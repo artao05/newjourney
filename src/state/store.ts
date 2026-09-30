@@ -272,6 +272,8 @@ export interface Settings {
   weatherPresets: Array<WeatherPreset | null>
   /** Chart label size, as a multiple of the usual. */
   chartTextScale: number
+  /** Files from folders the bridge watches, opened as they land. */
+  watchFolders: { on: boolean; url: string }
   /** Sharing with other copies of the app through the bridge: what goes out, what is taken in. */
   share: { on: boolean; url: string; send: ShareTopic[]; receive: ShareTopic[]; channels: string[] }
   /** The nav station's side panes taken away, to give the chart the room. */
@@ -465,6 +467,9 @@ interface AppState {
     bridgeOn: boolean
     bridgeUrl: string
   }
+  /** Files taken in from watched folders, the latest first. Not persisted. */
+  watchLog: Array<{ name: string; kind: string; at: number; ok: boolean; detail: string }>
+  logWatched(e: { name: string; kind: string; ok: boolean; detail: string }): void
   /** How sharing is going. Not persisted. */
   shareStatus: { status: 'off' | 'connecting' | 'connected' | 'closed' | 'error'; detail: string | null; lastIn: number | null; lastOut: number | null }
   setShareStatus(patch: Partial<AppState['shareStatus']>): void
@@ -616,6 +621,7 @@ export const DEFAULT_SETTINGS: Settings = {
   statusHidden: [],
   navHidden: { panel: false, boxes: false },
   share: { on: false, url: DEFAULT_BRIDGE_URL, send: ['course', 'start'], receive: ['course', 'start'], channels: [] },
+  watchFolders: { on: false, url: DEFAULT_BRIDGE_URL },
   navAutoHide: false,
   layoutLocked: false,
   layouts: [],
@@ -1021,6 +1027,8 @@ export const useStore = create<AppState>()(
       instruments: { signalKUrl: DEFAULT_SIGNALK_URL, signalKOn: false, serialOn: false, serialBaud: 4800, serialFormat: 'nmea0183', bridgeOn: false, bridgeUrl: DEFAULT_BRIDGE_URL },
       bridgeInputs: [],
       shareStatus: { status: 'off', detail: null, lastIn: null, lastOut: null },
+      watchLog: [],
+      logWatched: (e) => set({ watchLog: [{ ...e, at: Date.now() }, ...get().watchLog].slice(0, 20) }),
       setShareStatus: (patch) => set({ shareStatus: { ...get().shareStatus, ...patch } }),
       setBridgeInputs: (inputs) => set({ bridgeInputs: inputs }),
       setInstruments: (patch) => {

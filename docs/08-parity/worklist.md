@@ -577,8 +577,12 @@ app talks to it over a WebSocket on `127.0.0.1`.
       topics both ways and the channels sent; instruments taken in make this copy a repeater.
       Checked with two tabs: a mark added in one appeared in the other. Still to do: telling the
       others to reconnect (P1-050) and the user flag (P1-236).*
-- [ ] **18.4 Watched folders:** position reports, raster charts and GRIB folders, picked up
+- [x] **18.4 Watched folders:** position reports, raster charts and GRIB folders, picked up
       as files land (P1-056, P2-277, P1-146, P2-028, P2-141). *Accept:* tests.
+      *bridge/watch.ts: fs.watch, sent once a file has stopped changing and only if it changes;
+      --scan sends a folder's newest 20 to each app that connects. The app opens each by kind
+      through the existing importers (GRIB, raster, ENC, tracking). P1-146 (fetching reports from
+      FTP or HTTPS) goes with the backend, M20.*
 - [ ] **18.5 Serial through the bridge:** NMEA 0183 serial ports on any browser, a laser
       rangefinder, and serial event buttons, tested on recordings (P1-026, P3-174, P1-171,
       P1-129, P3-152, P3-090). *Accept:* tests; the device check stays Hardware.

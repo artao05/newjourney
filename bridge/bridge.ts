@@ -14,6 +14,7 @@
  *   {type:'hello', bridge, version, inputs}   on connecting
  *   {type:'lines', input, format, lines}      lines as they come, batched every 50 ms
  *   {type:'status', inputs}                   when an input's state changes
+ *   {type:'file', watch, name, kind, size, mtime, data}   a file that landed in a watched folder, in base64
  * From the app:
  *   {type:'ping'}  answered {type:'pong', t}
  *   {type:'share', topic, data, from}   passed to every other copy of the app, here and on
@@ -31,6 +32,7 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { startInput, type Input, type InputConfig, type InputStatus } from './inputs.ts'
 import { startWsServer, type WsPeer, type WsServer } from './ws.ts'
+import { startWatch, type WatchConfig, type WatchedFile, type WatchStatus } from './watch.ts'
 
 export const BRIDGE_VERSION = 1
 export const DEFAULT_PORT = 3080
@@ -51,6 +53,8 @@ export interface BridgeConfig {
   key?: string
   /** This bridge's name in a chain of links; random if not given. */
   id?: string
+  /** Folders to watch: a file that lands in one goes to the app. */
+  watch?: WatchConfig[]
 }
 
 interface Share {
@@ -121,6 +125,7 @@ const local = (remote: string) => remote.startsWith('127.') || remote.startsWith
 export interface Bridge {
   port: number
   inputs(): InputStatus[]
+  watches(): WatchStatus[]
   stop(): Promise<void>
 }
 
@@ -147,6 +152,18 @@ export function parseArgs(argv: string[]): BridgeConfig {
     else if (a === '--n2k') n2k = true
     else if (a === '--peer') (c.peers ??= []).push(next())
     else if (a === '--key') c.key = next()
+    else if (a === '--scan') {
+      // The folder just given: send its files to each app that connects, not only new ones.
+      const last = c.watch?.at(-1)
+      if (!last) throw new Error('--scan follows a --watch')
+      last.scan = true
+    } else if (a === '--watch') {
+      // DIR, or DIR=grib|chart|tracking to say what its files are.
+      const v = next()
+      const k = v.lastIndexOf('=')
+      const kind = k > 0 ? v.slice(k + 1) : ''
+      c.watch = [...(c.watch ?? []), kind === 'grib' || kind === 'chart' || kind === 'tracking' ? { dir: v.slice(0, k), kind } : { dir: v }]
+    }
     else if (a === '--udp') {
       const [port, multicast] = next().split('@')
       c.inputs.push({ kind: 'udp', port: Number(port), ...(multicast ? { multicast } : {}), format: fmt() })
@@ -172,10 +189,12 @@ export async function startBridge(config: BridgeConfig): Promise<Bridge> {
   const pending = new Map<string, string[]>()
   let flushTimer: ReturnType<typeof setTimeout> | null = null
   const statuses = () => inputs.map((i) => ({ ...i.status }))
-  const broadcast = (msg: object) => {
-    const text = JSON.stringify(msg)
+  const broadcastText = (text: string) => {
     for (const p of peers) p.send(text)
   }
+  const broadcast = (msg: object) => broadcastText(JSON.stringify(msg))
+  const fileMessage = (f: WatchedFile) =>
+    JSON.stringify({ type: 'file', watch: f.watch, name: f.name, kind: f.kind, size: f.size, mtime: f.mtime, data: f.data.toString('base64') })
   // A shared message: to every copy of the app here but the one it came from, and on down the links.
   // Messages seen lately, by id: linked both ways, one can arrive by two roads, and is passed on once.
   const seen = new Set<string>()
@@ -218,6 +237,8 @@ export async function startBridge(config: BridgeConfig): Promise<Bridge> {
     }, 500)
   }
 
+  // Before the server listens: an app that connects at once may ask for a scanned folder.
+  const watches = (config.watch ?? []).map((w) => startWatch(w, (f) => broadcastText(fileMessage(f))))
   const ws: WsServer = await startWsServer({
     port: config.port ?? DEFAULT_PORT,
     host: config.host ?? '127.0.0.1',
@@ -228,6 +249,11 @@ export async function startBridge(config: BridgeConfig): Promise<Bridge> {
       if (here) {
         peers.add(p)
         p.send(JSON.stringify({ type: 'hello', bridge: 'newjourney-bridge', version: BRIDGE_VERSION, inputs: statuses() }))
+        // A scanned folder's files, to this app as it arrives.
+        for (const [k, w] of watches.entries()) {
+          if (!config.watch?.[k]?.scan) continue
+          for (const f of w.existing()) p.send(fileMessage(f))
+        }
       }
       p.onMessage = (text) => {
         let m: { type?: string; key?: string } | null = null
@@ -261,7 +287,7 @@ export async function startBridge(config: BridgeConfig): Promise<Bridge> {
     onHttp: (_req, res) => {
       // A status page: what the bridge is listening to, for a person with a browser.
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ bridge: 'newjourney-bridge', version: BRIDGE_VERSION, peers: peers.size, inputs: statuses() }, null, 2))
+      res.end(JSON.stringify({ bridge: 'newjourney-bridge', version: BRIDGE_VERSION, peers: peers.size, links: links.size + outLinks.length, inputs: statuses() }, null, 2))
     },
   })
   for (const c of config.inputs) inputs.push(startInput(c, onLines, onStatus))
@@ -270,7 +296,9 @@ export async function startBridge(config: BridgeConfig): Promise<Bridge> {
   return {
     port: ws.port,
     inputs: statuses,
+    watches: () => watches.map((w) => ({ ...w.status })),
     stop: async () => {
+      for (const w of watches) w.stop()
       if (flushTimer) clearTimeout(flushTimer)
       if (statusTimer) clearTimeout(statusTimer)
       for (const i of inputs) i.stop()
@@ -293,6 +321,8 @@ const USAGE = `newjourney bridge: NMEA and AIS from the boat's network, to the a
   --allow ORIGIN       a page origin allowed to connect besides localhost
   --peer ws://HOST:PORT  link to the bridge on another machine, to share with the app there
   --key SECRET         the secret linked bridges share (needed on both sides)
+  --watch DIR[=KIND]   send files that land in DIR to the app (KIND: grib, chart or tracking; else by name)
+  --scan               after a --watch: also send the files already there to each app that connects
   --port PORT          the WebSocket port for the app (default ${DEFAULT_PORT})
 
 In the app: Setup → Instruments → Bridge, ws://127.0.0.1:${DEFAULT_PORT}.`
@@ -306,7 +336,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(USAGE)
     process.exit(e instanceof Error && e.message === 'help' ? 0 : 1)
   }
-  if (!config.inputs.length && !config.peers?.length && !config.key) {
+  if (!config.inputs.length && !config.peers?.length && !config.key && !config.watch?.length) {
     console.log(USAGE)
     console.log('\nNothing to do: give an input (--udp, --tcp, --tcp-server) or a link (--peer, --key).')
     process.exit(1)
