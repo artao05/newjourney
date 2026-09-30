@@ -36,6 +36,7 @@ import { fixQuality } from '@/lib/startline'
 import { variationAt } from '@/lib/magnetic'
 import { paletteForSun } from '@/lib/palette'
 import { DEFAULT_BRIDGE_URL } from '@/lib/instruments/bridge'
+import { useShare } from '@/hooks/useShare'
 import { RibbonContext, StatusBarContext } from '@/components/Ribbon'
 import { solarElevationDeg } from '@/lib/routing/isochrone'
 import type { WindEstimate } from '@/lib/types'
@@ -125,6 +126,8 @@ export function App() {
   const [ribbonSlot, setRibbonSlot] = useState<HTMLElement | null>(null)
   // And the status bar's, for its readouts.
   const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null)
+  // Sharing with other copies of the app, through the bridge.
+  useShare()
   // Night off goes back to the palette it came from.
   const beforeNight = useRef<'day' | 'dusk'>('day')
   // By the sun: checked now and once a minute, at the boat (or the venue before a fix).
@@ -153,7 +156,9 @@ export function App() {
         ? { kind: 'serial', baud: instruments.serialBaud, format: instruments.serialFormat }
         : instruments.bridgeOn
           ? { kind: 'bridge', url: instruments.bridgeUrl ?? DEFAULT_BRIDGE_URL }
-          : null
+          : settings.share?.on && settings.share.receive.includes('instruments')
+            ? { kind: 'peer' }
+            : null
   useGeolocation(!settings.simulate && !instrumentSource && !replaying)
   const phoneSensors = useStore((s) => s.phoneSensors)
   usePhoneOrientation(phoneSensors.on && !settings.simulate && !instrumentSource && !replaying)

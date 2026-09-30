@@ -186,6 +186,40 @@ describe('the bridge', () => {
     app.stop()
   })
 
+  it('passes what one copy of the app shares to the others, here and over linked bridges, once each', async () => {
+    // b links to a, and a back to b: a circle, which must neither loop nor deliver twice.
+    const b = await startBridge({ port: 0, inputs: [], key: 'sail', id: 'b' })
+    const a = await startBridge({ port: 0, inputs: [], key: 'sail', id: 'a', peers: [`ws://127.0.0.1:${b.port}`] })
+    await b.stop()
+    const b2 = await startBridge({ port: b.port, inputs: [], key: 'sail', id: 'b', peers: [`ws://127.0.0.1:${a.port}`] })
+    // And one with the wrong key, which gets nothing.
+    const c = await startBridge({ port: 0, inputs: [], key: 'wrong', id: 'c', peers: [`ws://127.0.0.1:${a.port}`] })
+    try {
+      const nav = await client(a.port)
+      const deck = await client(a.port)
+      const below = await client(b2.port)
+      const other = await client(c.port)
+      // a's link to b dials again (after a second) now b is back.
+      await new Promise((r) => setTimeout(r, 1600))
+      nav.ws.send(JSON.stringify({ type: 'share', topic: 'course', data: { marks: [1, 2] }, from: 'nav' }))
+      const shared = (x: { got: Array<{ type: string }> }) => x.got.filter((m) => m.type === 'shared')
+      await until(() => shared(deck).length > 0 && shared(below).length > 0)
+      await new Promise((r) => setTimeout(r, 200))
+      expect(shared(deck)).toEqual([expect.objectContaining({ type: 'shared', topic: 'course', data: { marks: [1, 2] }, from: 'nav' })])
+      expect(shared(below)).toHaveLength(1)
+      // Not back to the one that sent it, and not through a link with the wrong key.
+      expect(shared(nav)).toHaveLength(0)
+      expect(shared(other)).toHaveLength(0)
+      // Back the other way, over the link.
+      below.ws.send(JSON.stringify({ type: 'share', topic: 'start', data: { gunTime: 1 }, from: 'below' }))
+      await until(() => shared(nav).length > 0)
+      expect(shared(nav)[0]).toMatchObject({ topic: 'start', from: 'below' })
+      for (const x of [nav, deck, below, other]) x.ws.close()
+    } finally {
+      await Promise.all([a.stop(), b2.stop(), c.stop()])
+    }
+  })
+
   it('turns away a web page from anywhere else', async () => {
     bridge = await startBridge({ port: 0, inputs: [] })
     const status = await new Promise<number>((resolve) => {

@@ -32,6 +32,21 @@ A config file is the same thing as JSON:
 { "port": 3080, "inputs": [{ "kind": "udp", "port": 10110 }, { "kind": "tcp-client", "host": "192.168.1.10", "port": 10110 }] }
 ```
 
+## Sharing between copies of the app
+
+The bridge also passes what one copy of the app shares to the others: the course, the start
+line and the instruments (**Setup → Sharing**). Copies on the same computer share straight
+away. For copies on two computers, run the bridge on both and link them with the same key:
+
+```
+node bridge/bridge.ts --udp 10110 --host 0.0.0.0 --key SECRET                     # the nav station
+node bridge/bridge.ts --peer ws://NAV-STATION:3080 --key SECRET                   # the deck laptop
+```
+
+A connection from another machine gets nothing until it gives the key. Each message is passed
+on once, even round a circle of links. A copy that takes in instruments uses them as its own:
+a repeater, for the deck or a coach boat.
+
 ## Safety
 
 - **It only listens.** Nothing goes to the boat. Transmitting is worklist M19, behind a

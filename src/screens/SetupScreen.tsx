@@ -31,6 +31,7 @@ import { windHeightFactor } from '@/lib/routing/settings'
 import { SHORTCUT_HELP } from '@/lib/shortcuts'
 import { ConfigError, exportConfig, parseConfig } from '@/lib/config'
 import { InstrumentsSection } from '@/components/InstrumentsSection'
+import { ShareSection } from '@/components/ShareSection'
 import { CalibrationSection } from '@/components/CalibrationSection'
 import { GpsSection } from '@/components/GpsSection'
 import { LogsSection } from '@/components/LogsSection'
@@ -509,6 +510,7 @@ export function SetupScreen() {
         </p>
 
         <InstrumentsSection />
+        <ShareSection />
         <CalibrationSection />
         <GpsSection />
         <LogsSection />

@@ -6,6 +6,7 @@
 
 import type { ChartMotion, ChartOrientation } from '@/lib/chartView'
 import { DEFAULT_BRIDGE_URL, type BridgeInput } from '@/lib/instruments/bridge'
+import type { ShareTopic } from '@/lib/share'
 import type { Palette } from '@/lib/palette'
 import type { ChartOffset } from '@/lib/charts/georef'
 import { bearing, distance, midpoint } from '@/lib/geo'
@@ -271,6 +272,8 @@ export interface Settings {
   weatherPresets: Array<WeatherPreset | null>
   /** Chart label size, as a multiple of the usual. */
   chartTextScale: number
+  /** Sharing with other copies of the app through the bridge: what goes out, what is taken in. */
+  share: { on: boolean; url: string; send: ShareTopic[]; receive: ShareTopic[]; channels: string[] }
   /** The nav station's side panes taken away, to give the chart the room. */
   navHidden: { panel: boolean; boxes: boolean }
   /** The side panes folded to a strip at the edge, and out over the chart while the pointer is on them. */
@@ -462,6 +465,9 @@ interface AppState {
     bridgeOn: boolean
     bridgeUrl: string
   }
+  /** How sharing is going. Not persisted. */
+  shareStatus: { status: 'off' | 'connecting' | 'connected' | 'closed' | 'error'; detail: string | null; lastIn: number | null; lastOut: number | null }
+  setShareStatus(patch: Partial<AppState['shareStatus']>): void
   /** The bridge's inputs as it last reported them. Not persisted. */
   bridgeInputs: BridgeInput[]
   setBridgeInputs(inputs: BridgeInput[]): void
@@ -609,6 +615,7 @@ export const DEFAULT_SETTINGS: Settings = {
   paletteBySun: false,
   statusHidden: [],
   navHidden: { panel: false, boxes: false },
+  share: { on: false, url: DEFAULT_BRIDGE_URL, send: ['course', 'start'], receive: ['course', 'start'], channels: [] },
   navAutoHide: false,
   layoutLocked: false,
   layouts: [],
@@ -1013,6 +1020,8 @@ export const useStore = create<AppState>()(
 
       instruments: { signalKUrl: DEFAULT_SIGNALK_URL, signalKOn: false, serialOn: false, serialBaud: 4800, serialFormat: 'nmea0183', bridgeOn: false, bridgeUrl: DEFAULT_BRIDGE_URL },
       bridgeInputs: [],
+      shareStatus: { status: 'off', detail: null, lastIn: null, lastOut: null },
+      setShareStatus: (patch) => set({ shareStatus: { ...get().shareStatus, ...patch } }),
       setBridgeInputs: (inputs) => set({ bridgeInputs: inputs }),
       setInstruments: (patch) => {
         const next = { ...get().instruments, ...patch }

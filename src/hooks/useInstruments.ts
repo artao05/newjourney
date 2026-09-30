@@ -14,6 +14,7 @@ import { SignalKClient } from '@/lib/instruments/signalk'
 import { feedAis } from '@/state/ais'
 import { SerialNmeaSource, grantedPort } from '@/lib/instruments/webserial'
 import { BridgeClient } from '@/lib/instruments/bridge'
+import { peerReadings } from '@/lib/share'
 import type { Reading } from '@/lib/instruments/nmea0183'
 import { boatStateFrom } from '@/lib/instruments/toBoat'
 import { InstrumentPipeline, type Derived, type PipelineSettings } from '@/lib/instruments/pipeline'
@@ -25,6 +26,8 @@ export type InstrumentSource =
   | { kind: 'signalk'; url: string }
   | { kind: 'serial'; baud: number; format: 'nmea0183' | 'n2k' }
   | { kind: 'bridge'; url: string }
+  /** Another copy of the app's instruments, shared through the bridge: a repeater. */
+  | { kind: 'peer' }
   | null
 
 export function useInstruments(
@@ -35,7 +38,7 @@ export function useInstruments(
   const reading = useRef<Reading>({})
   const derived = useRef<Derived | null>(null)
   const fresh = useRef(false)
-  const key = source ? (source.kind === 'signalk' ? `sk:${source.url}` : source.kind === 'bridge' ? `bridge:${source.url}` : `serial:${source.baud}:${source.format}`) : ''
+  const key = source ? (source.kind === 'signalk' ? `sk:${source.url}` : source.kind === 'bridge' ? `bridge:${source.url}` : source.kind === 'peer' ? 'peer' : `serial:${source.baud}:${source.format}`) : ''
   const settingsKey = JSON.stringify([settings, calibration])
 
   useEffect(() => {
@@ -68,6 +71,14 @@ export function useInstruments(
       const client = new SignalKClient(source.url, { onReading, onStatus })
       client.start()
       stop = () => client.stop()
+    } else if (source.kind === 'peer') {
+      // Readings from another copy of the app: taken as they come, while sharing is connected.
+      onStatus('connected')
+      const off = peerReadings.subscribe((r) => onReading(r as Partial<Reading>))
+      stop = () => {
+        off()
+        onStatus('off')
+      }
     } else if (source.kind === 'bridge') {
       const client = new BridgeClient(source.url, {
         onReading,

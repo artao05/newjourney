@@ -16,6 +16,13 @@
  *   {type:'status', inputs}                   when an input's state changes
  * From the app:
  *   {type:'ping'}  answered {type:'pong', t}
+ *   {type:'share', topic, data, from}   passed to every other copy of the app, here and on
+ *                                       linked bridges, as {type:'shared', topic, data, from, t}
+ *
+ * Bridge to bridge (--peer URL --key SECRET, on each side): a link starts with
+ * {type:'link', key, bridge}, and share messages go both ways with the bridges
+ * they have passed through, so none goes round in a circle. A connection from
+ * another machine must present the key before anything is sent to it.
  *
  * Nothing is sent to the boat: the bridge only listens (transmitting is M19,
  * behind a switch that is off). See bridge/README.md.
@@ -38,7 +45,78 @@ export interface BridgeConfig {
   inputs: InputConfig[]
   /** Batch lines this long before sending, ms. */
   batchMs?: number
+  /** Other bridges to link to, as ws://HOST:PORT, for the app on other machines. */
+  peers?: string[]
+  /** The secret a link (or any connection from another machine) must give. */
+  key?: string
+  /** This bridge's name in a chain of links; random if not given. */
+  id?: string
 }
+
+interface Share {
+  type: 'share'
+  topic: string
+  data: unknown
+  from: string
+  t?: number
+  via?: string[]
+  /** The message's id, given by the first bridge it reaches. */
+  mid?: string
+}
+
+/** An outgoing link to another bridge, kept open with back-off. */
+class OutLink {
+  private ws: WebSocket | null = null
+  private timer: ReturnType<typeof setTimeout> | null = null
+  private delay = 1000
+  private stopped = false
+  open = false
+  readonly url: string
+  private readonly hello: string
+  private readonly onShare: (m: Share, from: OutLink) => void
+  constructor(url: string, hello: string, onShare: (m: Share, from: OutLink) => void) {
+    this.url = url
+    this.hello = hello
+    this.onShare = onShare
+    this.dial()
+  }
+  private dial() {
+    if (this.stopped) return
+    const ws = new WebSocket(this.url)
+    this.ws = ws
+    ws.onopen = () => {
+      this.open = true
+      this.delay = 1000
+      ws.send(this.hello)
+    }
+    ws.onmessage = (e) => {
+      try {
+        const m = JSON.parse(String(e.data)) as Share
+        if (m.type === 'share') this.onShare(m, this)
+      } catch {
+        /* not ours */
+      }
+    }
+    ws.onerror = () => undefined
+    ws.onclose = () => {
+      this.open = false
+      if (this.stopped) return
+      this.timer = setTimeout(() => this.dial(), this.delay)
+      this.delay = Math.min(this.delay * 2, 30_000)
+    }
+  }
+  send(text: string) {
+    if (this.open) this.ws?.send(text)
+  }
+  stop() {
+    this.stopped = true
+    if (this.timer) clearTimeout(this.timer)
+    this.ws?.close()
+  }
+}
+
+/** A connection from this machine (the loopback address). */
+const local = (remote: string) => remote.startsWith('127.') || remote.startsWith('::1') || remote.startsWith('::ffff:127.')
 
 export interface Bridge {
   port: number
@@ -67,6 +145,8 @@ export function parseArgs(argv: string[]): BridgeConfig {
     else if (a === '--host') c.host = next()
     else if (a === '--allow') (c.allowedOrigins ??= []).push(next())
     else if (a === '--n2k') n2k = true
+    else if (a === '--peer') (c.peers ??= []).push(next())
+    else if (a === '--key') c.key = next()
     else if (a === '--udp') {
       const [port, multicast] = next().split('@')
       c.inputs.push({ kind: 'udp', port: Number(port), ...(multicast ? { multicast } : {}), format: fmt() })
@@ -82,7 +162,11 @@ export function parseArgs(argv: string[]): BridgeConfig {
 }
 
 export async function startBridge(config: BridgeConfig): Promise<Bridge> {
+  const id = config.id ?? `bridge-${Math.random().toString(36).slice(2, 8)}`
   const peers = new Set<WsPeer>()
+  // Other bridges linked in, and ours linked out.
+  const links = new Set<WsPeer>()
+  const outLinks: OutLink[] = []
   const inputs: Input[] = []
   const batchMs = config.batchMs ?? 50
   const pending = new Map<string, string[]>()
@@ -91,6 +175,23 @@ export async function startBridge(config: BridgeConfig): Promise<Bridge> {
   const broadcast = (msg: object) => {
     const text = JSON.stringify(msg)
     for (const p of peers) p.send(text)
+  }
+  // A shared message: to every copy of the app here but the one it came from, and on down the links.
+  // Messages seen lately, by id: linked both ways, one can arrive by two roads, and is passed on once.
+  const seen = new Set<string>()
+  const relay = (m: Share, source: WsPeer | OutLink | null) => {
+    if (typeof m.topic !== 'string' || typeof m.from !== 'string') return
+    if ((m.via ?? []).includes(id)) return
+    const mid = typeof m.mid === 'string' ? m.mid : `${id}:${Date.now()}:${Math.random().toString(36).slice(2)}`
+    if (seen.has(mid)) return
+    seen.add(mid)
+    if (seen.size > 2000) seen.delete(seen.values().next().value as string)
+    const t = m.t ?? Date.now()
+    const onward = JSON.stringify({ type: 'share', topic: m.topic, data: m.data, from: m.from, t, mid, via: [...(m.via ?? []), id] })
+    const toApps = JSON.stringify({ type: 'shared', topic: m.topic, data: m.data, from: m.from, t })
+    for (const p of peers) if (p !== source) p.send(toApps)
+    for (const l of links) if (l !== source) l.send(onward)
+    for (const o of outLinks) if (o !== source) o.send(onward)
   }
   const flush = () => {
     flushTimer = null
@@ -122,18 +223,40 @@ export async function startBridge(config: BridgeConfig): Promise<Bridge> {
     host: config.host ?? '127.0.0.1',
     allowedOrigins: config.allowedOrigins ?? [],
     onPeer: (p) => {
-      peers.add(p)
-      p.send(JSON.stringify({ type: 'hello', bridge: 'newjourney-bridge', version: BRIDGE_VERSION, inputs: statuses() }))
+      const here = local(p.remote)
+      // From this machine, an app: straight in. From another, nothing until it gives the key.
+      if (here) {
+        peers.add(p)
+        p.send(JSON.stringify({ type: 'hello', bridge: 'newjourney-bridge', version: BRIDGE_VERSION, inputs: statuses() }))
+      }
       p.onMessage = (text) => {
-        let m: { type?: string } | null = null
+        let m: { type?: string; key?: string } | null = null
         try {
-          m = JSON.parse(text) as { type?: string }
+          m = JSON.parse(text) as { type?: string; key?: string }
         } catch {
           return
         }
+        if (m?.type === 'link') {
+          if (!config.key || m.key !== config.key) {
+            p.close(4003)
+            return
+          }
+          peers.delete(p)
+          links.add(p)
+          p.send(JSON.stringify({ type: 'linked', bridge: id }))
+          return
+        }
+        if (!here && !links.has(p)) {
+          p.close(4003)
+          return
+        }
         if (m?.type === 'ping') p.send(JSON.stringify({ type: 'pong', t: Date.now() }))
+        else if (m?.type === 'share') relay(m as unknown as Share, p)
       }
-      p.onClose = () => peers.delete(p)
+      p.onClose = () => {
+        peers.delete(p)
+        links.delete(p)
+      }
     },
     onHttp: (_req, res) => {
       // A status page: what the bridge is listening to, for a person with a browser.
@@ -142,6 +265,7 @@ export async function startBridge(config: BridgeConfig): Promise<Bridge> {
     },
   })
   for (const c of config.inputs) inputs.push(startInput(c, onLines, onStatus))
+  for (const url of config.peers ?? []) outLinks.push(new OutLink(url, JSON.stringify({ type: 'link', key: config.key ?? '', bridge: id }), relay))
 
   return {
     port: ws.port,
@@ -150,7 +274,8 @@ export async function startBridge(config: BridgeConfig): Promise<Bridge> {
       if (flushTimer) clearTimeout(flushTimer)
       if (statusTimer) clearTimeout(statusTimer)
       for (const i of inputs) i.stop()
-      for (const p of peers) p.close(1001)
+      for (const o of outLinks) o.stop()
+      for (const p of [...peers, ...links]) p.close(1001)
       await ws.close()
     },
   }
@@ -166,6 +291,8 @@ const USAGE = `newjourney bridge: NMEA and AIS from the boat's network, to the a
   --tcp-server PORT    accept TCP connections that send NMEA
   --n2k                the next input sends NMEA 2000 as text (Actisense or Yacht Devices RAW)
   --allow ORIGIN       a page origin allowed to connect besides localhost
+  --peer ws://HOST:PORT  link to the bridge on another machine, to share with the app there
+  --key SECRET         the secret linked bridges share (needed on both sides)
   --port PORT          the WebSocket port for the app (default ${DEFAULT_PORT})
 
 In the app: Setup → Instruments → Bridge, ws://127.0.0.1:${DEFAULT_PORT}.`
@@ -179,9 +306,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(USAGE)
     process.exit(e instanceof Error && e.message === 'help' ? 0 : 1)
   }
-  if (!config.inputs.length) {
+  if (!config.inputs.length && !config.peers?.length && !config.key) {
     console.log(USAGE)
-    console.log('\nNo inputs: give at least one of --udp, --tcp or --tcp-server.')
+    console.log('\nNothing to do: give an input (--udp, --tcp, --tcp-server) or a link (--peer, --key).')
     process.exit(1)
   }
   const b = await startBridge(config)

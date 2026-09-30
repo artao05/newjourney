@@ -568,10 +568,15 @@ app talks to it over a WebSocket on `127.0.0.1`.
       N2K ASCII (W2K-1) and iKonvert !PDGY, both whole messages that skip fast-packet joining. Tested
       through the bridge over TCP; the NGT-1's binary serial form waits on 18.5, and throttling
       (P4-060) is the gateway's, since the bridge only listens.*
-- [ ] **18.3 App to app:** instruments, marks, routes and the start line shared between
+- [x] **18.3 App to app:** instruments, marks, routes and the start line shared between
       copies of the app through the bridge, with channel filters, a repeater mode, and
       reconnect (P3-095, P1-029, P4-116, P1-050, P1-236). *Accept:* tests and two copies
       of the app in the browser.
+      *The bridge relays share messages to every other copy and, with --peer and --key, to linked
+      bridges; a message is passed on once, even round a circle of links. Setup → Sharing chooses
+      topics both ways and the channels sent; instruments taken in make this copy a repeater.
+      Checked with two tabs: a mark added in one appeared in the other. Still to do: telling the
+      others to reconnect (P1-050) and the user flag (P1-236).*
 - [ ] **18.4 Watched folders:** position reports, raster charts and GRIB folders, picked up
       as files land (P1-056, P2-277, P1-146, P2-028, P2-141). *Accept:* tests.
 - [ ] **18.5 Serial through the bridge:** NMEA 0183 serial ports on any browser, a laser
