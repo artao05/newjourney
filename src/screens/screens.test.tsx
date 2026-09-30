@@ -3202,6 +3202,12 @@ describe('the Setup screen does not claim a polar it has not loaded', () => {
   })
 })
 
+/** Pick a logged day once the list of days has loaded; before then the select has no such option. */
+async function pickLogDay(day: string) {
+  await waitFor(() => expect(screen.getByLabelText('Log day').querySelector(`option[value="${day}"]`)).not.toBeNull())
+  fireEvent.change(screen.getByLabelText('Log day'), { target: { value: day } })
+}
+
 describe('the stripchart', () => {
   it('analyses the day: its tacks and what they cost, a summary, and the best 24 hours', async () => {
     emptyStore()
@@ -3219,7 +3225,7 @@ describe('the stripchart', () => {
     try {
       useStore.setState({ strip: { panes: ['sog'], spanMin: 15 } })
       render(<StripchartScreen />)
-      fireEvent.change(screen.getByLabelText('Log day'), { target: { value: '2026-09-29' } })
+      await pickLogDay('2026-09-29')
       const table = await screen.findByRole('table', { name: 'Tacks and gybes' })
       const rows = within(table).getAllByRole('row').slice(1).map((r) => [...r.querySelectorAll('td')].slice(1).map((td) => td.textContent))
       expect(rows).toEqual([['tack', '15', '6']])
@@ -3240,7 +3246,7 @@ describe('the stripchart', () => {
     try {
       useStore.setState({ strip: { panes: ['bsp'], spanMin: 15 } })
       render(<StripchartScreen />)
-      fireEvent.change(screen.getByLabelText('Log day'), { target: { value: '2026-09-29' } })
+      await pickLogDay('2026-09-29')
       await screen.findByRole('region', { name: 'Pane Bsp' })
       await waitFor(() => expect(screen.getByLabelText('Second trace for Bsp').querySelectorAll('option').length).toBeGreaterThan(1))
       fireEvent.change(screen.getByLabelText('Second trace for Bsp'), { target: { value: 'tws' } })
@@ -3273,7 +3279,7 @@ describe('the stripchart', () => {
     setLogStore(store)
     useStore.setState({ strip: { panes: ['bsp', 'twd'], spanMin: 15 } })
     render(<StripchartScreen />)
-    fireEvent.change(screen.getByLabelText('Log day'), { target: { value: '2026-09-29' } })
+    await pickLogDay('2026-09-29')
     const pane = await screen.findByRole('region', { name: 'Pane Bsp' })
     await waitFor(() => expect(pane.querySelector('polyline')).not.toBeNull())
     expect(screen.getByLabelText('Stripchart window').textContent).toMatch(/following/)
@@ -3303,7 +3309,7 @@ describe('the stripchart', () => {
     useStore.setState({ strip: { panes: ['bsp'], spanMin: 15 } })
     useStore.getState().addEvent('gun', 'Gun', T0 + 100_000)
     render(<StripchartScreen />)
-    fireEvent.change(screen.getByLabelText('Log day'), { target: { value: '2026-09-29' } })
+    await pickLogDay('2026-09-29')
     const pane = await screen.findByRole('region', { name: 'Pane Bsp' })
     await waitFor(() => expect(pane.querySelector('line title')?.textContent).toBe('Gun'))
 
