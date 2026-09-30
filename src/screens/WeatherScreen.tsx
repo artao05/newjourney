@@ -17,6 +17,7 @@
  * them. What we can match is the rendering and the honesty.
  */
 
+import { RibbonGroup, RibbonGroups, useRibbon } from '@/components/Ribbon'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
 import {
@@ -981,6 +982,203 @@ function WeatherOverlay() {
           .replace('T', ' ')}Z`
       : undefined
 
+  // The layer and display commands: over the chart on the phone, in the ribbon on the nav station.
+  const ribbon = useRibbon()
+  const layerCommands = (
+    <>
+      {available.map((id) => {
+        const l = layerById(id)
+        if (!l) return null
+        const active = id === layerId
+        return (
+          <button
+            key={id}
+            className={`chip${active ? ' chip--good' : ''}`}
+            style={active ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+            onClick={() => setLayerId(id)}
+          >
+            {l.label}
+          </button>
+        )
+      })}
+      <button
+        className={`chip${moreLayers ? ' chip--good' : ''}`}
+        aria-pressed={moreLayers}
+        onClick={() => setMoreLayers((v) => !v)}
+        title="Gust, pressure, waves, temperature and rain, where the forecast has them"
+      >
+        {moreLayers ? 'Fewer' : 'More'}
+      </button>
+    </>
+  )
+  const contourCommands = moreLayers && (
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }} aria-label="Contours">
+        {contourChoices.map((c) => {
+          const on = contourSettings[c.id]?.on ?? false
+          return (
+            <button key={c.id} className={`chip${on ? ' chip--good' : ''}`} aria-pressed={on} onClick={() => setContour(c.id, { on: !on })}>
+              {c.label}
+            </button>
+          )
+        })}
+        <button className="chip" onClick={() => setShowContourSheet(true)}>
+          Contour steps…
+        </button>
+      </div>
+  )
+  const displayCommands = (
+    <>
+      {isVector ? (
+        <div className="seg" style={{ maxWidth: 320 }}>
+          {MODES.map((m) => (
+            <button key={m.id} aria-pressed={mode === m.id} onClick={() => setMode(m.id)}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <button
+          className={`chip${windOverlay ? ' chip--good' : ''}`}
+          onClick={() => setWindOverlay((v) => !v)}
+        >
+          wind streamlines {windOverlay ? 'on' : 'off'}
+        </button>
+      )}
+      <select
+        className="chip"
+        aria-label="Colours"
+        value={shown?.mode ?? 'default'}
+        onChange={(e) => setDisplayMode({ mode: e.target.value as ColourMode })}
+        style={{ maxWidth: 150 }}
+      >
+        {COLOUR_MODES.filter((m) => modesFor(layer).includes(m.id)).map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+      {shown?.mode === 'single' && (
+        <input
+          type="color"
+          aria-label="Layer colour"
+          value={shown.colour}
+          onChange={(e) => setDisplayMode({ colour: e.target.value })}
+          style={{ width: 34, height: 28, padding: 0, border: 'none', background: 'none' }}
+        />
+      )}
+      <select
+        className="chip"
+        aria-label="Forecast model"
+        value={model}
+        onChange={(e) => setModel(e.target.value as ModelId)}
+        style={{ maxWidth: 190 }}
+        disabled={fileName != null}
+        title={fileName ? `Showing ${fileName}; untick it under GRIB files to go back to the download` : undefined}
+      >
+        {MODELS.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+      <button
+        className={`chip${ens.members ? ' chip--good' : ''}`}
+        aria-pressed={ens.members != null}
+        disabled={ens.busy}
+        onClick={() => {
+          if (ens.members) return ens.clear()
+          const b = cube?.bbox ?? PILOT_VENUE.bbox
+          void ens.load(b, cube ? Math.max(6, Math.round(((cube.nt - 1) * cube.dtMs) / 3_600_000)) : 48)
+        }}
+        title="Ten members of the GFS ensemble: their mean, their spread, or any one of them"
+      >
+        {ens.busy ? 'Ensemble…' : 'Ensemble'}
+      </button>
+      {ens.members && (
+        <select
+          className="chip"
+          aria-label="Ensemble view"
+          value={String(ens.view)}
+          onChange={(e) => ens.setView(e.target.value === 'mean' ? 'mean' : Number(e.target.value))}
+          style={{ maxWidth: 170 }}
+        >
+          <option value="mean">Mean of {ens.members.length}</option>
+          {ens.members.map((m, i) => (
+            <option key={m.model} value={i}>
+              {m.model}
+            </option>
+          ))}
+        </select>
+      )}
+      <button className={`chip${hideWx ? ' chip--warn' : ''}`} aria-pressed={hideWx} onClick={() => setHideWx((v) => !v)} title="All the weather off, and back as it was">
+        {hideWx ? 'Show weather' : 'Hide weather'}
+      </button>
+      <button className="chip" onClick={() => setShowPresets(true)} title="Nine saved weather displays">
+        Presets
+      </button>
+      <button className={`chip${showCoverage ? ' chip--good' : ''}`} aria-pressed={showCoverage} onClick={() => setShowCoverage((v) => !v)} title="Outline what the forecast and the GRIB files cover">
+        Coverage
+      </button>
+      {cube && (
+        <span className="chip" aria-label="Forecast hours" title="Open-Meteo does not say which run it serves; this is the last hour it has">
+          to +{Math.round(((cube.t0 + (cube.nt - 1) * cube.dtMs - Date.now()) / 3_600_000))} h
+        </span>
+      )}
+      <button className={`chip${radarOn ? ' chip--good' : ''}`} aria-pressed={radarOn} onClick={() => setRadarOn((v) => !v)}>
+        Radar
+      </button>
+      {radarOn && radar && <span className="chip">radar {new Date(radar.time).toISOString().slice(11, 16)}Z</span>}
+      <button className={`chip${satOn ? ' chip--good' : ''}`} aria-pressed={satOn} onClick={() => setSatOn((v) => !v)}>
+        Satellite
+      </button>
+      <button
+        className={`chip${obsOn ? ' chip--good' : ''}`}
+        aria-pressed={obsOn}
+        onClick={() => setObsOn((v) => !v)}
+        title="What the venue's stations are reporting"
+      >
+        Observations
+      </button>
+      {obsOn && (
+        <button className="chip" onClick={() => setShowObsSheet(true)}>
+          Reports…
+        </button>
+      )}
+      <button className="chip" onClick={() => setShowTides(true)} title="The tide at the nearest NOAA station">
+        Tides
+      </button>
+      <button
+        className={`chip${streamsOn ? ' chip--good' : ''}`}
+        aria-pressed={streamsOn}
+        onClick={() => setStreamsOn((v) => !v)}
+        title="Tidal streams at NOAA's current stations, predicted for the time on the timeline"
+      >
+        Tidal streams
+      </button>
+      {streamsOn && streams && <span className="chip">{streams.length} station{streams.length === 1 ? '' : 's'}</span>}
+      <button
+        className="chip"
+        disabled={!cube || (!boatNow && !probe)}
+        onClick={() => setMeteo(boatNow ? 'boat' : 'point')}
+        title="The forecast over time at the boat, or at the point tapped"
+      >
+        Meteogram
+      </button>
+      <button
+        className={`chip${fileName ? ' chip--good' : ''}`}
+        onClick={() => setShowFiles(true)}
+        title={fileName ? `Showing ${fileName}` : 'Open GRIB files, or drop them on the chart'}
+      >
+        GRIB files{fileCount ? ` (${fileCount})` : ''}
+      </button>
+      {busy && (
+        <span className="chip chip--warn">
+          <span className="spinner" /> {busy}
+        </span>
+      )}
+    </>
+  )
+
   return (
     <>
       {/* ---- top controls ---- */}
@@ -997,197 +1195,20 @@ function WeatherOverlay() {
           pointerEvents: 'none',
         }}
       >
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>
-          {available.map((id) => {
-            const l = layerById(id)
-            if (!l) return null
-            const active = id === layerId
-            return (
-              <button
-                key={id}
-                className={`chip${active ? ' chip--good' : ''}`}
-                style={active ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
-                onClick={() => setLayerId(id)}
-              >
-                {l.label}
-              </button>
-            )
-          })}
-          <button
-            className={`chip${moreLayers ? ' chip--good' : ''}`}
-            aria-pressed={moreLayers}
-            onClick={() => setMoreLayers((v) => !v)}
-            title="Gust, pressure, waves, temperature and rain, where the forecast has them"
-          >
-            {moreLayers ? 'Fewer' : 'More'}
-          </button>
-        </div>
-        {moreLayers && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }} aria-label="Contours">
-            {contourChoices.map((c) => {
-              const on = contourSettings[c.id]?.on ?? false
-              return (
-                <button key={c.id} className={`chip${on ? ' chip--good' : ''}`} aria-pressed={on} onClick={() => setContour(c.id, { on: !on })}>
-                  {c.label}
-                </button>
-              )
-            })}
-            <button className="chip" onClick={() => setShowContourSheet(true)}>
-              Contour steps…
-            </button>
-          </div>
+        {!ribbon && (
+          <>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>{layerCommands}</div>
+            {contourCommands}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>{displayCommands}</div>
+          </>
         )}
-
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>
-          {isVector ? (
-            <div className="seg" style={{ maxWidth: 320 }}>
-              {MODES.map((m) => (
-                <button key={m.id} aria-pressed={mode === m.id} onClick={() => setMode(m.id)}>
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <button
-              className={`chip${windOverlay ? ' chip--good' : ''}`}
-              onClick={() => setWindOverlay((v) => !v)}
-            >
-              wind streamlines {windOverlay ? 'on' : 'off'}
-            </button>
-          )}
-          <select
-            className="chip"
-            aria-label="Colours"
-            value={shown?.mode ?? 'default'}
-            onChange={(e) => setDisplayMode({ mode: e.target.value as ColourMode })}
-            style={{ maxWidth: 150 }}
-          >
-            {COLOUR_MODES.filter((m) => modesFor(layer).includes(m.id)).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          {shown?.mode === 'single' && (
-            <input
-              type="color"
-              aria-label="Layer colour"
-              value={shown.colour}
-              onChange={(e) => setDisplayMode({ colour: e.target.value })}
-              style={{ width: 34, height: 28, padding: 0, border: 'none', background: 'none' }}
-            />
-          )}
-          <select
-            className="chip"
-            aria-label="Forecast model"
-            value={model}
-            onChange={(e) => setModel(e.target.value as ModelId)}
-            style={{ maxWidth: 190 }}
-            disabled={fileName != null}
-            title={fileName ? `Showing ${fileName}; untick it under GRIB files to go back to the download` : undefined}
-          >
-            {MODELS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          <button
-            className={`chip${ens.members ? ' chip--good' : ''}`}
-            aria-pressed={ens.members != null}
-            disabled={ens.busy}
-            onClick={() => {
-              if (ens.members) return ens.clear()
-              const b = cube?.bbox ?? PILOT_VENUE.bbox
-              void ens.load(b, cube ? Math.max(6, Math.round(((cube.nt - 1) * cube.dtMs) / 3_600_000)) : 48)
-            }}
-            title="Ten members of the GFS ensemble: their mean, their spread, or any one of them"
-          >
-            {ens.busy ? 'Ensemble…' : 'Ensemble'}
-          </button>
-          {ens.members && (
-            <select
-              className="chip"
-              aria-label="Ensemble view"
-              value={String(ens.view)}
-              onChange={(e) => ens.setView(e.target.value === 'mean' ? 'mean' : Number(e.target.value))}
-              style={{ maxWidth: 170 }}
-            >
-              <option value="mean">Mean of {ens.members.length}</option>
-              {ens.members.map((m, i) => (
-                <option key={m.model} value={i}>
-                  {m.model}
-                </option>
-              ))}
-            </select>
-          )}
-          <button className={`chip${hideWx ? ' chip--warn' : ''}`} aria-pressed={hideWx} onClick={() => setHideWx((v) => !v)} title="All the weather off, and back as it was">
-            {hideWx ? 'Show weather' : 'Hide weather'}
-          </button>
-          <button className="chip" onClick={() => setShowPresets(true)} title="Nine saved weather displays">
-            Presets
-          </button>
-          <button className={`chip${showCoverage ? ' chip--good' : ''}`} aria-pressed={showCoverage} onClick={() => setShowCoverage((v) => !v)} title="Outline what the forecast and the GRIB files cover">
-            Coverage
-          </button>
-          {cube && (
-            <span className="chip" aria-label="Forecast hours" title="Open-Meteo does not say which run it serves; this is the last hour it has">
-              to +{Math.round(((cube.t0 + (cube.nt - 1) * cube.dtMs - Date.now()) / 3_600_000))} h
-            </span>
-          )}
-          <button className={`chip${radarOn ? ' chip--good' : ''}`} aria-pressed={radarOn} onClick={() => setRadarOn((v) => !v)}>
-            Radar
-          </button>
-          {radarOn && radar && <span className="chip">radar {new Date(radar.time).toISOString().slice(11, 16)}Z</span>}
-          <button className={`chip${satOn ? ' chip--good' : ''}`} aria-pressed={satOn} onClick={() => setSatOn((v) => !v)}>
-            Satellite
-          </button>
-          <button
-            className={`chip${obsOn ? ' chip--good' : ''}`}
-            aria-pressed={obsOn}
-            onClick={() => setObsOn((v) => !v)}
-            title="What the venue's stations are reporting"
-          >
-            Observations
-          </button>
-          {obsOn && (
-            <button className="chip" onClick={() => setShowObsSheet(true)}>
-              Reports…
-            </button>
-          )}
-          <button className="chip" onClick={() => setShowTides(true)} title="The tide at the nearest NOAA station">
-            Tides
-          </button>
-          <button
-            className={`chip${streamsOn ? ' chip--good' : ''}`}
-            aria-pressed={streamsOn}
-            onClick={() => setStreamsOn((v) => !v)}
-            title="Tidal streams at NOAA's current stations, predicted for the time on the timeline"
-          >
-            Tidal streams
-          </button>
-          {streamsOn && streams && <span className="chip">{streams.length} station{streams.length === 1 ? '' : 's'}</span>}
-          <button
-            className="chip"
-            disabled={!cube || (!boatNow && !probe)}
-            onClick={() => setMeteo(boatNow ? 'boat' : 'point')}
-            title="The forecast over time at the boat, or at the point tapped"
-          >
-            Meteogram
-          </button>
-          <button
-            className={`chip${fileName ? ' chip--good' : ''}`}
-            onClick={() => setShowFiles(true)}
-            title={fileName ? `Showing ${fileName}` : 'Open GRIB files, or drop them on the chart'}
-          >
-            GRIB files{fileCount ? ` (${fileCount})` : ''}
-          </button>
-          {busy && (
-            <span className="chip chip--warn">
-              <span className="spinner" /> {busy}
-            </span>
-          )}
-        </div>
+        <RibbonGroups>
+          <RibbonGroup label="Layer">
+            {layerCommands}
+            {contourCommands}
+          </RibbonGroup>
+          <RibbonGroup label="Display">{displayCommands}</RibbonGroup>
+        </RibbonGroups>
 
         {streamsOn && streamsError && (
           <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
@@ -1306,7 +1327,7 @@ function WeatherOverlay() {
         >
           <div
             style={{
-              background: 'rgba(5,13,22,0.92)',
+              background: 'var(--bg)',
               border: '1px solid var(--line)',
               borderRadius: 'var(--r)',
               padding: showChart ? '8px 10px 4px' : '6px 10px',

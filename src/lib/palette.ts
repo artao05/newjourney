@@ -164,6 +164,8 @@ export function followPalette(
   let busy = false
   const apply = () => {
     if (busy) return
+    // Not before the style is in; its styledata brings this back.
+    if (typeof map.isStyleLoaded === 'function' && !map.isStyleLoaded()) return
     const style = (() => {
       try {
         return map.getStyle()
@@ -190,7 +192,13 @@ export function followPalette(
           const own = k && (same(now, k.set) || same(now, k.own)) ? k.own : now
           const want = p === 'day' ? tonePaint(own, 'day') : own
           kept.set(key, { own, set: want })
-          if (!same(now, want)) map.setPaintProperty(layer.id, prop, want as never)
+          if (!same(now, want)) {
+            try {
+              map.setPaintProperty(layer.id, prop, want as never)
+            } catch {
+              kept.set(key, { own, set: now })
+            }
+          }
         }
         const raster = base[layer.id]
         if (raster && layer.type === 'raster') {
@@ -208,13 +216,14 @@ export function followPalette(
       busy = false
     }
   }
-  let queued = 0
+  // A timer, not an animation frame: frames stop in a hidden tab, and the colours must still come right.
+  let queued: ReturnType<typeof setTimeout> | null = null
   const soon = () => {
     if (queued) return
-    queued = requestAnimationFrame(() => {
-      queued = 0
+    queued = setTimeout(() => {
+      queued = null
       apply()
-    })
+    }, 0)
   }
   map.on('styledata', soon)
   apply()
@@ -222,7 +231,7 @@ export function followPalette(
     apply,
     stop: () => {
       map.off('styledata', soon)
-      if (queued) cancelAnimationFrame(queued)
+      if (queued) clearTimeout(queued)
     },
   }
 }

@@ -457,7 +457,11 @@ describe('the nav-station layout at laptop width', () => {
     const chart = screen.getByRole('region', { name: 'Chart' })
     const boxes = screen.getByRole('complementary', { name: 'Number boxes' })
     expect(panel.textContent).toContain('Laylines')
-    await waitFor(() => expect(chart.textContent).toContain('FORECAST'))
+    // The chart's commands are in the ribbon above, grouped, not over the chart.
+    const commands = screen.getByRole('toolbar', { name: 'Commands' })
+    await waitFor(() => expect(within(commands).getByRole('group', { name: 'Routing' }).textContent).toContain('FORECAST'))
+    expect(within(commands).getByRole('group', { name: 'Chart' }).textContent).toContain('+ mark')
+    expect(chart.textContent).not.toContain('FORECAST')
     // One set of number boxes: the column. Race drops its own in the station.
     expect(document.querySelectorAll('.nboxes')).toHaveLength(1)
     expect(boxes.querySelector('.nboxes')).not.toBeNull()
@@ -467,8 +471,8 @@ describe('the nav-station layout at laptop width', () => {
     withWidth(true)
     useStore.getState().setNav({ navPanel: 'race', navChart: 'route' })
     render(<App />)
-    const panel = screen.getByRole('region', { name: 'Panel' })
-    act(() => within(panel).getByRole('button', { name: /start/i }).click())
+    const tabs = screen.getByRole('group', { name: 'Panel screens' })
+    act(() => within(tabs).getByRole('button', { name: /start/i }).click())
     expect(useStore.getState().navPanel).toBe('start')
     expect(useStore.getState().navChart).toBe('route')
     const saved = JSON.parse(localStorage.getItem('newjourney.v1') ?? '{}').state

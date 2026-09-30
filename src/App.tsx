@@ -35,6 +35,7 @@ import { estimateCurrent } from '@/lib/wind'
 import { fixQuality } from '@/lib/startline'
 import { variationAt } from '@/lib/magnetic'
 import { paletteForSun } from '@/lib/palette'
+import { RibbonContext } from '@/components/Ribbon'
 import { solarElevationDeg } from '@/lib/routing/isochrone'
 import type { WindEstimate } from '@/lib/types'
 import { fetchPointForecast } from '@/lib/weather/openmeteo'
@@ -116,6 +117,8 @@ export function App() {
   useAutoAdvance()
   // The night palette is the whole page's: styles.css reads it from <html>.
   const palette = useStore((s) => s.settings.palette)
+  // The ribbon's command row, once it is in the page, for the chart screen to put its commands in.
+  const [ribbonSlot, setRibbonSlot] = useState<HTMLElement | null>(null)
   // Night off goes back to the palette it came from.
   const beforeNight = useRef<'day' | 'dusk'>('day')
   // By the sun: checked now and once a minute, at the boat (or the venue before a fix).
@@ -466,41 +469,42 @@ export function App() {
 
         {wide ? (
           <LayoutContext.Provider value="station">
-            <div className="navstation">
-              <section className="navstation__panel" aria-label="Panel">
-                <nav className="tabbar tabbar--pane">
+            {/*
+              The ribbon: the screens as text tabs (the panel's on the left, the chart's on the
+              right), and under them the chart screen's commands, which it puts in itself.
+            */}
+            <div className="ribbon">
+              <nav className="ribbon__tabs" aria-label="Screens">
+                <span className="ribbon__tabset" role="group" aria-label="Panel screens">
                   {TABS.filter((t) => PANEL_TABS.includes(t.id as PanelTab)).map((t) => (
-                    <button
-                      key={t.id}
-                      aria-current={navPanel === t.id}
-                      onClick={() => setNav({ navPanel: t.id as PanelTab })}
-                    >
-                      {t.icon}
+                    <button key={t.id} aria-current={navPanel === t.id} onClick={() => setNav({ navPanel: t.id as PanelTab })}>
                       {t.label}
                     </button>
                   ))}
-                </nav>
-                {renderScreen(navPanel)}
-              </section>
-              <section className="navstation__chart" aria-label="Chart">
-                <nav className="tabbar tabbar--pane">
+                </span>
+                <span className="ribbon__tabset" role="group" aria-label="Chart screens">
                   {TABS.filter((t) => CHART_TABS.includes(t.id as ChartTab)).map((t) => (
-                    <button
-                      key={t.id}
-                      aria-current={navChart === t.id}
-                      onClick={() => setNav({ navChart: t.id as ChartTab })}
-                    >
-                      {t.icon}
+                    <button key={t.id} aria-current={navChart === t.id} onClick={() => setNav({ navChart: t.id as ChartTab })}>
                       {t.label}
                     </button>
                   ))}
-                </nav>
-                {renderScreen(navChart)}
-              </section>
-              <aside className="navstation__boxes" aria-label="Number boxes">
-                <NumberBoxes />
-              </aside>
+                </span>
+              </nav>
+              <div className="ribbon__commands" ref={setRibbonSlot} role="toolbar" aria-label="Commands" />
             </div>
+            <RibbonContext.Provider value={ribbonSlot}>
+              <div className="navstation">
+                <section className="navstation__panel" aria-label="Panel">
+                  {renderScreen(navPanel)}
+                </section>
+                <section className="navstation__chart" aria-label="Chart">
+                  {renderScreen(navChart)}
+                </section>
+                <aside className="navstation__boxes" aria-label="Number boxes">
+                  <NumberBoxes />
+                </aside>
+              </div>
+            </RibbonContext.Provider>
           </LayoutContext.Provider>
         ) : (
           <>

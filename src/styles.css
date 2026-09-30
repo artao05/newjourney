@@ -289,6 +289,118 @@ button {
   border-top: 0;
 }
 
+/*
+ * The ribbon, above the nav station: the screens as text tabs, and under them the
+ * chart screen's commands in groups, each with its caption under it. Flat, one
+ * line of text a command, and a hover, since this is a desk with a mouse.
+ */
+.ribbon {
+  flex-shrink: 0;
+  background: var(--bg-sunk);
+  border-bottom: 1px solid var(--line);
+}
+
+.ribbon__tabs {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 8px 0;
+}
+
+.ribbon__tabset {
+  display: flex;
+  gap: 2px;
+}
+
+.ribbon__tabs button {
+  padding: 5px 16px 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 3px 3px 0 0;
+  margin-bottom: -1px;
+}
+
+.ribbon__tabs button:hover {
+  color: var(--ink);
+}
+
+.ribbon__tabs button[aria-current='true'] {
+  color: var(--ink);
+  background: var(--bg);
+  border-color: var(--line);
+  position: relative;
+}
+
+.ribbon__commands {
+  display: flex;
+  align-items: stretch;
+  min-height: 62px;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.ribbon__commands:empty {
+  display: none;
+}
+
+.ribbon__group {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 5px 8px 0;
+  border-right: 1px solid var(--line);
+  min-width: 0;
+}
+
+.ribbon__items {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 3px 4px;
+}
+
+.ribbon__caption {
+  font-size: 10px;
+  color: var(--ink-faint);
+  text-align: center;
+  padding: 3px 0 3px;
+}
+
+.ribbon .chip,
+.ribbon .btn--sm {
+  border-radius: 3px;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  min-height: 0;
+}
+
+.ribbon .chip:hover,
+.ribbon .btn--sm:hover {
+  background: var(--bg-raised);
+  border-color: var(--line-bright);
+}
+
+.ribbon .btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+.ribbon .chip--good,
+.ribbon .chip--warn,
+.ribbon .chip--bad,
+.ribbon .chip--on {
+  border-color: currentColor;
+}
+
 /* A pane's own tab bar sits at its top, and has no phone safe-area padding. */
 .tabbar--pane {
   border-top: 0;

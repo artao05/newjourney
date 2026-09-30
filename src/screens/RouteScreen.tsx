@@ -47,6 +47,7 @@ import { applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { boundsFrom } from '@/lib/tactics'
 import { buildLattice } from '@/lib/polar'
 import { fmtPosition } from '@/components/MarkSheet'
+import { RibbonGroup, RibbonGroups, useRibbon } from '@/components/Ribbon'
 import { CHART_BASE, followPalette } from '@/lib/palette'
 import { fmtVariation, trueToMagnetic, variationAt } from '@/lib/magnetic'
 import { variationHere } from '@/hooks/useVariation'
@@ -1298,6 +1299,337 @@ export function RouteScreen() {
     })
   }, [route, depthGrid, levels, boat.draftMetres])
 
+  // The chart's commands and the routing buttons: over the chart on the phone, in the ribbon on the nav station.
+  const ribbon = useRibbon()
+  const chartCommands = (
+    <>
+      {(() => {
+        // What the next route will sail on, by the source chosen in SETTINGS.
+        const s = pickSources(cube)
+        const label = !s ? 'no forecast' : `${s.cube.model}${s.cube === cube ? ` · ${cube.nt}h` : ''}`
+        const more = s?.extraCubes.length ?? 0
+        return (
+          <span className={`chip ${s ? 'chip--good' : ''}`} title={`Route on: ${routeSource}`}>
+            <span className="dot" />
+            {label}
+            {more ? ` + ${more} GRIB file${more === 1 ? '' : 's'}` : ''}
+            {routeSource !== 'merged' ? ` · ${routeSource === 'download' ? 'download only' : 'files only'}` : ''}
+          </span>
+        )
+      })()}
+      <span className="chip">{PILOT_VENUE.name}</span>
+      <button className={`chip${encCells.length ? ' chip--good' : ''}`} onClick={() => setShowEnc(true)} style={{ pointerEvents: 'auto' }}>
+        ENC{encCells.length ? ` · ${encCells.length}` : ''}
+      </button>
+      {aisTargets.length > 0 && (
+        <button
+          className={`chip${aisTargets.some((t) => t.alert) ? ' chip--warn' : ''}`}
+          onClick={() => setShowAis(true)}
+          style={{ pointerEvents: 'auto' }}
+        >
+          {aisTargets.some((t) => t.alert) ? 'AIS ALERT · ' : 'AIS · '}
+          {aisTargets.length}
+        </button>
+      )}
+                {picking === 'start' || picking === 'mark' ? (
+      <button className="chip chip--warn" onClick={() => setPicking(null)}>
+        tap the chart for the {picking === 'start' ? 'start' : 'new mark'} · cancel
+      </button>
+                ) : routeStart ? (
+      <button
+        className="chip chip--warn"
+        onClick={() => setRouteStart(null)}
+        title="Routes start from the point you picked. Tap to route from the boat again."
+      >
+        from planned start ✕
+      </button>
+                ) : (
+      <button
+        className="chip"
+        onClick={() => setPicking('start')}
+        title="Plan from anywhere: pick a start on the chart"
+      >
+        {state ? 'from the boat · pick start' : 'no fix · pick a start'}
+      </button>
+                )}
+                {!picking && (
+      <button className="chip" onClick={() => setPicking('mark')} title="Tap the chart to add a mark">
+        + mark
+      </button>
+                )}
+                {/*
+      The pointer readout: where the mouse is (or the last tap), and from the
+      boat or planned start, the range, true bearing and polar time to it.
+                */}
+                {pointer && picking !== 'measure' && (
+      <span className="chip" aria-label="Pointer readout" title="Pointer: position, then range, bearing and polar time from the boat, and the magnetic variation there">
+        {fmtPosition(pointer)}
+        {toPointer &&
+          ` · ${toPointer.distanceNm.toFixed(2)} nm ${northRef === 'magnetic' ? `${fmtDeg(trueToMagnetic(toPointer.bearing, variationHere()))}°M` : `${fmtDeg(toPointer.bearing)}°T`}`}
+        {toPointer?.timeS != null && ` · ${fmtDuration(toPointer.timeS)}`}
+        {pointerIso && ` · isochrone T+${fmtDuration((pointerIso.iso.t - (route?.legs[0]?.t ?? pointerIso.iso.t)) / 1000)}${pointerIso.dnm != null ? ` · DNM ${Math.round(pointerIso.dnm)}%` : ''}`}
+        {` · var ${fmtVariation(variationAt(pointer, Date.now()))}`}
+      </span>
+                )}
+                {pointer && picking == null && (
+      <>
+        <button
+          className="chip"
+          onClick={() => useStore.getState().insertMark('Go here', pointer, activeMarkIndex, true)}
+          title="A mark at the pointer, sailed to next: the rest of the course stays"
+        >
+          go here
+        </button>
+        {course.marks.length > 0 && (
+          <button
+            className="chip"
+            onClick={() => {
+              const i = nearestLegInsert(course.marks.map((m) => m.position), pointer, origin)
+              useStore.getState().insertMark(`Mark ${course.marks.length + 1}`, pointer, i)
+            }}
+            title="A mark at the pointer, put into the leg it is nearest"
+          >
+            + into leg
+          </button>
+        )}
+      </>
+                )}
+                {pointer && origin && polar && picking == null && (
+      <>
+        <button className="chip" onClick={() => void run(undefined, [pointer])} title="Optimal route from the boat to this point">
+          route here
+        </button>
+        {course.marks.length > 0 && (
+          <button
+            className="chip"
+            onClick={() => void run(undefined, [pointer, ...course.marks.slice(activeMarkIndex).map((m) => m.position)])}
+            title="Optimal route through this point, then on round the course from the active mark"
+          >
+            route via here
+          </button>
+        )}
+      </>
+                )}
+                {picking === 'note' ? (
+      <>
+        {(['area', 'line', 'point'] as const).map((k) => (
+          <button
+            key={k}
+            className={'chip' + (draft.kind === k ? ' chip--good' : '')}
+            aria-pressed={draft.kind === k}
+            onClick={() => setDraft({ kind: k, points: k === 'point' ? draft.points.slice(0, 1) : draft.points })}
+          >
+            {k}
+          </button>
+        ))}
+        <button
+          className="chip chip--warn"
+          disabled={draft.points.length < NOTE_MIN_POINTS[draft.kind]}
+          onClick={finishNote}
+        >
+          {draft.points.length < NOTE_MIN_POINTS[draft.kind]
+            ? 'tap ' + (NOTE_MIN_POINTS[draft.kind] - draft.points.length) + ' more'
+            : 'finish (' + draft.points.length + ')'}
+        </button>
+        <button
+          className="chip"
+          onClick={() => {
+            setPicking(null)
+            setDraft({ kind: draft.kind, points: [] })
+          }}
+        >
+          cancel
+        </button>
+      </>
+                ) : (
+      !picking && (
+        <button className="chip" onClick={() => setPicking('note')} title="Draw a race note: a point, line or area">
+          + note
+        </button>
+      )
+                )}
+                {picking === 'measure' ? (
+      <button
+        className="chip chip--warn"
+        onClick={() => {
+          setPicking(null)
+          setMeasure(null)
+        }}
+      >
+        {divider
+          ? `${divider.distanceNm.toFixed(2)} nm ${fmtDeg(divider.bearing)}°T · done`
+          : measure
+            ? 'tap the second point · done'
+            : 'tap the first point · done'}
+      </button>
+                ) : (
+      !picking && (
+        <button className="chip" onClick={() => setPicking('measure')} title="Dividers: range and bearing between two points">
+          measure
+        </button>
+      )
+                )}
+                {hazards && (
+      <button
+        className={`chip${hazards.length ? ' chip--warn' : ''}`}
+        aria-label={hazards.length ? `Route check: ${hazards.length} hazard${hazards.length === 1 ? '' : 's'}` : 'Route check: clear'}
+        title="The route checked against the ENC cells: land, water under the safety depth, and dangers within 50 m"
+        onClick={() => setShowHazards((v) => !v)}
+      >
+        {hazards.length ? `⚠ ${hazards.length} on route` : '✓ route clear'}
+      </button>
+                )}
+                <button
+      className={`chip${orientation !== 'north' ? ' chip--on' : ''}`}
+      aria-label={`Chart orientation: ${ORIENTATION_LABEL[orientation]}`}
+      title="What is up: north, the active leg, or the boat's head. Tap to change."
+      onClick={() => updateSettings({ chartOrientation: ORIENTATIONS[(ORIENTATIONS.indexOf(orientation) + 1) % ORIENTATIONS.length] })}
+                >
+      {ORIENTATION_LABEL[orientation].toLowerCase()}
+                </button>
+                <button
+      className={`chip${motion !== 'free' ? ' chip--on' : ''}`}
+      aria-label={`Chart motion: ${MOTION_LABEL[motion]}`}
+      title="What the chart keeps in view: nothing, the boat, the boat and ten minutes ahead, or the boat and the active mark. Dragging the chart sets it free. Tap to change."
+      onClick={() => updateSettings({ chartMotion: MOTIONS[(MOTIONS.indexOf(motion) + 1) % MOTIONS.length] })}
+                >
+      {MOTION_LABEL[motion].toLowerCase()}
+                </button>
+                <button className="chip" onClick={() => void exportChart('save')} title="Save the chart as a picture (PNG)" aria-label="Save chart image">
+      image
+                </button>
+                <button className="chip" onClick={() => void exportChart('print')} title="Print the chart" aria-label="Print chart">
+      print
+                </button>
+                {route?.ok && steps.length > 1 && (
+      <>
+        <button className="chip" aria-label="Route start" title="The route's start (Shift-Up and Shift-Down step)" onClick={() => step(0)}>
+          ⏮
+        </button>
+        <button className="chip" aria-label="Previous routing step" onClick={() => step(-1)}>
+          ◀
+        </button>
+        <button className="chip" aria-label="Next routing step" onClick={() => step(1)}>
+          ▶
+        </button>
+        {stepAt && stepT != null && (
+          <span className="chip chip--on" aria-label="Route step">
+            T+{fmtDuration((stepT - route.legs[0].t) / 1000)} · {stepAt.leg.bsp.toFixed(1)} kn · TWS {stepAt.leg.tws.toFixed(0)} · TWA {Math.round(Math.abs(stepAt.leg.twa))}°
+          </span>
+        )}
+      </>
+                )}
+      {/*
+        A correction applied to the forecast changes every route, and nothing
+        on the map shows it. Name each one, so a wind rotated for yesterday's
+        race is not still quietly steering today's.
+      */}
+      {heightFactor !== 1 && (
+      <span
+        className="chip"
+        title="The polar is referenced to masthead wind, so the 10 m forecast is lifted to your mast height"
+      >
+        masthead wind ×{heightFactor.toFixed(2)}
+      </span>
+                )}
+                {(() => {
+      const z = zonesFromNotes(raceNotes)
+      const n = (z.avoidAreas?.length ?? 0) + (z.slowAreas?.length ?? 0)
+      return n > 0 ? (
+        <span className="chip chip--warn" title="Race notes the router keeps out of, or slows down in">
+          {n} race note{n === 1 ? '' : 's'} steer routes
+        </span>
+      ) : null
+                })()}
+                {whatIfActive(whatIf) && (
+      <span className="chip chip--warn" title="What-if is on: laylines show it, routes do not">
+        what-if: {describeWhatIf(whatIf)}
+      </span>
+                )}
+                {nonDefaultLabels(routeSettings).map((label) => (
+        <span className="chip chip--warn" key={label} title="Routing setting — change in SETTINGS">
+          {label}
+        </span>
+      ))}
+      {legNm != null && <span className="chip">{legNm.toFixed(1)} nm rhumb</span>}
+      {landPack ? (
+        <span className="chip chip--good" title={landPack.meta.attribution}>
+          land pack {Math.round(landPack.meta.cellDeg * 111000)} m
+        </span>
+      ) : (
+        <span className="chip chip--bad">{landError ? 'land pack failed' : 'no land pack'}</span>
+      )}
+      {/*
+        Say which departure the drawn route belongs to whenever it is not
+        "now". A route solved for 14:00 looks identical to one solved for the
+        current minute, and quietly showing yesterday's plan as today's is the
+        same class of mistake as the stale gun timer on the Start tab.
+      */}
+      {departAt != null && route?.ok && (
+        <span className="chip chip--warn" title="This route was solved for a future departure">
+          leaves {fmtLocalHm(departAt)}
+        </span>
+      )}
+      {/*
+        The shallowest water on the route, as a headline. `chip--bad` only when
+        something is actually close: a permanent red badge over deep water would
+        train the reader to ignore it, which is worse than not showing it.
+      */}
+      {depth?.shallowest && (
+        <span
+          className={`chip ${depth.concerns.length > 0 ? 'chip--bad' : ''}`}
+          title={
+            depth.shallowest.underKeelM != null
+              ? 'Shallowest modelled water under the keel on this route'
+              : 'Shallowest modelled depth on this route — no draft set'
+          }
+        >
+          min{' '}
+          {depth.shallowest.underKeelM != null
+            ? `${fmtLength(depth.shallowest.underKeelM, units)} keel`
+            : `${fmtLength(depth.shallowest.depthNowM ?? depth.shallowest.depthMslM, units)} deep`}
+        </span>
+      )}
+      {busy && (
+        <span className="chip chip--warn">
+          <span className="spinner" /> {busy}
+          {progress > 0 ? ` ${Math.round(progress * 100)}%` : ''}
+        </span>
+      )}
+    </>
+  )
+  const routingCommands = (
+    <>
+      <button className="btn btn--sm" onClick={loadWeather} disabled={!origin || !!busy}>
+        FORECAST
+      </button>
+      {/*
+        `() => run()` rather than `run`: `run` takes an optional departure time,
+        and passing the handler directly would hand it a MouseEvent as the
+        departure — a number-shaped argument that is not a number.
+      */}
+      <button className="btn btn--sm btn--primary" onClick={() => run()} disabled={!canRoute}>
+        ROUTE
+      </button>
+      <button className="btn btn--sm btn--ghost" onClick={runSweep} disabled={!canRoute}>
+        WHEN
+      </button>
+      <button className="btn btn--sm btn--ghost" onClick={() => void runFleet()} disabled={!canRoute || fleetCount === 0 || !!busy} title="Route every boat in the fleet with her own polar">
+        FLEET
+      </button>
+      <button
+        className="btn btn--sm btn--ghost"
+        onClick={() => setShowResults(true)}
+        disabled={!route?.ok}
+      >
+        RESULTS
+      </button>
+      <button className="btn btn--sm btn--ghost" onClick={() => setShowSettings(true)}>
+        SETTINGS
+      </button>
+    </>
+  )
+
   return (
     <div className="screen screen--flush" style={{ position: 'relative' }}>
       {/*
@@ -1311,301 +1643,7 @@ export function RouteScreen() {
         <div ref={containerRef} className="map" />
 
         <div className="canvas-overlay">
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {(() => {
-              // What the next route will sail on, by the source chosen in SETTINGS.
-              const s = pickSources(cube)
-              const label = !s ? 'no forecast' : `${s.cube.model}${s.cube === cube ? ` · ${cube.nt}h` : ''}`
-              const more = s?.extraCubes.length ?? 0
-              return (
-                <span className={`chip ${s ? 'chip--good' : ''}`} title={`Route on: ${routeSource}`}>
-                  <span className="dot" />
-                  {label}
-                  {more ? ` + ${more} GRIB file${more === 1 ? '' : 's'}` : ''}
-                  {routeSource !== 'merged' ? ` · ${routeSource === 'download' ? 'download only' : 'files only'}` : ''}
-                </span>
-              )
-            })()}
-            <span className="chip">{PILOT_VENUE.name}</span>
-            <button className={`chip${encCells.length ? ' chip--good' : ''}`} onClick={() => setShowEnc(true)} style={{ pointerEvents: 'auto' }}>
-              ENC{encCells.length ? ` · ${encCells.length}` : ''}
-            </button>
-            {aisTargets.length > 0 && (
-              <button
-                className={`chip${aisTargets.some((t) => t.alert) ? ' chip--warn' : ''}`}
-                onClick={() => setShowAis(true)}
-                style={{ pointerEvents: 'auto' }}
-              >
-                {aisTargets.some((t) => t.alert) ? 'AIS ALERT · ' : 'AIS · '}
-                {aisTargets.length}
-              </button>
-            )}
-          {picking === 'start' || picking === 'mark' ? (
-            <button className="chip chip--warn" onClick={() => setPicking(null)}>
-              tap the chart for the {picking === 'start' ? 'start' : 'new mark'} · cancel
-            </button>
-          ) : routeStart ? (
-            <button
-              className="chip chip--warn"
-              onClick={() => setRouteStart(null)}
-              title="Routes start from the point you picked. Tap to route from the boat again."
-            >
-              from planned start ✕
-            </button>
-          ) : (
-            <button
-              className="chip"
-              onClick={() => setPicking('start')}
-              title="Plan from anywhere: pick a start on the chart"
-            >
-              {state ? 'from the boat · pick start' : 'no fix · pick a start'}
-            </button>
-          )}
-          {!picking && (
-            <button className="chip" onClick={() => setPicking('mark')} title="Tap the chart to add a mark">
-              + mark
-            </button>
-          )}
-          {/*
-            The pointer readout: where the mouse is (or the last tap), and from the
-            boat or planned start, the range, true bearing and polar time to it.
-          */}
-          {pointer && picking !== 'measure' && (
-            <span className="chip" aria-label="Pointer readout" title="Pointer: position, then range, bearing and polar time from the boat, and the magnetic variation there">
-              {fmtPosition(pointer)}
-              {toPointer &&
-                ` · ${toPointer.distanceNm.toFixed(2)} nm ${northRef === 'magnetic' ? `${fmtDeg(trueToMagnetic(toPointer.bearing, variationHere()))}°M` : `${fmtDeg(toPointer.bearing)}°T`}`}
-              {toPointer?.timeS != null && ` · ${fmtDuration(toPointer.timeS)}`}
-              {pointerIso && ` · isochrone T+${fmtDuration((pointerIso.iso.t - (route?.legs[0]?.t ?? pointerIso.iso.t)) / 1000)}${pointerIso.dnm != null ? ` · DNM ${Math.round(pointerIso.dnm)}%` : ''}`}
-              {` · var ${fmtVariation(variationAt(pointer, Date.now()))}`}
-            </span>
-          )}
-          {pointer && picking == null && (
-            <>
-              <button
-                className="chip"
-                onClick={() => useStore.getState().insertMark('Go here', pointer, activeMarkIndex, true)}
-                title="A mark at the pointer, sailed to next: the rest of the course stays"
-              >
-                go here
-              </button>
-              {course.marks.length > 0 && (
-                <button
-                  className="chip"
-                  onClick={() => {
-                    const i = nearestLegInsert(course.marks.map((m) => m.position), pointer, origin)
-                    useStore.getState().insertMark(`Mark ${course.marks.length + 1}`, pointer, i)
-                  }}
-                  title="A mark at the pointer, put into the leg it is nearest"
-                >
-                  + into leg
-                </button>
-              )}
-            </>
-          )}
-          {pointer && origin && polar && picking == null && (
-            <>
-              <button className="chip" onClick={() => void run(undefined, [pointer])} title="Optimal route from the boat to this point">
-                route here
-              </button>
-              {course.marks.length > 0 && (
-                <button
-                  className="chip"
-                  onClick={() => void run(undefined, [pointer, ...course.marks.slice(activeMarkIndex).map((m) => m.position)])}
-                  title="Optimal route through this point, then on round the course from the active mark"
-                >
-                  route via here
-                </button>
-              )}
-            </>
-          )}
-          {picking === 'note' ? (
-            <>
-              {(['area', 'line', 'point'] as const).map((k) => (
-                <button
-                  key={k}
-                  className={'chip' + (draft.kind === k ? ' chip--good' : '')}
-                  aria-pressed={draft.kind === k}
-                  onClick={() => setDraft({ kind: k, points: k === 'point' ? draft.points.slice(0, 1) : draft.points })}
-                >
-                  {k}
-                </button>
-              ))}
-              <button
-                className="chip chip--warn"
-                disabled={draft.points.length < NOTE_MIN_POINTS[draft.kind]}
-                onClick={finishNote}
-              >
-                {draft.points.length < NOTE_MIN_POINTS[draft.kind]
-                  ? 'tap ' + (NOTE_MIN_POINTS[draft.kind] - draft.points.length) + ' more'
-                  : 'finish (' + draft.points.length + ')'}
-              </button>
-              <button
-                className="chip"
-                onClick={() => {
-                  setPicking(null)
-                  setDraft({ kind: draft.kind, points: [] })
-                }}
-              >
-                cancel
-              </button>
-            </>
-          ) : (
-            !picking && (
-              <button className="chip" onClick={() => setPicking('note')} title="Draw a race note: a point, line or area">
-                + note
-              </button>
-            )
-          )}
-          {picking === 'measure' ? (
-            <button
-              className="chip chip--warn"
-              onClick={() => {
-                setPicking(null)
-                setMeasure(null)
-              }}
-            >
-              {divider
-                ? `${divider.distanceNm.toFixed(2)} nm ${fmtDeg(divider.bearing)}°T · done`
-                : measure
-                  ? 'tap the second point · done'
-                  : 'tap the first point · done'}
-            </button>
-          ) : (
-            !picking && (
-              <button className="chip" onClick={() => setPicking('measure')} title="Dividers: range and bearing between two points">
-                measure
-              </button>
-            )
-          )}
-          {hazards && (
-            <button
-              className={`chip${hazards.length ? ' chip--warn' : ''}`}
-              aria-label={hazards.length ? `Route check: ${hazards.length} hazard${hazards.length === 1 ? '' : 's'}` : 'Route check: clear'}
-              title="The route checked against the ENC cells: land, water under the safety depth, and dangers within 50 m"
-              onClick={() => setShowHazards((v) => !v)}
-            >
-              {hazards.length ? `⚠ ${hazards.length} on route` : '✓ route clear'}
-            </button>
-          )}
-          <button
-            className={`chip${orientation !== 'north' ? ' chip--on' : ''}`}
-            aria-label={`Chart orientation: ${ORIENTATION_LABEL[orientation]}`}
-            title="What is up: north, the active leg, or the boat's head. Tap to change."
-            onClick={() => updateSettings({ chartOrientation: ORIENTATIONS[(ORIENTATIONS.indexOf(orientation) + 1) % ORIENTATIONS.length] })}
-          >
-            {ORIENTATION_LABEL[orientation].toLowerCase()}
-          </button>
-          <button
-            className={`chip${motion !== 'free' ? ' chip--on' : ''}`}
-            aria-label={`Chart motion: ${MOTION_LABEL[motion]}`}
-            title="What the chart keeps in view: nothing, the boat, the boat and ten minutes ahead, or the boat and the active mark. Dragging the chart sets it free. Tap to change."
-            onClick={() => updateSettings({ chartMotion: MOTIONS[(MOTIONS.indexOf(motion) + 1) % MOTIONS.length] })}
-          >
-            {MOTION_LABEL[motion].toLowerCase()}
-          </button>
-          <button className="chip" onClick={() => void exportChart('save')} title="Save the chart as a picture (PNG)" aria-label="Save chart image">
-            image
-          </button>
-          <button className="chip" onClick={() => void exportChart('print')} title="Print the chart" aria-label="Print chart">
-            print
-          </button>
-          {route?.ok && steps.length > 1 && (
-            <>
-              <button className="chip" aria-label="Route start" title="The route's start (Shift-Up and Shift-Down step)" onClick={() => step(0)}>
-                ⏮
-              </button>
-              <button className="chip" aria-label="Previous routing step" onClick={() => step(-1)}>
-                ◀
-              </button>
-              <button className="chip" aria-label="Next routing step" onClick={() => step(1)}>
-                ▶
-              </button>
-              {stepAt && stepT != null && (
-                <span className="chip chip--on" aria-label="Route step">
-                  T+{fmtDuration((stepT - route.legs[0].t) / 1000)} · {stepAt.leg.bsp.toFixed(1)} kn · TWS {stepAt.leg.tws.toFixed(0)} · TWA {Math.round(Math.abs(stepAt.leg.twa))}°
-                </span>
-              )}
-            </>
-          )}
-            {/*
-              A correction applied to the forecast changes every route, and nothing
-              on the map shows it. Name each one, so a wind rotated for yesterday's
-              race is not still quietly steering today's.
-            */}
-            {heightFactor !== 1 && (
-            <span
-              className="chip"
-              title="The polar is referenced to masthead wind, so the 10 m forecast is lifted to your mast height"
-            >
-              masthead wind ×{heightFactor.toFixed(2)}
-            </span>
-          )}
-          {(() => {
-            const z = zonesFromNotes(raceNotes)
-            const n = (z.avoidAreas?.length ?? 0) + (z.slowAreas?.length ?? 0)
-            return n > 0 ? (
-              <span className="chip chip--warn" title="Race notes the router keeps out of, or slows down in">
-                {n} race note{n === 1 ? '' : 's'} steer routes
-              </span>
-            ) : null
-          })()}
-          {whatIfActive(whatIf) && (
-            <span className="chip chip--warn" title="What-if is on: laylines show it, routes do not">
-              what-if: {describeWhatIf(whatIf)}
-            </span>
-          )}
-          {nonDefaultLabels(routeSettings).map((label) => (
-              <span className="chip chip--warn" key={label} title="Routing setting — change in SETTINGS">
-                {label}
-              </span>
-            ))}
-            {legNm != null && <span className="chip">{legNm.toFixed(1)} nm rhumb</span>}
-            {landPack ? (
-              <span className="chip chip--good" title={landPack.meta.attribution}>
-                land pack {Math.round(landPack.meta.cellDeg * 111000)} m
-              </span>
-            ) : (
-              <span className="chip chip--bad">{landError ? 'land pack failed' : 'no land pack'}</span>
-            )}
-            {/*
-              Say which departure the drawn route belongs to whenever it is not
-              "now". A route solved for 14:00 looks identical to one solved for the
-              current minute, and quietly showing yesterday's plan as today's is the
-              same class of mistake as the stale gun timer on the Start tab.
-            */}
-            {departAt != null && route?.ok && (
-              <span className="chip chip--warn" title="This route was solved for a future departure">
-                leaves {fmtLocalHm(departAt)}
-              </span>
-            )}
-            {/*
-              The shallowest water on the route, as a headline. `chip--bad` only when
-              something is actually close: a permanent red badge over deep water would
-              train the reader to ignore it, which is worse than not showing it.
-            */}
-            {depth?.shallowest && (
-              <span
-                className={`chip ${depth.concerns.length > 0 ? 'chip--bad' : ''}`}
-                title={
-                  depth.shallowest.underKeelM != null
-                    ? 'Shallowest modelled water under the keel on this route'
-                    : 'Shallowest modelled depth on this route — no draft set'
-                }
-              >
-                min{' '}
-                {depth.shallowest.underKeelM != null
-                  ? `${fmtLength(depth.shallowest.underKeelM, units)} keel`
-                  : `${fmtLength(depth.shallowest.depthNowM ?? depth.shallowest.depthMslM, units)} deep`}
-              </span>
-            )}
-            {busy && (
-              <span className="chip chip--warn">
-                <span className="spinner" /> {busy}
-                {progress > 0 ? ` ${Math.round(progress * 100)}%` : ''}
-              </span>
-            )}
-          </div>
+          {!ribbon && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{chartCommands}</div>}
 
           <div>
             {forecastNotes.map((note) => (
@@ -1658,35 +1696,15 @@ export function RouteScreen() {
 
       </div>
 
-      <div className="actions" style={{ position: 'relative', zIndex: 2 }}>
-        <button className="btn btn--sm" onClick={loadWeather} disabled={!origin || !!busy}>
-          FORECAST
-        </button>
-        {/*
-          `() => run()` rather than `run`: `run` takes an optional departure time,
-          and passing the handler directly would hand it a MouseEvent as the
-          departure — a number-shaped argument that is not a number.
-        */}
-        <button className="btn btn--sm btn--primary" onClick={() => run()} disabled={!canRoute}>
-          ROUTE
-        </button>
-        <button className="btn btn--sm btn--ghost" onClick={runSweep} disabled={!canRoute}>
-          WHEN
-        </button>
-        <button className="btn btn--sm btn--ghost" onClick={() => void runFleet()} disabled={!canRoute || fleetCount === 0 || !!busy} title="Route every boat in the fleet with her own polar">
-          FLEET
-        </button>
-        <button
-          className="btn btn--sm btn--ghost"
-          onClick={() => setShowResults(true)}
-          disabled={!route?.ok}
-        >
-          RESULTS
-        </button>
-        <button className="btn btn--sm btn--ghost" onClick={() => setShowSettings(true)}>
-          SETTINGS
-        </button>
-      </div>
+      {!ribbon && (
+        <div className="actions" style={{ position: 'relative', zIndex: 2 }}>
+          {routingCommands}
+        </div>
+      )}
+      <RibbonGroups>
+        <RibbonGroup label="Chart">{chartCommands}</RibbonGroup>
+        <RibbonGroup label="Routing">{routingCommands}</RibbonGroup>
+      </RibbonGroups>
 
       {!polar && (
         <div className="warnbox" style={{ position: 'absolute', left: 12, right: 12, bottom: 74, zIndex: 3 }}>

@@ -519,9 +519,14 @@ logo, icon artwork or manual text.
       over, hue kept (lib/palette.ts). The ENC draws in S-52's day colours; the base map is the
       plain chart. By the sun follows civil twilight at the boat. Checked in the app on the real
       Portland cell in day and dusk. P2-003 (S-52's own dusk table at night) is still to do.*
-- [ ] **17.2 A command ribbon** at desktop widths: text tabs across the top, each with its
+- [x] **17.2 A command ribbon** at desktop widths: text tabs across the top, each with its
       commands in labelled groups, so nothing hides behind a chip (P1-035, P1-059, P1-062).
       *Accept:* tests and a browser check.
+      *The six screens as text tabs, and the chart screen's commands in captioned groups under
+      them, put there by the screen itself through a portal, so on the phone the same commands
+      stay over the chart. Route: Chart and Routing; Weather: Layer and Display. The panel screens
+      (Start, Race, Setup) keep their controls in the pane. The status chips (forecast, rhumb
+      distance, land pack) go to the status bar in 17.3.*
 - [ ] **17.3 A status bar:** pointer position, variation, range and bearing from the boat,
       chart scale, and safety warnings, with the fields chosen in Setup (P1-275, P1-276,
       P1-278, P4-170). *Accept:* tests and a browser check.
