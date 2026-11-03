@@ -323,6 +323,23 @@ describe('the Route screen tells the truth about land avoidance', () => {
   })
 })
 
+describe('the Route screen keeps its controls on screen', () => {
+  /*
+   * MapLibre's stylesheet makes the map container position: relative, so a map
+   * sitting directly in the screen took its full height and pushed the actions
+   * row off the clipped bottom edge. The map has to live in its own flexing area,
+   * with the actions as a sibling of that area. jsdom has no layout, so the
+   * structure is what can be pinned here. The browser check is in the commit.
+   */
+  it('puts the map in a chart area and the actions beside it, not below it', () => {
+    render(<RouteScreen />)
+    const map = document.querySelector('.map')!
+    const actions = screen.getByRole('button', { name: 'ROUTE' }).closest('.actions')!
+    expect(map.parentElement?.classList.contains('chart-area')).toBe(true)
+    expect(actions.parentElement).toBe(map.parentElement?.parentElement)
+  })
+})
+
 describe('the Weather screen states its provenance', () => {
   it('offers the three layers and no wave-height chip', () => {
     render(<WeatherScreen />)

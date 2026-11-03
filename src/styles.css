@@ -79,6 +79,22 @@ button {
 
 .screen--flush {
   overflow: hidden;
+  /*
+   * A column, so a controls row after the chart keeps its own space instead of
+   * being pushed off the clipped bottom edge by a full-height map (see .map).
+   */
+  display: flex;
+  flex-direction: column;
+}
+
+.screen--flush > .map,
+.chart-area {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.chart-area {
+  position: relative;
 }
 
 .tabbar {
@@ -696,6 +712,8 @@ button {
   left: 0;
   right: 0;
   bottom: 0;
+  /* Above a screen's actions row (z-index 2), which sits over the same edge. */
+  z-index: 10;
   background: var(--bg);
   border-top: 1px solid var(--line-bright);
   border-radius: 18px 18px 0 0;
