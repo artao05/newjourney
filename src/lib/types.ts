@@ -55,7 +55,7 @@ export interface Boat {
   loaMetres: Metres
   /** Distance bow to GPS antenna, metres. */
   bowToGpsMetres: Metres
-  /** Masthead / instrument height, metres. Drives the 10m -> masthead wind scaling. */
+  /** Masthead / instrument height, metres. Routing does not use it; only the Setup note reads it. */
   mastHeightMetres: Metres
   /**
    * Deepest point of the boat with keel or board down, metres.
