@@ -567,6 +567,25 @@ button {
   border-radius: 10px;
 }
 
+/*
+ * A grid track will not go below its button's min-content width, so a row of four
+ * long labels runs past the edge of a narrow phone. Below 375 px this row gives up side
+ * space instead. The labels and the row's height stay as they are, and the buttons even
+ * out: at 320 px they are 70 to 75 px wide, where they were 66 to 91.
+ */
+@media (max-width: 374.98px) {
+  .actions--tight {
+    gap: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .actions--tight .btn--sm {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+}
+
 /* ------------------------------------------------------------------ forms */
 
 .panel {

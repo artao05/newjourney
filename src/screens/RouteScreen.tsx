@@ -654,7 +654,7 @@ export function RouteScreen() {
         </div>
       </div>
 
-      <div className="actions" style={{ position: 'relative', zIndex: 2 }}>
+      <div className="actions actions--tight" style={{ position: 'relative', zIndex: 2 }}>
         <button className="btn btn--sm" onClick={loadWeather} disabled={!state || !!busy}>
           FORECAST
         </button>

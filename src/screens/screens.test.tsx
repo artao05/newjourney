@@ -22,6 +22,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
 import type { RouteResult, WeatherCube } from '@/lib/types'
 
 // ------------------------------------------------------------- maplibre stub
@@ -337,6 +338,44 @@ describe('the Route screen keeps its controls on screen', () => {
     const actions = screen.getByRole('button', { name: 'ROUTE' }).closest('.actions')!
     expect(map.parentElement?.classList.contains('chart-area')).toBe(true)
     expect(actions.parentElement).toBe(map.parentElement?.parentElement)
+  })
+})
+
+describe("the Route row's narrow-phone rule stays on the Route row", () => {
+  /*
+   * Whether four labels fit is a question of text widths, and jsdom has no layout,
+   * so the fit at 320 px is measured in the browser and the numbers are in the commit.
+   * These pin the two limits on the rule: it reaches nothing at 375 px or wider, and
+   * no row but Route's.
+   */
+  const tightRule = () => {
+    const style = document.createElement('style')
+    style.textContent = readFileSync('src/styles.css', 'utf8')
+    document.head.appendChild(style)
+    const media = [...style.sheet!.cssRules].filter(
+      (r): r is CSSMediaRule =>
+        'media' in r && [...(r as CSSMediaRule).cssRules].some((i) => /actions--tight/.test((i as CSSStyleRule).selectorText)),
+    )
+    style.remove()
+    return media
+  }
+
+  it('applies below 375 px and no wider', () => {
+    expect(tightRule().map((m) => m.media.mediaText)).toEqual(['(max-width: 374.98px)'])
+  })
+
+  it("marks Route's row", () => {
+    render(<RouteScreen />)
+    const row = screen.getByRole('button', { name: 'RESULTS' }).closest('.actions')!
+    expect(row.classList.contains('actions--tight')).toBe(true)
+    expect(row.querySelectorAll('.btn--sm').length).toBe(4)
+  })
+
+  it("leaves Start's rows alone", () => {
+    render(<StartScreen />)
+    const rows = [...document.querySelectorAll('.actions')]
+    expect(rows.length).toBe(2)
+    expect(rows.filter((r) => r.classList.contains('actions--tight'))).toEqual([])
   })
 })
 
