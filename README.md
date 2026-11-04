@@ -37,8 +37,10 @@ in five minutes — built entirely on public data.
 **`parity/expedition`**, this branch, aims at Expedition's full capabilities on the owner's
 instruction ([docs/08-parity](docs/08-parity/README.md)), which reverses some of the
 product spec's non-goals. It was cut from `main` at `5bad931` and was 172 commits ahead on
-2026-11-03, when `main` had not moved since. It went to `origin` that day as a backup. It has
-no pull request and no deploy, and whether it merges is the owner's call and still
+2026-11-03, when `main` had not moved since. It went to `origin` that day as a backup. `main`
+then took [pull request #3](https://github.com/artao05/newjourney/pull/3) on 2026-11-04, so the
+two have diverged. This branch has no pull request and no deploy, and whether it merges is the
+owner's call and still
 [open](docs/06-decisions/README.md#open-only-the-owner-can-settle-these). Its parity score
 that day was 36.5 %, from `node scripts/parity-score.ts`. Its loop last ran on 2026-09-30.
 

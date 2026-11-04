@@ -39,7 +39,7 @@ water, for which [PILOT.md](PILOT.md) is the sailor's guide. Every push and pull
 also runs `.github/workflows/ci.yml`: the tests, the routing kernel's time budgets on
 their own, then the build and its typecheck.
 
-The site is built from `main` only, and last deployed `5bad931` on 2026-09-28. Nothing on
+The site is built from `main` only, and last deployed `0aa1ede` on 2026-11-04. Nothing on
 `parity/expedition` reaches it. That branch went to `origin` on 2026-11-03 as a backup,
 so CI runs on it, but it has no pull request and no deploy.
 
@@ -109,7 +109,9 @@ Dev-only — a stray query string in production cannot replace the app.
 ## What's real and what isn't
 
 Checked against the code on 2026-11-03, at `5bad931` on `main` and `fbb40b4` on
-`parity/expedition`.
+`parity/expedition`. `main` then took
+[pull request #3](https://github.com/artao05/newjourney/pull/3) on 2026-11-04 (`0aa1ede`):
+Route's action row and three small fixes. None of it changes what this section says.
 
 | | `main` | `parity/expedition` (this branch) |
 |---|---|---|
@@ -262,19 +264,19 @@ See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next on `m
 
 ## Verified state
 
-Measured by hand on 2026-11-03, on the two tips:
+Measured by hand on the two tips, `main` on 2026-11-04 and this branch on 2026-11-03:
 
-| | `main` (`5bad931`) | `parity/expedition` (`fbb40b4`) |
+| | `main` (`0aa1ede`) | `parity/expedition` (`fbb40b4`) |
 |---|---|---|
-| Tests | 1,048 in 48 files | 1,858 in 149 files |
+| Tests | 1,053 in 48 files | 1,858 in 149 files |
 | `npx tsc -b --noEmit`, `npm run build` | clean | clean |
-| CI | green at this commit, 2026-09-28 | green at this commit, 2026-11-03 |
+| CI | green at this commit, 2026-11-04 | green at this commit, 2026-11-03 |
 | First load, gzipped | 100 KB of JS, 3 KB of CSS | 215 KB of JS, 5 KB of CSS (111 KB of JS with phone phase 0, 2026-11-04) |
 | Map chunk, gzipped, mostly MapLibre | 286 KB of JS, 10 KB of CSS | 289 KB of JS, 10 KB of CSS |
 | Route and Weather screens, gzipped | 11 KB and 20 KB | 41 KB and 36 KB |
 
 Every test passes. Two in `src/pwa.test.ts` read `dist/` and are skipped without it, as they
-are in CI, where the tests run before the build. So a fresh clone reports 1,046 passed and 2
+are in CI, where the tests run before the build. So a fresh clone reports 1,051 passed and 2
 skipped on `main`, and 1,856 and 2 on this branch. Each tab is mounted by a test in
 `src/screens/screens.test.tsx`. The map chunk and the two screens load only when you open a
 chart tab. This branch's production build, visited once, reloaded with its server stopped
