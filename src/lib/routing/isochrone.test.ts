@@ -12,7 +12,7 @@
  * must be testable without `src/lib/weather` or `src/lib/polar` existing.
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { bearing, crossTrack, destination, distance } from '../geo'
 import { DEG, wrap360 } from '../angles'
 import type {
@@ -21,6 +21,7 @@ import type {
   PolarLattice,
   PolarTable,
   RouteRequest,
+  RouteResult,
   Targets,
   WeatherField,
 } from '../types'
@@ -37,6 +38,14 @@ import type { RouteWorkerResponse } from './worker'
  * result depending on what else the machine happens to be doing.
  */
 vi.setConfig({ testTimeout: 30_000 })
+
+/*
+ * Vitest's worker answers the runner over RPC with a 60 s timeout, and it can only
+ * read the replies while the event loop is free. A loop of whole solves must hand
+ * the loop back between solves, or a loaded machine fails the run on the RPC
+ * rather than on anything the kernel did.
+ */
+const yieldToVitest = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
 /*
  * Wall-clock budgets are the spec's targets on a desktop, and they are enforced
@@ -1163,10 +1172,23 @@ describe('kernel invariants', () => {
     return out
   }
 
-  const solved = scenarios().map((s) => ({
-    ...s,
-    result: routeIsochrone(s.req, { field: s.field, lattice: LATTICE, land: null }),
-  }))
+  /*
+   * Solved in beforeAll, one scenario at a time, handing the event loop back to
+   * vitest between solves. Solving them all in one synchronous run at collection
+   * held the worker for longer than vitest's 60 s RPC timeout under a loaded full
+   * suite, and the run then failed with `Timeout calling "onTaskUpdate"` even
+   * though every assertion passed.
+   */
+  const solved: (Scenario & { result: RouteResult })[] = []
+  beforeAll(async () => {
+    for (const s of scenarios()) {
+      solved.push({
+        ...s,
+        result: routeIsochrone(s.req, { field: s.field, lattice: LATTICE, land: null }),
+      })
+      await yieldToVitest()
+    }
+  }, 120_000)
 
   it('solves every scenario', () => {
     for (const s of solved) {
@@ -1311,7 +1333,7 @@ describe('kernel invariants', () => {
     }
   })
 
-  it('gives the same answer twice for the same question', { timeout: 60_000 }, () => {
+  it('gives the same answer twice for the same question', { timeout: 120_000 }, async () => {
     /*
      * Determinism is not a nicety. Every claim this project makes about the
      * confidence band, and every bug anyone chases in a route, assumes the same
@@ -1320,6 +1342,7 @@ describe('kernel invariants', () => {
      * would be a route that changes when you press the button again.
      */
     for (const s of solved) {
+      await yieldToVitest()
       const again = routeIsochrone(s.req, { field: s.field, lattice: LATTICE, land: null })
       expect(again.ok, s.label).toBe(s.result.ok)
       expect(again.legs.length, `${s.label}: leg count`).toBe(s.result.legs.length)

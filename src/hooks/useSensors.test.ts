@@ -211,6 +211,26 @@ describe('useSimulation wind update', () => {
   })
 })
 
+describe('the simulator keeps real time', () => {
+  it('catches up when its timer was held back, as a hidden tab holds it', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_800_000_000_000)
+    useStore.setState({ state: null, settings: { ...useStore.getState().settings, simulate: true } })
+    const view = renderHook(() => useSimulation(true, { lat: 43.6675, lon: -70.1735 }))
+    act(() => vi.advanceTimersByTime(500))
+    expect(Date.now() - boat()!.t).toBeLessThan(10)
+    // Forty seconds pass with no tick at all, then one tick.
+    vi.setSystemTime(Date.now() + 40_000)
+    act(() => vi.advanceTimersByTime(500))
+    expect(Date.now() - boat()!.t).toBeLessThan(10)
+    // An hour away: the boat waited, and the clock still reads now.
+    vi.setSystemTime(Date.now() + 3_600_000)
+    act(() => vi.advanceTimersByTime(500))
+    expect(Date.now() - boat()!.t).toBeLessThan(10)
+    view.unmount()
+  })
+})
+
 describe('useTick', () => {
   it('advances on its own interval', () => {
     vi.useFakeTimers()

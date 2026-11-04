@@ -559,89 +559,98 @@ export function RouteScreen() {
 
   return (
     <div className="screen screen--flush" style={{ position: 'relative' }}>
-      <div ref={containerRef} className="map" />
+      {/*
+        The map and its overlay share one flexing area, and the actions row gets
+        its own space below it. With the map directly in the screen, MapLibre's
+        stylesheet made it position: relative at full height (see .map in
+        styles.css). That pushed FORECAST, ROUTE, WHEN and RESULTS below the
+        screen's clipped edge, where nobody could see them.
+      */}
+      <div className="chart-area">
+        <div ref={containerRef} className="map" />
 
-      <div className="canvas-overlay">
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span className={`chip ${cube ? 'chip--good' : ''}`}>
-            <span className="dot" />
-            {cube ? `${cube.model} · ${cube.nt}h` : 'no forecast'}
-          </span>
-          <span className="chip">{PILOT_VENUE.name}</span>
-          {legNm != null && <span className="chip">{legNm.toFixed(1)} nm rhumb</span>}
-          {landPack ? (
-            <span className="chip chip--good" title={landPack.meta.attribution}>
-              land pack {Math.round(landPack.meta.cellDeg * 111000)} m
+        <div className="canvas-overlay">
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span className={`chip ${cube ? 'chip--good' : ''}`}>
+              <span className="dot" />
+              {cube ? `${cube.model} · ${cube.nt}h` : 'no forecast'}
             </span>
-          ) : (
-            <span className="chip chip--bad">{landError ? 'land pack failed' : 'no land pack'}</span>
-          )}
-          {/*
-            Say which departure the drawn route belongs to whenever it is not
-            "now". A route solved for 14:00 looks identical to one solved for the
-            current minute, and quietly showing yesterday's plan as today's is the
-            same class of mistake as the stale gun timer on the Start tab.
-          */}
-          {departAt != null && route?.ok && (
-            <span className="chip chip--warn" title="This route was solved for a future departure">
-              leaves {fmtLocalHm(departAt)}
-            </span>
-          )}
-          {/*
-            The shallowest water on the route, as a headline. `chip--bad` only when
-            something is actually close: a permanent red badge over deep water would
-            train the reader to ignore it, which is worse than not showing it.
-          */}
-          {depth?.shallowest && (
-            <span
-              className={`chip ${depth.concerns.length > 0 ? 'chip--bad' : ''}`}
-              title={
-                depth.shallowest.underKeelM != null
-                  ? 'Shallowest modelled water under the keel on this route'
-                  : 'Shallowest modelled depth on this route — no draft set'
-              }
-            >
-              min{' '}
-              {depth.shallowest.underKeelM != null
-                ? `${depth.shallowest.underKeelM.toFixed(1)} m keel`
-                : `${(depth.shallowest.depthNowM ?? depth.shallowest.depthMslM).toFixed(1)} m deep`}
-            </span>
-          )}
-          {busy && (
-            <span className="chip chip--warn">
-              <span className="spinner" /> {busy}
-              {progress > 0 ? ` ${Math.round(progress * 100)}%` : ''}
-            </span>
-          )}
-        </div>
+            <span className="chip">{PILOT_VENUE.name}</span>
+            {legNm != null && <span className="chip">{legNm.toFixed(1)} nm rhumb</span>}
+            {landPack ? (
+              <span className="chip chip--good" title={landPack.meta.attribution}>
+                land pack {Math.round(landPack.meta.cellDeg * 111000)} m
+              </span>
+            ) : (
+              <span className="chip chip--bad">{landError ? 'land pack failed' : 'no land pack'}</span>
+            )}
+            {/*
+              Say which departure the drawn route belongs to whenever it is not
+              "now". A route solved for 14:00 looks identical to one solved for the
+              current minute, and quietly showing yesterday's plan as today's is the
+              same class of mistake as the stale gun timer on the Start tab.
+            */}
+            {departAt != null && route?.ok && (
+              <span className="chip chip--warn" title="This route was solved for a future departure">
+                leaves {fmtLocalHm(departAt)}
+              </span>
+            )}
+            {/*
+              The shallowest water on the route, as a headline. `chip--bad` only when
+              something is actually close: a permanent red badge over deep water would
+              train the reader to ignore it, which is worse than not showing it.
+            */}
+            {depth?.shallowest && (
+              <span
+                className={`chip ${depth.concerns.length > 0 ? 'chip--bad' : ''}`}
+                title={
+                  depth.shallowest.underKeelM != null
+                    ? 'Shallowest modelled water under the keel on this route'
+                    : 'Shallowest modelled depth on this route — no draft set'
+                }
+              >
+                min{' '}
+                {depth.shallowest.underKeelM != null
+                  ? `${depth.shallowest.underKeelM.toFixed(1)} m keel`
+                  : `${(depth.shallowest.depthNowM ?? depth.shallowest.depthMslM).toFixed(1)} m deep`}
+              </span>
+            )}
+            {busy && (
+              <span className="chip chip--warn">
+                <span className="spinner" /> {busy}
+                {progress > 0 ? ` ${Math.round(progress * 100)}%` : ''}
+              </span>
+            )}
+          </div>
 
-        <div>
-          {forecastNotes.map((note) => (
-            <div className="warnbox" key={note}>
-              {note}
-            </div>
-          ))}
-          {routeError && <div className="errbox">{routeError}</div>}
-          {route?.ok && route.legs.length > 0 && (
-            <div className="legend">
-              <div>
-                <span className="swatch" style={{ background: '#ff3ea5' }} />
-                <b>optimal route</b>
+          <div>
+            {forecastNotes.map((note) => (
+              <div className="warnbox" key={note}>
+                {note}
               </div>
-              <div>
-                <span className="swatch" style={{ background: '#ff9ad2' }} />
-                beating (implicit tacks)
+            ))}
+            {routeError && <div className="errbox">{routeError}</div>}
+            {route?.ok && route.legs.length > 0 && (
+              <div className="legend">
+                <div>
+                  <span className="swatch" style={{ background: '#ff3ea5' }} />
+                  <b>optimal route</b>
+                </div>
+                <div>
+                  <span className="swatch" style={{ background: '#ff9ad2' }} />
+                  beating (implicit tacks)
+                </div>
+                <div>
+                  <span className="swatch" style={{ background: 'rgba(79,195,247,.55)' }} />
+                  isochrones
+                </div>
+                <div>
+                  <span className="swatch" style={{ background: 'rgba(255,213,74,.35)' }} />
+                  within 10 min of optimal
+                </div>
               </div>
-              <div>
-                <span className="swatch" style={{ background: 'rgba(79,195,247,.55)' }} />
-                isochrones
-              </div>
-              <div>
-                <span className="swatch" style={{ background: 'rgba(255,213,74,.35)' }} />
-                within 10 min of optimal
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

@@ -95,9 +95,29 @@ export function useSimulation(enabled: boolean, origin: LatLon) {
     simRef.current = sim
     ;(window as unknown as { __sim?: BoatSim }).__sim = sim
 
+    /*
+     * Step by the time that really passed, in half-second steps. A browser slows
+     * or pauses timers in a hidden tab, and stepping a fixed half-second per tick
+     * then left the simulated clock behind the real one for good: a minute behind
+     * after a minute in the background, and every fix a minute old, which moves
+     * the dead-reckoned position at the gun by a minute of sailing.
+     */
     const dt = 0.5
+    let last = Date.now()
     const h = window.setInterval(() => {
-      setBoatState(sim.step(dt))
+      const now = Date.now()
+      // Replay at most ten minutes; past that, the boat waited, and the clock moves on.
+      const gap = (now - last) / 1000
+      if (gap > 600) sim.skipTo(now - 600_000)
+      let due = Math.min(gap, 600)
+      last = now
+      let state = null
+      while (due > 1e-6) {
+        const d = Math.min(dt, due)
+        state = sim.step(d)
+        due -= d
+      }
+      if (state) setBoatState(state)
     }, dt * 1000)
     return () => {
       window.clearInterval(h)

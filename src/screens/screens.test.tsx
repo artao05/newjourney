@@ -323,6 +323,23 @@ describe('the Route screen tells the truth about land avoidance', () => {
   })
 })
 
+describe('the Route screen keeps its controls on screen', () => {
+  /*
+   * MapLibre's stylesheet makes the map container position: relative, so a map
+   * sitting directly in the screen took its full height and pushed the actions
+   * row off the clipped bottom edge. The map has to live in its own flexing area,
+   * with the actions as a sibling of that area. jsdom has no layout, so the
+   * structure is what can be pinned here. The browser check is in the commit.
+   */
+  it('puts the map in a chart area and the actions beside it, not below it', () => {
+    render(<RouteScreen />)
+    const map = document.querySelector('.map')!
+    const actions = screen.getByRole('button', { name: 'ROUTE' }).closest('.actions')!
+    expect(map.parentElement?.classList.contains('chart-area')).toBe(true)
+    expect(actions.parentElement).toBe(map.parentElement?.parentElement)
+  })
+})
+
 describe('the Weather screen states its provenance', () => {
   it('offers the three layers and no wave-height chip', () => {
     render(<WeatherScreen />)
@@ -630,6 +647,37 @@ describe("the Race tab's CLEAR removes marks, not the start", () => {
     const { course } = useStore.getState()
     expect(course.marks).toEqual([])
     expect(course.startLine).toEqual(startLine)
+  })
+})
+
+describe('the Setup note says what routing does with mast height', () => {
+  /*
+   * It used to say mast height scaled the forecast, and nothing read the field. A
+   * polar's reference height decides whether that costs anything, so the note has
+   * to say which case the loaded polar is in.
+   */
+  const note = () => screen.getByText(/Forecasts give wind at 10/).textContent ?? ''
+
+  it('says routing does not use it, and claims no polar when none is loaded', () => {
+    render(<SetupScreen />)
+    expect(note()).toMatch(/does not use your\s+mast height/)
+    expect(note()).not.toMatch(/This polar/)
+  })
+
+  it('says a 10 m polar already matches the forecast', () => {
+    useStore.getState().setPolar('j70', findPolar('j70')!.polar)
+    render(<SetupScreen />)
+    expect(note()).toMatch(/referenced to 10\s*m, like the forecast/)
+    expect(note()).not.toMatch(/×/)
+  })
+
+  it('names the factor a masthead polar needs, and says routing does not apply it', () => {
+    useStore.getState().setPolar('custom', { ...findPolar('j70')!.polar, reference: 'masthead' })
+    useStore.getState().updateBoat({ mastHeightMetres: 20 })
+    render(<SetupScreen />)
+    expect(note()).toMatch(/×1\.09/)
+    expect(note()).toMatch(/Routing does not do that/)
+    useStore.getState().updateBoat({ mastHeightMetres: 11 })
   })
 })
 

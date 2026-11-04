@@ -9,7 +9,7 @@
 import { useMemo } from 'react'
 import { MAX_TRACK_POINTS, useStore } from '@/state/store'
 import { POLAR_LIBRARY, findPolar } from '@/data/polars'
-import { buildLattice, parsePolar, validatePolar } from '@/lib/polar'
+import { buildLattice, heightScaleFactor, parsePolar, validatePolar } from '@/lib/polar'
 import { PolarPlot } from '@/components/PolarPlot'
 import { NotForNavigationText } from '@/components/NotForNavigation'
 import { PILOT_VENUE } from '@/data/venues'
@@ -168,11 +168,25 @@ export function SetupScreen() {
             inputMode="decimal"
           />
         </div>
+        {/*
+          This note used to say mast height scaled the forecast, and nothing did.
+          It now says what routing does with it, which is nothing, and names the one
+          kind of polar where that matters.
+        */}
         <p className="note">
-          Mast height is used to scale forecast wind from 10&nbsp;m to masthead
-          height — <strong>TWS(h) = TWS(10m)·(h/10)^0.12</strong>. A 20&nbsp;m rig
-          reads about 9% more breeze than the model says. Getting this wrong
-          quietly poisons every target number.
+          Forecasts give wind at 10&nbsp;m, and masthead wind blows harder:{' '}
+          <strong>TWS(h) = TWS(10m)·(h/10)^0.12</strong>, about 9% more on a
+          20&nbsp;m rig. Routing takes the forecast as it is and does not use your
+          mast height.{' '}
+          {polar?.reference === 'masthead' ? (
+            <>
+              This polar is referenced to masthead wind, so it needs the forecast
+              scaled by <strong>×{heightScaleFactor(boat.mastHeightMetres).toFixed(2)}</strong>.
+              Routing does not do that, so its speeds come from the wrong breeze.
+            </>
+          ) : polar ? (
+            <>This polar is referenced to 10&nbsp;m, like the forecast, so the two agree.</>
+          ) : null}
         </p>
         <div className="field">
           <label>Draft</label>

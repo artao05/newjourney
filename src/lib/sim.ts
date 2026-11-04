@@ -132,6 +132,14 @@ export class BoatSim {
     return lat.speed(tws, twa)
   }
 
+  /**
+   * Move the clock on without sailing: for a gap too long to replay, such as
+   * a tab left in the background for an hour. The boat waited where it was.
+   */
+  skipTo(t: Millis): void {
+    if (t > this.t) this.t = t
+  }
+
   /** Advance the simulation by `dtS` seconds and return the new state. */
   step(dtS: number): BoatState {
     this.t += dtS * 1000
