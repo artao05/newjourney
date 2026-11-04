@@ -1,7 +1,7 @@
 /**
  * Link integrity across the documentation.
  *
- * This repo is roughly half prose — 34 markdown files that cite each other heavily,
+ * This repo is roughly half prose — markdown files that cite each other heavily,
  * and whose whole value is that a reader can follow a claim to its source. A link
  * that lands on the wrong page is a quiet failure of exactly the thing the docs are
  * for, and nothing checked any of them.

@@ -1,10 +1,10 @@
 /**
- * App shell: sensor wiring, wind resolution, track recording, and four tabs.
+ * App shell: sensor wiring, wind resolution, track recording, and five tabs.
  *
- * The wind-resolution precedence here is the one specified in
- * docs/05-spec/technical-spec.md §6 — instrument, then held/manual, then
- * forecast, then estimated. Whichever is in use is displayed at all times,
- * because every downstream number inherits its uncertainty.
+ * docs/05-spec/technical-spec.md §6 specifies a precedence for wind: instrument,
+ * then held/manual, then forecast, then estimated. Only manual and forecast exist
+ * today, and the sailor chooses between them. Whichever is in use is displayed at
+ * all times, because every downstream number inherits its uncertainty.
  */
 
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
