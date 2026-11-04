@@ -184,14 +184,22 @@ and lose races better than they did before. That's the actual product.
 
 ## 8. Open questions
 
+Questions 1 to 3 have since been settled by the code, and 5 is still with the owner. See
+[the decision records](../06-decisions/README.md).
+
 1. **Native app or PWA?** PWA gets us cross-platform, instant updates, and no app store.
    Native gets background GPS, better sensor access, and App Store discovery. Current
    lean: PWA first, wrap with Capacitor when background tracking becomes essential.
+   *PWA only so far: [ADR-0001](../06-decisions/0001-pwa-only.md).*
 2. **How much routing runs on-device vs. server?** On-device is free, private, and works
    offline. Server is faster and can do ensembles. Lean: on-device by default, server as
-   an optional accelerator.
+   an optional accelerator. *All on the device, with no server option:
+   [ADR-0003](../06-decisions/0003-client-side-routing.md).*
 3. **Do we need accounts at all in v1?** Probably not until fleet sharing. Local storage
-   and an export/import code go a long way.
+   and an export/import code go a long way. *No accounts:
+   [ADR-0008](../06-decisions/0008-no-accounts.md).*
 4. **Which venue and which programme do we pilot with?** This should be decided by
-   talking to a specific coach, not by design.
-5. **ORC data terms** — needs an actual answer before any bulk polar feature.
+   talking to a specific coach, not by design. *The venue is Portland & Casco Bay
+   (`src/data/venues.ts`). No programme is recorded yet.*
+5. **ORC data terms** — needs an actual answer before any bulk polar feature. *Still
+   [open](../06-decisions/README.md#open-only-the-owner-can-settle-these).*

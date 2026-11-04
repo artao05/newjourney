@@ -68,7 +68,7 @@ and a wet pocket.
 | [docs/03-algorithms](docs/03-algorithms/) | The math: isochrone routing, graph routing, polars/VPP, laylines, start line, current & wave corrections |
 | [docs/04-prior-art](docs/04-prior-art/) | Open-source and commercial landscape, with licence compatibility notes |
 | [docs/05-spec](docs/05-spec/) | Product spec, technical spec, MVP scope, roadmap |
-| [docs/06-decisions](docs/06-decisions/) | Architecture decision records |
+| [docs/06-decisions](docs/06-decisions/) | Architecture decision records, and the questions still open |
 | [docs/SOURCES.md](docs/SOURCES.md) | Master bibliography — every URL cited across the research |
 | [RUNNING.md](RUNNING.md) | How to run the prototype |
 | [PILOT.md](PILOT.md) | For sailors trying it on the water: install, the dock check, the two-minute test, and what to send back |
@@ -108,6 +108,8 @@ about its own tide predictions, and it costs €1,250. Treat every number as adv
 
 ## Licence
 
-Code: [MIT](LICENSE). Documentation: CC BY 4.0.
+Code: [MIT](LICENSE) ([ADR-0005](docs/06-decisions/0005-mit-licence.md)). Documentation: CC BY 4.0.
 Third-party data retains its own licence — see
 [docs/02-data-sources/licensing-matrix.md](docs/02-data-sources/licensing-matrix.md).
+The land mask derives from OpenStreetMap, so `src/data/landmask.ts` and
+`public/venue/portland-land.bin` are ODbL 1.0.
