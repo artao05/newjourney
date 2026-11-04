@@ -368,12 +368,53 @@ button {
   color: var(--warn);
 }
 
-/* ------------------------------------------------------------- start hero */
+/* ----------------------------------------------------------- start screen */
+
+/*
+ * The hero and the ping and timer buttons stay put, and the middle takes what is
+ * left of the screen. In there the canvas shrinks first, down to its floor, and only
+ * then does the middle scroll. The floor is low enough that a 320 x 568 phone with no
+ * warnings shows the canvas and the tiles without scrolling, and that a finger always
+ * has something beside the canvas to scroll by: the canvas is touch-action: none.
+ */
+.start {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.start__middle {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * A phone on its side cannot pin all that: the hero, the buttons and the two bars
+ * come to 387 px. There the whole screen scrolls as one column, and the tab bar
+ * still stays on screen.
+ */
+@media (max-height: 499.98px) {
+  .start {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .start__middle {
+    flex: none;
+    overflow: visible;
+  }
+}
 
 .hero {
   padding: 16px var(--pad) 14px;
   text-align: center;
   background: var(--bg-sunk);
+  flex-shrink: 0;
 }
 
 .hero__label {
@@ -436,8 +477,16 @@ button {
 .canvas-wrap {
   position: relative;
   flex: 1;
-  min-height: 0;
+  min-height: 80px;
   background: var(--bg-sunk);
+}
+
+/* See .start__middle. A set height, so the canvas's own 100% still resolves. */
+@media (max-height: 499.98px) {
+  .canvas-wrap {
+    flex: none;
+    height: 120px;
+  }
 }
 
 .canvas-wrap canvas {

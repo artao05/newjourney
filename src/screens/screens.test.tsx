@@ -146,7 +146,7 @@ import { uvFromWind } from '@/lib/weather/cube'
 // ------------------------------------------------------------------ fixtures
 
 const SCREENS: Array<[string, () => React.JSX.Element]> = [
-  ['Start', StartScreen],
+  ['Start', () => <StartScreen />],
   ['Race', RaceScreen],
   ['Setup', SetupScreen],
   ['Weather', WeatherScreen],

@@ -14,6 +14,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
 
 const { FakeMap, FakeLngLatBounds } = vi.hoisted(() => {
   class FakeLngLatBounds {
@@ -367,6 +368,89 @@ describe('the recorded track survives a reload', () => {
     localStorage.setItem(TRACK_KEY, encodeTrack(saved))
     render(<App />)
     expect(useStore.getState().track.map((p) => p.t)).toEqual([t0, t0 + 1000])
+  })
+})
+
+describe('Start keeps the tab bar and its own controls on screen', () => {
+  /*
+   * Each warning sat directly in the column that holds the tab bar, with nothing to
+   * absorb it: at 375 x 812 three of them put the bar at y 838-902. jsdom has no
+   * layout, so this pins what the layout rests on, which is where each part sits and
+   * what the real stylesheet says about the parts that move. The measured heights
+   * are in the commit.
+   */
+  const FORECAST_DOWN = 'Forecast unavailable — showing the last wind estimate.'
+  const styles = document.createElement('style')
+  const button = (name: string) => screen.getByRole('button', { name })
+
+  /** jsdom has no geolocation, so GPS is already refused, as with location denied. */
+  async function everyWarningShowing() {
+    useStore.getState().setTab('start')
+    useStore.getState().setWindError(FORECAST_DOWN)
+    useStore.getState().updateSettings({ keepAwake: true })
+    const view = render(<App />)
+    await waitFor(() => expect(view.container.querySelectorAll('.warnbox').length).toBe(4))
+    const app = view.container.querySelector('.app')!
+    return { app, start: app.querySelector('.start')!, middle: app.querySelector('.start__middle')! }
+  }
+
+  beforeEach(() => {
+    styles.textContent = readFileSync('src/styles.css', 'utf8')
+    document.head.appendChild(styles)
+  })
+
+  afterEach(() => {
+    styles.remove()
+    useStore.getState().setWindError(null)
+    useStore.getState().setTab('start')
+  })
+
+  it('leaves only the two bars and the screen in the column', async () => {
+    const { app } = await everyWarningShowing()
+    expect([...app.children].map((c) => c.className)).toEqual(['topbar', 'start', 'tabbar'])
+  })
+
+  it('keeps every warning, the canvas and the tiles in the part that scrolls', async () => {
+    const { app, middle } = await everyWarningShowing()
+    const warnings = [...app.querySelectorAll('.warnbox')]
+    expect(warnings.map((w) => middle.contains(w))).toEqual([true, true, true, true])
+    expect(middle.querySelector('canvas')).not.toBeNull()
+    expect(middle.querySelector('.tiles')).not.toBeNull()
+  })
+
+  it('keeps the hero and both rows of buttons out of it', async () => {
+    const { start, middle } = await everyWarningShowing()
+    const pinned = [
+      start.querySelector('.hero')!,
+      button('PING PIN'),
+      button('PING RC'),
+      button('5 MIN'),
+    ]
+    for (const el of pinned) {
+      expect(start.contains(el)).toBe(true)
+      expect(middle.contains(el)).toBe(false)
+    }
+  })
+
+  it('lets the middle absorb the height, and nothing else', async () => {
+    const { app, start, middle } = await everyWarningShowing()
+    const css = (el: Element) => getComputedStyle(el)
+    expect(css(start).flexGrow).toBe('1')
+    expect(css(start).minHeight).toBe('0px')
+    expect(css(middle).flexGrow).toBe('1')
+    expect(css(middle).minHeight).toBe('0px')
+    expect(css(middle).overflowY).toBe('auto')
+    for (const sel of ['.topbar', '.tabbar', '.hero', '.actions']) {
+      expect(css(app.querySelector(sel)!).flexShrink, sel).toBe('0')
+    }
+  })
+
+  it('leaves the shared warnings above the screen on other tabs', async () => {
+    useStore.getState().setTab('race')
+    useStore.getState().setWindError(FORECAST_DOWN)
+    const view = render(<App />)
+    await waitFor(() => expect(screen.getByText(FORECAST_DOWN)).toBeTruthy())
+    expect(screen.getByText(FORECAST_DOWN).parentElement).toBe(view.container.querySelector('.app'))
   })
 })
 
