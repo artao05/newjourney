@@ -1,5 +1,6 @@
 /**
- * App shell: sensor wiring, wind resolution, track recording, and four tabs.
+ * App shell: sensor wiring, wind resolution, track recording, and the layouts:
+ * six tabs on a phone, the nav station from 1,024 px.
  *
  * The wind-resolution precedence here is the one specified in
  * docs/05-spec/technical-spec.md §6 — instrument, then held/manual, then
