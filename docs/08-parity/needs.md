@@ -5,8 +5,11 @@ cannot provide: decisions, licences, hardware, services and data. Each item name
 [parity matrix](parity-matrix.md) areas it unblocks.
 
 Prices are rough ranges to size the ask. Check them before buying anything. Nothing
-here has been bought, signed up for or requested. Every item waits for the owner,
-except the four decisions the owner made on 2026-09-30 (D1, D3, D4, D8).
+here has been bought, signed up for or requested. Every item waits for the owner, except D2,
+which the owner's layout choice of 2026-09-28 settled, and the four decisions the owner made
+on 2026-09-30 (D1, D3, D4, D8). As of 2026-11-03, D2, D4 and D8 are built, and D1 and D3 are
+not. D5, D6, D7 and D9 are open. [docs/06-decisions](../06-decisions/README.md#open-only-the-owner-can-settle-these)
+lists D5, D6 and D9 beside the decision records.
 
 **Row counts** are the number of matrix rows each blocker holds back. They are
 recomputed in each [report](reports/).
@@ -17,14 +20,15 @@ recomputed in each [report](reports/).
 
 | # | Decision | Why it matters | Recommendation |
 |---|---|---|---|
-| D1 | **Accept a small backend.** *Decided 2026-09-30: build it and run it locally. Deploying it needs the owner's account and stays with the owner.* | Several things cannot work from a browser alone: GRIB downloads from NOAA NOMADS (no CORS), YB Tracking files, Saildocs by web, fleet position sharing, networking between devices, and hosted chart tiles. [technical-spec.md §3](../05-spec/technical-spec.md#3-server-stack) already planned one. | Use one Cloudflare Worker (or similar) plus object storage for a CORS proxy, a scheduled GRIB-to-cube ingest and a WebSocket relay. It costs a few dollars a month at pilot scale. It needs an account in your name. |
-| D2 | **Signal K as the instrument path.** | Expedition talks to about 25 vendor protocols directly. A browser can't open serial ports (outside desktop Chromium), UDP or TCP sockets. | Read instruments through a [Signal K](https://signalk.org) server (Apache-2.0), which already speaks NMEA 0183/2000 and most vendor gateways. Add Web Serial for a USB NMEA 0183 adapter on desktop Chromium. Ship newjourney as a Signal K web app too, so the boat's server can serve it over plain HTTP. Otherwise an HTTPS page is blocked from `ws://` on the boat's LAN. |
-| D3 | **Transmit to the boat, or read only?** *Decided 2026-09-30: build the outputs, test them against recordings, and keep them behind a switch that is off until a test boat turns it on.* | Expedition writes to instrument buses: NMEA output, autopilot steering, polars and calibrations pushed to B&G/Ockam processors, and numbers sent to deck displays. A bad sentence on a live boat's bus is a safety problem, not a UI bug. | Stay read-only until there is a test boat (see §3). The code can be written and tested against recordings, but transmitting stays behind a setting that is off by default. |
-| D4 | **A native helper for what Signal K can't do.** *Decided 2026-09-30: build a local Node helper for NMEA and AIS over UDP and TCP, app-to-app sharing and watched folders.* | Radar (multicast Ethernet), Iridium GO! control, watching folders, and the Expedition-style DLL API all need OS access. | Build a small, optional desktop helper (Tauri or Go) only when one of these becomes the next item. Until then those rows are **Bridge**. |
-| D5 | **Commercial or not.** | Open-Meteo's hosted API is free only for non-commercial use. RainViewer, aisstream.io and OpenSeaMap tiles have similar limits ([licensing-matrix.md](../02-data-sources/licensing-matrix.md)). | Stay non-commercial for now. If that changes, budget for an Open-Meteo API plan or self-host it (AGPL), and move to self-hosted tiles. |
-| D6 | **ORC polar data.** | The polar library is generated, not measured. [licensing-matrix.md](../02-data-sources/licensing-matrix.md) §4 leaves ORC unresolved. | Keep ORC as a user-initiated import until someone asks ORC. |
-| D7 | **Access to Expedition itself.** | "1:1" can only be proven side by side: the same GRIB, polar and marks giving the same route, the same start numbers, and files that round-trip. | Get a licence (€1,250 per [sales page](https://www.expeditionmarine.com/sales.html)), or time on a navigator's licensed copy, plus a set of real files it wrote (see §5). |
-| D8 | **Downloading public data files: real GRIB fixtures and the WMM coefficients.** *Decided 2026-09-30: yes, download them.* | The GRIB decoder is tested on messages built to the WMO layout, which proves it reads the layout as I understand it, not as NCEP's encoder writes it. | Let the loop download one small GFS subset from the NOMADS filter (10 m wind and MSLP, a 5° box, about 20 KB, public domain) and commit it, or drop any real `.grb2` into `src/lib/weather/fixtures/`. The same goes for NOAA's WMM-2025 coefficient file (`WMM.COF`, public domain, ~15 KB) for position-aware variation (11.5), one small NOAA ENC cell for the venue (13.1b), one real BSB/KAP raster chart (13.8b), and a week of NOAA tide predictions for a regression test (11.1). |
+| D1 | **Accept a small backend.** *Decided 2026-09-30: build it and run it locally. Deploying it needs the owner's account and stays with the owner. Not built yet: worklist M20.* | Several things cannot work from a browser alone: GRIB downloads from NOAA NOMADS (no CORS), YB Tracking files, Saildocs by web, fleet position sharing, networking between devices, and hosted chart tiles. [technical-spec.md §3](../05-spec/technical-spec.md#3-server-stack) already planned one. | Use one Cloudflare Worker (or similar) plus object storage for a CORS proxy, a scheduled GRIB-to-cube ingest and a WebSocket relay. It costs a few dollars a month at pilot scale. It needs an account in your name. |
+| D2 | **Signal K as the instrument path.** *Settled 2026-09-28, when the owner chose instruments over Signal K or Web Serial with a bridge for the rest ([README](README.md)). Built: the Signal K client (6.2), Web Serial (6.3) and the bridge (M18). Not built: newjourney as a Signal K web app, so an HTTPS page can still be blocked from `ws://` on a boat's network, and Setup warns. Not checked against a live server or a real device.* | Expedition talks to about 25 vendor protocols directly. A browser can't open serial ports (outside Chromium), UDP or TCP sockets. | Read instruments through a [Signal K](https://signalk.org) server (Apache-2.0), which already speaks NMEA 0183/2000 and most vendor gateways. Add Web Serial for a USB NMEA 0183 adapter on desktop Chromium. Ship newjourney as a Signal K web app too, so the boat's server can serve it over plain HTTP. Otherwise an HTTPS page is blocked from `ws://` on the boat's LAN. |
+| D3 | **Transmit to the boat, or read only?** *Decided 2026-09-30: build the outputs, test them against recordings, and keep them behind a switch that is off until a test boat turns it on. Not built yet: worklist M19, so the app reads only.* | Expedition writes to instrument buses: NMEA output, autopilot steering, polars and calibrations pushed to B&G/Ockam processors, and numbers sent to deck displays. A bad sentence on a live boat's bus is a safety problem, not a UI bug. | Stay read-only until there is a test boat (see §3). The code can be written and tested against recordings, but transmitting stays behind a setting that is off by default. |
+| D4 | **A native helper for what Signal K can't do.** *Decided 2026-09-30: build a local Node helper for NMEA and AIS over UDP and TCP, app-to-app sharing and watched folders. Built: `bridge/` (M18).* | Radar (multicast Ethernet), Iridium GO! control, watching folders, and the Expedition-style DLL API all need OS access. | Build a small, optional desktop helper (Tauri or Go) only when one of these becomes the next item. Until then those rows are **Bridge**. |
+| D5 | **Commercial or not.** *Open.* | Open-Meteo's hosted API is free only for non-commercial use. RainViewer, aisstream.io and OpenSeaMap tiles have similar limits ([licensing-matrix.md](../02-data-sources/licensing-matrix.md)). | Stay non-commercial for now. If that changes, budget for an Open-Meteo API plan or self-host it (AGPL), and move to self-hosted tiles. |
+| D6 | **ORC polar data.** *Open.* | The polar library is generated, not measured. [licensing-matrix.md](../02-data-sources/licensing-matrix.md) §4 leaves ORC unresolved. | Keep ORC as a user-initiated import until someone asks ORC. |
+| D7 | **Access to Expedition itself.** *Open.* | "1:1" can only be proven side by side: the same GRIB, polar and marks giving the same route, the same start numbers, and files that round-trip. | Get a licence (€1,250 per [sales page](https://www.expeditionmarine.com/sales.html)), or time on a navigator's licensed copy, plus a set of real files it wrote (see §5). |
+| D8 | **Downloading public data files: real GRIB fixtures and the WMM coefficients.** *Decided 2026-09-30: yes, download them. Done: `fixtures/real/` (M16).* | The GRIB decoder is tested on messages built to the WMO layout, which proves it reads the layout as I understand it, not as NCEP's encoder writes it. | Let the loop download one small GFS subset from the NOMADS filter (10 m wind and MSLP, a 5° box, about 20 KB, public domain) and commit it, or drop any real `.grb2` into `src/lib/weather/fixtures/`. The same goes for NOAA's WMM-2025 coefficient file (`WMM.COF`, public domain, ~15 KB) for position-aware variation (11.5), one small NOAA ENC cell for the venue (13.1b), one real BSB/KAP raster chart (13.8b), and a week of NOAA tide predictions for a regression test (11.1). |
+| D9 | **Does this branch merge into `main`?** *Open.* | `main` is what GitHub Pages serves, so a merge puts this work in front of pilot sailors. It would also reverse the product spec's non-goals on `main`. First-load JS is 215 KB gzipped here against 100 KB on `main` (measured 2026-11-03). On a phone, Route's `SETTINGS` can't be reached and Start's timer row overflows (measured 2026-11-04). | None settled. The phone and hardware plan (`docs/05-spec/phone-and-hardware.md`) recommends this branch once its phase 0 fixes are in. Until the owner says otherwise the two stay apart, and the docs say where they differ. |
 
 ## 2. Licences, subscriptions and agreements
 
@@ -73,7 +77,7 @@ against recordings, but it is not "Done" until it has worked on the real device.
 | **A backend account** (D1) | CORS proxy, GRIB ingest, fleet and device relay | Cloudflare Workers + R2, or similar |
 | **Self-hosted basemap tiles** (Protomaps PMTiles) | The app currently loads raster tiles from `tile.openstreetmap.org`, whose usage policy forbids heavy use | Needed before any real user base |
 | **Self-hosted map glyphs** | They are loaded from `demotiles.maplibre.org` | Small job. Build row. |
-| **A chart-tile pipeline** | NOAA ENC → vector tiles for S-52-style display | Runs on the backend or on a build machine. The data is public domain. |
+| **A chart-tile pipeline** | NOAA ENC → vector tiles for S-52-style display | Not needed for display any more: cells are decoded on the device ([ADR-0007](../06-decisions/0007-decode-enc-on-device.md)). It would only matter for pre-built offline packs. |
 | **Email sending**, for Saildocs requests | Saildocs is an email-request service | A `mailto:` link works with no server. Direct web delivery needs the proxy. |
 
 ## 5. Data we'd need to get hold of
@@ -81,9 +85,9 @@ against recordings, but it is not "Done" until it has worked on the real device.
 | Data | Source | Status |
 |---|---|---|
 | World land polygons, tiled | OSM land polygons (ODbL) | Free. Needs a pack build. Today land avoidance only covers the Portland box. |
-| NOAA ENC cells | NOAA (public domain) | Free. Needs a parser or tile pipeline. |
-| Tide and current harmonic constituents for every station | NOAA CO-OPS API (public domain) | Free. Needed for offline tide prediction (Expedition bundles XTide data). |
-| World Magnetic Model coefficients | NOAA NCEI (public domain) | Free. Today variation is one fixed Portland value. |
+| NOAA ENC cells | NOAA (public domain) | Free. The reader is built (`src/lib/charts/`). None ship with the app, so a sailor opens their own. One cell is in `fixtures/real/` for tests. |
+| Tide and current harmonic constituents for every station | NOAA CO-OPS API (public domain) | Free. Fetched per station and kept on the device, for offline tide prediction. No pack is bundled (Expedition bundles XTide data). |
+| World Magnetic Model coefficients | NOAA NCEI (public domain) | Done on this branch: `src/data/wmm2025.ts`. `main` still has one fixed Portland value. |
 | **Real Expedition files**: polar `.txt`, marks database export, routes, sail chart, race notes, a day's log, a start-line setup | a navigator with Expedition (D7) | **Needed** to prove the formats round-trip |
 | **Recorded instrument streams** (NMEA 0183 and 2000) from a race boat, with wind, speed, heading and heel | a boat, or Signal K sample data | **Needed** as fixtures for calibration, playback and set and drift |
 | **Recorded AIS streams** | a receiver, or public sample logs | Needed as fixtures |
@@ -93,13 +97,13 @@ against recordings, but it is not "Done" until it has worked on the real device.
 
 | Capability | Expedition feature | Route around it |
 |---|---|---|
-| UDP/TCP sockets | NMEA over the network, Expedition-to-Expedition sharing, Furuno and Exocet feeds | Signal K for input. Our own relay for app-to-app sharing. |
-| UDP multicast | Navico and Koden radar | Native helper only |
-| Serial on iOS or Firefox | Any serial instrument | Signal K. Web Serial works only on desktop Chromium. |
-| Watching the filesystem | Chart-folder scanning, watched folders for fleet reports | The user picks a file each time. The File System Access API on desktop Chromium. |
+| UDP/TCP sockets | NMEA over the network, Expedition-to-Expedition sharing, Furuno and Exocet feeds | Built: the bridge (`bridge/`, M18) takes UDP and TCP and relays between copies of the app. Signal K also works for input. |
+| UDP multicast | Navico and Koden radar | Native helper only. The bridge hears multicast NMEA, but radar is not built. |
+| Serial on iOS or Firefox | Any serial instrument | Built: the bridge's `--serial`, on a computer. Otherwise Signal K. Web Serial needs a Chromium browser, and has only been written for a computer. |
+| Watching the filesystem | Chart-folder scanning, watched folders for fleet reports | Built: the bridge's `--watch`. Without it, the user picks a file each time. |
 | Controlling a device on the LAN | Iridium GO! dial and hang-up | Native helper only |
-| DLL or COM APIs | ExpDLL, Deckman bridge | A documented WebSocket/JSON API instead |
-| Writing to instrument buses | NMEA/N2K output, autopilot, deck displays | Through Signal K's output plugins, behind D3 |
+| DLL or COM APIs | ExpDLL, Deckman bridge | Built: a documented WebSocket/JSON API instead ([channels-out.md](../09-api/channels-out.md)) |
+| Writing to instrument buses | NMEA/N2K output, autopilot, deck displays | Through Signal K's output plugins, behind D3. Not built: worklist M19. |
 
 ## 7. People
 

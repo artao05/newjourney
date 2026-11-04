@@ -32,20 +32,24 @@ fetches the page network first (`public/sw.js`).
 - No background GPS. The app tracks only while it is open and on screen, which is why it holds
   a wake lock, and why [PILOT.md](../../PILOT.md) asks sailors to turn off auto-lock when the
   browser will not hold one.
-- The browser limits the instrument paths. Web Serial needs Chrome or Edge on a computer. There
-  are no UDP or TCP sockets, hence the bridge. An HTTPS page cannot open `ws://` on a boat's
-  network, and Setup warns about that.
+- The browser limits the instrument paths. There are no UDP or TCP sockets, hence the bridge.
+  Web Serial depends on the browser: Setup's note says Chrome or Edge on a computer, and Android
+  has not been tried. An HTTPS page can be blocked from `ws://` on a boat's network, and Setup
+  warns about that.
 - No app-store discovery.
 
 **Foreclosed.** Nothing permanent. A wrapper can come later, with a new record superseding
 this one. The spec's trigger, background tracking becoming essential, has no evidence behind it
-yet, since no result from a phone on the water is recorded.
+yet, since no result from a phone on the water is recorded. The phone and hardware plan of
+2026-11-03 (`docs/05-spec/phone-and-hardware.md`) gives a second reason, reaching boat hardware
+from a phone, and recommends Capacitor after a one-day spike. The owner has not decided that
+(its P5).
 
 ## Alternatives considered
 
-**A Capacitor wrapper.** It would give background GPS, better sensors and store discovery. It
-would also add two native projects and store review, for a need nobody has yet shown. It was
-never built.
+**A Capacitor wrapper.** It would give background GPS, native sockets, better sensors and store
+discovery. It would also add two native projects and store review. It was never built, and the
+plan above recommends trying it.
 
 **A fully native app.** Nothing in the repo tried it. It would mean at least two codebases, and
 the point of the project is the opposite of a heavy install.

@@ -35,9 +35,10 @@ testing something that cannot hurt them while we build the thing that can.
 
 ## In scope for MVP
 
-Ticked against the code on 2026-09-26. A tick means a sailor can do it in the app
-today, and the italic notes say what is missing. None of it has yet been checked on a
-phone on the water, which is the test that counts.
+Ticked against the code on 2026-09-26, and checked again on 2026-11-03 at `5bad931` on `main`
+and `fbb40b4` on `parity/expedition`. A tick means a sailor can do it on `main`, the build
+GitHub Pages serves. The italic notes say what is missing, and where the branch goes further.
+No result from a phone on the water is recorded yet, and that is the test that counts.
 
 ### Must have
 
@@ -47,25 +48,29 @@ phone on the water, which is the test that counts.
       noisy COG can land further off than the antenna.*
 - [x] Manual line entry / adjustment by dragging on a simple plan view — *either end
       drags on the start display, with the view held still under the finger. On the
-      chart it comes with [start-on-chart.md](start-on-chart.md) Phase 5.*
+      chart it comes with [start-on-chart.md](start-on-chart.md) Phase 5, on neither build
+      yet. `parity/expedition` adds a sheet for setting an end by range and bearing.*
 - [x] **Distance below line** in metres and boat lengths, bow-corrected, signed
 - [x] **Time to gun** — start a countdown, sync to a signal, 5/4/1/go presets — *the
-      presets are 5/4/3/1 min, and SYNC rounds to the nearest minute.*
+      presets are 5/4/3/1 min, and SYNC rounds to the nearest minute. `parity/expedition`
+      adds a TIMER sheet: a gun by the clock, the roll between class starts, and sounds.*
 - [x] **Time to line** from GPS COG/SOG
 - [x] **Time to burn** — number plus a graphic bar
 - [x] **Line bias** — favoured end, bias angle, advantage in boat lengths
 - [x] Wind input: manual dial, or auto from a forecast lookup if online — *not a dial:
       big steps and number entry in a sheet opened from the wind chip on any tab, or
       from Start while no wind is set. The chip names the source and the age of a
-      hand-set wind.*
+      hand-set wind. `parity/expedition` can also take wind from instruments.*
 - [x] Simple chartless start display: line, boat, COG vector, heading, distance grid in
-      boat lengths — *heading is COG on a phone.*
+      boat lengths — *heading is COG on a phone. On `parity/expedition`, Setup can trust
+      the phone's compass instead.*
 - [x] Auto-declutter one minute after the gun
 - [x] Track recording during the session — *off by default. The track and the recording
       switch survive a reload, up to 20,000 points, and Setup exports the track as GPX.*
 - [x] Works fully offline after first load (PWA + service worker) — *install precaches
       every file the build wrote. Checked in the production build with the app's server
-      unreachable, though not yet in airplane mode on a phone.*
+      unreachable, and again on `parity/expedition`'s build on 2026-11-03, though not yet in
+      airplane mode on a phone.*
 - [x] Wake lock so the screen stays on
 - [x] Boat setup: name, class, length, bow-to-GPS
 - [x] Not-for-navigation notice — *shown on first launch until accepted, then at the foot
@@ -73,22 +78,34 @@ phone on the water, which is the test that counts.
 
 ### Should have
 
-- [ ] Post-start replay of the last 5 minutes ("where was I at the gun?") — *absent.*
+- [ ] Post-start replay of the last 5 minutes ("where was I at the gun?") — *absent.
+      `parity/expedition` replays a recorded log through every screen, but has no view of
+      where you were at the gun.*
 - [x] GPS accuracy indicator with an honest warning when accuracy > half a boat length
       — *the chip is coloured against the boat's length, and past half a length the
       below-line tile says how many boat lengths the fix is good to.*
 - [x] Ping-a-mark and store marks
 - [x] Laylines from the line ends (needs a polar or a class default tacking angle)
-- [ ] Dark / high-contrast sunlight mode — *dark only.*
+- [ ] Dark / high-contrast sunlight mode — *dark only. `parity/expedition` opens in a
+      black-on-white day palette, with dusk, night and by the sun. No reading in direct sun is
+      recorded for either.*
 - [ ] Metric/imperial, °T/°M toggles — *°M done where a compass reading comes in: the
       wind sheet and the wind chip follow the north setting, using Portland's NOAA
-      variation, and every other bearing stays true. Metric/imperial is still absent.*
+      variation, and every other bearing stays true. Metric/imperial is still absent: the
+      setting exists and nothing reads it. On `parity/expedition`, Setup's Units switches
+      depth, draft and the start line between metres and feet, speed stays in knots and
+      distance in nautical miles, and variation comes from WMM-2025 where the boat is.*
 
 ### Explicitly out of MVP
 
 Charts. Weather overlay. Routing. Isochrones. Tides. Currents. AIS. Fleet tracking.
 Accounts. Cloud sync. Handicap calculation. Sail charts. Polar editing. Instrument
 connectivity. Course builder. Anything with a settings page.
+
+This is the MVP's list. `main` went past it with charts, weather and routing, and
+`parity/expedition` goes further on the owner's instruction
+([docs/08-parity](../08-parity/README.md)). Neither has accounts or cloud sync
+([ADR-0008](../06-decisions/0008-no-accounts.md)).
 
 ---
 

@@ -156,6 +156,10 @@ forecast is a precision claim that a forecast cannot support. Our
 | Free | ❌ | partly | ❌ | ✅ | ✅ |
 | Racing tactics | ❌ | ❌ | ✅ | ✅ | ✅ |
 
+*The "us, today" column describes `main`. `parity/expedition` also has ENC and raster charts, and
+weather layers this table calls removed. [RUNNING.md](../../RUNNING.md#whats-real-and-what-isnt)
+has the difference, checked 2026-11-03.*
+
 The two columns that matter: **we already have the racing tactics neither of them has,
 and they have the layer rendering we don't.** The rendering is the smaller gap.
 

@@ -32,7 +32,7 @@ follow the question numbers, so 0006 stays free for ORC.
 
 | # | Question | Where it stands | Record |
 |---|---|---|---|
-| 1 | PWA-only vs. Capacitor-wrapped native | PWA only | [ADR-0001](0001-pwa-only.md) |
+| 1 | PWA-only vs. Capacitor-wrapped native | PWA only so far. A plan recommends trying Capacitor, undecided | [ADR-0001](0001-pwa-only.md) |
 | 2 | React vs. Svelte | React | [ADR-0002](0002-react.md) |
 | 3 | Client-side vs. server-side routing as the default | On the device, in a worker, with no server option | [ADR-0003](0003-client-side-routing.md) |
 | 4 | Open-Meteo aggregator vs. own GRIB ingest for v1 weather | Open-Meteo, behind `WeatherField` | [ADR-0004](0004-open-meteo-behind-weatherfield.md) |
@@ -53,4 +53,6 @@ The ADRs are on `parity/expedition`, since this page is. All but ADR-0007 are ju
 | **Does `parity/expedition` merge into `main`?** | They stay apart. `main` is the phone-first product on GitHub Pages. The branch is on `origin` as a backup since 2026-11-03, with no pull request and no deploy. | [needs.md D9](../08-parity/needs.md#1-decisions-only-the-owner-can-make) |
 
 [needs.md](../08-parity/needs.md#1-decisions-only-the-owner-can-make) has the rest of the owner's
-decisions for the parity work, D1 to D9, and marks which are settled.
+decisions for the parity work, D1 to D9, and marks which are settled. The phone and hardware
+plan of 2026-11-03 (`docs/05-spec/phone-and-hardware.md`) adds its own, P1 to P7, also open.
+Its P5, whether to use Capacitor, would supersede ADR-0001 if the answer is yes.

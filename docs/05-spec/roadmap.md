@@ -2,14 +2,23 @@
 
 Phases, not dates. Each phase ends with something a sailor can use.
 
-> **Where we actually are:** the `MVP1` prototype has shipped most of phases 1–4
-> out of order — start-line math, tactics, the chart and weather layers, and the
-> isochrone router with its confidence band and departure-time sweep all run. What
-> is *not* done is the ORC polar question, a real pilot programme with a coach and
-> a fleet, ENC charting, and everything in phase 5. The per-phase checkboxes below
-> were never maintained; treat the phase order as the intended *sequence of
-> deliverables*, and [RUNNING.md](../../RUNNING.md#whats-real-and-what-isnt) as the
-> statement of what is real today.
+> **Where we actually are, checked 2026-11-03.** On `main`, the prototype has shipped most
+> of phases 1–4 out of order — start-line math, tactics, the chart and weather layers, and
+> the isochrone router with its confidence band and departure-time sweep all run. What
+> is *not* done on `main` is the ORC polar question, a real pilot programme with a coach and
+> a fleet, ENC charting, and everything in phase 5.
+>
+> `parity/expedition` is neither merged nor deployed, and it aims at Expedition parity rather
+> than at this sequence ([docs/08-parity](../08-parity/README.md)). On the way it has built
+> ENC and raster charts from phase 3; Signal K ingest, AIS with CPA/TCPA, race-tracking files
+> and handicap corrected time from phase 5; and ensemble routing, multi-mark routing that
+> carries the arrival tack, and a sail per leg from phase 6. Neither has polar learning from
+> tracks, a coach dashboard, a weather ingest pipeline, PMTiles or a native wrapper, and the
+> ORC question and a real pilot programme are open for both.
+>
+> The per-phase checkboxes below were never maintained; treat the phase order as the intended
+> *sequence of deliverables*, and [RUNNING.md](../../RUNNING.md#whats-real-and-what-isnt) as
+> the statement of what is real today.
 
 ---
 
@@ -132,6 +141,10 @@ Things worth doing once the foundation is real:
 Proprietary instrument protocols · radar · encrypted charts · sail-shape analysis ·
 ECDIS compliance · satcom management · America's Cup race management · settings parity
 with Expedition.
+
+`main` keeps this list. `parity/expedition` reverses it on the owner's instruction
+([docs/08-parity](../08-parity/README.md)), and whether that branch merges is
+[still open](../06-decisions/README.md#open-only-the-owner-can-settle-these).
 
 ---
 

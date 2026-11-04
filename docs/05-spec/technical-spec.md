@@ -1,7 +1,10 @@
 # Technical Specification
 
 **Status:** draft v0.1 · proposals, not decisions. Ratified choices become ADRs in
-[../06-decisions/](../06-decisions/).
+[../06-decisions/](../06-decisions/README.md), and seven have so far (2026-11-03). The code
+differs from this draft in places: one React app under `src/` rather than `packages/`, no
+server, no PMTiles or OPFS, and its own service worker rather than Workbox.
+[RUNNING.md](../../RUNNING.md#whats-real-and-what-isnt) says what is real.
 
 ---
 

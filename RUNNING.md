@@ -1,5 +1,10 @@
 # Running the prototype
 
+This copy of the file is on `parity/expedition`, and it covers two builds. `main` is the
+phone-first product, and GitHub Pages serves it. `parity/expedition` is this branch, which
+aims at Expedition's capabilities and is not deployed. Where they differ, the text says
+which is which.
+
 ```bash
 npm install
 npm run dev
@@ -15,16 +20,27 @@ npm run build   # typecheck + production build
 npm run preview # serve the production build, with the service worker active
 ```
 
+On this branch only:
+
+```bash
+node scripts/parity-score.ts --areas  # the parity score, from the matrix
+node bridge/bridge.ts --udp 10110     # the instrument bridge (bridge/README.md)
+```
+
 ## Deploying
 
 Pushes to `main` publish the app to GitHub Pages through
-`.github/workflows/deploy.yml`, once the tests have passed. It has to be switched on
-once, by the repository's owner: **Settings → Pages → Source: GitHub Actions**. The
-site is then at <https://artao05.github.io/newjourney/>. It is served over HTTPS,
-which is what a phone needs before it will hand over its GPS, so this is also the
-easiest way to try it on the water, for which [PILOT.md](PILOT.md) is the sailor's
-guide. Every push and pull request also runs
-`.github/workflows/ci.yml`: the tests, then the build and its typecheck.
+`.github/workflows/deploy.yml`, once the tests have passed. Pages is switched on in the
+repository's settings: **Settings → Pages → Source: GitHub Actions**. The site is at
+<https://artao05.github.io/newjourney/>. It is served over HTTPS, which is what a phone
+needs before it will hand over its GPS, so this is also the easiest way to try it on the
+water, for which [PILOT.md](PILOT.md) is the sailor's guide. Every push and pull request
+also runs `.github/workflows/ci.yml`: the tests, the routing kernel's time budgets on
+their own, then the build and its typecheck.
+
+The site is built from `main` only, and last deployed `5bad931` on 2026-09-28. Nothing on
+`parity/expedition` reaches it. That branch went to `origin` on 2026-11-03 as a backup,
+so CI runs on it, but it has no pull request and no deploy.
 
 ---
 
@@ -35,7 +51,7 @@ that sails the loaded polar properly: it tacks through the no-go zone, loses
 speed in turns, accelerates on a time constant, and drifts with a current. Every
 downstream calculation is exercised exactly as it would be at sea.
 
-The simulator is exposed as `window.__sim` in dev, so you can steer it from the
+While it runs, the simulator is exposed as `window.__sim`, so you can steer it from the
 console:
 
 ```js
@@ -60,6 +76,24 @@ __sim.setWind(240, 16)
    route, the isochrones, and the shaded band of positions within 10 minutes of
    optimal.
 
+That is the phone layout, on both builds. At 1,024 px and wider this branch shows the same
+screens as a nav station: a ribbon across the top, Start, Race or Setup in the panel on the
+left, Route, Weather or Strip in the middle, number boxes on the right, and a status bar
+along the foot.
+
+## Instruments without a boat (this branch)
+
+Turn off *Simulate a boat*, run these two, then **Setup → Instruments → CONNECT BRIDGE**:
+
+```bash
+node bridge/bridge.ts --udp 10110
+node bridge/replay.ts bridge/fixtures/casco-bay-synthetic.nmea --to 127.0.0.1:10110 --rate 7 --loop
+```
+
+The recording is made up, not taken from a boat. [bridge/README.md](bridge/README.md) has
+the rest: TCP, serial, NMEA 2000 gateways, sharing between copies of the app, and watched
+folders.
+
 ## The map-layer harness
 
 The GPU particle and scalar-field layers can be worked on in isolation, without
@@ -73,34 +107,116 @@ Dev-only — a stray query string in production cannot replace the app.
 
 ## What's real and what isn't
 
-**Real:** the geodesy, the wind triangle, the polar interpolation and target
+Checked against the code on 2026-11-03, at `5bad931` on `main` and `fbb40b4` on
+`parity/expedition`.
+
+| | `main` | `parity/expedition` (this branch) |
+|---|---|---|
+| Served from | GitHub Pages | Nowhere. On `origin` as a backup since 2026-11-03, with no pull request |
+| Tabs on a phone | Five: Start, Race, Weather, Route, Setup | Six: those and Strip |
+| At 1,024 px and wider | The same tabs | A nav station |
+| Palette | Dark only | Opens in a black-on-white day palette, with dusk, night and by the sun |
+| Charts | OpenStreetMap + OpenSeaMap raster | The same base map, plus S-57 ENC cells and BSB/KAP raster charts you open |
+| Instruments | Phone GPS | Also Signal K, Web Serial and the Node bridge |
+| Tide heights | NOAA's published predictions for Portland, fetched | The same, plus a harmonic engine on the device for any NOAA harmonic station |
+| Magnetic variation | One Portland value, carried forward by its yearly change | WMM-2025 where the boat, the pointer or the mark is |
+
+**Real on both:** the geodesy, the wind triangle, the polar interpolation and target
 derivation, the start-line math including turn and acceleration dynamics, the
 layline math including current correction, the isochrone router and its
 forward/backward sensitivity pass, the Open-Meteo ingest and the binary cube
-format, the GPU particle / scalar map layers, and the NOAA CO-OPS tidal current
-prediction with its slack times.
+format, the GPU particle / scalar map layers, the NOAA CO-OPS tidal current
+prediction with its slack times, and tide heights. `waterLevelAt`
+(`src/lib/tides/coops.ts`, since `3110784`) reads NOAA's predicted heights for Portland, and
+`src/lib/tides/datum.ts` uses them to correct the depth along a finished route. Those
+heights are fetched, so they need a connection.
 
-**Not real yet:**
+**Real on this branch only.** None of it has been on a boat. Each entry says how far it has
+been checked.
 
-- Charts are an OpenStreetMap + OpenSeaMap raster overlay, not rendered NOAA ENC.
+- **ENC charts.** Route → ENC opens S-57 cells: `.000` files with their updates, a folder,
+  or NOAA's zips. The app decodes them itself in a worker (`src/lib/charts/iso8211.ts`,
+  `s57.ts`), keeps the files in IndexedDB, and draws them in a simplified S-52 style
+  (`s52.ts`) that is not IHO's presentation library. No cells ship with the app, so you
+  bring your own. Checked on one real cell, NOAA's US5PWMDC (Portland Harbor): the records
+  read match the cell's own counts, its update applies, and its bounds match NOAA's
+  catalogue (`s57.real.test.ts`). It has not been compared with GDAL or with NOAA's own
+  rendering. See [ADR-0007](docs/06-decisions/0007-decode-enc-on-device.md).
+- **BSB/KAP raster charts.** Route → ENC → `OPEN RASTER`. Checked on one real chart, NOAA's
+  14983, a Minnesota lake, from the Internet Archive because NOAA withdrew its raster
+  charts: every reference point lands within a pixel, and the drawn tiles are within 2 m of
+  the projection (`bsb.real.test.ts`).
+- **Routing against the ENC.** With cells open, their land, water under the safety depth
+  and dangers go to the router as land, on by default, and a finished route is checked
+  against them (`src/lib/charts/encRouting.ts`). This covers only the cells you opened.
+- **Instruments.** Setup → Instruments takes Signal K over a WebSocket, a serial port through
+  Web Serial where the browser has it (Setup's note says Chrome or Edge on a computer), or the
+  bridge. Serial and the bridge feed decoders for NMEA 0183, NMEA 2000 gateway text and AIS.
+  Signal K gives the boat's own values only, so no AIS, and it has no sign-in token. All of
+  them feed a pipeline for damping, leeway, true wind and set and drift
+  (`src/lib/instruments/`). Only one source runs at a time, and any of them turns the phone's
+  GPS off. All of this is tested on streams written to the formats, mocked ports and a made-up
+  recording. No real instrument, gateway or Signal K server has been connected, and there is
+  no recording from a real boat
+  ([needs.md §5](docs/08-parity/needs.md#5-data-wed-need-to-get-hold-of)).
+- **The bridge.** `bridge/` is a Node program with no dependencies. It listens on UDP, TCP and
+  serial ports, relays between copies of the app, and watches folders. It only listens:
+  nothing goes to the boat. A phone cannot use it yet, because a connection from another
+  machine gets nothing without the key, and the app has no key to give. Tried on 2026-11-03:
+  the made-up recording over UDP came out of its WebSocket, and its own tests are in the suite.
+- **Tides on the device.** Weather → Tides works out the tide at the nearest NOAA station from
+  its harmonic constants (`src/lib/tides/harmonic.ts`). The station list and each station's
+  constants are fetched once and then kept, so the first look at a station needs a
+  connection. At Portland it stays within 3 mm RMS of NOAA's hourly predictions for 1–7 October
+  2026 (`harmonic.real.test.ts`). The Route depth advisory still uses NOAA's published heights,
+  and still needs a connection.
+- **Tidal streams.** Weather → Tidal streams, and Route → SETTINGS → *Route with NOAA's tidal
+  streams* (off by default), use NOAA's harmonic current stations (`src/lib/tides/currents.ts`).
+  They apply within a radius of a station. They are not a field, and subordinate stations are
+  not read.
+- **Magnetic variation.** From our own WMM-2025 (`src/lib/wmm.ts`), which matches NCEI's test
+  values (`wmm.test.ts`). It is taken where the boat is, or at the venue centre before a fix,
+  at the pointer, and at each mark.
+- **GRIB files.** GRIB 1 and 2, opened in Weather or dropped on the chart, decoded in a worker,
+  in simple, complex, PNG, JPEG 2000 and CCSDS packing (`src/lib/weather/`). Two whole global
+  GFS messages decode as NOAA's wgrib2 does (`grib2.real.test.ts`). These are files you bring,
+  kept only until the page reloads. The app does not download GRIB itself.
+- **The rest of the parity work,** row by row in
+  [parity-matrix.md](docs/08-parity/parity-matrix.md): number boxes on Expedition's channel
+  catalogue, a marks library and named routes, race notes, W/L and Olympic course wizards, the
+  timer sheet, the polar editor and roles, sail charts, logs with replay and a stripchart,
+  alarms, AIS targets with CPA and TCPA, race-tracking files, the boats database and fleet
+  routing, ensemble and grid routing, handicap, length units, and channels out over a
+  WebSocket. `node scripts/parity-score.ts` gave **36.5 %** on 2026-11-03: 360 of 985
+  applicable rows Done, 231 Partial and 394 Missing. This branch is not yet a replacement for
+  Expedition.
+
+**Not real yet, on both builds:**
+
+- The base map is an OpenStreetMap + OpenSeaMap raster overlay from their public tile servers,
+  with glyphs from `demotiles.maplibre.org`. On `main` that is the only chart: no rendered
+  NOAA ENC.
 - **The Depth layer is a bathymetric model, not a chart, and three separate things
   are wrong with it as a depth source.** It is GEBCO 2020 at 15 arc-seconds
-  (~450 m) for the Portland venue only (`src/data/bathymetry.ts`, 49 kB). (1) At
+  (~450 m) for the Portland venue only (`public/venue/portland-depth.bin`, 50 kB, read by
+  `src/data/bathymetry.ts`). (1) At
   NDBC buoy 44007 it reads 31 m where NOAA publishes 49 m. (2) Depths are below
   *mean sea level*, while charts are below MLLW — at Portland that is 1.51 m of
   water the tide can take away. (3) A 450 m cell cannot hold a ledge, a rock, a
   jetty or a dredged channel, and it calls the island at the venue centre 10 m of
   water. It is there to show you where the bay is shallow, and it is a display
   layer only: the router never consults it. GEBCO's own words are in the banner.
-- **Land avoidance is now ON for the Portland venue, and only there.** It uses a
-  111 m land raster built from OSM coastline (`src/data/landmask.ts`, 4.8 kB
-  gzipped), validated against coordinates that are water by definition — the NOAA
-  tide and current stations and both NDBC buoys. Outside that bounding box the
-  mask reports open water and avoidance does nothing. It is a *land* check, not a
+- **Land avoidance is ON for the Portland venue, and only there.** It uses a
+  111 m land raster built from OSM coastline (`public/venue/portland-land.bin`, 4.8 kB
+  gzipped, read by `src/data/landmask.ts`), validated against coordinates that are water by
+  definition — the NOAA tide and current stations and both NDBC buoys. Outside that bounding
+  box the mask reports open water and avoidance does nothing. It is a *land* check, not a
   depth check: it will happily route you through two feet of water over a mudflat,
-  and the Depth layer above is not wired into it.
+  and the Depth layer above is not wired into it. On this branch, ENC cells you open add their
+  own land and shallow water, inside those cells.
   The Route tab shows a `land pack` chip when the mask is loaded and a red chip
-  when it is not; every route carries a warning stating which applied.
+  when it is not, in the status bar on a nav station. Every route carries a warning
+  stating which applied.
 - **The Current view draws on two different sources, and they disagree.** The
   arrows and their speed labels come from Open-Meteo's global ocean model, which
   over Casco Bay runs 0.05–0.54 kn and reverses direction *zero* times in 48
@@ -110,31 +226,67 @@ prediction with its slack times.
   as an ocean model that does not resolve tidal reversal, and the chart states it
   is one station and not a field. They are not blended, on purpose. What is still
   missing is a tidal current *field* for the whole bay — that needs GoMOFS.
-- Tide *heights* are not implemented; only current. No on-device harmonic engine
-  yet either — the CO-OPS client fetches published predictions rather than summing
-  constituents, so it needs a connection.
 - **Every polar in the class library is generated from published dimensions, not
   measured.** They are labelled that way in `src/data/polars.ts`. Treat target
-  speeds as indicative, not as your boat.
+  speeds as indicative, not as your boat. No ORC data is bundled or fetched; Setup reads a
+  polar file you already have. On this branch you can also edit one.
 - Pinch zoom is disabled (`user-scalable=no`) for an app-like feel. That is a
   deliberate trade against WCAG 1.4.4, and worth revisiting for anyone who needs
   larger text than the layout offers.
-- No account, sync, fleet sharing, or Signal K ingest.
+- No account and no sync ([ADR-0008](docs/06-decisions/0008-no-accounts.md)). Everything is on
+  the device. `main` also has no fleet sharing and no Signal K ingest.
+- No result from a phone on the water is recorded in this repo.
 
-See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next, and
+**Not real yet, on this branch:**
+
+- **Nothing transmits to instruments.** Worklist M19 is not built, though the owner has decided
+  to build it, off by default. *Channels out* (Setup, off by default) sends to a WebSocket you
+  name, not to a bus.
+- **No backend.** Worklist M20 is not built. So there is no GRIB download from NOMADS or ECMWF,
+  no NDBC buoys or METARs on the chart (NOAA's CO-OPS stations do work), and no sharing over the
+  internet. Sharing runs through the bridge, on the machine or over linked bridges.
+- **Land avoidance outside Portland** waits on an owner answer about downloading OSM's land
+  polygons (worklist 20.7).
+- **Licensed and hardware rows.** S-63, C-MAP and Navionics charts, radar and the vendor
+  protocols are not built, and [needs.md](docs/08-parity/needs.md) says what each would take.
+- **Nothing has been compared with Expedition itself** (needs.md D7).
+- **It is not ready for a phone,** and no test enforces any of this. First-load JS is about
+  twice `main`'s (see below). Route's command row has gained `FLEET` and `SETTINGS` and does not
+  wrap or scroll, so up to at least 412 px wide `RESULTS` is cut off and `SETTINGS` cannot be
+  reached, which puts Route's settings out of reach, tidal streams among them. Start's timer
+  row has gained `LINE` and `TIMER`, so below about 394 px `TIMER` runs off the right edge and
+  the page scrolls sideways. At 390 px and narrower the Weather timeline's fastest speed chips
+  are cut off too. Warnings can push the tab bar below the screen on Start, though the preview
+  browser forces two of them by refusing GPS and wake lock. All measured in emulated viewports
+  of 360 to 412 px on 2026-11-04.
+
+See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next on `main`,
+[docs/08-parity/worklist.md](docs/08-parity/worklist.md) for this branch, and
 [docs/07-map-layers/](docs/07-map-layers/) for the layer engine design.
 
 ## Verified state
 
-As of 2026-09-26: **963 tests passing** across 43 files, `tsc --noEmit` clean,
-`npm run build` clean, all five tabs rendering — there is a test that mounts each of
-them, so that last claim is checked rather than asserted. First load is 96 KB of
-gzipped JS plus 3 KB of CSS; the map chunk (~286 KB gzipped, mostly MapLibre) loads
-only when you open a chart tab.
+Measured by hand on 2026-11-03, on the two tips:
+
+| | `main` (`5bad931`) | `parity/expedition` (`fbb40b4`) |
+|---|---|---|
+| Tests | 1,048 in 48 files | 1,858 in 149 files |
+| `npx tsc -b --noEmit`, `npm run build` | clean | clean |
+| CI | green at this commit, 2026-09-28 | green at this commit, 2026-11-03 |
+| First load, gzipped | 100 KB of JS, 3 KB of CSS | 215 KB of JS, 5 KB of CSS |
+| Map chunk, gzipped, mostly MapLibre | 286 KB of JS, 10 KB of CSS | 289 KB of JS, 10 KB of CSS |
+| Route and Weather screens, gzipped | 11 KB and 20 KB | 41 KB and 36 KB |
+
+Every test passes. Two in `src/pwa.test.ts` read `dist/` and are skipped without it, as they
+are in CI, where the tests run before the build. So a fresh clone reports 1,046 passed and 2
+skipped on `main`, and 1,856 and 2 on this branch. Each tab is mounted by a test in
+`src/screens/screens.test.tsx`. The map chunk and the two screens load only when you open a
+chart tab. This branch's production build, visited once, reloaded with its server stopped
+(desktop browser, 2026-11-03), though not yet in airplane mode on a phone.
 
 These figures are written by hand, and hand-written figures in this repo have drifted
-before (this line said 748 when the suite had 956). CI now runs the suite on every
-push, so its result is the live figure, and this paragraph is only a snapshot.
+before: this line said 748 when the suite had 956, and 963 when `main` had 1,048. CI runs the
+suite on every push, so its result is the live figure, and this paragraph is only a snapshot.
 
 **Not for navigation.** Prototype. Advisory only. Nothing here replaces official
 charts, official tide tables, or your own judgment.

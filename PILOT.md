@@ -6,6 +6,10 @@ and **not for navigation**: nothing in it replaces your charts, the tide tables 
 own judgment. What we want from a pilot is to know whether it helps on a real start
 line, and where it gets in the way.
 
+This guide is for the site below, which is built from `main`. The `parity/expedition`
+branch is not deployed, so nothing it adds is on the site. The last section lists what
+differs if you run that branch yourself.
+
 ## 1. Install, at home on Wi-Fi (5 minutes)
 
 1. Open **<https://artao05.github.io/newjourney/>** on your phone.
@@ -20,7 +24,9 @@ line, and where it gets in the way.
    - Check **bow to GPS**: the distance from your bow to where the phone will ride,
      for example about 3 m on a J/70.
 5. Also in Setup, under **Wind**, choose **Magnetic north** if you will read the wind
-   off a compass. Variation at Portland is 14.5° W, and the app converts it for you.
+   off a compass, and the app converts it for you. It uses one figure wherever you are:
+   Portland's variation, 14.5° W (NOAA, September 2026), carried forward by its yearly
+   change.
 
 That first online visit stores everything the app needs to open without signal.
 
@@ -90,5 +96,24 @@ the phone model.
 - **GPS:** a phone's fix is good to about 3–5 m. On a small boat that is most of a
   boat length, and the app shows it.
 - **Portland's data:** the variation, the land mask and the depth layer are Portland's.
-  The Start tab works anywhere, but farther along the coast the variation differs by a
-  degree or more, so check your chart.
+  The Start tab works anywhere, but the variation changes along the coast, from about
+  14.2° W at Kittery to 15.6° W at Eastport (World Magnetic Model, November 2026), so check
+  your chart.
+
+## If you run `parity/expedition` instead
+
+This branch is not on the site above. [RUNNING.md](RUNNING.md) says how to run it and what
+in it is real. A sailor would notice these differences (checked 2026-11-03):
+
+- **Variation** comes from the World Magnetic Model where the boat is, not from one Portland
+  figure, so the coast check above does not apply. The land mask and the depth layer are
+  still Portland's.
+- **It looks different.** It opens in a black-on-white day palette (☀ in the top bar, ☾ for
+  night), and there is a sixth tab, Strip.
+- **It is heavier.** First-load JS is about 215 KB gzipped, against 100 KB on the site, so
+  the first visit on Wi-Fi matters more.
+- **On a phone,** the Route tab's `SETTINGS` button can't be reached and `RESULTS` is cut off,
+  on screens up to at least 412 px wide. Below about 394 px, the Start tab's timer row runs off
+  the right edge, the `TIMER` button is cut off, and the page scrolls sideways (measured in an
+  emulated viewport, 4 November 2026).
+- **It can read instruments** in Setup → Instruments. None of that has been tried on a boat.
