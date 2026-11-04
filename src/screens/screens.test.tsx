@@ -194,6 +194,65 @@ function populatedStore() {
   s.setGunTime(Date.now() + 180_000)
 }
 
+const HOUR = 3_600_000
+
+/** Uniform over the venue, blowing FROM `fromDeg[k]` in hour k. */
+function windCube(t0: number, fromDeg: number[]): WeatherCube {
+  const nx = 3
+  const ny = 3
+  const nt = fromDeg.length
+  const u = new Float32Array(nt * ny * nx)
+  const v = new Float32Array(nt * ny * nx)
+  fromDeg.forEach((d, k) => {
+    const w = uvFromWind(12, d)
+    u.fill(w.u, k * ny * nx, (k + 1) * ny * nx)
+    v.fill(w.v, k * ny * nx, (k + 1) * ny * nx)
+  })
+  const b = PILOT_VENUE.bbox
+  return {
+    model: 'test',
+    run: 'test-run',
+    bbox: b,
+    nx,
+    ny,
+    dx: (b.east - b.west) / (nx - 1),
+    dy: (b.north - b.south) / (ny - 1),
+    t0,
+    dtMs: HOUR,
+    nt,
+    params: ['u10', 'v10'],
+    data: { u10: u, v10: v },
+  }
+}
+
+function routeLeavingAt(t: number): RouteResult {
+  const at = (dt: number, dLat: number) => ({
+    t: t + dt,
+    position: { lat: PILOT_VENUE.waterStart.lat + dLat, lon: PILOT_VENUE.waterStart.lon },
+    twd: 90,
+    tws: 12,
+    twa: 90,
+    bsp: 6,
+    heading: 0,
+    isBeating: false,
+    tack: 'starboard' as const,
+    currentSet: null,
+    currentDrift: null,
+    distanceNm: 0.6,
+  })
+  return {
+    ok: true,
+    legs: [at(0, 0), at(HOUR / 10, 0.01)],
+    etaMs: t + HOUR / 10,
+    elapsedS: 360,
+    directTimeS: 360,
+    isochrones: [],
+    reverseIsochrones: [],
+    sensitivity: null,
+    diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: true, warnings: [] },
+  }
+}
+
 /*
  * jsdom has no ResizeObserver and `StartCanvas` observes its parent to size the
  * canvas. Stubbed rather than worked around: the app is right to use it, and a
@@ -379,6 +438,72 @@ describe("the Route row's narrow-phone rule stays on the Route row", () => {
   })
 })
 
+describe("Route's notes stay readable over a drawn route", () => {
+  /*
+   * The legend and MapLibre's attribution are anchored to the chart's bottom edge, and
+   * the attribution has a z-index of its own. Anything in the chart area's foot sits
+   * under them, so the notes have to live outside that area. jsdom has no layout, so
+   * that is what can be pinned; the measured geometry is in the commit.
+   */
+  const FAILED = 'marine data unavailable (Open-Meteo request failed: 503); wind only'
+
+  async function routeDrawnWithANoteAndAnError() {
+    stubForecast.cube = { ...windCube(Date.now(), [0, 0, 0]), notes: [FAILED] } as WeatherCube
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => screen.getByRole('button', { name: 'FORECAST' }).click())
+    const note = await screen.findByText(FAILED)
+    act(() => {
+      useStore.getState().setRoute(routeLeavingAt(Date.now()))
+      useStore.getState().setRouteError('No route found')
+    })
+    return { note, error: screen.getByText('No route found') }
+  }
+
+  it('keeps the legend in the chart and the notes out of it', async () => {
+    const { note, error } = await routeDrawnWithANoteAndAnError()
+    const chart = document.querySelector('.chart-area')!
+    expect(chart.contains(document.querySelector('.legend'))).toBe(true)
+    expect(chart.contains(note)).toBe(false)
+    expect(chart.contains(error)).toBe(false)
+  })
+
+  it('puts them between the chart and the action row', async () => {
+    const { note, error } = await routeDrawnWithANoteAndAnError()
+    const strip = note.parentElement!
+    // First in the strip, so a long list cannot scroll the thing that just went wrong
+    // out of sight.
+    expect(strip.firstElementChild).toBe(error)
+    expect(strip.previousElementSibling?.classList.contains('chart-area')).toBe(true)
+    expect(strip.nextElementSibling).toBe(screen.getByRole('button', { name: 'ROUTE' }).closest('.actions'))
+  })
+
+  it('lets a long list scroll rather than take the whole chart', async () => {
+    const style = document.createElement('style')
+    style.textContent = readFileSync('src/styles.css', 'utf8')
+    document.head.appendChild(style)
+    try {
+      const { note } = await routeDrawnWithANoteAndAnError()
+      const css = getComputedStyle(note.parentElement!)
+      expect(css.overflowY).toBe('auto')
+      expect(css.maxHeight).toMatch(/%$/)
+    } finally {
+      style.remove()
+    }
+  })
+
+  it('takes no room from the chart when there is nothing to say', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    expect(document.querySelector('.route-notes')).toBeNull()
+  })
+
+  it('says so there when no polar is loaded', () => {
+    render(<RouteScreen />)
+    expect(screen.getByText(/No polar loaded/).parentElement?.className).toBe('route-notes')
+  })
+})
+
 describe('the Weather screen states its provenance', () => {
   it('offers the three layers and no wave-height chip', () => {
     render(<WeatherScreen />)
@@ -449,65 +574,6 @@ describe('the Route chart draws the wind the route sails in', () => {
    * They must follow the drawn route's departure, and the clock when there is no
    * route — not whichever hour the cube happens to begin with.
    */
-  const HOUR = 3_600_000
-
-  /** Uniform over the venue, blowing FROM `fromDeg[k]` in hour k. */
-  function windCube(t0: number, fromDeg: number[]): WeatherCube {
-    const nx = 3
-    const ny = 3
-    const nt = fromDeg.length
-    const u = new Float32Array(nt * ny * nx)
-    const v = new Float32Array(nt * ny * nx)
-    fromDeg.forEach((d, k) => {
-      const w = uvFromWind(12, d)
-      u.fill(w.u, k * ny * nx, (k + 1) * ny * nx)
-      v.fill(w.v, k * ny * nx, (k + 1) * ny * nx)
-    })
-    const b = PILOT_VENUE.bbox
-    return {
-      model: 'test',
-      run: 'test-run',
-      bbox: b,
-      nx,
-      ny,
-      dx: (b.east - b.west) / (nx - 1),
-      dy: (b.north - b.south) / (ny - 1),
-      t0,
-      dtMs: HOUR,
-      nt,
-      params: ['u10', 'v10'],
-      data: { u10: u, v10: v },
-    }
-  }
-
-  function routeLeavingAt(t: number): RouteResult {
-    const at = (dt: number, dLat: number) => ({
-      t: t + dt,
-      position: { lat: PILOT_VENUE.waterStart.lat + dLat, lon: PILOT_VENUE.waterStart.lon },
-      twd: 90,
-      tws: 12,
-      twa: 90,
-      bsp: 6,
-      heading: 0,
-      isBeating: false,
-      tack: 'starboard' as const,
-      currentSet: null,
-      currentDrift: null,
-      distanceNm: 0.6,
-    })
-    return {
-      ok: true,
-      legs: [at(0, 0), at(HOUR / 10, 0.01)],
-      etaMs: t + HOUR / 10,
-      elapsedS: 360,
-      directTimeS: 360,
-      isochrones: [],
-      reverseIsochrones: [],
-      sensitivity: null,
-      diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: true, warnings: [] },
-    }
-  }
-
   it('follows the departure of the drawn route, and the clock without one', async () => {
     // Northerly for two hours, then easterly. Now sits in the northerly part, a
     // departure two hours on in the easterly.

@@ -623,36 +623,49 @@ export function RouteScreen() {
             )}
           </div>
 
-          <div>
-            {forecastNotes.map((note) => (
-              <div className="warnbox" key={note}>
-                {note}
+          {route?.ok && route.legs.length > 0 && (
+            <div className="legend">
+              <div>
+                <span className="swatch" style={{ background: '#ff3ea5' }} />
+                <b>optimal route</b>
               </div>
-            ))}
-            {routeError && <div className="errbox">{routeError}</div>}
-            {route?.ok && route.legs.length > 0 && (
-              <div className="legend">
-                <div>
-                  <span className="swatch" style={{ background: '#ff3ea5' }} />
-                  <b>optimal route</b>
-                </div>
-                <div>
-                  <span className="swatch" style={{ background: '#ff9ad2' }} />
-                  beating (implicit tacks)
-                </div>
-                <div>
-                  <span className="swatch" style={{ background: 'rgba(79,195,247,.55)' }} />
-                  isochrones
-                </div>
-                <div>
-                  <span className="swatch" style={{ background: 'rgba(255,213,74,.35)' }} />
-                  within 10 min of optimal
-                </div>
+              <div>
+                <span className="swatch" style={{ background: '#ff9ad2' }} />
+                beating (implicit tacks)
               </div>
-            )}
-          </div>
+              <div>
+                <span className="swatch" style={{ background: 'rgba(79,195,247,.55)' }} />
+                isochrones
+              </div>
+              <div>
+                <span className="swatch" style={{ background: 'rgba(255,213,74,.35)' }} />
+                within 10 min of optimal
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/*
+        Beside the chart, not over it. The legend and the map's attribution are anchored
+        to the chart's bottom edge, and at the foot of the overlay they sat on top of
+        these, including a failed forecast request. The chart gives up the height.
+      */}
+      {(!polar || forecastNotes.length > 0 || routeError) && (
+        <div className="route-notes">
+          {routeError && <div className="errbox">{routeError}</div>}
+          {!polar && (
+            <div className="warnbox">
+              No polar loaded — pick a boat class in <b>Setup</b> before routing.
+            </div>
+          )}
+          {forecastNotes.map((note) => (
+            <div className="warnbox" key={note}>
+              {note}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="actions actions--tight" style={{ position: 'relative', zIndex: 2 }}>
         <button className="btn btn--sm" onClick={loadWeather} disabled={!state || !!busy}>
@@ -677,12 +690,6 @@ export function RouteScreen() {
           RESULTS
         </button>
       </div>
-
-      {!polar && (
-        <div className="warnbox" style={{ position: 'absolute', left: 12, right: 12, bottom: 74, zIndex: 3 }}>
-          No polar loaded — pick a boat class in <b>Setup</b> before routing.
-        </div>
-      )}
 
       {showResults && route?.ok && (
         <ResultsSheet

@@ -97,6 +97,18 @@ button {
   position: relative;
 }
 
+/* The chart gives up the height; past the limit a long list scrolls instead. */
+.route-notes {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 40%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px var(--pad) 0;
+  background: var(--bg-sunk);
+  border-top: 1px solid var(--line);
+}
+
 .tabbar {
   display: grid;
   grid-auto-flow: column;
