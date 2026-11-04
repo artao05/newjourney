@@ -778,6 +778,12 @@ button {
   font-weight: 600;
 }
 
+/* The same box, in the flow of what it sits in rather than floating over a chart. */
+.legend--inline {
+  position: static;
+  max-width: none;
+}
+
 .swatch {
   display: inline-block;
   width: 11px;
@@ -804,11 +810,35 @@ button {
 }
 
 .sheet__grip {
+  flex-shrink: 0;
   width: 38px;
   height: 4px;
   border-radius: 2px;
   background: var(--line-bright);
   margin: 4px auto 12px;
+}
+
+/*
+ * A sheet far longer than the screen. Only its middle scrolls, so CLOSE and the other
+ * buttons stay on the bottom edge, in reach of a thumb, however far down the reader is.
+ */
+.sheet--pinned {
+  display: flex;
+  flex-direction: column;
+  overflow-y: hidden;
+}
+
+.sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sheet__foot {
+  background: none;
+  border-top: 1px solid var(--line);
+  padding: 10px 0 0;
 }
 
 .rows {

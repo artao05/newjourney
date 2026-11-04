@@ -23,6 +23,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
+import type { DepartureSweep } from '@/lib/routing/departure'
 import type { RouteResult, WeatherCube } from '@/lib/types'
 
 // ------------------------------------------------------------- maplibre stub
@@ -121,6 +122,16 @@ vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}))
 // network — unless a test hands it a cube to return instead.
 const { stubForecast } = vi.hoisted(() => ({
   stubForecast: { cube: null as WeatherCube | null },
+}))
+// The router runs in a worker, which jsdom does not have. Only WHEN's answer is needed.
+const { stubSweep } = vi.hoisted(() => ({
+  stubSweep: { value: null as DepartureSweep | null },
+}))
+vi.mock('@/lib/routing/client', () => ({
+  RoutingClient: class {
+    sweep = () => Promise.resolve(stubSweep.value)
+    dispose() {}
+  },
 }))
 vi.mock('@/lib/weather/openmeteo', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/lib/weather/openmeteo')>()
@@ -269,6 +280,7 @@ beforeEach(() => {
   ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = NoopResizeObserver
   mapInstances.length = 0
   stubForecast.cube = null
+  stubSweep.value = null
   // No forecast fetches from a screen test.
   globalThis.fetch = (() =>
     Promise.reject(new Error('network disabled in screen tests'))) as unknown as typeof fetch
@@ -501,6 +513,82 @@ describe("Route's notes stay readable over a drawn route", () => {
   it('says so there when no polar is loaded', () => {
     render(<RouteScreen />)
     expect(screen.getByText(/No polar loaded/).parentElement?.className).toBe('route-notes')
+  })
+})
+
+describe('a long sheet closes without scrolling', () => {
+  /*
+   * CLOSE sat at the end of the scrolling sheet, about 1,340 px below the sheet's
+   * bottom edge on a 375 x 812 phone. jsdom has no layout, so this pins what keeps it in
+   * view: the sheet does not scroll, only its body does, and the buttons are outside it.
+   * The measured positions are in the commit.
+   */
+  const button = (name: string | RegExp) => screen.getByRole('button', { name })
+  const styles = document.createElement('style')
+
+  beforeEach(() => {
+    styles.textContent = readFileSync('src/styles.css', 'utf8')
+    document.head.appendChild(styles)
+  })
+
+  afterEach(() => styles.remove())
+
+  function expectPinned(contents: Element | null) {
+    const close = button('CLOSE')
+    const sheet = close.closest('.sheet')!
+    const body = sheet.querySelector('.sheet__body')!
+    expect(contents && body.contains(contents), 'the long part scrolls').toBe(true)
+    expect(body.contains(close), 'CLOSE does not').toBe(false)
+    expect(getComputedStyle(body).overflowY).toBe('auto')
+    expect(getComputedStyle(body).minHeight).toBe('0px')
+    expect(getComputedStyle(sheet).overflowY).toBe('hidden')
+    expect(getComputedStyle(close.closest('.actions')!).flexShrink).toBe('0')
+
+    act(() => close.click())
+    expect(document.querySelector('.sheet')).toBeNull()
+  }
+
+  it('the results sheet', () => {
+    populatedStore()
+    act(() => useStore.getState().setRoute(routeLeavingAt(Date.now())))
+    render(<RouteScreen />)
+    act(() => button('RESULTS').click())
+    expect(button('GPX').closest('.sheet__body')).toBeNull()
+    expect(button('CSV').closest('.sheet__body')).toBeNull()
+    expectPinned(document.querySelector('.sheet table.results'))
+  })
+
+  it('the departure sheet, which is long enough to need the same', async () => {
+    const t = Date.now()
+    const option = (departAt: number, costS: number) => ({
+      departAt,
+      elapsedS: 3600 + costS,
+      etaMs: departAt + (3600 + costS) * 1000,
+      costS,
+      timeStepS: 60,
+    })
+    const options = [option(t, 0), option(t + HOUR, 600)]
+    stubSweep.value = {
+      options,
+      best: options[0],
+      spreadS: 600,
+      stepFloorS: 60,
+      attempted: 2,
+      succeeded: 2,
+      warnings: [],
+    }
+    stubForecast.cube = windCube(t, [0, 0, 0, 0])
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => button('WHEN').click())
+    const routeFrom = await screen.findByRole('button', { name: /^ROUTE FROM/ })
+    expect(routeFrom.closest('.sheet__body')).toBeNull()
+    // Advice that matters has the legend's look, and must not have its position:
+    // absolute, or it floats over the table and the pinned buttons.
+    const advice = screen.getByText(/^Departure dominates/)
+    expect(getComputedStyle(advice).position).toBe('static')
+    expect(advice.closest('.sheet__body')).not.toBeNull()
+    expectPinned(document.querySelector('.sheet table.results'))
   })
 })
 
