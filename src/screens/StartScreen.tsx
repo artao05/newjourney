@@ -15,7 +15,7 @@ import { usePolarLattices } from '@/hooks/usePolars'
 import { applyWhatIfCurrent, applyWhatIfWind, describeWhatIf, whatIfActive } from '@/lib/whatif'
 import { LineSheet } from '@/components/LineSheet'
 import { TimerSheet } from '@/components/TimerSheet'
-import { primeAudio } from '@/lib/beep'
+import { primeAudio, soundState } from '@/lib/beep'
 import type { StartNumbers } from '@/lib/types'
 import { fmtLength, lengthUnit, toLength } from '@/lib/units'
 
@@ -108,6 +108,7 @@ export function StartScreen() {
   const holdWind = useStore((s) => s.holdWind)
   const holdCurrent = useStore((s) => s.holdCurrent)
   const setReleaseAtGun = useStore((s) => s.setReleaseAtGun)
+  const timerSound = useStore((s) => s.timer.sound)
   const numbers: StartNumbers = useMemo(() => {
     if (!state) return EMPTY_START_NUMBERS
     return computeStart({
@@ -203,8 +204,16 @@ export function StartScreen() {
    */
   const showBurn = !numbers.ocs && burn != null && !timerStale
 
+  // Only while a countdown is running: that is when a silent timer costs something.
+  const sound = gun != null && now < gun && timerSound ? soundState() : 'ready'
+
   return (
-    <>
+    <div className="start">
+      {/*
+        What to read scrolls when warnings crowd a short phone, and holding the wind with it.
+        A sailor must never have to scroll to ping the line or start the timer.
+      */}
+      <div className="start__read">
       {whatIfActive(whatIf) && (
         <div className="warnbox" style={{ margin: 'var(--pad)', marginBottom: 0 }}>
           <b>What-if active</b> — {describeWhatIf(whatIf)}. The start numbers are not the real ones.
@@ -276,6 +285,21 @@ export function StartScreen() {
         <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
           The screen may sleep: this browser will not keep it awake. Set the phone&apos;s
           auto-lock to Never before the sequence starts.
+        </div>
+      )}
+
+      {sound === 'blocked' && (
+        <div className="warnbox wind-needed" style={{ margin: '10px var(--pad) 0' }}>
+          <span>The countdown is silent: this browser has stopped its sound.</span>
+          <button className="btn btn--primary btn--sm" onClick={primeAudio}>
+            TURN SOUND ON
+          </button>
+        </div>
+      )}
+
+      {sound === 'unavailable' && (
+        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+          This browser cannot sound the countdown. Watch the clock.
         </div>
       )}
 
@@ -378,7 +402,7 @@ export function StartScreen() {
         />
       </div>
 
-            <div className="actions" style={{ paddingTop: 0 }}>
+      <div className="actions actions--tight">
         <button
           className={'btn btn--sm ' + (hold.wind ? 'btn--primary' : 'btn--ghost')}
           aria-pressed={hold.wind}
@@ -407,7 +431,9 @@ export function StartScreen() {
           release at gun
         </label>
       </div>
-<div className="actions">
+      </div>
+
+      <div className="actions actions--tight">
         <button className="btn btn--port" onClick={() => ping('port')} disabled={!state}>
           PING PIN
         </button>
@@ -416,7 +442,7 @@ export function StartScreen() {
         </button>
       </div>
 
-      <div className="actions" style={{ paddingTop: 0, borderTop: 'none' }}>
+      <div className="actions actions--tight" style={{ paddingTop: 0, borderTop: 'none' }}>
         {gun == null ? (
           ROLL_OPTIONS.map((m) => (
             <button key={m} className="btn btn--sm" onClick={() => startTimer(m)}>
@@ -449,7 +475,7 @@ export function StartScreen() {
       )}
       {showLine && <LineSheet onClose={() => setShowLine(false)} />}
       {showTimer && <TimerSheet onClose={() => setShowTimer(false)} />}
-    </>
+    </div>
   )
 }
 

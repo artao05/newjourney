@@ -16,7 +16,8 @@ GPS on a phone either deploy it or use a tunnel.
 
 ```bash
 npm test        # unit tests (vitest)
-npm run build   # typecheck + production build
+npm run build   # typecheck + production build + first-download budget
+npm run test:phone  # the built app at phone sizes, in your Chrome
 npm run preview # serve the production build, with the service worker active
 ```
 
@@ -250,15 +251,10 @@ been checked.
 - **Licensed and hardware rows.** S-63, C-MAP and Navionics charts, radar and the vendor
   protocols are not built, and [needs.md](docs/08-parity/needs.md) says what each would take.
 - **Nothing has been compared with Expedition itself** (needs.md D7).
-- **It is not ready for a phone,** and no test enforces any of this. First-load JS is about
-  twice `main`'s (see below). Route's command row has gained `FLEET` and `SETTINGS` and does not
-  wrap or scroll, so up to at least 412 px wide `RESULTS` is cut off and `SETTINGS` cannot be
-  reached, which puts Route's settings out of reach, tidal streams among them. Start's timer
-  row has gained `LINE` and `TIMER`, so below about 394 px `TIMER` runs off the right edge and
-  the page scrolls sideways. At 390 px and narrower the Weather timeline's fastest speed chips
-  are cut off too. Warnings can push the tab bar below the screen on Start, though the preview
-  browser forces two of them by refusing GPS and wake lock. All measured in emulated viewports
-  of 360 to 412 px on 2026-11-04.
+- **It has not been tried on a real phone.** The layout now holds in emulated viewports of 360
+  to 412 px, in Chrome, and CI enforces that (`npm run test:phone`). That check can't see what
+  only a phone shows: iOS Safari, GPS, sound, heat or a wet thumb. Until
+  [PILOT.md](PILOT.md) §2 has passed on a real iPhone and Android phone, treat it as unproven.
 
 See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next on `main`,
 [docs/08-parity/worklist.md](docs/08-parity/worklist.md) for this branch, and
@@ -273,7 +269,7 @@ Measured by hand on 2026-11-03, on the two tips:
 | Tests | 1,048 in 48 files | 1,858 in 149 files |
 | `npx tsc -b --noEmit`, `npm run build` | clean | clean |
 | CI | green at this commit, 2026-09-28 | green at this commit, 2026-11-03 |
-| First load, gzipped | 100 KB of JS, 3 KB of CSS | 215 KB of JS, 5 KB of CSS |
+| First load, gzipped | 100 KB of JS, 3 KB of CSS | 215 KB of JS, 5 KB of CSS (111 KB of JS with phone phase 0, 2026-11-04) |
 | Map chunk, gzipped, mostly MapLibre | 286 KB of JS, 10 KB of CSS | 289 KB of JS, 10 KB of CSS |
 | Route and Weather screens, gzipped | 11 KB and 20 KB | 41 KB and 36 KB |
 

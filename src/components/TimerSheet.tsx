@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { useStore } from '@/state/store'
 import { parseClockTime, parseCountdown } from '@/lib/timer'
-import { primeAudio } from '@/lib/beep'
+import { beep, primeAudio } from '@/lib/beep'
 
 export function TimerSheet({ onClose }: { onClose: () => void }) {
   const setGunTime = useStore((s) => s.setGunTime)
@@ -78,6 +78,16 @@ export function TimerSheet({ onClose }: { onClose: () => void }) {
           }} />
         <span>Beep on the minutes, at 30 s and for the last ten seconds</span>
       </label>
+      <button className="btn btn--sm btn--ghost" onClick={() => {
+        primeAudio()
+        // After a tick, so a context this tap has just woken is running for it.
+        window.setTimeout(() => beep('long'), 50)
+      }}>
+        TEST SOUND
+      </button>
+      <p className="note">
+        Try it before the start. Silent mode or low volume can mute it, and the app cannot tell.
+      </p>
 
       <div className="actions">
         <button className="btn btn--sm" onClick={onClose}>DONE</button>

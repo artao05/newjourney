@@ -2570,6 +2570,36 @@ describe('the start timer sheet', () => {
     expect(new Date(useStore.getState().course.startLine.gunTime!).getSeconds()).toBe(59)
   })
 
+  it('says so while a countdown runs and cannot sound, and not with the sound turned off', () => {
+    populatedStore()
+    useStore.getState().setTimer({ sound: true })
+    useStore.getState().setGunTime(null)
+    const view = render(<StartScreen />)
+    expect(document.body.textContent).not.toContain('cannot sound the countdown')
+    act(() => useStore.getState().setGunTime(Date.now() + 300_000))
+    // jsdom has no Web Audio, which is the case of a browser that cannot do it at all.
+    expect(document.body.textContent).toContain('cannot sound the countdown')
+    act(() => useStore.getState().setTimer({ sound: false }))
+    expect(document.body.textContent).not.toContain('cannot sound the countdown')
+    view.unmount()
+    useStore.getState().setTimer({ sound: true })
+  })
+
+  it('asks for a tap while the browser is holding the sound back', () => {
+    const resume = vi.fn(async () => {})
+    vi.stubGlobal('AudioContext', class {
+      state = 'suspended'
+      resume = resume
+    })
+    populatedStore()
+    useStore.getState().setTimer({ sound: true })
+    useStore.getState().setGunTime(Date.now() + 300_000)
+    render(<StartScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'TURN SOUND ON' }))
+    expect(resume).toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
   it('keeps the class-start roll and the sound setting', () => {
     populatedStore()
     render(<StartScreen />)

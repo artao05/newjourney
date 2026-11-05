@@ -6,20 +6,25 @@
 import { useEffect } from 'react'
 import { useStore } from '@/state/store'
 import { fileKind, ShareLink, type WatchedFile } from '@/lib/share'
-import { openWeatherFiles } from '@/state/weatherFiles'
-import { importTrackingFiles } from '@/state/tracking'
-import { installChartFiles, openRasterFile } from '@/state/charts'
 
-/** Open one file as its kind says; say what became of it. */
+/**
+ * Open one file as its kind says; say what became of it.
+ *
+ * The decoders load here, when a file lands. This hook runs on every phone, few of
+ * which will ever watch a folder, and importing them above put the GRIB, chart and
+ * tracking code in the first download.
+ */
 export async function openWatched(f: WatchedFile): Promise<{ kind: string; ok: boolean; detail: string }> {
   const kind = f.kind === 'auto' ? fileKind(f.name) : f.kind
   const file = () => new File([f.bytes.slice()], f.name, { lastModified: f.mtime })
   try {
     if (kind === 'grib') {
+      const { openWeatherFiles } = await import('@/state/weatherFiles')
       const [w] = await openWeatherFiles([file()])
       return { kind, ok: !w?.error, detail: w?.error ?? `${w?.catalogue.length ?? 0} fields` }
     }
     if (kind === 'chart') {
+      const { installChartFiles, openRasterFile } = await import('@/state/charts')
       if (/\.kap$/i.test(f.name)) {
         const r = await openRasterFile(f.name, f.bytes)
         return { kind, ok: true, detail: `${r.name}, 1:${r.scale.toLocaleString('en-US')}` }
@@ -28,6 +33,7 @@ export async function openWatched(f: WatchedFile): Promise<{ kind: string; ok: b
       return { kind, ok: r.errors.length === 0, detail: r.errors[0] ?? `${r.installed.length} cell${r.installed.length === 1 ? '' : 's'}` }
     }
     if (kind === 'tracking') {
+      const { importTrackingFiles } = await import('@/state/tracking')
       const r = await importTrackingFiles([file()], useStore.getState().fleet)
       return { kind, ok: r.errors.length === 0, detail: r.errors[0] ?? `${r.tracks} track${r.tracks === 1 ? '' : 's'}, ${r.matched} matched` }
     }

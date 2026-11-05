@@ -8,6 +8,7 @@
 
 import { clearErrors, errorsText, readErrors } from '@/lib/errorLog'
 import { useChannelsOutStatus } from '@/components/ChannelsOutBridge'
+import { OfflineStorage } from '@/components/OfflineStorage'
 import { useMemo, useState } from 'react'
 import { MAX_TRACK_POINTS, useStore, type StatusField } from '@/state/store'
 import { POLAR_LIBRARY, findPolar } from '@/data/polars'
@@ -622,6 +623,7 @@ export function SetupScreen() {
 
         <ChannelsOutSection />
 
+        <OfflineStorage />
         <ErrorLogSection />
 
         <h2>Keyboard</h2>

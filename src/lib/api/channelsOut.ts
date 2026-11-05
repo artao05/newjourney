@@ -17,20 +17,11 @@
  */
 import { CHANNELS } from '../channels/catalogue'
 import type { ChannelValues } from '../channels/snapshot'
+import type { ChannelsOutSettings } from './channelsOutSettings'
 
 export const API_VERSION = 1
 
-export type OutFormat = 'json' | 'signalk'
-
-export interface ChannelsOutSettings {
-  enabled: boolean
-  url: string
-  format: OutFormat
-  /** Frames a second. */
-  rateHz: number
-}
-
-export const DEFAULT_CHANNELS_OUT: ChannelsOutSettings = { enabled: false, url: 'ws://localhost:8765', format: 'json', rateHz: 1 }
+export { DEFAULT_CHANNELS_OUT, type ChannelsOutSettings, type OutFormat } from './channelsOutSettings'
 
 export function helloFrame(): string {
   return JSON.stringify({

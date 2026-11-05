@@ -6,15 +6,20 @@
 
 import { useEffect, useRef } from 'react'
 import { useStore } from '@/state/store'
-import { logStore } from '@/lib/logging/idbStore'
 import type { LogRow } from '@/lib/logging/logger'
 import { currentFromRow, readingFromRow, rowAt, stateFromRow, windFromRow } from '@/lib/logging/playback'
 
 export const PLAYBACK_TICK_MS = 250
 
+/** A day's rows. The store loads here, with the channel catalogue, only for a replay. */
+async function readDay(day: string): Promise<LogRow[]> {
+  const { logStore } = await import('@/lib/logging/idbStore')
+  return logStore().read(day)
+}
+
 /** Starts replaying a day from its first second. */
 export async function startPlayback(day: string): Promise<boolean> {
-  const rows = await logStore().read(day)
+  const rows = await readDay(day)
   if (rows.length === 0) return false
   loaded = { day, rows }
   useStore.getState().setPlayback({ day, start: rows[0].t, end: rows[rows.length - 1].t, t: rows[0].t, playing: true, speed: 1 })
@@ -33,11 +38,9 @@ export function usePlayback() {
   useEffect(() => {
     if (!day || loaded?.day === day) return
     let live = true
-    void logStore()
-      .read(day)
-      .then((rows) => {
-        if (live) loaded = { day, rows }
-      })
+    void readDay(day).then((rows) => {
+      if (live) loaded = { day, rows }
+    })
     return () => {
       live = false
     }

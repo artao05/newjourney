@@ -263,7 +263,8 @@ export function Timeline({
         ) : null}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* Wraps: on a phone the step and speed controls take a line of their own. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
         <button
           className="btn btn--sm"
           type="button"
@@ -305,7 +306,7 @@ export function Timeline({
           onChange={(e) => goToIndex(Number(e.currentTarget.value))}
           disabled={nt < 2}
           aria-label="Forecast time"
-          style={{ flex: 1, minWidth: 0, height: 30, accentColor: 'var(--accent)' }}
+          style={{ flex: '1 1 120px', minWidth: 0, height: 30, accentColor: 'var(--accent)' }}
         />
 
         {onStepMinChange ? (

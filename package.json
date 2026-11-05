@@ -6,7 +6,8 @@
   "description": "Open, phone-first weather routing and tactical navigation for sailors",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/check-budget.ts",
+    "test:phone": "node scripts/phone-layout.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -26,6 +27,7 @@
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "^30.0.1",
+    "playwright-core": "^1.64.1",
     "typescript": "^5.7.3",
     "vite": "^6.1.0",
     "vitest": "^3.0.5"

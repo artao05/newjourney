@@ -11,40 +11,33 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type
 import { useStore, type ChartTab, type PanelTab, type Tab } from '@/state/store'
 import { LayoutContext, useWide } from '@/hooks/useWide'
 import { toggleFullscreen, useShortcuts } from '@/hooks/useShortcuts'
-import { NumberBoxes } from '@/components/NumberBoxes'
 import { useGeolocation, usePhoneOrientation, useSimulation, useWakeLock, useTick } from '@/hooks/useSensors'
-import { useInstruments, type InstrumentSource } from '@/hooks/useInstruments'
+import type { InstrumentSource } from '@/hooks/useInstruments'
 import { StartScreen } from '@/screens/StartScreen'
-import { RaceScreen } from '@/screens/RaceScreen'
-import { SetupScreen } from '@/screens/SetupScreen'
-import { StripchartScreen } from '@/screens/StripchartScreen'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { NotForNavigationDialog } from '@/components/NotForNavigation'
 import { useTrackPersistence } from '@/state/trackPersistence'
 import { WindSheet, windChip } from '@/components/WindSheet'
-import { ChannelLogRecorder } from '@/components/ChannelLogRecorder'
-import { ChannelsOutBridge } from '@/components/ChannelsOutBridge'
 import { startMarkHistory } from '@/state/markHistory'
 import { useAutoAdvance } from '@/hooks/useAutoAdvance'
 import { installErrorLog } from '@/lib/errorLog'
 import { PlaybackBar } from '@/components/PlaybackBar'
-import { AlarmBanner, AlarmWatcher } from '@/components/Alarms'
 import { usePlayback } from '@/hooks/usePlayback'
 import { findPolar } from '@/data/polars'
 import { estimateCurrent } from '@/lib/wind'
 import { fixQuality } from '@/lib/startline'
 import { variationAt } from '@/lib/magnetic'
 import { paletteForSun } from '@/lib/palette'
-import { DEFAULT_BRIDGE_URL } from '@/lib/instruments/bridge'
+import { DEFAULT_BRIDGE_URL } from '@/lib/instruments/defaults'
 import { useShare } from '@/hooks/useShare'
 import { useWatchedFolders } from '@/hooks/useWatchedFolders'
 import { RibbonContext, StatusBarContext } from '@/components/Ribbon'
-import { solarElevationDeg } from '@/lib/routing/isochrone'
+import { solarElevationDeg } from '@/lib/solar'
 import type { WindEstimate } from '@/lib/types'
-import { fetchPointForecast } from '@/lib/weather/openmeteo'
 import { PILOT_VENUE } from '@/data/venues'
 import { beepsBetween, rollGun } from '@/lib/timer'
 import { beep } from '@/lib/beep'
+import { requestPersistence } from '@/lib/pwa/persist'
 
 // Undo and redo for the marks record from the first change on.
 startMarkHistory()
@@ -56,7 +49,9 @@ const FORECAST_REFRESH_MS = 15 * 60_000
 /**
  * The map is by far the heaviest thing we ship (MapLibre is ~800 kB), and the
  * start-line user never opens it. Code-splitting it keeps first load small on
- * the dockside 3G connection this app is actually used on.
+ * the dockside 3G connection this app is actually used on. The other screens
+ * load the same way: only Start has to be there at once (scripts/check-budget.ts
+ * holds the first download to its limit).
  *
  * These are created inside the component via useMemo, not at module scope,
  * because React.lazy caches a rejected import forever — if the chunk fails to
@@ -70,6 +65,35 @@ const makeRouteScreen = () =>
 
 const makeWeatherScreen = () =>
   lazy(() => import('@/screens/WeatherScreen').then((m) => ({ default: m.WeatherScreen })))
+
+const makeRaceScreen = () =>
+  lazy(() => import('@/screens/RaceScreen').then((m) => ({ default: m.RaceScreen })))
+
+const makeSetupScreen = () =>
+  lazy(() => import('@/screens/SetupScreen').then((m) => ({ default: m.SetupScreen })))
+
+const makeStripchartScreen = () =>
+  lazy(() => import('@/screens/StripchartScreen').then((m) => ({ default: m.StripchartScreen })))
+
+// Only the nav station shows these.
+const makeNumberBoxes = () =>
+  lazy(() => import('@/components/NumberBoxes').then((m) => ({ default: m.NumberBoxes })))
+
+// These run only while what they serve is on: a feed, the log, an alarm, channels out.
+const makeInstrumentFeed = () =>
+  lazy(() => import('@/components/InstrumentFeed').then((m) => ({ default: m.InstrumentFeed })))
+
+const makeChannelLogRecorder = () =>
+  lazy(() => import('@/components/ChannelLogRecorder').then((m) => ({ default: m.ChannelLogRecorder })))
+
+const makeChannelsOutBridge = () =>
+  lazy(() => import('@/components/ChannelsOutBridge').then((m) => ({ default: m.ChannelsOutBridge })))
+
+const makeAlarmBanner = () =>
+  lazy(() => import('@/components/Alarms').then((m) => ({ default: m.AlarmBanner })))
+
+const makeAlarmWatcher = () =>
+  lazy(() => import('@/components/Alarms').then((m) => ({ default: m.AlarmWatcher })))
 
 export function App() {
   const tab = useStore((s) => s.tab)
@@ -107,6 +131,15 @@ export function App() {
   const retryLazy = useCallback(() => setLazyGen((g) => g + 1), [])
   const RouteScreen = useMemo(makeRouteScreen, [lazyGen])
   const WeatherScreen = useMemo(makeWeatherScreen, [lazyGen])
+  const RaceScreen = useMemo(makeRaceScreen, [lazyGen])
+  const SetupScreen = useMemo(makeSetupScreen, [lazyGen])
+  const StripchartScreen = useMemo(makeStripchartScreen, [lazyGen])
+  const NumberBoxes = useMemo(makeNumberBoxes, [lazyGen])
+  const InstrumentFeed = useMemo(makeInstrumentFeed, [lazyGen])
+  const ChannelLogRecorder = useMemo(makeChannelLogRecorder, [lazyGen])
+  const ChannelsOutBridge = useMemo(makeChannelsOutBridge, [lazyGen])
+  const AlarmBanner = useMemo(makeAlarmBanner, [lazyGen])
+  const AlarmWatcher = useMemo(makeAlarmWatcher, [lazyGen])
   // Avoid creating a new forecast request for every GPS fix. A 0.01° cell is
   // comfortably finer than the source model yet stable while the boat is moving.
   const forecastLat = Math.round((state?.position.lat ?? PILOT_VENUE.center.lat) * 100) / 100
@@ -164,9 +197,6 @@ export function App() {
   useGeolocation(!settings.simulate && !instrumentSource && !replaying)
   const phoneSensors = useStore((s) => s.phoneSensors)
   usePhoneOrientation(phoneSensors.on && !settings.simulate && !instrumentSource && !replaying)
-  const pipeline = useStore((s) => s.pipeline)
-  const calibration = useStore((s) => s.calibration)
-  useInstruments(instrumentSource, pipeline, calibration)
   // Start the simulated boat afloat, not on the island the map centre sits on.
   useSimulation(settings.simulate && !replaying, PILOT_VENUE.waterStart)
   useWakeLock(settings.keepAwake)
@@ -257,6 +287,8 @@ export function App() {
     let cancelled = false
     const refresh = async () => {
       try {
+        // Loaded here: manual wind is the default, and it never needs the forecast code.
+        const { fetchPointForecast } = await import('@/lib/weather/openmeteo')
         const forecast = await fetchPointForecast({ ...at, hours: 6, signal: controller.signal })
         if (cancelled || forecast.t.length === 0) return
         let best = 0
@@ -348,10 +380,21 @@ export function App() {
   // tab-key can reach a number the sailor has not yet been told how far to trust.
   const mustAccept = !settings.acceptedNotForNavigation
 
+  // Once they are using it, ask the browser to keep what they store (Setup shows the answer).
+  useEffect(() => {
+    if (!mustAccept) void requestPersistence()
+  }, [mustAccept])
+
   /**
    * One screen, in its error boundary, the charts behind Suspense. Shared by both
    * layouts: the phone shows one at a time, the nav station a panel and a chart.
    */
+  const whileOn = (name: string, part: ReactElement): ReactElement => (
+    <ErrorBoundary name={name} onReset={retryLazy}>
+      <Suspense fallback={null}>{part}</Suspense>
+    </ErrorBoundary>
+  )
+
   const renderScreen = (id: Tab): ReactElement => {
     const loading = (what: string) => (
       <div className="screen panel" style={{ display: 'grid', placeItems: 'center' }}>
@@ -369,8 +412,10 @@ export function App() {
         )
       case 'race':
         return (
-          <ErrorBoundary name="Race" key="race">
-            <RaceScreen />
+          <ErrorBoundary name="Race" key="race" onReset={retryLazy}>
+            <Suspense fallback={loading('race')}>
+              <RaceScreen />
+            </Suspense>
           </ErrorBoundary>
         )
       case 'weather':
@@ -391,14 +436,18 @@ export function App() {
         )
       case 'strip':
         return (
-          <ErrorBoundary name="Stripchart" key="strip">
-            <StripchartScreen />
+          <ErrorBoundary name="Stripchart" key="strip" onReset={retryLazy}>
+            <Suspense fallback={loading('stripchart')}>
+              <StripchartScreen />
+            </Suspense>
           </ErrorBoundary>
         )
       case 'setup':
         return (
-          <ErrorBoundary name="Setup" key="setup">
-            <SetupScreen />
+          <ErrorBoundary name="Setup" key="setup" onReset={retryLazy}>
+            <Suspense fallback={loading('setup')}>
+              <SetupScreen />
+            </Suspense>
           </ErrorBoundary>
         )
     }
@@ -468,7 +517,7 @@ export function App() {
           </span>
         </div>
         <PlaybackBar />
-        <AlarmBanner />
+        {hasAlarms && whileOn('Alarms', <AlarmBanner />)}
 
         {gpsError && !settings.simulate && !replaying && (
           <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
@@ -539,7 +588,7 @@ export function App() {
                 </section>
                 {!navHidden.boxes && (
                   <aside className="navstation__boxes" aria-label="Number boxes" data-label="Boxes">
-                    <NumberBoxes />
+                    {whileOn('Number boxes', <NumberBoxes />)}
                   </aside>
                 )}
               </div>
@@ -576,9 +625,10 @@ export function App() {
 
         {windSheetOpen && <WindSheet onClose={() => setWindSheetOpen(false)} />}
         {/* Not while replaying, or the replay would be logged again as today. */}
-        {recording && !replaying && <ChannelLogRecorder />}
-        {hasAlarms && <AlarmWatcher />}
-        {channelsOutOn && <ChannelsOutBridge />}
+        {recording && !replaying && whileOn('Channel log', <ChannelLogRecorder />)}
+        {hasAlarms && whileOn('Alarms', <AlarmWatcher />)}
+        {channelsOutOn && whileOn('Channels out', <ChannelsOutBridge />)}
+        {instrumentSource && whileOn('Instruments', <InstrumentFeed source={instrumentSource} />)}
       </div>
       {mustAccept && (
         <NotForNavigationDialog onAccept={() => updateSettings({ acceptedNotForNavigation: true })} />

@@ -10,7 +10,7 @@
 
 import type { Reading } from './nmea0183'
 
-export const DEFAULT_SIGNALK_URL = 'ws://localhost:3000/signalk/v1/stream?subscribe=self'
+export { DEFAULT_SIGNALK_URL } from './defaults'
 
 const DEG = 180 / Math.PI
 const MS_TO_KN = 3600 / 1852
@@ -146,7 +146,7 @@ export function mixedContentWarning(pageProtocol: string, url: string): string |
   if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') {
     return 'This page is https and the server is plain ws on this device: Chrome allows that, Safari and Firefox may not.'
   }
-  return 'This page is https, so the browser will block a plain ws:// server. Use wss://, or open the app over http on the boat network.'
+  return 'This page is https, so a browser may block a plain ws:// server: Chrome can ask permission for one on the boat network, and others may refuse it. Use wss://, or open the app over http on the boat network.'
 }
 
 export type SignalKStatus = 'off' | 'connecting' | 'connected' | 'closed' | 'error'

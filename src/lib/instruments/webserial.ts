@@ -1,7 +1,8 @@
 /**
  * NMEA 0183 straight off a serial port, through Web Serial.
  *
- * Desktop Chrome and Edge only (and not iOS at all): a USB-serial or RS-422
+ * Desktop Chrome and Edge, and Chrome on Android from version 148 where the device
+ * exposes its ports (not tried on a phone yet), and not iOS at all: a USB-serial or RS-422
  * adaptor on the laptop at the chart table, reading the instrument bus the
  * way Expedition does on a PC. The bytes go through the same `NmeaDecoder` as
  * everything else, so a bad checksum is dropped here too.

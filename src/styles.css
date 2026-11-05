@@ -1053,14 +1053,86 @@ button {
 
 /* ---------------------------------------------------------------- actions */
 
+/*
+ * A row of equal buttons that wraps. Equal columns cannot shrink below their widest
+ * label, so on a narrow phone they ran off the edge of a screen that hides overflow,
+ * and the buttons out there could not be reached at all.
+ */
 .actions {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 9px;
   padding: 11px var(--pad);
   background: var(--bg-sunk);
   border-top: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.actions > * {
+  flex: 1 1 0;
+}
+
+/* The start screen's rows, tighter so more of a short phone is left for the line. */
+.actions--tight {
+  gap: 6px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.actions--tight .btn {
+  padding-left: 4px;
+  padding-right: 4px;
+  white-space: nowrap;
+}
+
+.actions--tight .btn:not(.btn--sm) {
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+/*
+ * Fingers, wet ones: a mouse can hit a chip the height of its text, and a thumb on a
+ * moving boat cannot. Not at the nav station, where the same chips stay small.
+ */
+@media (pointer: coarse) {
+  button.chip,
+  select.chip,
+  select {
+    min-height: 36px;
+    min-width: 36px;
+    justify-content: center;
+  }
+
+  .btn--sm,
+  .seg button {
+    min-width: 36px;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* The start screen: what to read scrolls, what to press does not. */
+.start {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.start__read {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.start__read > * {
   flex-shrink: 0;
 }
 

@@ -44,7 +44,7 @@ export interface BridgeOptions {
   retryMs?: number
 }
 
-export const DEFAULT_BRIDGE_URL = 'ws://127.0.0.1:3080'
+export { DEFAULT_BRIDGE_URL } from './defaults'
 
 /** A bridge client that reconnects, with backoff, until stopped. */
 export class BridgeClient {

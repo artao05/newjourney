@@ -41,6 +41,12 @@ That first online visit stores everything the app needs to open without signal.
       says *"The screen may sleep"*, set auto-lock to Never for racing. On an iPhone
       that is Settings → Display & Brightness → Auto-Lock; on Android, Settings →
       Display → Screen timeout.
+- [ ] **Sound:** on the Start tab tap **TIMER**, then **TEST SOUND**, and listen for the beep.
+      Silent mode or low volume can mute it, and the app can't tell, so try it with the
+      phone set the way you will race. If a countdown shows *"The countdown is silent"*, tap
+      **TURN SOUND ON**.
+- [ ] **Stored data:** in Setup → **Stored data**, note whether it says *Kept* or *Not
+      protected*. If it isn't kept, export your track after each race.
 - [ ] **Sunlight:** read the Start tab at arm's length in direct sun, with brightness
       up.
 - [ ] **Battery:** start at 100% and note the percentage at the end of the day.

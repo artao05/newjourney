@@ -27,3 +27,5 @@ jobs:
         env:
           PERF: '1'
       - run: npm run build
+      # The built app at phone sizes, in the runner's Chrome: what jsdom cannot see.
+      - run: npm run test:phone

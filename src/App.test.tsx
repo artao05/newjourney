@@ -352,12 +352,11 @@ describe('not for navigation, before first use', () => {
     expect(dialog()).toBeNull()
   })
 
-  it('leaves the Setup copy in place, in the same words', () => {
+  it('leaves the Setup copy in place, in the same words', async () => {
     useStore.getState().setTab('setup')
     render(<App />)
-    const text = document.body.textContent ?? ''
-    expect(text).toContain('Not for navigation.')
-    expect(text).toContain('Nothing here replaces official charts, official tide tables')
+    await waitFor(() => expect(document.body.textContent).toContain('Not for navigation.'), { timeout: 15_000 })
+    expect(document.body.textContent).toContain('Nothing here replaces official charts, official tide tables')
   })
 })
 
@@ -456,14 +455,14 @@ describe('the nav-station layout at laptop width', () => {
     const panel = screen.getByRole('region', { name: 'Panel' })
     const chart = screen.getByRole('region', { name: 'Chart' })
     const boxes = screen.getByRole('complementary', { name: 'Number boxes' })
-    expect(panel.textContent).toContain('Laylines')
+    await waitFor(() => expect(panel.textContent).toContain('Laylines'), { timeout: 15_000 })
     // The chart's commands are in the ribbon above, grouped, not over the chart.
     const commands = screen.getByRole('toolbar', { name: 'Commands' })
     await waitFor(() => expect(within(commands).getByRole('group', { name: 'Routing' }).textContent).toContain('FORECAST'))
     expect(within(commands).getByRole('group', { name: 'Chart' }).textContent).toContain('+ mark')
     expect(chart.textContent).not.toContain('FORECAST')
     // One set of number boxes: the column. Race drops its own in the station.
-    expect(document.querySelectorAll('.nboxes')).toHaveLength(1)
+    await waitFor(() => expect(document.querySelectorAll('.nboxes')).toHaveLength(1))
     expect(boxes.querySelector('.nboxes')).not.toBeNull()
   })
 
