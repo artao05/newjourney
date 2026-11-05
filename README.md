@@ -20,8 +20,8 @@ in five minutes — built entirely on public data.
 > [Branches](#branches).
 >
 > [![CI](https://github.com/artao05/newjourney/actions/workflows/ci.yml/badge.svg)](https://github.com/artao05/newjourney/actions/workflows/ci.yml)
-> tests, typecheck and build on every push. First-load JS, gzipped, measured 2026-11-03:
-> 100 KB on `main`, 215 KB on this branch (111 KB with phone phase 0, measured 2026-11-04).
+> tests, typecheck and build on every push. First-load JS, gzipped, measured 2026-11-05:
+> 100 KB on `main`, 113 KB on this branch, which had 215 KB before phone phase 0.
 > **Not for navigation** — see the caveats in [RUNNING.md](RUNNING.md#whats-real-and-what-isnt).
 > Land avoidance works, but only inside the Portland venue box and only as a
 > land check, never a depth check. On this branch, ENC cells you open add their own land,
@@ -41,8 +41,10 @@ product spec's non-goals. It was cut from `main` at `5bad931` and was 172 commit
 then took [pull request #3](https://github.com/artao05/newjourney/pull/3) on 2026-11-04, so the
 two have diverged. This branch has no pull request and no deploy, and whether it merges is the
 owner's call and still
-[open](docs/06-decisions/README.md#open-only-the-owner-can-settle-these). Its parity score
-that day was 36.5 %, from `node scripts/parity-score.ts`. Its loop last ran on 2026-09-30.
+[open](docs/06-decisions/README.md#open-only-the-owner-can-settle-these). Its loop last ran on
+2026-09-30. Phone phase 0, the first step of the
+[phone and hardware plan](docs/05-spec/phone-and-hardware.md), landed on it on 2026-11-05. Its
+parity score was 36.5 % that day, as before, from `node scripts/parity-score.ts`.
 
 `main` held research and specification only until the prototype was promoted onto
 it. The application code arrived from `feature/tide-depth`, which is where the
@@ -86,7 +88,7 @@ and a wet pocket.
 | [docs/02-data-sources](docs/02-data-sources/) | Every public data source we can legally build on — weather, charts, bathymetry, tides, currents, polars, AIS — with licences and access patterns |
 | [docs/03-algorithms](docs/03-algorithms/) | The math: isochrone routing, graph routing, polars/VPP, laylines, start line, current & wave corrections |
 | [docs/04-prior-art](docs/04-prior-art/) | Open-source and commercial landscape, with licence compatibility notes |
-| [docs/05-spec](docs/05-spec/) | Product spec, technical spec, MVP scope, roadmap |
+| [docs/05-spec](docs/05-spec/) | Product spec, technical spec, MVP scope, roadmap. *On this branch,* the [phone and hardware plan](docs/05-spec/phone-and-hardware.md) too |
 | [docs/06-decisions](docs/06-decisions/README.md) | Architecture decision records, and the questions still open |
 | [docs/07-map-layers](docs/07-map-layers/) | How competitors draw charts and overlays, and our layer engine design |
 | [docs/08-parity](docs/08-parity/README.md) | *This branch only.* The Expedition parity effort: the matrix, the worklist, everything we would need, and the reports |
@@ -115,7 +117,7 @@ Rows marked *Branch* are not on `main` at all.
 | `src/lib/weather/` | Open-Meteo ingest, binary forecast cube, field providers. Also GRIB 1 and 2 decoders, observations, overlays, ensembles |
 | `src/lib/routing/` | Isochrone kernel, land mask, Web Worker, departure sweep, depth advisory. Also the grid solver, ensemble and fleet routing |
 | `src/lib/tides/` | NOAA CO-OPS predictions and datum arithmetic. Also the harmonic tide and stream engines, and stations |
-| `src/lib/maplayers/`, `src/lib/pwa/` | GPU particle and scalar layers; the service worker's precache list |
+| `src/lib/maplayers/`, `src/lib/pwa/` | GPU particle and scalar layers; the service worker's precache list. Also `persist.ts`: asking the browser to keep what is stored |
 | `src/lib/sim.ts` | Synthetic boat, so the app is usable from a desk |
 | `src/lib/gpx.ts` | GPX. Also `marksCsv.ts`, `raceNotesFile.ts`, `config.ts`, `latlon.ts`, `zip.ts`, `inflate.ts` |
 | `src/lib/charts/` | *Branch.* ISO 8211, S-57 and BSB/KAP readers, S-52-style drawing, the chart library, routing against the ENC |
@@ -126,7 +128,7 @@ Rows marked *Branch* are not on `main` at all.
 | `src/state/`, `src/hooks/` | The store and sensors. Also the chart, AIS, tracking and weather-file stores, and hooks for instruments, playback, sharing and the wide layout |
 | `src/screens/`, `src/components/` | Five screens and the start display. Also a sixth screen, Strip, and the nav-station ribbon, panes and number boxes |
 | `src/dev/` | The map-layer harness, dev only |
-| `scripts/build-depth-grid.mjs` | Rebuilds the depth asset. Also `parity-score.ts` and `parity-set.ts` |
+| `scripts/build-depth-grid.mjs` | Rebuilds the depth asset. Also `parity-score.ts` and `parity-set.ts`, `check-budget.ts` for the first download, and `phone-layout.ts` for phone sizes |
 | `bridge/` | *Branch.* The local Node bridge: UDP, TCP, serial, sharing, watched folders |
 | `fixtures/real/` | *Branch.* Public NOAA files the tests read: GFS, an ENC cell, a raster chart, WMM, tide constants |
 

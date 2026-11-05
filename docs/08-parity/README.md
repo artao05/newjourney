@@ -3,10 +3,12 @@
 **Started:** 2026-09-28, on branch `parity/expedition`
 **Goal:** newjourney does everything Expedition does. Where a feature cannot be
 built, this folder says exactly what building it would take.
-**State on 2026-11-03:** stopped, not finished. Parity is 36.5 % (360 of 985 applicable
-rows Done, by `node scripts/parity-score.ts`). The last code landed on 2026-09-30, and the
-next item is M19. The branch went to `origin` on 2026-11-03 as a backup. It has no pull request
-and no deploy, and whether it merges into `main` is
+**State on 2026-11-05:** stopped, not finished. Parity is 36.5 % (360 of 985 applicable
+rows Done, by `node scripts/parity-score.ts`). The last parity code landed on 2026-09-30, and
+the next item is M19. Phone phase 0 landed on 2026-11-05
+([the plan](../05-spec/phone-and-hardware.md)) and left the score where it was. The branch went
+to `origin` on 2026-11-03 as a backup. It has no pull request and no deploy, and whether it
+merges into `main` is
 [still open](../06-decisions/README.md#open-only-the-owner-can-settle-these).
 
 Until now the project deliberately built about 5 % of Expedition's surface

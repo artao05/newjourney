@@ -16,8 +16,7 @@ GPS on a phone either deploy it or use a tunnel.
 
 ```bash
 npm test        # unit tests (vitest)
-npm run build   # typecheck + production build + first-download budget
-npm run test:phone  # the built app at phone sizes, in your Chrome
+npm run build   # typecheck + production build
 npm run preview # serve the production build, with the service worker active
 ```
 
@@ -26,7 +25,11 @@ On this branch only:
 ```bash
 node scripts/parity-score.ts --areas  # the parity score, from the matrix
 node bridge/bridge.ts --udp 10110     # the instrument bridge (bridge/README.md)
+npm run test:phone                    # the built app at phone sizes, in your Chrome
 ```
+
+Here `npm run build` also fails if the first download passes its limit
+(`scripts/check-budget.ts`).
 
 ## Deploying
 
@@ -37,11 +40,11 @@ repository's settings: **Settings → Pages → Source: GitHub Actions**. The si
 needs before it will hand over its GPS, so this is also the easiest way to try it on the
 water, for which [PILOT.md](PILOT.md) is the sailor's guide. Every push and pull request
 also runs `.github/workflows/ci.yml`: the tests, the routing kernel's time budgets on
-their own, then the build and its typecheck.
+their own, then the build and its typecheck. This branch's copy then runs `npm run test:phone`.
 
 The site is built from `main` only, and last deployed `0aa1ede` on 2026-11-04. Nothing on
-`parity/expedition` reaches it. That branch went to `origin` on 2026-11-03 as a backup,
-so CI runs on it, but it has no pull request and no deploy.
+`parity/expedition` reaches it. That branch went to `origin` at `fbb40b4` on 2026-11-03 as a
+backup, so CI ran on that commit, but it has no pull request and no deploy.
 
 ---
 
@@ -111,7 +114,9 @@ Dev-only — a stray query string in production cannot replace the app.
 Checked against the code on 2026-11-03, at `5bad931` on `main` and `fbb40b4` on
 `parity/expedition`. `main` then took
 [pull request #3](https://github.com/artao05/newjourney/pull/3) on 2026-11-04 (`0aa1ede`):
-Route's action row and three small fixes. None of it changes what this section says.
+Route's action row and three small fixes. None of it changes what this section says. This
+branch then took phone phase 0 (`01bbe6f`, committed 2026-11-05), and this section was checked
+against that too.
 
 | | `main` | `parity/expedition` (this branch) |
 |---|---|---|
@@ -184,6 +189,12 @@ been checked.
   in simple, complex, PNG, JPEG 2000 and CCSDS packing (`src/lib/weather/`). Two whole global
   GFS messages decode as NOAA's wgrib2 does (`grib2.real.test.ts`). These are files you bring,
   kept only until the page reloads. The app does not download GRIB itself.
+- **Phone phase 0,** from the [phone and hardware plan](docs/05-spec/phone-and-hardware.md).
+  Action rows wrap, Start's ping and timer rows stay put under a readout that scrolls, and on a
+  touch screen buttons are at least 34 px. Only Start and what it needs are in the first
+  download. The app asks the browser to keep what it stores, and Setup → Stored data shows the
+  answer. A running countdown warns when it can't sound, and Start → TIMER has TEST SOUND.
+  Checked by unit tests and in emulated phones, not on a real phone.
 - **The rest of the parity work,** row by row in
   [parity-matrix.md](docs/08-parity/parity-matrix.md): number boxes on Expedition's channel
   catalogue, a marks library and named routes, race notes, W/L and Olympic course wizards, the
@@ -253,9 +264,11 @@ been checked.
 - **Licensed and hardware rows.** S-63, C-MAP and Navionics charts, radar and the vendor
   protocols are not built, and [needs.md](docs/08-parity/needs.md) says what each would take.
 - **Nothing has been compared with Expedition itself** (needs.md D7).
-- **It has not been tried on a real phone.** The layout now holds in emulated viewports of 360
-  to 412 px, in Chrome, and CI enforces that (`npm run test:phone`). That check can't see what
-  only a phone shows: iOS Safari, GPS, sound, heat or a wet thumb. Until
+- **It has not been tried on a real phone.** The layout holds in emulated viewports of 360 to
+  412 px, in Chrome (`npm run test:phone`, passed 2026-11-05). `ci.yml` runs that check, but no
+  runner has yet, because nothing after `fbb40b4` has been pushed. It blocks the network, so it
+  sees the forecast screens only when run by hand with `LIVE=1`, and it never loads a route. It
+  can't see what only a phone shows: iOS Safari, GPS, sound, heat or a wet thumb. Until
   [PILOT.md](PILOT.md) §2 has passed on a real iPhone and Android phone, treat it as unproven.
 
 See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next on `main`,
@@ -264,23 +277,29 @@ See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next on `m
 
 ## Verified state
 
-Measured by hand on the two tips, `main` on 2026-11-04 and this branch on 2026-11-03:
+Measured by hand, `main` on 2026-11-04 and 2026-11-05, this branch on 2026-11-05:
 
-| | `main` (`0aa1ede`) | `parity/expedition` (`fbb40b4`) |
+| | `main` (`0aa1ede`) | `parity/expedition` (`01bbe6f`) |
 |---|---|---|
-| Tests | 1,053 in 48 files | 1,858 in 149 files |
+| Tests | 1,053 in 48 files | 1,869 in 151 files |
 | `npx tsc -b --noEmit`, `npm run build` | clean | clean |
-| CI | green at this commit, 2026-11-04 | green at this commit, 2026-11-03 |
-| First load, gzipped | 100 KB of JS, 3 KB of CSS | 215 KB of JS, 5 KB of CSS (111 KB of JS with phone phase 0, 2026-11-04) |
+| CI | green at this commit, 2026-11-04 | not run at this commit. Green at `fbb40b4`, the last pushed, 2026-11-03 |
+| First load, gzipped | 100 KB of JS, 3 KB of CSS | 113 KB of JS, 5 KB of CSS (215 KB of JS before phone phase 0) |
+| All a first visit stores for offline, gzipped | 0.49 MB, 17 files | 0.70 MB, 45 files |
 | Map chunk, gzipped, mostly MapLibre | 286 KB of JS, 10 KB of CSS | 289 KB of JS, 10 KB of CSS |
-| Route and Weather screens, gzipped | 11 KB and 20 KB | 41 KB and 36 KB |
+| Route and Weather screens, gzipped | 11 KB and 20 KB | 42 KB and 36 KB |
+
+KB here is Vite's figure, 1,000 bytes. This branch's budget check divides by 1,024, so it
+prints the same first load as 110.7 KB, against a limit of 115 by its own count.
 
 Every test passes. Two in `src/pwa.test.ts` read `dist/` and are skipped without it, as they
 are in CI, where the tests run before the build. So a fresh clone reports 1,051 passed and 2
-skipped on `main`, and 1,856 and 2 on this branch. Each tab is mounted by a test in
-`src/screens/screens.test.tsx`. The map chunk and the two screens load only when you open a
-chart tab. This branch's production build, visited once, reloaded with its server stopped
-(desktop browser, 2026-11-03), though not yet in airplane mode on a phone.
+skipped on `main`, and 1,867 and 2 on this branch. Each tab is mounted by a test in
+`src/screens/screens.test.tsx`. On `main`, the map chunk and the two chart screens load only
+when you open them. On this branch so do Race, Setup and Strip. A first visit still stores them
+all in the background, for offline use. This branch's production build, visited once in a clean
+Chrome profile at 390×844, stored every file it lists. With its server stopped it then reloaded
+and opened all six tabs (2026-11-05). That is not yet airplane mode on a phone.
 
 These figures are written by hand, and hand-written figures in this repo have drifted
 before: this line said 748 when the suite had 956, and 963 when `main` had 1,048. CI runs the

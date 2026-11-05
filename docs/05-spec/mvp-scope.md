@@ -69,7 +69,7 @@ No result from a phone on the water is recorded yet, and that is the test that c
       switch survive a reload, up to 20,000 points, and Setup exports the track as GPX.*
 - [x] Works fully offline after first load (PWA + service worker) — *install precaches
       every file the build wrote. Checked in the production build with the app's server
-      unreachable, and again on `parity/expedition`'s build on 2026-11-03, though not yet in
+      unreachable, and again on `parity/expedition`'s build on 2026-11-05, though not yet in
       airplane mode on a phone.*
 - [x] Wake lock so the screen stays on
 - [x] Boat setup: name, class, length, bow-to-GPS

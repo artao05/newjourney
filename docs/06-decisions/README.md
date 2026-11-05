@@ -53,6 +53,7 @@ The ADRs are on `parity/expedition`, since this page is. All but ADR-0007 are ju
 | **Does `parity/expedition` merge into `main`?** | They stay apart. `main` is the phone-first product on GitHub Pages. The branch is on `origin` as a backup since 2026-11-03, with no pull request and no deploy. | [needs.md D9](../08-parity/needs.md#1-decisions-only-the-owner-can-make) |
 
 [needs.md](../08-parity/needs.md#1-decisions-only-the-owner-can-make) has the rest of the owner's
-decisions for the parity work, D1 to D9, and marks which are settled. The phone and hardware
-plan of 2026-11-03 (`docs/05-spec/phone-and-hardware.md`) adds its own, P1 to P7, also open.
-Its P5, whether to use Capacitor, would supersede ADR-0001 if the answer is yes.
+decisions for the parity work, D1 to D9, and marks which are settled. The
+[phone and hardware plan](../05-spec/phone-and-hardware.md) of 2026-11-03 adds its own, P1 to
+P7. All but P3, the push, are open. Its P5, whether to use Capacitor, would supersede ADR-0001 if
+the answer is yes.

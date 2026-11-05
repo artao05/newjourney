@@ -54,7 +54,7 @@ timer sound rows, and the branch was pushed that day with CI green at `fbb40b4`:
 | Start, 360 × 740 | TIMER runs off the right edge and the page scrolls sideways by 34 px. With three warnings showing, the tab bar sits at 919 px, below the 740 px screen. The preview browser forced two of those warnings by refusing GPS and wake lock, so a real phone may show fewer. | browser check |
 | Race, 360 px wide | ADD BOAT and two fellow fields sit off-screen. It may sit inside a scrolling area: not checked. | browser check |
 | Small targets | Buttons under 36 px: 5 on Start, 14 on Route, 14 on Strip, 23 on Weather. That is hard with wet hands. | browser check |
-| First load | 214 KB of gzipped JS against 96–100 KB on `main`. Nothing fails a build for this. | `dist/assets` |
+| First load | 215 KB of gzipped JS against 100 KB on `main`. Nothing fails a build for this. | `dist/assets` |
 | Stored data | Nothing calls `navigator.storage.persist()`, so tracks and charts in IndexedDB have no protection from eviction. | grep of `src/` |
 | Timer sound | If the audio context isn't running, a beep is dropped without a word. Vibration is the only other signal, and iPhones are expected not to have it. | `src/lib/beep.ts:33-35` |
 | Instruments | One source at a time, and any feed turns the phone's GPS off. If Wi-Fi drops, the position stops updating with nothing to fall back on. | `src/App.tsx:153-164` |
@@ -115,8 +115,10 @@ No native code and nothing to buy.
       412×915, and fails on sideways scrolling, an unreachable or covered control, or a small
       target, on every tab and three sheets. It blocks the network, so screens that need a
       forecast are checked only by hand (`LIVE=1`), and Route with a route loaded not at all.
-- [x] First-load JS: 111 KB, from 215, with a 115 KB budget that fails the build. Not quite the
-      100 KB aimed for: React is about 60 KB of it, and the rest is what Start needs.
+- [x] First-load JS: 113 KB, from 215 (Vite's figures, measured 2026-11-05), with a budget that
+      fails the build. The budget counts in units of 1,024 bytes, so it reads 110.7 against a
+      limit of 115. Not quite the 100 KB aimed for: React is about 60 KB of it, and the rest is
+      what Start needs.
 - [x] Ask for `navigator.storage.persist()` and show the result in Setup → Stored data.
 - [x] Warn when the timer can't sound, with a tap to turn it on, and add TEST SOUND.
 - [x] Update the docs that had gone stale ([below](#docs-this-plan-makes-stale)).

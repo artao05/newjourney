@@ -41,17 +41,20 @@ That first online visit stores everything the app needs to open without signal.
       says *"The screen may sleep"*, set auto-lock to Never for racing. On an iPhone
       that is Settings → Display & Brightness → Auto-Lock; on Android, Settings →
       Display → Screen timeout.
-- [ ] **Sound:** on the Start tab tap **TIMER**, then **TEST SOUND**, and listen for the beep.
-      Silent mode or low volume can mute it, and the app can't tell, so try it with the
-      phone set the way you will race. If a countdown shows *"The countdown is silent"*, tap
-      **TURN SOUND ON**.
-- [ ] **Stored data:** in Setup → **Stored data**, note whether it says *Kept* or *Not
-      protected*. If it isn't kept, export your track after each race.
 - [ ] **Sunlight:** read the Start tab at arm's length in direct sun, with brightness
       up.
 - [ ] **Battery:** start at 100% and note the percentage at the end of the day.
 - [ ] **Recording:** tap `rec` at the top right so it reads **REC**. It keeps recording
       if the app reloads.
+
+These two are only on `parity/expedition`, not on the site above:
+
+- [ ] **Sound:** on the Start tab tap **TIMER**, then **TEST SOUND**, and listen for the beep.
+      Silent mode or low volume can mute it, and the app can't tell, so try it with the
+      phone set the way you will race. If a countdown shows *"The countdown is silent"*, tap
+      **TURN SOUND ON**.
+- [ ] **Stored data:** in Setup → **Stored data**, note whether it says *Kept*. If it says
+      anything else, export your track after each race.
 
 ## 3. On the water: the two-minute test
 
@@ -109,17 +112,17 @@ the phone model.
 ## If you run `parity/expedition` instead
 
 This branch is not on the site above. [RUNNING.md](RUNNING.md) says how to run it and what
-in it is real. A sailor would notice these differences (checked 2026-11-03):
+in it is real. A sailor would notice these differences (checked 2026-11-05):
 
 - **Variation** comes from the World Magnetic Model where the boat is, not from one Portland
   figure, so the coast check above does not apply. The land mask and the depth layer are
   still Portland's.
 - **It looks different.** It opens in a black-on-white day palette (☀ in the top bar, ☾ for
   night), and there is a sixth tab, Strip.
-- **It is heavier.** First-load JS is about 215 KB gzipped, against 100 KB on the site, so
-  the first visit on Wi-Fi matters more.
-- **On a phone,** the Route tab's `SETTINGS` button can't be reached and `RESULTS` is cut off,
-  on screens up to at least 412 px wide. Below about 394 px, the Start tab's timer row runs off
-  the right edge, the `TIMER` button is cut off, and the page scrolls sideways (measured in an
-  emulated viewport, 4 November 2026).
+- **It is heavier.** The Start tab needs about 113 KB of JS gzipped, against 100 KB on the
+  site. All that the first visit stores comes to about 0.7 MB, against 0.5 MB, so that visit on
+  Wi-Fi matters more.
+- **It has two more dock checks,** Sound and Stored data, in section 2.
+- **It has never been on a real phone.** Its layout holds from 360 to 412 px wide in an emulated
+  viewport, on every tab. That check never loads a route, and section 2 has not been run on it.
 - **It can read instruments** in Setup → Instruments. None of that has been tried on a boat.
