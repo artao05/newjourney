@@ -188,9 +188,31 @@ button {
 
 /* ------------------------------------------------------------- wind sheet */
 
-.wind-sheet {
+/*
+ * The buttons are pinned, which takes height from the steps, so this sheet may grow past
+ * the usual limit: at 74% a 664 px phone would hide the speed steps. It stops at the
+ * bottom of Start's countdown digits, which a sailor setting the wind mid-sequence still
+ * needs to read.
+ */
+.sheet.wind-sheet {
+  max-height: max(74%, calc(100% - var(--safe-top) - 134px));
+}
+
+/* A phone on its side: the countdown is covered either way, and the steps need the room. */
+@media (max-height: 499.98px) {
+  .sheet.wind-sheet {
+    max-height: 100%;
+  }
+}
+
+.wind-sheet__body,
+.wind-sheet__foot {
   display: grid;
   gap: 10px;
+}
+
+.wind-sheet__body {
+  padding-bottom: 6px;
 }
 
 .wind-sheet__title {
@@ -819,8 +841,8 @@ button {
 }
 
 /*
- * A sheet far longer than the screen. Only its middle scrolls, so CLOSE and the other
- * buttons stay on the bottom edge, in reach of a thumb, however far down the reader is.
+ * A sheet that can be longer than the screen. Only its middle scrolls, so its buttons
+ * stay on the bottom edge, in reach of a thumb, however far down the reader is.
  */
 .sheet--pinned {
   display: flex;
@@ -836,6 +858,7 @@ button {
 }
 
 .sheet__foot {
+  flex-shrink: 0;
   background: none;
   border-top: 1px solid var(--line);
   padding: 10px 0 0;

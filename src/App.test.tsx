@@ -235,6 +235,87 @@ describe('the wind chip says what the wind rests on', () => {
   })
 })
 
+describe('the wind sheet keeps its buttons on screen', () => {
+  /*
+   * On a 320 x 568 phone only 2 px of SET WIND showed without scrolling, and CANCEL was
+   * 58 px below the edge. On a 390 x 664 one CANCEL still ran past it. jsdom has no layout,
+   * so this pins what keeps them in view: the sheet does not scroll, only its body does,
+   * and the buttons are outside it. The measured positions are in the commit.
+   */
+  const styles = document.createElement('style')
+  const button = (name: string | RegExp) => screen.getByRole('button', { name })
+  const dialog = () => screen.queryByRole('dialog', { name: 'Set the wind' })
+
+  function openSheet() {
+    render(<App />)
+    act(() => button(/^Wind:/).click())
+    return dialog()!
+  }
+
+  beforeEach(() => {
+    styles.textContent = readFileSync('src/styles.css', 'utf8')
+    document.head.appendChild(styles)
+  })
+
+  afterEach(() => styles.remove())
+
+  it('scrolls the numbers and their steps, and not the buttons', () => {
+    const body = openSheet().querySelector('.sheet__body')!
+    const scrolling = [
+      screen.getByRole('spinbutton', { name: /^Wind direction/ }),
+      button('-10'),
+      button('+10'),
+      screen.getByRole('spinbutton', { name: /^True wind speed/ }),
+      button('−1 kn'),
+      button('+1 kn'),
+    ]
+    expect(scrolling.map((el) => body.contains(el))).toEqual(scrolling.map(() => true))
+    const pinned = [button(/^SET WIND/), button('USE FORECAST'), button('CANCEL')]
+    expect(pinned.map((el) => body.contains(el))).toEqual([false, false, false])
+  })
+
+  it('leaves the scrolling to the body, and lets it give up the height', () => {
+    const sheet = openSheet()
+    const body = sheet.querySelector('.sheet__body')!
+    expect(getComputedStyle(sheet).display).toBe('flex')
+    expect(getComputedStyle(sheet).overflowY).toBe('hidden')
+    expect(getComputedStyle(body).overflowY).toBe('auto')
+    expect(getComputedStyle(body).minHeight).toBe('0px')
+    expect(getComputedStyle(button('CANCEL').closest('.sheet__foot')!).flexShrink).toBe('0')
+  })
+
+  it('may grow past the usual limit, as far as the countdown', () => {
+    // Limits jsdom cannot apply, and its cascade ignores specificity, so read the rules.
+    const limitIn = (rules: CSSRuleList) =>
+      [...rules].find(
+        (r): r is CSSStyleRule => (r as CSSStyleRule).selectorText === '.sheet.wind-sheet',
+      )?.style.maxHeight
+    expect(limitIn(styles.sheet!.cssRules)).toBe('max(74%, calc(100% - var(--safe-top) - 134px))')
+    const media = [...styles.sheet!.cssRules].filter((r): r is CSSMediaRule => 'media' in r)
+    const onItsSide = media.filter((m) => limitIn(m.cssRules) != null)
+    expect(onItsSide.map((m) => m.media.mediaText)).toEqual(['(max-height: 499.98px)'])
+    expect(limitIn(onItsSide[0].cssRules)).toBe('100%')
+  })
+
+  it('leaves each button doing what it says from there', () => {
+    openSheet()
+    act(() => button('CANCEL').click())
+    expect(dialog()).toBeNull()
+    expect(useStore.getState().manualWindSetAt).toBeNull()
+
+    act(() => button(/^Wind:/).click())
+    act(() => button('USE FORECAST').click())
+    expect(dialog()).toBeNull()
+    expect(useStore.getState().windMode).toBe('forecast')
+
+    act(() => button(/^Wind:/).click())
+    act(() => button(/^SET WIND/).click())
+    expect(dialog()).toBeNull()
+    expect(useStore.getState().windMode).toBe('manual')
+    expect(useStore.getState().manualWindSetAt).not.toBeNull()
+  })
+})
+
 describe('set and drift', () => {
   it('derives a current from a fix that has a log and a compass', async () => {
     render(<App />)
