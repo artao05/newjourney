@@ -20,7 +20,9 @@ line, and where it gets in the way.
    - Check **bow to GPS**: the distance from your bow to where the phone will ride,
      for example about 3 m on a J/70.
 5. Also in Setup, under **Wind**, choose **Magnetic north** if you will read the wind
-   off a compass. Variation at Portland is 14.5° W, and the app converts it for you.
+   off a compass, and the app converts it for you. It uses one figure wherever you are:
+   Portland's variation, 14.5° W (NOAA, September 2026), carried forward by its yearly
+   change.
 
 That first online visit stores everything the app needs to open without signal.
 
@@ -90,5 +92,6 @@ the phone model.
 - **GPS:** a phone's fix is good to about 3–5 m. On a small boat that is most of a
   boat length, and the app shows it.
 - **Portland's data:** the variation, the land mask and the depth layer are Portland's.
-  The Start tab works anywhere, but farther along the coast the variation differs by a
-  degree or more, so check your chart.
+  The Start tab works anywhere, but the variation changes along the coast, from about
+  14.2° W at Kittery to 15.6° W at Eastport (World Magnetic Model, November 2026), so check
+  your chart.

@@ -155,7 +155,8 @@ describe('the built output stays relative', () => {
   it.runIf(existsSync(distIndex))('emits no absolute asset paths', () => {
     /*
      * The check that would have caught a base-path regression. Skipped when dist is
-     * absent so a fresh clone does not fail; CI builds before testing.
+     * absent so a fresh clone does not fail. CI tests before it builds, so it skips
+     * this too, and these two run only where a build is already on disk.
      */
     const built = readFileSync(distIndex, 'utf8')
     const srcs = [...built.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1])

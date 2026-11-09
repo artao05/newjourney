@@ -7,7 +7,7 @@ tactical software stack (Expedition and its peers) with something a 16-year-old 
 420 or a first-time offshore navigator on a J/105 can open on a phone and understand
 in five minutes — built entirely on public data.
 
-> **Status: working prototype on `main`, piloting Portland & Casco Bay, Maine.**
+> **Status: working prototype on `main`, with Portland & Casco Bay, Maine, as its pilot venue.**
 > A running React PWA with the start-line tools, tactical numbers, an isochrone
 > weather router with departure-time optimisation, and GPU wind, depth and current
 > layers, alongside the research and specification work it was built from. See
@@ -15,9 +15,9 @@ in five minutes — built entirely on public data.
 > whole app from a desk, with no GPS fix needed.
 >
 > [![CI](https://github.com/artao05/newjourney/actions/workflows/ci.yml/badge.svg)](https://github.com/artao05/newjourney/actions/workflows/ci.yml)
-> tests, typecheck and build on every push · 96 KB gzipped first-load JS.
+> tests, typecheck and build on every push. First-load JS was 100 KB gzipped on 2026-11-04.
 > **Not for navigation** — see the caveats in [RUNNING.md](RUNNING.md#whats-real-and-what-isnt).
-> Land avoidance now works, but only inside the Portland venue box and only as a
+> Land avoidance works, but only inside the Portland venue box and only as a
 > land check, never a depth check. The depth layer is a 450 m bathymetric model
 > referenced to mean sea level, not a chart and not a routing input — it reads 18 m
 > shallow at a NOAA buoy and 1.5 m deep against chart datum, and it says so. The
@@ -25,12 +25,19 @@ in five minutes — built entirely on public data.
 
 ## Branches
 
-Everything is on **`main`**: the prototype and the research behind it. Start there.
+**`main`** is the prototype and the research behind it. GitHub Pages serves it, and these
+docs describe it. Start there.
+
+`parity/expedition` is a separate branch aiming at Expedition's capabilities. It has been on
+`origin` as a backup since 2026-11-03, with no pull request and no deploy, and whether it
+merges is [still open](docs/06-decisions/README.md#open-only-the-owner-can-settle-these).
 
 `main` held research and specification only until the prototype was promoted onto
 it. The application code arrived from `feature/tide-depth`, which is where the
 chart-surface, depth and hardening work was done before it merged in
-[pull request #1](https://github.com/artao05/newjourney/pull/1).
+[pull request #1](https://github.com/artao05/newjourney/pull/1). The Maine pilot work
+followed from `mvp/maine-pilot` in
+[pull request #2](https://github.com/artao05/newjourney/pull/2).
 
 The older branches were deleted on 2026-09-27, once everything in them had reached
 `main`. They were `MVP1` (an earlier snapshot of the prototype),
@@ -68,7 +75,7 @@ and a wet pocket.
 | [docs/03-algorithms](docs/03-algorithms/) | The math: isochrone routing, graph routing, polars/VPP, laylines, start line, current & wave corrections |
 | [docs/04-prior-art](docs/04-prior-art/) | Open-source and commercial landscape, with licence compatibility notes |
 | [docs/05-spec](docs/05-spec/) | Product spec, technical spec, MVP scope, roadmap |
-| [docs/06-decisions](docs/06-decisions/) | Architecture decision records |
+| [docs/06-decisions](docs/06-decisions/) | Architecture decision records, and the questions still open |
 | [docs/SOURCES.md](docs/SOURCES.md) | Master bibliography — every URL cited across the research |
 | [RUNNING.md](RUNNING.md) | How to run the prototype |
 | [PILOT.md](PILOT.md) | For sailors trying it on the water: install, the dock check, the two-minute test, and what to send back |
@@ -80,14 +87,15 @@ and a wet pocket.
 | `src/lib/angles.ts`, `src/lib/geo.ts` | Angle discipline and spherical geodesy |
 | `src/lib/polar.ts`, `src/data/polars.ts` | Polar parsing/interpolation, derived targets, class library |
 | `src/data/venues.ts` | Pilot-venue identity, extent, public source IDs, and provenance links |
-| `src/data/landmask.ts`, `src/data/bathymetry.ts` | The two venue assets: an OSM coastline raster the router tests against, and a GEBCO depth grid the chart draws |
+| `src/data/landmask.ts`, `src/data/bathymetry.ts`, `public/venue/` | The two venue assets, with the code that reads them: an OSM coastline raster the router tests against, and a GEBCO depth grid the chart draws |
 | `src/lib/wind.ts` | Wind triangle, leeway, set & drift, ground-vs-true wind |
 | `src/lib/startline.ts` | Bias, distance below line, time to line and time to burn |
 | `src/lib/tactics.ts` | Laylines, VMG/VMC, beat split, time to mark |
 | `src/lib/weather/` | Open-Meteo ingest, binary forecast cube, field providers |
-| `src/lib/routing/` | Isochrone kernel, land mask, Web Worker |
+| `src/lib/routing/` | Isochrone kernel, land mask, Web Worker, departure sweep, depth advisory |
+| `src/lib/tides/` | NOAA CO-OPS predictions, and the datum arithmetic for tide heights |
 | `src/lib/sim.ts` | Synthetic boat, so the app is usable from a desk |
-| `src/screens/`, `src/components/` | The four screens and the start display |
+| `src/screens/`, `src/components/` | The five screens and the start display |
 
 The Portland pilot’s source inventory, station IDs, current-model precedence, and
 venue-pack build order live in [docs/02-data-sources/portland-maine-pilot.md](docs/02-data-sources/portland-maine-pilot.md).
@@ -108,6 +116,8 @@ about its own tide predictions, and it costs €1,250. Treat every number as adv
 
 ## Licence
 
-Code: [MIT](LICENSE). Documentation: CC BY 4.0.
+Code: [MIT](LICENSE) ([ADR-0005](docs/06-decisions/0005-mit-licence.md)). Documentation: CC BY 4.0.
 Third-party data retains its own licence — see
 [docs/02-data-sources/licensing-matrix.md](docs/02-data-sources/licensing-matrix.md).
+The land mask derives from OpenStreetMap, so `src/data/landmask.ts` and
+`public/venue/portland-land.bin` are ODbL 1.0.

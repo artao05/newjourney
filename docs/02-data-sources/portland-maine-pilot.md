@@ -48,9 +48,9 @@ the primary product; see the [NOAA charts overview](https://marinenavigation.noa
 | Request | `https://coastwatch.pfeg.noaa.gov/erddap/griddap/GEBCO_2020.csv?elevation[(43.38):(43.95)][(-70.55):(-69.8)]` |
 | Asset | `public/venue/portland-depth.bin` — 181 x 138 Int16 decimetres, 49 956 bytes |
 | Builder | `scripts/build-depth-grid.mjs` |
-| Consumer | `src/data/bathymetry.ts`, Weather-screen `Depth` layer |
+| Consumer | `src/data/bathymetry.ts`, Weather-screen `Depth` layer, Route-screen depth advisory |
 | Datum | Mean sea level, **not** the MLLW datum used for displayed heights |
-| Role | Display only. Not a routing input, not a safety contour. |
+| Role | Display, and an advisory on a finished route. Not a routing input, not a safety contour. |
 
 Three limits are measured rather than assumed, and all three are stated in the UI:
 
@@ -192,9 +192,10 @@ at <https://www.weather.gov/documentation/services-web-API>; it requires an iden
    zero wind or wave.
 3. **Tide and harmonic current.** *`CAB1401` current predictions are done* — the
    Current view charts the curve with NOAA's slack and peak times and marks the
-   station on the map. Still to do: tide *heights* for `8418150` and the subordinate
-   stations, and the in-harbor current points (`CAB1402` through `CAB1407`) with
-   distinct predicted-current provenance.
+   station on the map. *Tide heights for `8418150` are done too*, and correct the depth
+   along a finished route (`src/lib/tides/datum.ts`). Still to do: heights for the
+   subordinate stations, and the in-harbor current points (`CAB1402` through `CAB1407`)
+   with distinct predicted-current provenance.
 4. **Operational current grid.** Ingest and subset GoMOFS by venue bbox and time window.
    Feed its surface current vectors to routing only after recording the model run,
    valid time, grid resolution, and interpolation result.

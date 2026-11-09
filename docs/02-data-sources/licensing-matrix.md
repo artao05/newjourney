@@ -87,6 +87,11 @@ licence to redistribute in bulk inside a commercial product.
 - 📮 Ask ORC directly. A free tool that gets more sailors using ORC certificates is
   plausibly something they'd support — worth an email before assuming the worst.
 
+**Where this stands on 2026-11-04:** [still open](../06-decisions/README.md#open-only-the-owner-can-settle-these),
+and no request to ORC is recorded. No ORC data is bundled, and nothing fetches a certificate.
+There are no accounts for one to be stored in ([ADR-0008](../06-decisions/0008-no-accounts.md)),
+so Setup reads only a polar file the user already has.
+
 ## 5. GPL contamination — the real risk
 
 The most useful prior art (`weather_routing_pi`, OpenCPN, XTide) is GPL. We must be
@@ -116,6 +121,8 @@ it does, implement from the description.
 If the long-term plan involves a paid tier, MIT/Apache on the core and a separate
 proprietary hosted service is the standard and workable split. Going GPL would rule out
 that path.
+
+The code went with MIT: [ADR-0005](../06-decisions/0005-mit-licence.md).
 
 ## 7. Safety and liability
 
