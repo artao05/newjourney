@@ -10,9 +10,9 @@ npm install
 npm run dev
 ```
 
-Then open the printed URL. On a phone, use `npm run dev -- --host` and browse to
-your machine's LAN address — geolocation needs HTTPS or localhost, so for real
-GPS on a phone either deploy it or use a tunnel.
+Then open the printed URL. To try it on a phone, see [On a real phone](#on-a-real-phone):
+`npm run dev -- --host` and your machine's LAN address show the layout, but GPS, offline
+and stored data need HTTPS or `localhost`.
 
 ```bash
 npm test        # unit tests (vitest)
@@ -26,7 +26,11 @@ On this branch only:
 node scripts/parity-score.ts --areas  # the parity score, from the matrix
 node bridge/bridge.ts --udp 10110     # the instrument bridge (bridge/README.md)
 npm run test:phone                    # the built app at phone sizes, in your Chrome
+npm run test:phone:webkit             # the same in Playwright's WebKit, Safari's engine
 ```
+
+`test:phone:webkit` needs Playwright's WebKit, downloaded once with
+`npx playwright-core install webkit` (about 60 MB).
 
 Here `npm run build` also fails if the first download passes its limit
 (`scripts/check-budget.ts`).
@@ -43,8 +47,60 @@ also runs `.github/workflows/ci.yml`: the tests, the routing kernel's time budge
 their own, then the build and its typecheck. This branch's copy then runs `npm run test:phone`.
 
 The site is built from `main` only, and last deployed `0aa1ede` on 2026-11-04. Nothing on
-`parity/expedition` reaches it. That branch went to `origin` at `fbb40b4` on 2026-11-03 as a
-backup, so CI ran on that commit, but it has no pull request and no deploy.
+`parity/expedition` reaches it. That branch went to `origin` as a backup, at `fbb40b4` on
+2026-11-03 and at `31fe190` on 2026-11-11, so CI ran on both, but it has no pull request and
+no deploy.
+
+## On a real phone
+
+A phone hands over its GPS, keeps the app for offline use and protects its stored data only
+on an HTTPS address or on `localhost`. A LAN address such as `http://192.168.1.20:5173` is
+neither. This branch isn't deployed, so serve its production build and reach it one of the
+two ways below. Then run [PILOT.md](PILOT.md) §1 and §2, including the two checks only this
+branch has, and write the results into phase 0 of the
+[phone plan](docs/05-spec/phone-and-hardware.md).
+
+```bash
+npm run build
+npm run preview   # http://127.0.0.1:4173, on this machine only
+```
+
+**Android, over a USB cable.** Nothing to install on the PC, except the phone maker's USB
+driver for some phones.
+
+1. On the phone, turn on Developer options (Settings → About phone, tap Build number seven
+   times), then **USB debugging** inside them.
+2. Plug it in, open `chrome://inspect/#devices` in Chrome on the PC, and allow the PC when
+   the phone asks.
+3. Under **Port forwarding**, map port `4173` to `127.0.0.1:4173`, tick **Enable port
+   forwarding**, and keep that tab open.
+4. In Chrome on the phone, open `http://localhost:4173`. The phone counts it as secure, so
+   GPS, offline and stored data all work. **inspect**, under the phone in
+   `chrome://inspect`, gives DevTools for the page on the PC.
+
+**iPhone, or any phone without a cable: a tunnel.** Each gives the preview server an HTTPS
+address. `vite.config.ts` lets both through (`preview.allowedHosts`), so add any other
+tunnel's domain there.
+
+- **Cloudflare quick tunnel,** no account. Install it with
+  `winget install --id Cloudflare.cloudflared`, run
+  `cloudflared tunnel --url http://127.0.0.1:4173`, and open the `https://….trycloudflare.com`
+  address it prints. The address changes on every run, and anyone who has it can open the
+  app while the tunnel runs.
+- **Tailscale,** a free account, with the PC and the phone both signed in to it. Run
+  `tailscale serve 4173` and open `https://<pc name>.<tailnet>.ts.net`. The address stays
+  the same, and only your own devices reach it. If HTTPS is off for your tailnet, the first
+  run says how to turn it on.
+
+Once the app is on the home screen and has opened once, it runs from its own cache, so the
+tunnel can close. A new address is a new site to the phone: a fresh install, without the
+old one's tracks or settings.
+
+**Debugging an iPhone.** Safari's Web Inspector needs a Mac. Without one, note what you see
+with the phone model and iOS version. inspect.dev sells a Windows tool for it, not tried here.
+
+Neither way has been tried with a real phone yet (2026-11-11). On this machine, the preview
+server answered the two tunnels' hostnames and refused others.
 
 ---
 
@@ -265,8 +321,13 @@ been checked.
   protocols are not built, and [needs.md](docs/08-parity/needs.md) says what each would take.
 - **Nothing has been compared with Expedition itself** (needs.md D7).
 - **It has not been tried on a real phone.** The layout holds in emulated viewports of 360 to
-  412 px, in Chrome (`npm run test:phone`, passed 2026-11-05). `ci.yml` runs that check, but no
-  runner has yet, because nothing after `fbb40b4` has been pushed. It blocks the network, so it
+  412 px, in Chrome and in WebKit on this Windows machine (`npm run test:phone` and
+  `test:phone:webkit`, passed 2026-11-11). **On CI it fails** (`31fe190`, 2026-11-11): 204
+  problems, nearly all segmented buttons 32 px tall against the 34 px floor, plus the page
+  scrolling sideways by 4 px at 360 px wide. The difference is the font. Windows draws the app
+  in Segoe UI, whose taller lines carry `.seg button` to 34 px. Forced into Arial, whose lines
+  are nearer Roboto's and SF's, this machine shows CI's 32 px and 4 px too, so a real phone
+  probably will. Not fixed yet. It blocks the network, so it
   sees the forecast screens only when run by hand with `LIVE=1`, and it never loads a route. It
   can't see what only a phone shows: iOS Safari, GPS, sound, heat or a wet thumb. Until
   [PILOT.md](PILOT.md) §2 has passed on a real iPhone and Android phone, treat it as unproven.
@@ -283,7 +344,7 @@ Measured by hand, `main` on 2026-11-04 and 2026-11-05, this branch on 2026-11-05
 |---|---|---|
 | Tests | 1,053 in 48 files | 1,869 in 151 files |
 | `npx tsc -b --noEmit`, `npm run build` | clean | clean |
-| CI | green at this commit, 2026-11-04 | not run at this commit. Green at `fbb40b4`, the last pushed, 2026-11-03 |
+| CI | green at this commit, 2026-11-04 | not run at this commit. Red at `31fe190`, 2026-11-11: `test:phone` fails on the runner's font (see above) |
 | First load, gzipped | 100 KB of JS, 3 KB of CSS | 113 KB of JS, 5 KB of CSS (215 KB of JS before phone phase 0) |
 | All a first visit stores for offline, gzipped | 0.49 MB, 17 files | 0.70 MB, 45 files |
 | Map chunk, gzipped, mostly MapLibre | 286 KB of JS, 10 KB of CSS | 289 KB of JS, 10 KB of CSS |

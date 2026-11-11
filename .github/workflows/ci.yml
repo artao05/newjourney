@@ -29,3 +29,7 @@ jobs:
       - run: npm run build
       # The built app at phone sizes, in the runner's Chrome: what jsdom cannot see.
       - run: npm run test:phone
+      # The same check in Playwright's WebKit, Safari's engine and the nearest a Linux
+      # runner gets to an iPhone. Not a substitute for one: PILOT.md section 2 still is.
+      - run: npx playwright-core install --with-deps webkit
+      - run: npm run test:phone:webkit

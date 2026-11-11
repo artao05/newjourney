@@ -14,9 +14,15 @@
  *
  * Uses the machine's Chrome rather than a browser downloaded for the job; GitHub's
  * Ubuntu runners have one. Set CHROME_PATH to use another.
+ *
+ *   npm run test:phone:webkit
+ *
+ * runs the same check in Playwright's WebKit, which is Safari's engine. It needs a
+ * browser downloaded once, by `npx playwright-core install webkit`. It is not an iPhone:
+ * Safari's toolbars, the silent switch and home-screen quirks still need a real one.
  */
 
-import { chromium, type Page } from 'playwright-core'
+import { chromium, webkit, type Browser, type Page } from 'playwright-core'
 import { preview } from 'vite'
 
 /** Small Android, common Android and iPhone widths, with their usable heights. */
@@ -28,6 +34,18 @@ const SIZES = [
 ]
 
 const LIVE = process.env.LIVE === '1'
+
+const WEBKIT = process.argv.includes('--webkit')
+const ENGINE = WEBKIT ? 'WebKit' : 'Chrome'
+
+function launch(): Promise<Browser> {
+  if (WEBKIT) return webkit.launch()
+  return chromium.launch(
+    process.env.CHROME_PATH
+      ? { executablePath: process.env.CHROME_PATH, args: ['--enable-unsafe-swiftshader'] }
+      : { channel: 'chrome', args: ['--enable-unsafe-swiftshader'] },
+  )
+}
 
 const TABS = ['Start', 'Race', 'Weather', 'Route', 'Strip', 'Setup']
 
@@ -117,11 +135,7 @@ async function main(): Promise<void> {
   const server = await preview({ preview: { port: 4174, strictPort: true }, logLevel: 'error' })
   const url = server.resolvedUrls?.local[0]
   if (!url) throw new Error('vite preview gave no local URL')
-  const browser = await chromium.launch(
-    process.env.CHROME_PATH
-      ? { executablePath: process.env.CHROME_PATH, args: ['--enable-unsafe-swiftshader'] }
-      : { channel: 'chrome', args: ['--enable-unsafe-swiftshader'] },
-  )
+  const browser = await launch()
   const failures: string[] = []
   const report = (where: string, problems: string[]) => {
     for (const p of new Set(problems)) failures.push(`${where}: ${p}`)
@@ -161,10 +175,10 @@ async function main(): Promise<void> {
     await new Promise<void>((done, fail) => server.httpServer.close((e) => (e ? fail(e) : done())))
   }
   if (failures.length) {
-    console.error(`${failures.length} phone layout problem(s):\n  ${failures.join('\n  ')}`)
+    console.error(`${failures.length} phone layout problem(s) in ${ENGINE}:\n  ${failures.join('\n  ')}`)
     process.exit(1)
   }
-  console.log(`Phone layout: ${TABS.length} tabs and ${SHEETS.length} sheets fine at ${SIZES.map((s) => `${s.width}×${s.height}`).join(', ')}.`)
+  console.log(`Phone layout in ${ENGINE}: ${TABS.length} tabs and ${SHEETS.length} sheets fine at ${SIZES.map((s) => `${s.width}×${s.height}`).join(', ')}.`)
 }
 
 await main()

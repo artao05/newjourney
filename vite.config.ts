@@ -20,6 +20,16 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: true,
   },
+  preview: {
+    // A phone gets GPS, offline and lasting storage only over HTTPS or localhost, and a
+    // tunnel to this server is the quickest HTTPS (RUNNING.md, "On a real phone"). Vite
+    // answers only the hostnames it knows, so name the two tunnels that page describes.
+    // The leading dot lets in any name under them.
+    allowedHosts: ['.trycloudflare.com', '.ts.net'],
+    // On Windows "localhost" listens on IPv6 alone ([::1]), and Tailscale forwards to
+    // 127.0.0.1, so it would find nothing. Still this machine only, not the LAN.
+    host: '127.0.0.1',
+  },
   test: {
     // Node by default, so the pure library suites stay fast; the handful of files
     // that need a DOM ask for one with a per-file @vitest-environment pragma.
