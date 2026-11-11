@@ -124,8 +124,8 @@ again on 2026-11-11):
   site. All that the first visit stores comes to about 0.7 MB, against 0.5 MB, so that visit on
   Wi-Fi matters more.
 - **It has two more dock checks,** Sound and Stored data, in section 2.
-- **It has never been on a real phone.** Its layout check passes in Chrome on Windows from 360 to
-  412 px wide, but failed on Linux, where text sets differently: some buttons came out smaller
-  than the check allows, and at 360 px the screen scrolled sideways a little. The check never
+- **It has never been on a real phone.** Its layout check fails with a font like a phone's, on
+  Linux and on Windows alike: some buttons come out smaller than the check allows, and at 360 px
+  the screen scrolls sideways a little. It passes only with Windows' own font. The check never
   loads a route, and section 2 has not been run on it.
 - **It can read instruments** in Setup → Instruments. None of that has been tried on a boat.

@@ -249,9 +249,10 @@ been checked.
   GFS messages decode as NOAA's wgrib2 does (`grib2.real.test.ts`). These are files you bring,
   kept only until the page reloads. The app does not download GRIB itself.
 - **Phone phase 0,** from the [phone and hardware plan](docs/05-spec/phone-and-hardware.md).
-  Action rows wrap, Start's ping and timer rows stay put under a readout that scrolls, and on a
-  touch screen buttons are at least 34 px. Only Start and what it needs are in the first
-  download. The app asks the browser to keep what it stores, and Setup → Stored data shows the
+  Action rows wrap, and Start's ping and timer rows stay put under a readout that scrolls. A
+  touch screen gets bigger chips and selects and wider small buttons, though segmented buttons
+  can still be 32 px tall (see the real-phone entry below). Only Start and what it needs are in
+  the first download. The app asks the browser to keep what it stores, and Setup → Stored data shows the
   answer. A running countdown warns when it can't sound, and Start → TIMER has TEST SOUND.
   Checked by unit tests and in emulated phones, not on a real phone.
 - **The rest of the parity work,** row by row in

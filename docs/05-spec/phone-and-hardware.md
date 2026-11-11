@@ -117,8 +117,10 @@ No native code and nothing to buy.
       forecast are checked only by hand (`LIVE=1`), and Route with a route loaded not at all.
       **Reopened 2026-11-11:** it passes only in Windows' font. On CI's runner it fails, and a
       phone probably would too: segmented buttons 32 px tall, and 4 px of sideways scroll at
-      360 px ([RUNNING.md](../../RUNNING.md#whats-real-and-what-isnt)). `test:phone:webkit` now
-      runs the same check in Safari's engine.
+      360 px ([RUNNING.md](../../RUNNING.md#whats-real-and-what-isnt)). Forced to Arial, which
+      sets lines like Roboto and San Francisco, it fails the same way on Windows. So the 34 px in
+      the item above holds only with Segoe UI, and not yet for segmented buttons on a phone.
+      `test:phone:webkit` now runs the same check in Safari's engine.
 - [x] First-load JS: 113 KB, from 215 (Vite's figures, measured 2026-11-05), with a budget that
       fails the build. The budget counts in units of 1,024 bytes, so it reads 110.7 against a
       limit of 115. Not quite the 100 KB aimed for: React is about 60 KB of it, and the rest is
