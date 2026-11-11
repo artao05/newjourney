@@ -14,6 +14,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
 
 const { FakeMap, FakeLngLatBounds } = vi.hoisted(() => {
   class FakeLngLatBounds {
@@ -234,6 +235,87 @@ describe('the wind chip says what the wind rests on', () => {
   })
 })
 
+describe('the wind sheet keeps its buttons on screen', () => {
+  /*
+   * On a 320 x 568 phone only 2 px of SET WIND showed without scrolling, and CANCEL was
+   * 58 px below the edge. On a 390 x 664 one CANCEL still ran past it. jsdom has no layout,
+   * so this pins what keeps them in view: the sheet does not scroll, only its body does,
+   * and the buttons are outside it. The measured positions are in the commit.
+   */
+  const styles = document.createElement('style')
+  const button = (name: string | RegExp) => screen.getByRole('button', { name })
+  const dialog = () => screen.queryByRole('dialog', { name: 'Set the wind' })
+
+  function openSheet() {
+    render(<App />)
+    act(() => button(/^Wind:/).click())
+    return dialog()!
+  }
+
+  beforeEach(() => {
+    styles.textContent = readFileSync('src/styles.css', 'utf8')
+    document.head.appendChild(styles)
+  })
+
+  afterEach(() => styles.remove())
+
+  it('scrolls the numbers and their steps, and not the buttons', () => {
+    const body = openSheet().querySelector('.sheet__body')!
+    const scrolling = [
+      screen.getByRole('spinbutton', { name: /^Wind direction/ }),
+      button('-10'),
+      button('+10'),
+      screen.getByRole('spinbutton', { name: /^True wind speed/ }),
+      button('−1 kn'),
+      button('+1 kn'),
+    ]
+    expect(scrolling.map((el) => body.contains(el))).toEqual(scrolling.map(() => true))
+    const pinned = [button(/^SET WIND/), button('USE FORECAST'), button('CANCEL')]
+    expect(pinned.map((el) => body.contains(el))).toEqual([false, false, false])
+  })
+
+  it('leaves the scrolling to the body, and lets it give up the height', () => {
+    const sheet = openSheet()
+    const body = sheet.querySelector('.sheet__body')!
+    expect(getComputedStyle(sheet).display).toBe('flex')
+    expect(getComputedStyle(sheet).overflowY).toBe('hidden')
+    expect(getComputedStyle(body).overflowY).toBe('auto')
+    expect(getComputedStyle(body).minHeight).toBe('0px')
+    expect(getComputedStyle(button('CANCEL').closest('.sheet__foot')!).flexShrink).toBe('0')
+  })
+
+  it('may grow past the usual limit, as far as the countdown', () => {
+    // Limits jsdom cannot apply, and its cascade ignores specificity, so read the rules.
+    const limitIn = (rules: CSSRuleList) =>
+      [...rules].find(
+        (r): r is CSSStyleRule => (r as CSSStyleRule).selectorText === '.sheet.wind-sheet',
+      )?.style.maxHeight
+    expect(limitIn(styles.sheet!.cssRules)).toBe('max(74%, calc(100% - var(--safe-top) - 134px))')
+    const media = [...styles.sheet!.cssRules].filter((r): r is CSSMediaRule => 'media' in r)
+    const onItsSide = media.filter((m) => limitIn(m.cssRules) != null)
+    expect(onItsSide.map((m) => m.media.mediaText)).toEqual(['(max-height: 499.98px)'])
+    expect(limitIn(onItsSide[0].cssRules)).toBe('100%')
+  })
+
+  it('leaves each button doing what it says from there', () => {
+    openSheet()
+    act(() => button('CANCEL').click())
+    expect(dialog()).toBeNull()
+    expect(useStore.getState().manualWindSetAt).toBeNull()
+
+    act(() => button(/^Wind:/).click())
+    act(() => button('USE FORECAST').click())
+    expect(dialog()).toBeNull()
+    expect(useStore.getState().windMode).toBe('forecast')
+
+    act(() => button(/^Wind:/).click())
+    act(() => button(/^SET WIND/).click())
+    expect(dialog()).toBeNull()
+    expect(useStore.getState().windMode).toBe('manual')
+    expect(useStore.getState().manualWindSetAt).not.toBeNull()
+  })
+})
+
 describe('set and drift', () => {
   it('derives a current from a fix that has a log and a compass', async () => {
     render(<App />)
@@ -367,6 +449,89 @@ describe('the recorded track survives a reload', () => {
     localStorage.setItem(TRACK_KEY, encodeTrack(saved))
     render(<App />)
     expect(useStore.getState().track.map((p) => p.t)).toEqual([t0, t0 + 1000])
+  })
+})
+
+describe('Start keeps the tab bar and its own controls on screen', () => {
+  /*
+   * Each warning sat directly in the column that holds the tab bar, with nothing to
+   * absorb it: at 375 x 812 three of them put the bar at y 838-902. jsdom has no
+   * layout, so this pins what the layout rests on, which is where each part sits and
+   * what the real stylesheet says about the parts that move. The measured heights
+   * are in the commit.
+   */
+  const FORECAST_DOWN = 'Forecast unavailable — showing the last wind estimate.'
+  const styles = document.createElement('style')
+  const button = (name: string) => screen.getByRole('button', { name })
+
+  /** jsdom has no geolocation, so GPS is already refused, as with location denied. */
+  async function everyWarningShowing() {
+    useStore.getState().setTab('start')
+    useStore.getState().setWindError(FORECAST_DOWN)
+    useStore.getState().updateSettings({ keepAwake: true })
+    const view = render(<App />)
+    await waitFor(() => expect(view.container.querySelectorAll('.warnbox').length).toBe(4))
+    const app = view.container.querySelector('.app')!
+    return { app, start: app.querySelector('.start')!, middle: app.querySelector('.start__middle')! }
+  }
+
+  beforeEach(() => {
+    styles.textContent = readFileSync('src/styles.css', 'utf8')
+    document.head.appendChild(styles)
+  })
+
+  afterEach(() => {
+    styles.remove()
+    useStore.getState().setWindError(null)
+    useStore.getState().setTab('start')
+  })
+
+  it('leaves only the two bars and the screen in the column', async () => {
+    const { app } = await everyWarningShowing()
+    expect([...app.children].map((c) => c.className)).toEqual(['topbar', 'start', 'tabbar'])
+  })
+
+  it('keeps every warning, the canvas and the tiles in the part that scrolls', async () => {
+    const { app, middle } = await everyWarningShowing()
+    const warnings = [...app.querySelectorAll('.warnbox')]
+    expect(warnings.map((w) => middle.contains(w))).toEqual([true, true, true, true])
+    expect(middle.querySelector('canvas')).not.toBeNull()
+    expect(middle.querySelector('.tiles')).not.toBeNull()
+  })
+
+  it('keeps the hero and both rows of buttons out of it', async () => {
+    const { start, middle } = await everyWarningShowing()
+    const pinned = [
+      start.querySelector('.hero')!,
+      button('PING PIN'),
+      button('PING RC'),
+      button('5 MIN'),
+    ]
+    for (const el of pinned) {
+      expect(start.contains(el)).toBe(true)
+      expect(middle.contains(el)).toBe(false)
+    }
+  })
+
+  it('lets the middle absorb the height, and nothing else', async () => {
+    const { app, start, middle } = await everyWarningShowing()
+    const css = (el: Element) => getComputedStyle(el)
+    expect(css(start).flexGrow).toBe('1')
+    expect(css(start).minHeight).toBe('0px')
+    expect(css(middle).flexGrow).toBe('1')
+    expect(css(middle).minHeight).toBe('0px')
+    expect(css(middle).overflowY).toBe('auto')
+    for (const sel of ['.topbar', '.tabbar', '.hero', '.actions']) {
+      expect(css(app.querySelector(sel)!).flexShrink, sel).toBe('0')
+    }
+  })
+
+  it('leaves the shared warnings above the screen on other tabs', async () => {
+    useStore.getState().setTab('race')
+    useStore.getState().setWindError(FORECAST_DOWN)
+    const view = render(<App />)
+    await waitFor(() => expect(screen.getByText(FORECAST_DOWN)).toBeTruthy())
+    expect(screen.getByText(FORECAST_DOWN).parentElement).toBe(view.container.querySelector('.app'))
   })
 })
 

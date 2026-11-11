@@ -22,6 +22,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import type { DepartureSweep } from '@/lib/routing/departure'
 import type { RouteResult, WeatherCube } from '@/lib/types'
 
 // ------------------------------------------------------------- maplibre stub
@@ -121,6 +123,16 @@ vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}))
 const { stubForecast } = vi.hoisted(() => ({
   stubForecast: { cube: null as WeatherCube | null },
 }))
+// The router runs in a worker, which jsdom does not have. Only WHEN's answer is needed.
+const { stubSweep } = vi.hoisted(() => ({
+  stubSweep: { value: null as DepartureSweep | null },
+}))
+vi.mock('@/lib/routing/client', () => ({
+  RoutingClient: class {
+    sweep = () => Promise.resolve(stubSweep.value)
+    dispose() {}
+  },
+}))
 vi.mock('@/lib/weather/openmeteo', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/lib/weather/openmeteo')>()
   return {
@@ -146,7 +158,7 @@ import { uvFromWind } from '@/lib/weather/cube'
 // ------------------------------------------------------------------ fixtures
 
 const SCREENS: Array<[string, () => React.JSX.Element]> = [
-  ['Start', StartScreen],
+  ['Start', () => <StartScreen />],
   ['Race', RaceScreen],
   ['Setup', SetupScreen],
   ['Weather', WeatherScreen],
@@ -193,6 +205,65 @@ function populatedStore() {
   s.setGunTime(Date.now() + 180_000)
 }
 
+const HOUR = 3_600_000
+
+/** Uniform over the venue, blowing FROM `fromDeg[k]` in hour k. */
+function windCube(t0: number, fromDeg: number[]): WeatherCube {
+  const nx = 3
+  const ny = 3
+  const nt = fromDeg.length
+  const u = new Float32Array(nt * ny * nx)
+  const v = new Float32Array(nt * ny * nx)
+  fromDeg.forEach((d, k) => {
+    const w = uvFromWind(12, d)
+    u.fill(w.u, k * ny * nx, (k + 1) * ny * nx)
+    v.fill(w.v, k * ny * nx, (k + 1) * ny * nx)
+  })
+  const b = PILOT_VENUE.bbox
+  return {
+    model: 'test',
+    run: 'test-run',
+    bbox: b,
+    nx,
+    ny,
+    dx: (b.east - b.west) / (nx - 1),
+    dy: (b.north - b.south) / (ny - 1),
+    t0,
+    dtMs: HOUR,
+    nt,
+    params: ['u10', 'v10'],
+    data: { u10: u, v10: v },
+  }
+}
+
+function routeLeavingAt(t: number): RouteResult {
+  const at = (dt: number, dLat: number) => ({
+    t: t + dt,
+    position: { lat: PILOT_VENUE.waterStart.lat + dLat, lon: PILOT_VENUE.waterStart.lon },
+    twd: 90,
+    tws: 12,
+    twa: 90,
+    bsp: 6,
+    heading: 0,
+    isBeating: false,
+    tack: 'starboard' as const,
+    currentSet: null,
+    currentDrift: null,
+    distanceNm: 0.6,
+  })
+  return {
+    ok: true,
+    legs: [at(0, 0), at(HOUR / 10, 0.01)],
+    etaMs: t + HOUR / 10,
+    elapsedS: 360,
+    directTimeS: 360,
+    isochrones: [],
+    reverseIsochrones: [],
+    sensitivity: null,
+    diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: true, warnings: [] },
+  }
+}
+
 /*
  * jsdom has no ResizeObserver and `StartCanvas` observes its parent to size the
  * canvas. Stubbed rather than worked around: the app is right to use it, and a
@@ -209,6 +280,7 @@ beforeEach(() => {
   ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = NoopResizeObserver
   mapInstances.length = 0
   stubForecast.cube = null
+  stubSweep.value = null
   // No forecast fetches from a screen test.
   globalThis.fetch = (() =>
     Promise.reject(new Error('network disabled in screen tests'))) as unknown as typeof fetch
@@ -340,6 +412,186 @@ describe('the Route screen keeps its controls on screen', () => {
   })
 })
 
+describe("the Route row's narrow-phone rule stays on the Route row", () => {
+  /*
+   * Whether four labels fit is a question of text widths, and jsdom has no layout,
+   * so the fit at 320 px is measured in the browser and the numbers are in the commit.
+   * These pin the two limits on the rule: it reaches nothing at 375 px or wider, and
+   * no row but Route's.
+   */
+  const tightRule = () => {
+    const style = document.createElement('style')
+    style.textContent = readFileSync('src/styles.css', 'utf8')
+    document.head.appendChild(style)
+    const media = [...style.sheet!.cssRules].filter(
+      (r): r is CSSMediaRule =>
+        'media' in r && [...(r as CSSMediaRule).cssRules].some((i) => /actions--tight/.test((i as CSSStyleRule).selectorText)),
+    )
+    style.remove()
+    return media
+  }
+
+  it('applies below 375 px and no wider', () => {
+    expect(tightRule().map((m) => m.media.mediaText)).toEqual(['(max-width: 374.98px)'])
+  })
+
+  it("marks Route's row", () => {
+    render(<RouteScreen />)
+    const row = screen.getByRole('button', { name: 'RESULTS' }).closest('.actions')!
+    expect(row.classList.contains('actions--tight')).toBe(true)
+    expect(row.querySelectorAll('.btn--sm').length).toBe(4)
+  })
+
+  it("leaves Start's rows alone", () => {
+    render(<StartScreen />)
+    const rows = [...document.querySelectorAll('.actions')]
+    expect(rows.length).toBe(2)
+    expect(rows.filter((r) => r.classList.contains('actions--tight'))).toEqual([])
+  })
+})
+
+describe("Route's notes stay readable over a drawn route", () => {
+  /*
+   * The legend and MapLibre's attribution are anchored to the chart's bottom edge, and
+   * the attribution has a z-index of its own. Anything in the chart area's foot sits
+   * under them, so the notes have to live outside that area. jsdom has no layout, so
+   * that is what can be pinned; the measured geometry is in the commit.
+   */
+  const FAILED = 'marine data unavailable (Open-Meteo request failed: 503); wind only'
+
+  async function routeDrawnWithANoteAndAnError() {
+    stubForecast.cube = { ...windCube(Date.now(), [0, 0, 0]), notes: [FAILED] } as WeatherCube
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => screen.getByRole('button', { name: 'FORECAST' }).click())
+    const note = await screen.findByText(FAILED)
+    act(() => {
+      useStore.getState().setRoute(routeLeavingAt(Date.now()))
+      useStore.getState().setRouteError('No route found')
+    })
+    return { note, error: screen.getByText('No route found') }
+  }
+
+  it('keeps the legend in the chart and the notes out of it', async () => {
+    const { note, error } = await routeDrawnWithANoteAndAnError()
+    const chart = document.querySelector('.chart-area')!
+    expect(chart.contains(document.querySelector('.legend'))).toBe(true)
+    expect(chart.contains(note)).toBe(false)
+    expect(chart.contains(error)).toBe(false)
+  })
+
+  it('puts them between the chart and the action row', async () => {
+    const { note, error } = await routeDrawnWithANoteAndAnError()
+    const strip = note.parentElement!
+    // First in the strip, so a long list cannot scroll the thing that just went wrong
+    // out of sight.
+    expect(strip.firstElementChild).toBe(error)
+    expect(strip.previousElementSibling?.classList.contains('chart-area')).toBe(true)
+    expect(strip.nextElementSibling).toBe(screen.getByRole('button', { name: 'ROUTE' }).closest('.actions'))
+  })
+
+  it('lets a long list scroll rather than take the whole chart', async () => {
+    const style = document.createElement('style')
+    style.textContent = readFileSync('src/styles.css', 'utf8')
+    document.head.appendChild(style)
+    try {
+      const { note } = await routeDrawnWithANoteAndAnError()
+      const css = getComputedStyle(note.parentElement!)
+      expect(css.overflowY).toBe('auto')
+      expect(css.maxHeight).toMatch(/%$/)
+    } finally {
+      style.remove()
+    }
+  })
+
+  it('takes no room from the chart when there is nothing to say', () => {
+    populatedStore()
+    render(<RouteScreen />)
+    expect(document.querySelector('.route-notes')).toBeNull()
+  })
+
+  it('says so there when no polar is loaded', () => {
+    render(<RouteScreen />)
+    expect(screen.getByText(/No polar loaded/).parentElement?.className).toBe('route-notes')
+  })
+})
+
+describe('a long sheet closes without scrolling', () => {
+  /*
+   * CLOSE sat at the end of the scrolling sheet, about 1,340 px below the sheet's
+   * bottom edge on a 375 x 812 phone. jsdom has no layout, so this pins what keeps it in
+   * view: the sheet does not scroll, only its body does, and the buttons are outside it.
+   * The measured positions are in the commit.
+   */
+  const button = (name: string | RegExp) => screen.getByRole('button', { name })
+  const styles = document.createElement('style')
+
+  beforeEach(() => {
+    styles.textContent = readFileSync('src/styles.css', 'utf8')
+    document.head.appendChild(styles)
+  })
+
+  afterEach(() => styles.remove())
+
+  function expectPinned(contents: Element | null) {
+    const close = button('CLOSE')
+    const sheet = close.closest('.sheet')!
+    const body = sheet.querySelector('.sheet__body')!
+    expect(contents && body.contains(contents), 'the long part scrolls').toBe(true)
+    expect(body.contains(close), 'CLOSE does not').toBe(false)
+    expect(getComputedStyle(body).overflowY).toBe('auto')
+    expect(getComputedStyle(body).minHeight).toBe('0px')
+    expect(getComputedStyle(sheet).overflowY).toBe('hidden')
+    expect(getComputedStyle(close.closest('.actions')!).flexShrink).toBe('0')
+
+    act(() => close.click())
+    expect(document.querySelector('.sheet')).toBeNull()
+  }
+
+  it('the results sheet', () => {
+    populatedStore()
+    act(() => useStore.getState().setRoute(routeLeavingAt(Date.now())))
+    render(<RouteScreen />)
+    act(() => button('RESULTS').click())
+    expect(button('GPX').closest('.sheet__body')).toBeNull()
+    expect(button('CSV').closest('.sheet__body')).toBeNull()
+    expectPinned(document.querySelector('.sheet table.results'))
+  })
+
+  it('the departure sheet, which is long enough to need the same', async () => {
+    const t = Date.now()
+    const option = (departAt: number, costS: number) => ({
+      departAt,
+      elapsedS: 3600 + costS,
+      etaMs: departAt + (3600 + costS) * 1000,
+      costS,
+      timeStepS: 60,
+    })
+    const options = [option(t, 0), option(t + HOUR, 600)]
+    stubSweep.value = {
+      options,
+      best: options[0],
+      spreadS: 600,
+      stepFloorS: 60,
+      attempted: 2,
+      succeeded: 2,
+      warnings: [],
+    }
+    stubForecast.cube = windCube(t, [0, 0, 0, 0])
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => button('WHEN').click())
+    const routeFrom = await screen.findByRole('button', { name: /^ROUTE FROM/ })
+    expect(routeFrom.closest('.sheet__body')).toBeNull()
+    // Advice that matters has the legend's look, and must not have its position:
+    // absolute, or it floats over the table and the pinned buttons.
+    const advice = screen.getByText(/^Departure dominates/)
+    expect(getComputedStyle(advice).position).toBe('static')
+    expect(advice.closest('.sheet__body')).not.toBeNull()
+    expectPinned(document.querySelector('.sheet table.results'))
+  })
+})
+
 describe('the Weather screen states its provenance', () => {
   it('offers the three layers and no wave-height chip', () => {
     render(<WeatherScreen />)
@@ -410,65 +662,6 @@ describe('the Route chart draws the wind the route sails in', () => {
    * They must follow the drawn route's departure, and the clock when there is no
    * route — not whichever hour the cube happens to begin with.
    */
-  const HOUR = 3_600_000
-
-  /** Uniform over the venue, blowing FROM `fromDeg[k]` in hour k. */
-  function windCube(t0: number, fromDeg: number[]): WeatherCube {
-    const nx = 3
-    const ny = 3
-    const nt = fromDeg.length
-    const u = new Float32Array(nt * ny * nx)
-    const v = new Float32Array(nt * ny * nx)
-    fromDeg.forEach((d, k) => {
-      const w = uvFromWind(12, d)
-      u.fill(w.u, k * ny * nx, (k + 1) * ny * nx)
-      v.fill(w.v, k * ny * nx, (k + 1) * ny * nx)
-    })
-    const b = PILOT_VENUE.bbox
-    return {
-      model: 'test',
-      run: 'test-run',
-      bbox: b,
-      nx,
-      ny,
-      dx: (b.east - b.west) / (nx - 1),
-      dy: (b.north - b.south) / (ny - 1),
-      t0,
-      dtMs: HOUR,
-      nt,
-      params: ['u10', 'v10'],
-      data: { u10: u, v10: v },
-    }
-  }
-
-  function routeLeavingAt(t: number): RouteResult {
-    const at = (dt: number, dLat: number) => ({
-      t: t + dt,
-      position: { lat: PILOT_VENUE.waterStart.lat + dLat, lon: PILOT_VENUE.waterStart.lon },
-      twd: 90,
-      tws: 12,
-      twa: 90,
-      bsp: 6,
-      heading: 0,
-      isBeating: false,
-      tack: 'starboard' as const,
-      currentSet: null,
-      currentDrift: null,
-      distanceNm: 0.6,
-    })
-    return {
-      ok: true,
-      legs: [at(0, 0), at(HOUR / 10, 0.01)],
-      etaMs: t + HOUR / 10,
-      elapsedS: 360,
-      directTimeS: 360,
-      isochrones: [],
-      reverseIsochrones: [],
-      sensitivity: null,
-      diagnostics: { nodesExplored: 1, timeStepS: 60, computeMs: 1, landAvoided: true, warnings: [] },
-    }
-  }
-
   it('follows the departure of the drawn route, and the clock without one', async () => {
     // Northerly for two hours, then easterly. Now sits in the northerly part, a
     // departure two hours on in the easterly.

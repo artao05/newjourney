@@ -57,83 +57,87 @@ export function WindSheet({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="sheet wind-sheet" role="dialog" aria-label="Set the wind">
+    <div className="sheet sheet--pinned wind-sheet" role="dialog" aria-label="Set the wind">
       <div className="sheet__grip" />
-      <h2 className="wind-sheet__title">Wind</h2>
-      <p className="note">
-        {windMode === 'forecast'
-          ? 'In use: the Open-Meteo forecast at your position. Setting it here switches to manual.'
-          : setAt == null
-            ? 'Not set yet. Luff head to wind, read your heading, and set it here.'
-            : 'In use: the wind you set by hand.'}
-      </p>
+      <div className="sheet__body wind-sheet__body">
+        <h2 className="wind-sheet__title">Wind</h2>
+        <p className="note">
+          {windMode === 'forecast'
+            ? 'In use: the Open-Meteo forecast at your position. Setting it here switches to manual.'
+            : setAt == null
+              ? 'Not set yet. Luff head to wind, read your heading, and set it here.'
+              : 'In use: the wind you set by hand.'}
+        </p>
 
-      <div className="wind-sheet__value" aria-live="polite">
-        <label>
-          <span>FROM</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            aria-label={`Wind direction, degrees ${magnetic ? 'magnetic' : 'true'}`}
-            value={dir}
-            onChange={(e) => setDir(Number(e.target.value))}
-          />
-        </label>
-        <div className="seg wind-sheet__north" role="group" aria-label="North reference">
-          <button aria-pressed={!magnetic} onClick={() => showNorth(false)}>
-            °T
+        <div className="wind-sheet__value" aria-live="polite">
+          <label>
+            <span>FROM</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              aria-label={`Wind direction, degrees ${magnetic ? 'magnetic' : 'true'}`}
+              value={dir}
+              onChange={(e) => setDir(Number(e.target.value))}
+            />
+          </label>
+          <div className="seg wind-sheet__north" role="group" aria-label="North reference">
+            <button aria-pressed={!magnetic} onClick={() => showNorth(false)}>
+              °T
+            </button>
+            <button aria-pressed={magnetic} onClick={() => showNorth(true)}>
+              °M
+            </button>
+          </div>
+        </div>
+        {magnetic && (
+          <p className="note">
+            = {fmtDeg(magneticToTrue(dir, decl))}°T. Variation {Math.abs(decl).toFixed(1)}°{' '}
+            {decl < 0 ? 'W' : 'E'} here (NOAA {PILOT_VENUE.declination.model}).
+          </p>
+        )}
+        <div className="wind-sheet__steps">
+          {DIR_STEPS.map((d) => (
+            <button key={d} className="btn btn--sm" onClick={() => setDir((v) => wrap360(v + d))}>
+              {d > 0 ? `+${d}` : d}
+            </button>
+          ))}
+        </div>
+
+        <div className="wind-sheet__value">
+          <label>
+            <span>SPEED</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              aria-label="True wind speed, knots"
+              value={tws}
+              onChange={(e) => setTws(Number(e.target.value))}
+            />
+            <span>kn</span>
+          </label>
+        </div>
+        <div className="wind-sheet__steps wind-sheet__steps--2">
+          <button className="btn btn--sm" onClick={() => setTws((v) => Math.max(0, v - 1))}>
+            −1 kn
           </button>
-          <button aria-pressed={magnetic} onClick={() => showNorth(true)}>
-            °M
+          <button className="btn btn--sm" onClick={() => setTws((v) => v + 1)}>
+            +1 kn
           </button>
         </div>
       </div>
-      {magnetic && (
-        <p className="note">
-          = {fmtDeg(magneticToTrue(dir, decl))}°T. Variation {Math.abs(decl).toFixed(1)}°{' '}
-          {decl < 0 ? 'W' : 'E'} here (NOAA {PILOT_VENUE.declination.model}).
-        </p>
-      )}
-      <div className="wind-sheet__steps">
-        {DIR_STEPS.map((d) => (
-          <button key={d} className="btn btn--sm" onClick={() => setDir((v) => wrap360(v + d))}>
-            {d > 0 ? `+${d}` : d}
+
+      <div className="sheet__foot wind-sheet__foot">
+        <button className="btn btn--primary" onClick={commit}>
+          SET WIND {fmtDeg(dir)}°{magnetic ? 'M' : ''} · {Math.max(0, tws)} kn
+        </button>
+        <div className="wind-sheet__steps wind-sheet__steps--2">
+          <button className="btn btn--sm btn--ghost" onClick={useForecast} disabled={windMode === 'forecast'}>
+            USE FORECAST
           </button>
-        ))}
-      </div>
-
-      <div className="wind-sheet__value">
-        <label>
-          <span>SPEED</span>
-          <input
-            type="number"
-            inputMode="decimal"
-            aria-label="True wind speed, knots"
-            value={tws}
-            onChange={(e) => setTws(Number(e.target.value))}
-          />
-          <span>kn</span>
-        </label>
-      </div>
-      <div className="wind-sheet__steps wind-sheet__steps--2">
-        <button className="btn btn--sm" onClick={() => setTws((v) => Math.max(0, v - 1))}>
-          −1 kn
-        </button>
-        <button className="btn btn--sm" onClick={() => setTws((v) => v + 1)}>
-          +1 kn
-        </button>
-      </div>
-
-      <button className="btn btn--primary" onClick={commit}>
-        SET WIND {fmtDeg(dir)}°{magnetic ? 'M' : ''} · {Math.max(0, tws)} kn
-      </button>
-      <div className="wind-sheet__steps wind-sheet__steps--2">
-        <button className="btn btn--sm btn--ghost" onClick={useForecast} disabled={windMode === 'forecast'}>
-          USE FORECAST
-        </button>
-        <button className="btn btn--sm btn--ghost" onClick={onClose}>
-          CANCEL
-        </button>
+          <button className="btn btn--sm btn--ghost" onClick={onClose}>
+            CANCEL
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -623,38 +623,51 @@ export function RouteScreen() {
             )}
           </div>
 
-          <div>
-            {forecastNotes.map((note) => (
-              <div className="warnbox" key={note}>
-                {note}
+          {route?.ok && route.legs.length > 0 && (
+            <div className="legend">
+              <div>
+                <span className="swatch" style={{ background: '#ff3ea5' }} />
+                <b>optimal route</b>
               </div>
-            ))}
-            {routeError && <div className="errbox">{routeError}</div>}
-            {route?.ok && route.legs.length > 0 && (
-              <div className="legend">
-                <div>
-                  <span className="swatch" style={{ background: '#ff3ea5' }} />
-                  <b>optimal route</b>
-                </div>
-                <div>
-                  <span className="swatch" style={{ background: '#ff9ad2' }} />
-                  beating (implicit tacks)
-                </div>
-                <div>
-                  <span className="swatch" style={{ background: 'rgba(79,195,247,.55)' }} />
-                  isochrones
-                </div>
-                <div>
-                  <span className="swatch" style={{ background: 'rgba(255,213,74,.35)' }} />
-                  within 10 min of optimal
-                </div>
+              <div>
+                <span className="swatch" style={{ background: '#ff9ad2' }} />
+                beating (implicit tacks)
               </div>
-            )}
-          </div>
+              <div>
+                <span className="swatch" style={{ background: 'rgba(79,195,247,.55)' }} />
+                isochrones
+              </div>
+              <div>
+                <span className="swatch" style={{ background: 'rgba(255,213,74,.35)' }} />
+                within 10 min of optimal
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="actions" style={{ position: 'relative', zIndex: 2 }}>
+      {/*
+        Beside the chart, not over it. The legend and the map's attribution are anchored
+        to the chart's bottom edge, and at the foot of the overlay they sat on top of
+        these, including a failed forecast request. The chart gives up the height.
+      */}
+      {(!polar || forecastNotes.length > 0 || routeError) && (
+        <div className="route-notes">
+          {routeError && <div className="errbox">{routeError}</div>}
+          {!polar && (
+            <div className="warnbox">
+              No polar loaded — pick a boat class in <b>Setup</b> before routing.
+            </div>
+          )}
+          {forecastNotes.map((note) => (
+            <div className="warnbox" key={note}>
+              {note}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="actions actions--tight" style={{ position: 'relative', zIndex: 2 }}>
         <button className="btn btn--sm" onClick={loadWeather} disabled={!state || !!busy}>
           FORECAST
         </button>
@@ -677,12 +690,6 @@ export function RouteScreen() {
           RESULTS
         </button>
       </div>
-
-      {!polar && (
-        <div className="warnbox" style={{ position: 'absolute', left: 12, right: 12, bottom: 74, zIndex: 3 }}>
-          No polar loaded — pick a boat class in <b>Setup</b> before routing.
-        </div>
-      )}
 
       {showResults && route?.ok && (
         <ResultsSheet
@@ -740,101 +747,103 @@ function DepartureSheet({
   const advice = departureAdvice(sweep)
   const best = sweep.best
   return (
-    <div className="sheet">
+    <div className="sheet sheet--pinned">
       <div className="sheet__grip" onClick={onClose} />
 
-      {advice && (
-        <div className={advice.matters ? 'legend' : 'warnbox'} style={{ marginBottom: 10 }}>
-          {advice.text}
-        </div>
-      )}
+      <div className="sheet__body">
+        {advice && (
+          <div className={advice.matters ? 'legend legend--inline' : 'warnbox'} style={{ marginBottom: 10 }}>
+            {advice.text}
+          </div>
+        )}
 
-      <DepartureChart sweep={sweep} selected={selected} />
+        <DepartureChart sweep={sweep} selected={selected} />
 
-      <div className="rows" style={{ margin: '12px 0' }}>
-        <div className="row">
-          <span>Best departure</span>
-          <span>{best ? `${fmtLocalHm(best.departAt)} local` : '—'}</span>
+        <div className="rows" style={{ margin: '12px 0' }}>
+          <div className="row">
+            <span>Best departure</span>
+            <span>{best ? `${fmtLocalHm(best.departAt)} local` : '—'}</span>
+          </div>
+          <div className="row">
+            <span>Passage then</span>
+            <span>{fmtDuration(best?.elapsedS ?? null) ?? '—'}</span>
+          </div>
+          <div className="row">
+            <span>Spread over window</span>
+            {/*
+              Explicitly "not enough data" rather than a dash, which this app also
+              uses for a forecast hole. One successful solve cannot support a spread,
+              and the reader should be told which of the two it is looking at.
+            */}
+            <span>
+              {sweep.spreadS == null
+                ? sweep.succeeded < 2
+                  ? 'needs 2+ departures'
+                  : '—'
+                : (fmtDuration(sweep.spreadS) ?? '—')}
+            </span>
+          </div>
+          <div className="row">
+            <span>Router resolution</span>
+            <span>
+              {sweep.stepFloorS == null ? '—' : `±${Math.round(sweep.stepFloorS / 60)} min`}
+            </span>
+          </div>
+          <div className="row">
+            <span>Departures solved</span>
+            <span>
+              {sweep.succeeded} of {sweep.attempted}
+            </span>
+          </div>
         </div>
-        <div className="row">
-          <span>Passage then</span>
-          <span>{fmtDuration(best?.elapsedS ?? null) ?? '—'}</span>
-        </div>
-        <div className="row">
-          <span>Spread over window</span>
-          {/*
-            Explicitly "not enough data" rather than a dash, which this app also
-            uses for a forecast hole. One successful solve cannot support a spread,
-            and the reader should be told which of the two it is looking at.
-          */}
-          <span>
-            {sweep.spreadS == null
-              ? sweep.succeeded < 2
-                ? 'needs 2+ departures'
-                : '—'
-              : (fmtDuration(sweep.spreadS) ?? '—')}
-          </span>
-        </div>
-        <div className="row">
-          <span>Router resolution</span>
-          <span>
-            {sweep.stepFloorS == null ? '—' : `±${Math.round(sweep.stepFloorS / 60)} min`}
-          </span>
-        </div>
-        <div className="row">
-          <span>Departures solved</span>
-          <span>
-            {sweep.succeeded} of {sweep.attempted}
-          </span>
-        </div>
+
+        {sweep.warnings.map((w) => (
+          <div className="warnbox" key={w}>
+            {w}
+          </div>
+        ))}
+
+        <table className="results">
+          <thead>
+            <tr>
+              <th>leave</th>
+              <th>arrive</th>
+              <th>passage</th>
+              <th>cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sweep.options.map((d) => (
+              <tr
+                key={d.departAt}
+                style={
+                  best && d.departAt === best.departAt
+                    ? { color: 'var(--stbd)', fontWeight: 600 }
+                    : undefined
+                }
+              >
+                <td>{fmtLocalHm(d.departAt)}</td>
+                <td>{d.etaMs == null ? '—' : fmtLocalHm(d.etaMs)}</td>
+                <td>{fmtDuration(d.elapsedS) ?? '—'}</td>
+                <td>
+                  {d.costS == null
+                    ? (d.error ?? 'no route')
+                    : d.costS === 0
+                      ? 'best'
+                      : `+${Math.round(d.costS / 60)} min`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="note">
+          Each row is a full route solve from that time, using the same boat, polar
+          and constraints as the ROUTE button. Ranked on elapsed passage time —
+          differences smaller than the router resolution above are not real.
+        </p>
       </div>
 
-      {sweep.warnings.map((w) => (
-        <div className="warnbox" key={w}>
-          {w}
-        </div>
-      ))}
-
-      <table className="results">
-        <thead>
-          <tr>
-            <th>leave</th>
-            <th>arrive</th>
-            <th>passage</th>
-            <th>cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sweep.options.map((d) => (
-            <tr
-              key={d.departAt}
-              style={
-                best && d.departAt === best.departAt
-                  ? { color: 'var(--stbd)', fontWeight: 600 }
-                  : undefined
-              }
-            >
-              <td>{fmtLocalHm(d.departAt)}</td>
-              <td>{d.etaMs == null ? '—' : fmtLocalHm(d.etaMs)}</td>
-              <td>{fmtDuration(d.elapsedS) ?? '—'}</td>
-              <td>
-                {d.costS == null
-                  ? (d.error ?? 'no route')
-                  : d.costS === 0
-                    ? 'best'
-                    : `+${Math.round(d.costS / 60)} min`}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="note">
-        Each row is a full route solve from that time, using the same boat, polar
-        and constraints as the ROUTE button. Ranked on elapsed passage time —
-        differences smaller than the router resolution above are not real.
-      </p>
-
-      <div className="actions" style={{ background: 'none', border: 'none', padding: 0 }}>
+      <div className="actions sheet__foot">
         <button
           className="btn btn--sm btn--primary"
           disabled={!best || busy}
@@ -946,84 +955,86 @@ function ResultsSheet({
       ? route.directTimeS - route.elapsedS
       : null
   return (
-    <div className="sheet">
+    <div className="sheet sheet--pinned">
       <div className="sheet__grip" onClick={onClose} />
-      <div className="rows" style={{ marginBottom: 12 }}>
-        <div className="row">
-          <span>ETA</span>
-          <span>{route.etaMs ? new Date(route.etaMs).toUTCString().slice(5, 22) + ' UTC' : '—'}</span>
+      <div className="sheet__body">
+        <div className="rows" style={{ marginBottom: 12 }}>
+          <div className="row">
+            <span>ETA</span>
+            <span>{route.etaMs ? new Date(route.etaMs).toUTCString().slice(5, 22) + ' UTC' : '—'}</span>
+          </div>
+          {/*
+            `fmtDuration`, not `fmtClock`. These were showing a five-hour passage as
+            "309:14" — the start-timer format applied to a passage length. Found while
+            building the departure sheet next door, which had inherited the same
+            mistake.
+          */}
+          <div className="row">
+            <span>Elapsed</span>
+            <span>{fmtDuration(route.elapsedS) ?? '—'}</span>
+          </div>
+          <div className="row">
+            <span>vs. direct</span>
+            <span style={{ color: saved && saved > 0 ? 'var(--stbd)' : undefined }}>
+              {saved == null ? '—' : `${saved > 0 ? '-' : '+'}${fmtDuration(Math.abs(saved))}`}
+            </span>
+          </div>
+          <div className="row">
+            <span>Nodes explored</span>
+            <span>{route.diagnostics.nodesExplored.toLocaleString()}</span>
+          </div>
+          <div className="row">
+            <span>Compute</span>
+            <span>{route.diagnostics.computeMs.toFixed(0)} ms</span>
+          </div>
+          <div className="row">
+            <span>Time step</span>
+            <span>{(route.diagnostics.timeStepS / 60).toFixed(0)} min</span>
+          </div>
         </div>
-        {/*
-          `fmtDuration`, not `fmtClock`. These were showing a five-hour passage as
-          "309:14" — the start-timer format applied to a passage length. Found while
-          building the departure sheet next door, which had inherited the same
-          mistake.
-        */}
-        <div className="row">
-          <span>Elapsed</span>
-          <span>{fmtDuration(route.elapsedS) ?? '—'}</span>
-        </div>
-        <div className="row">
-          <span>vs. direct</span>
-          <span style={{ color: saved && saved > 0 ? 'var(--stbd)' : undefined }}>
-            {saved == null ? '—' : `${saved > 0 ? '-' : '+'}${fmtDuration(Math.abs(saved))}`}
-          </span>
-        </div>
-        <div className="row">
-          <span>Nodes explored</span>
-          <span>{route.diagnostics.nodesExplored.toLocaleString()}</span>
-        </div>
-        <div className="row">
-          <span>Compute</span>
-          <span>{route.diagnostics.computeMs.toFixed(0)} ms</span>
-        </div>
-        <div className="row">
-          <span>Time step</span>
-          <span>{(route.diagnostics.timeStepS / 60).toFixed(0)} min</span>
-        </div>
-      </div>
 
-      {depth?.shallowest && <DepthPanel depth={depth} levels={levels} />}
+        {depth?.shallowest && <DepthPanel depth={depth} levels={levels} />}
 
-      {route.diagnostics.warnings.map((w) => (
-        <div className="warnbox" key={w}>
-          {w}
-        </div>
-      ))}
+        {route.diagnostics.warnings.map((w) => (
+          <div className="warnbox" key={w}>
+            {w}
+          </div>
+        ))}
 
-      <table className="results">
-        <thead>
-          <tr>
-            <th>time</th>
-            <th>twd</th>
-            <th>tws</th>
-            <th>twa</th>
-            <th>bsp</th>
-            <th>hdg</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((l, i) => (
-            <tr key={i} className={l.isBeating ? 'beating' : undefined}>
-              <td>{new Date(l.t).toISOString().slice(11, 16)}</td>
-              <td>{fmtDeg(l.twd)}</td>
-              <td>{l.tws.toFixed(1)}</td>
-              <td>
-                {l.isBeating ? '(' : ''}
-                {l.twa.toFixed(0)}
-                {l.isBeating ? ')' : ''}
-              </td>
-              <td>{l.bsp.toFixed(2)}</td>
-              <td>{fmtDeg(l.heading)}</td>
+        <table className="results">
+          <thead>
+            <tr>
+              <th>time</th>
+              <th>twd</th>
+              <th>tws</th>
+              <th>twa</th>
+              <th>bsp</th>
+              <th>hdg</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="note">
-        TWA in parentheses means the router is tacking or gybing through that
-        stretch — the drawn line is a VMG-equivalent path, not a course to steer.
-      </p>
-      <div className="actions" style={{ background: 'none', border: 'none', padding: 0 }}>
+          </thead>
+          <tbody>
+            {rows.map((l, i) => (
+              <tr key={i} className={l.isBeating ? 'beating' : undefined}>
+                <td>{new Date(l.t).toISOString().slice(11, 16)}</td>
+                <td>{fmtDeg(l.twd)}</td>
+                <td>{l.tws.toFixed(1)}</td>
+                <td>
+                  {l.isBeating ? '(' : ''}
+                  {l.twa.toFixed(0)}
+                  {l.isBeating ? ')' : ''}
+                </td>
+                <td>{l.bsp.toFixed(2)}</td>
+                <td>{fmtDeg(l.heading)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="note">
+          TWA in parentheses means the router is tacking or gybing through that
+          stretch — the drawn line is a VMG-equivalent path, not a course to steer.
+        </p>
+      </div>
+      <div className="actions sheet__foot">
         <button
           className="btn btn--sm btn--ghost"
           onClick={async () => {

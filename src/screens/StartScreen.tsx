@@ -5,7 +5,7 @@
  * no polar, no account, no backend. See docs/05-spec/mvp-scope.md.
  */
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useStore } from '@/state/store'
 import { useTick } from '@/hooks/useSensors'
 import { StartCanvas } from '@/components/StartCanvas'
@@ -45,7 +45,7 @@ const EMPTY_START_NUMBERS: StartNumbers = {
   ocs: false,
 }
 
-export function StartScreen() {
+export function StartScreen({ notices }: { notices?: ReactNode }) {
   const now = useTick(2)
   const state = useStore((s) => s.state)
   const boat = useStore((s) => s.boat)
@@ -169,7 +169,7 @@ export function StartScreen() {
   const showBurn = !numbers.ocs && burn != null && !timerStale
 
   return (
-    <>
+    <div className="start">
       <div className="hero">
         <div className="hero__label">
           {timerStale
@@ -232,110 +232,120 @@ export function StartScreen() {
         </div>
       </div>
 
-      {keepAwake && wakeLock === 'unavailable' && (
-        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
-          The screen may sleep: this browser will not keep it awake. Set the phone&apos;s
-          auto-lock to Never before the sequence starts.
+      {/*
+        Only this part scrolls, and the canvas gives up its height first. The hero
+        and the ping and timer buttons stay where a sailor expects them, however
+        many warnings there are. The warnings used to sit directly in the column
+        that holds the tab bar, so each one pushed the bar further off the screen.
+      */}
+      <div className="start__middle">
+        {notices}
+
+        {keepAwake && wakeLock === 'unavailable' && (
+          <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+            The screen may sleep: this browser will not keep it awake. Set the phone&apos;s
+            auto-lock to Never before the sequence starts.
+          </div>
+        )}
+
+        {showPingNote && (
+          <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+            {pingNote.which === 'port' ? 'PIN' : 'RC'} recorded at the phone, not the bow: under{' '}
+            {COG_TRUSTED_KN} kn the GPS cannot tell which way the bow points. Ping with way on to
+            record the bow, {boat.bowToGpsMetres} m ahead of the phone.
+          </div>
+        )}
+
+        {!wind && (
+          <div className="warnbox wind-needed" style={{ margin: '10px var(--pad) 0' }}>
+            <span>Bias, the favoured end and the laylines need the wind.</span>
+            <button className="btn btn--primary btn--sm" onClick={() => setWindSheetOpen(true)}>
+              SET THE WIND
+            </button>
+          </div>
+        )}
+
+        {lineSuspect && (
+          <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+            This line is {Math.abs(numbers.biasAngleDeg ?? 0).toFixed(0)}° off square —
+            nearly parallel to the wind. Check both ends were pinged in the right
+            places, or update the wind.
+          </div>
+        )}
+
+        <div className="canvas-wrap">
+          <StartCanvas
+            line={course.startLine}
+            state={state}
+            wind={wind}
+            numbers={numbers}
+            boat={boat}
+            track={track}
+            targetTwa={
+              wind && lattice ? lattice.targetsAt(wind.tws).upTwa : undefined
+            }
+            secondsSinceGun={sinceGun}
+            onMoveEnd={setStartEnd}
+          />
         </div>
-      )}
 
-      {showPingNote && (
-        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
-          {pingNote.which === 'port' ? 'PIN' : 'RC'} recorded at the phone, not the bow: under{' '}
-          {COG_TRUSTED_KN} kn the GPS cannot tell which way the bow points. Ping with way on to
-          record the bow, {boat.bowToGpsMetres} m ahead of the phone.
+        <div className="tiles tiles--3">
+          <Tile
+            label="below line"
+            value={numbers.distanceBelowLineBoatLengths}
+            unit="BL"
+            dp={1}
+            tone={numbers.ocs ? 'port' : gpsVague ? 'warn' : null}
+            sub={
+              numbers.distanceBelowLineM == null
+                ? undefined
+                : gpsVague
+                  ? `${Math.abs(numbers.distanceBelowLineM).toFixed(0)} m · GPS ±${gpsBoatLengths.toFixed(1)} BL`
+                  : `${Math.abs(numbers.distanceBelowLineM).toFixed(0)} m`
+            }
+            small
+          />
+          <Tile
+            label="favoured"
+            value={
+              numbers.favouredEnd == null
+                ? null
+                : numbers.favouredEnd === 'even'
+                  ? 'even'
+                  : numbers.favouredEnd === 'port'
+                    ? 'PIN'
+                    : 'RC'
+            }
+            tone={
+              numbers.favouredEnd === 'port'
+                ? 'port'
+                : numbers.favouredEnd === 'starboard'
+                  ? 'stbd'
+                  : null
+            }
+            sub={
+              numbers.biasLengthM == null
+                ? undefined
+                : `${(numbers.biasLengthM / Math.max(1, boat.loaMetres)).toFixed(1)} BL · ${Math.abs(
+                    numbers.biasAngleDeg ?? 0,
+                  ).toFixed(0)}°`
+            }
+            small
+            onClick={() => setShowDetail(true)}
+          />
+          <Tile
+            label="line"
+            value={numbers.lineLengthM}
+            unit="m"
+            dp={0}
+            sub={
+              numbers.lineLengthM == null
+                ? undefined
+                : `${(numbers.lineLengthM / Math.max(1, boat.loaMetres)).toFixed(0)} boat lengths`
+            }
+            small
+          />
         </div>
-      )}
-
-      {!wind && (
-        <div className="warnbox wind-needed" style={{ margin: '10px var(--pad) 0' }}>
-          <span>Bias, the favoured end and the laylines need the wind.</span>
-          <button className="btn btn--primary btn--sm" onClick={() => setWindSheetOpen(true)}>
-            SET THE WIND
-          </button>
-        </div>
-      )}
-
-      {lineSuspect && (
-        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
-          This line is {Math.abs(numbers.biasAngleDeg ?? 0).toFixed(0)}° off square —
-          nearly parallel to the wind. Check both ends were pinged in the right
-          places, or update the wind.
-        </div>
-      )}
-
-      <div className="canvas-wrap" style={{ flex: 1, minHeight: 180 }}>
-        <StartCanvas
-          line={course.startLine}
-          state={state}
-          wind={wind}
-          numbers={numbers}
-          boat={boat}
-          track={track}
-          targetTwa={
-            wind && lattice ? lattice.targetsAt(wind.tws).upTwa : undefined
-          }
-          secondsSinceGun={sinceGun}
-          onMoveEnd={setStartEnd}
-        />
-      </div>
-
-      <div className="tiles tiles--3">
-        <Tile
-          label="below line"
-          value={numbers.distanceBelowLineBoatLengths}
-          unit="BL"
-          dp={1}
-          tone={numbers.ocs ? 'port' : gpsVague ? 'warn' : null}
-          sub={
-            numbers.distanceBelowLineM == null
-              ? undefined
-              : gpsVague
-                ? `${Math.abs(numbers.distanceBelowLineM).toFixed(0)} m · GPS ±${gpsBoatLengths.toFixed(1)} BL`
-                : `${Math.abs(numbers.distanceBelowLineM).toFixed(0)} m`
-          }
-          small
-        />
-        <Tile
-          label="favoured"
-          value={
-            numbers.favouredEnd == null
-              ? null
-              : numbers.favouredEnd === 'even'
-                ? 'even'
-                : numbers.favouredEnd === 'port'
-                  ? 'PIN'
-                  : 'RC'
-          }
-          tone={
-            numbers.favouredEnd === 'port'
-              ? 'port'
-              : numbers.favouredEnd === 'starboard'
-                ? 'stbd'
-                : null
-          }
-          sub={
-            numbers.biasLengthM == null
-              ? undefined
-              : `${(numbers.biasLengthM / Math.max(1, boat.loaMetres)).toFixed(1)} BL · ${Math.abs(
-                  numbers.biasAngleDeg ?? 0,
-                ).toFixed(0)}°`
-          }
-          small
-          onClick={() => setShowDetail(true)}
-        />
-        <Tile
-          label="line"
-          value={numbers.lineLengthM}
-          unit="m"
-          dp={0}
-          sub={
-            numbers.lineLengthM == null
-              ? undefined
-              : `${(numbers.lineLengthM / Math.max(1, boat.loaMetres)).toFixed(0)} boat lengths`
-          }
-          small
-        />
       </div>
 
       <div className="actions">
@@ -372,7 +382,7 @@ export function StartScreen() {
       {showDetail && (
         <DetailSheet numbers={numbers} onClose={() => setShowDetail(false)} />
       )}
-    </>
+    </div>
   )
 }
 

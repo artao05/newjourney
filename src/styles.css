@@ -97,6 +97,18 @@ button {
   position: relative;
 }
 
+/* The chart gives up the height; past the limit a long list scrolls instead. */
+.route-notes {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 40%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px var(--pad) 0;
+  background: var(--bg-sunk);
+  border-top: 1px solid var(--line);
+}
+
 .tabbar {
   display: grid;
   grid-auto-flow: column;
@@ -176,9 +188,31 @@ button {
 
 /* ------------------------------------------------------------- wind sheet */
 
-.wind-sheet {
+/*
+ * The buttons are pinned, which takes height from the steps, so this sheet may grow past
+ * the usual limit: at 74% a 664 px phone would hide the speed steps. It stops at the
+ * bottom of Start's countdown digits, which a sailor setting the wind mid-sequence still
+ * needs to read.
+ */
+.sheet.wind-sheet {
+  max-height: max(74%, calc(100% - var(--safe-top) - 134px));
+}
+
+/* A phone on its side: the countdown is covered either way, and the steps need the room. */
+@media (max-height: 499.98px) {
+  .sheet.wind-sheet {
+    max-height: 100%;
+  }
+}
+
+.wind-sheet__body,
+.wind-sheet__foot {
   display: grid;
   gap: 10px;
+}
+
+.wind-sheet__body {
+  padding-bottom: 6px;
 }
 
 .wind-sheet__title {
@@ -368,12 +402,53 @@ button {
   color: var(--warn);
 }
 
-/* ------------------------------------------------------------- start hero */
+/* ----------------------------------------------------------- start screen */
+
+/*
+ * The hero and the ping and timer buttons stay put, and the middle takes what is
+ * left of the screen. In there the canvas shrinks first, down to its floor, and only
+ * then does the middle scroll. The floor is low enough that a 320 x 568 phone with no
+ * warnings shows the canvas and the tiles without scrolling, and that a finger always
+ * has something beside the canvas to scroll by: the canvas is touch-action: none.
+ */
+.start {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.start__middle {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * A phone on its side cannot pin all that: the hero, the buttons and the two bars
+ * come to 387 px. There the whole screen scrolls as one column, and the tab bar
+ * still stays on screen.
+ */
+@media (max-height: 499.98px) {
+  .start {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .start__middle {
+    flex: none;
+    overflow: visible;
+  }
+}
 
 .hero {
   padding: 16px var(--pad) 14px;
   text-align: center;
   background: var(--bg-sunk);
+  flex-shrink: 0;
 }
 
 .hero__label {
@@ -436,8 +511,16 @@ button {
 .canvas-wrap {
   position: relative;
   flex: 1;
-  min-height: 0;
+  min-height: 80px;
   background: var(--bg-sunk);
+}
+
+/* See .start__middle. A set height, so the canvas's own 100% still resolves. */
+@media (max-height: 499.98px) {
+  .canvas-wrap {
+    flex: none;
+    height: 120px;
+  }
 }
 
 .canvas-wrap canvas {
@@ -516,6 +599,25 @@ button {
   padding: 9px 12px;
   font-size: 12.5px;
   border-radius: 10px;
+}
+
+/*
+ * A grid track will not go below its button's min-content width, so a row of four
+ * long labels runs past the edge of a narrow phone. Below 375 px this row gives up side
+ * space instead. The labels and the row's height stay as they are, and the buttons even
+ * out: at 320 px they are 70 to 75 px wide, where they were 66 to 91.
+ */
+@media (max-width: 374.98px) {
+  .actions--tight {
+    gap: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .actions--tight .btn--sm {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
 }
 
 /* ------------------------------------------------------------------ forms */
@@ -698,6 +800,12 @@ button {
   font-weight: 600;
 }
 
+/* The same box, in the flow of what it sits in rather than floating over a chart. */
+.legend--inline {
+  position: static;
+  max-width: none;
+}
+
 .swatch {
   display: inline-block;
   width: 11px;
@@ -724,11 +832,36 @@ button {
 }
 
 .sheet__grip {
+  flex-shrink: 0;
   width: 38px;
   height: 4px;
   border-radius: 2px;
   background: var(--line-bright);
   margin: 4px auto 12px;
+}
+
+/*
+ * A sheet that can be longer than the screen. Only its middle scrolls, so its buttons
+ * stay on the bottom edge, in reach of a thumb, however far down the reader is.
+ */
+.sheet--pinned {
+  display: flex;
+  flex-direction: column;
+  overflow-y: hidden;
+}
+
+.sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sheet__foot {
+  flex-shrink: 0;
+  background: none;
+  border-top: 1px solid var(--line);
+  padding: 10px 0 0;
 }
 
 .rows {

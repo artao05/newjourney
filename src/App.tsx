@@ -220,6 +220,24 @@ export function App() {
     settings.northRef === 'magnetic' ? declinationAt(PILOT_VENUE.declination, now) : null,
   )
 
+  // Start scrolls these with its own warnings. On a phone they would otherwise
+  // take the height its hero and buttons need; other tabs have height to give.
+  const notices = (
+    <>
+      {gpsError && !settings.simulate && (
+        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+          {gpsError} — turn on <b>Simulate a boat</b> in Setup to try the app
+          without a GPS fix.
+        </div>
+      )}
+      {windError && (
+        <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
+          {windError}
+        </div>
+      )}
+    </>
+  )
+
   return (
     <>
       <div className="app" inert={mustAccept || undefined}>
@@ -247,21 +265,11 @@ export function App() {
           </span>
         </div>
 
-        {gpsError && !settings.simulate && (
-          <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
-            {gpsError} — turn on <b>Simulate a boat</b> in Setup to try the app
-            without a GPS fix.
-          </div>
-        )}
-        {windError && (
-          <div className="warnbox" style={{ margin: '10px var(--pad) 0' }}>
-            {windError}
-          </div>
-        )}
+        {tab !== 'start' && notices}
 
         {tab === 'start' && (
           <ErrorBoundary name="Start" key="start">
-            <StartScreen />
+            <StartScreen notices={notices} />
           </ErrorBoundary>
         )}
         {tab === 'race' && (
