@@ -41,8 +41,10 @@ follow the question numbers, so 0006 stays free for ORC.
 | 7 | NOAA chart display service vs. self-rendered ENC tiles | On `parity/expedition`, neither: cells decoded on the device. `main` has no ENC | [ADR-0007](0007-decode-enc-on-device.md) |
 | 8 | Accounts in v1, or local-only with export codes | No accounts. Files, not codes | [ADR-0008](0008-no-accounts.md) |
 
-The ADRs are on `parity/expedition`, since this page is. All but ADR-0007 are just as true of
-`main`.
+These records are this branch's. `main` has had its own since 2026-11-09
+([pull request #4](https://github.com/artao05/newjourney/pull/4)), written from its own code, so
+the wording differs. Apart from ADR-0007, which `main` has no need of, they record the same
+decisions.
 
 ## Open: only the owner can settle these
 

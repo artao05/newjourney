@@ -44,9 +44,10 @@ repository's settings: **Settings → Pages → Source: GitHub Actions**. The si
 needs before it will hand over its GPS, so this is also the easiest way to try it on the
 water, for which [PILOT.md](PILOT.md) is the sailor's guide. Every push and pull request
 also runs `.github/workflows/ci.yml`: the tests, the routing kernel's time budgets on
-their own, then the build and its typecheck. This branch's copy then runs `npm run test:phone`.
+their own, then the build and its typecheck. This branch's copy then runs `npm run test:phone`
+and, in Playwright's WebKit, `npm run test:phone:webkit`.
 
-The site is built from `main` only, and last deployed `0aa1ede` on 2026-11-04. Nothing on
+The site is built from `main` only, and last deployed `ffac1b9` on 2026-11-11. Nothing on
 `parity/expedition` reaches it. That branch went to `origin` as a backup, at `fbb40b4` on
 2026-11-03 and at `31fe190` on 2026-11-11, so CI ran on both, but it has no pull request and
 no deploy.
@@ -168,11 +169,13 @@ Dev-only — a stray query string in production cannot replace the app.
 ## What's real and what isn't
 
 Checked against the code on 2026-11-03, at `5bad931` on `main` and `fbb40b4` on
-`parity/expedition`. `main` then took
-[pull request #3](https://github.com/artao05/newjourney/pull/3) on 2026-11-04 (`0aa1ede`):
-Route's action row and three small fixes. None of it changes what this section says. This
-branch then took phone phase 0 (`01bbe6f`, committed 2026-11-05), and this section was checked
-against that too.
+`parity/expedition`. `main` then took three pull requests:
+[#3](https://github.com/artao05/newjourney/pull/3) on 2026-11-04, Route's action row and three
+small fixes; [#4](https://github.com/artao05/newjourney/pull/4) on 2026-11-09, its docs and
+decision records; and [#5](https://github.com/artao05/newjourney/pull/5) on 2026-11-11
+(`ffac1b9`), five places where a small phone lost a button or a note. None of it changes what
+this section says. This branch then took phone phase 0 (`01bbe6f`, committed 2026-11-05), and
+this section was checked against that too.
 
 | | `main` | `parity/expedition` (this branch) |
 |---|---|---|
@@ -320,17 +323,21 @@ been checked.
 - **Licensed and hardware rows.** S-63, C-MAP and Navionics charts, radar and the vendor
   protocols are not built, and [needs.md](docs/08-parity/needs.md) says what each would take.
 - **Nothing has been compared with Expedition itself** (needs.md D7).
-- **It has not been tried on a real phone.** The layout holds in emulated viewports of 360 to
-  412 px, in Chrome and in WebKit on this Windows machine (`npm run test:phone` and
-  `test:phone:webkit`, passed 2026-11-11). **On CI it fails** (`31fe190`, 2026-11-11): 204
-  problems, nearly all segmented buttons 32 px tall against the 34 px floor, plus the page
-  scrolling sideways by 4 px at 360 px wide. The difference is the font. Windows draws the app
-  in Segoe UI, whose taller lines carry `.seg button` to 34 px. Forced into Arial, whose lines
-  are nearer Roboto's and SF's, this machine shows CI's 32 px and 4 px too, so a real phone
-  probably will. Not fixed yet. It blocks the network, so it
-  sees the forecast screens only when run by hand with `LIVE=1`, and it never loads a route. It
-  can't see what only a phone shows: iOS Safari, GPS, sound, heat or a wet thumb. Until
-  [PILOT.md](PILOT.md) §2 has passed on a real iPhone and Android phone, treat it as unproven.
+- **It has not been tried on a real phone.** `npm run test:phone` checks the built app in Chrome
+  at 360 to 412 px wide, on six tabs and three sheets, and `npm run test:phone:webkit` does the
+  same in Playwright's WebKit. Both passed on this Windows machine on 2026-11-11. In CI, on
+  GitHub's Linux runner at `31fe190` on 2026-11-11, the Chrome check failed with 204 problems:
+  segmented buttons 32 px tall, under its 34 px floor, and at 360 px every screen scrolling 4 px
+  sideways. The WebKit check came after that push and has not run in CI. The difference is the
+  font. Windows draws the app in Segoe UI, whose taller lines carry the segmented buttons to
+  34 px. Forced into Arial, whose lines are nearer Roboto's and San Francisco's, this machine
+  shows CI's 204 problems too, so a real phone probably will. Not fixed yet. The check blocks
+  the network, so it sees the forecast screens only when run by hand with `LIVE=1`, and it never
+  loads a route. It doesn't open the wind sheet or Route's results and departure sheets, where
+  `main` fixed lost buttons on 2026-11-11
+  ([pull request #5](https://github.com/artao05/newjourney/pull/5)). Nor can it see what only a
+  phone shows: iOS Safari, GPS, sound, heat or a wet thumb. Until [PILOT.md](PILOT.md) §2 has
+  passed on a real iPhone and Android phone, treat it as unproven.
 
 See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next on `main`,
 [docs/08-parity/worklist.md](docs/08-parity/worklist.md) for this branch, and
@@ -338,13 +345,13 @@ See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next on `m
 
 ## Verified state
 
-Measured by hand, `main` on 2026-11-04 and 2026-11-05, this branch on 2026-11-05:
+Measured by hand, `main` on 2026-11-11 and this branch on 2026-11-05:
 
-| | `main` (`0aa1ede`) | `parity/expedition` (`01bbe6f`) |
+| | `main` (`ffac1b9`) | `parity/expedition` (`01bbe6f`) |
 |---|---|---|
-| Tests | 1,053 in 48 files | 1,869 in 151 files |
+| Tests | 1,072 in 48 files | 1,869 in 151 files |
 | `npx tsc -b --noEmit`, `npm run build` | clean | clean |
-| CI | green at this commit, 2026-11-04 | not run at this commit. Red at `31fe190`, 2026-11-11: `test:phone` fails on the runner's font (see above) |
+| CI | green at this commit, 2026-11-11 | red at `31fe190`, this code plus docs, 2026-11-11: tests and build passed, and `test:phone` failed on the runner's font, as above |
 | First load, gzipped | 100 KB of JS, 3 KB of CSS | 113 KB of JS, 5 KB of CSS (215 KB of JS before phone phase 0) |
 | All a first visit stores for offline, gzipped | 0.49 MB, 17 files | 0.70 MB, 45 files |
 | Map chunk, gzipped, mostly MapLibre | 286 KB of JS, 10 KB of CSS | 289 KB of JS, 10 KB of CSS |
@@ -354,7 +361,7 @@ KB here is Vite's figure, 1,000 bytes. This branch's budget check divides by 1,0
 prints the same first load as 110.7 KB, against a limit of 115 by its own count.
 
 Every test passes. Two in `src/pwa.test.ts` read `dist/` and are skipped without it, as they
-are in CI, where the tests run before the build. So a fresh clone reports 1,051 passed and 2
+are in CI, where the tests run before the build. So a fresh clone reports 1,070 passed and 2
 skipped on `main`, and 1,867 and 2 on this branch. Each tab is mounted by a test in
 `src/screens/screens.test.tsx`. On `main`, the map chunk and the two chart screens load only
 when you open them. On this branch so do Race, Setup and Strip. A first visit still stores them

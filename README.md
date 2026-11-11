@@ -20,8 +20,8 @@ in five minutes — built entirely on public data.
 > [Branches](#branches).
 >
 > [![CI](https://github.com/artao05/newjourney/actions/workflows/ci.yml/badge.svg)](https://github.com/artao05/newjourney/actions/workflows/ci.yml)
-> tests, typecheck and build on every push. First-load JS, gzipped, measured 2026-11-05:
-> 100 KB on `main`, 113 KB on this branch, which had 215 KB before phone phase 0.
+> tests, typecheck and build on every push. First-load JS, gzipped: 100 KB on `main`, measured
+> 2026-11-11, and 113 KB on this branch, measured 2026-11-05. It had 215 KB before phone phase 0.
 > **Not for navigation** — see the caveats in [RUNNING.md](RUNNING.md#whats-real-and-what-isnt).
 > Land avoidance works, but only inside the Portland venue box and only as a
 > land check, never a depth check. On this branch, ENC cells you open add their own land,
@@ -37,9 +37,10 @@ in five minutes — built entirely on public data.
 **`parity/expedition`**, this branch, aims at Expedition's full capabilities on the owner's
 instruction ([docs/08-parity](docs/08-parity/README.md)), which reverses some of the
 product spec's non-goals. It was cut from `main` at `5bad931` and was 172 commits ahead on
-2026-11-03, when `main` had not moved since. It went to `origin` that day as a backup. `main`
-then took [pull request #3](https://github.com/artao05/newjourney/pull/3) on 2026-11-04, so the
-two have diverged. This branch has no pull request and no deploy, and whether it merges is the
+2026-11-03, when `main` had not moved since. It went to `origin` that day as a backup, and again
+on 2026-11-11. From 2026-11-04 to 2026-11-11 `main` took pull requests
+[#3](https://github.com/artao05/newjourney/pull/3), [#4](https://github.com/artao05/newjourney/pull/4)
+and [#5](https://github.com/artao05/newjourney/pull/5), so the two have diverged. This branch has no pull request and no deploy, and whether it merges is the
 owner's call and still
 [open](docs/06-decisions/README.md#open-only-the-owner-can-settle-these). Its loop last ran on
 2026-09-30. Phone phase 0, the first step of the

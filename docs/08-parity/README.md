@@ -7,7 +7,8 @@ built, this folder says exactly what building it would take.
 rows Done, by `node scripts/parity-score.ts`). The last parity code landed on 2026-09-30, and
 the next item is M19. Phone phase 0 landed on 2026-11-05
 ([the plan](../05-spec/phone-and-hardware.md)) and left the score where it was. The branch went
-to `origin` on 2026-11-03 as a backup. It has no pull request and no deploy, and whether it
+to `origin` on 2026-11-03 as a backup, and again on 2026-11-11. It has no pull request and no
+deploy, and whether it
 merges into `main` is
 [still open](../06-decisions/README.md#open-only-the-owner-can-settle-these).
 

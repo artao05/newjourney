@@ -300,7 +300,7 @@ Work from the vendor's manual, and don't copy its code.
 |---|---|---|
 | P1 | Which phone do you sail with? | It goes first if you need it to. Otherwise Android, since development is on Windows. |
 | P2 | Which boat comes first, and what's on it? | This picks the starting rung. |
-| P3 | Push `parity/expedition`? | Done 2026-11-03. Later commits still wait to be asked for. |
+| P3 | Push `parity/expedition`? | Done 2026-11-03, and again with phase 0 on 2026-11-11. Later commits still wait to be asked for. |
 | P4 | Does phone work take priority over parity worklist M19–M23? | Yes. Pause them except M20's glyphs and backend, which phase 5 uses. |
 | P5 | Use Capacitor? | Yes, after the one-day spike. |
 | P6 | Private pilot or public stores? | Private until the pilot shows it helps. |

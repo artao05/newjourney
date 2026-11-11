@@ -112,7 +112,8 @@ the phone model.
 ## If you run `parity/expedition` instead
 
 This branch is not on the site above. [RUNNING.md](RUNNING.md) says how to run it and what
-in it is real. A sailor would notice these differences (checked 2026-11-05):
+in it is real. A sailor would notice these differences (checked 2026-11-05, and the layout check
+again on 2026-11-11):
 
 - **Variation** comes from the World Magnetic Model where the boat is, not from one Portland
   figure, so the coast check above does not apply. The land mask and the depth layer are
@@ -123,6 +124,8 @@ in it is real. A sailor would notice these differences (checked 2026-11-05):
   site. All that the first visit stores comes to about 0.7 MB, against 0.5 MB, so that visit on
   Wi-Fi matters more.
 - **It has two more dock checks,** Sound and Stored data, in section 2.
-- **It has never been on a real phone.** Its layout holds from 360 to 412 px wide in an emulated
-  viewport, on every tab. That check never loads a route, and section 2 has not been run on it.
+- **It has never been on a real phone.** Its layout check passes in Chrome on Windows from 360 to
+  412 px wide, but failed on Linux, where text sets differently: some buttons came out smaller
+  than the check allows, and at 360 px the screen scrolled sideways a little. The check never
+  loads a route, and section 2 has not been run on it.
 - **It can read instruments** in Setup → Instruments. None of that has been tried on a boat.
