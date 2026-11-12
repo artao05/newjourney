@@ -544,6 +544,53 @@ button {
   pointer-events: auto;
 }
 
+/*
+ * Route's legend is in the overlay's flow, after the chips, so it cannot cover them.
+ * space-between still puts it at the chart's foot, 34 px up, clear of the map's
+ * attribution. When the chart is too short for all of it, it wraps into a second
+ * column, which starts past the overlay's right edge, where the overlay clips it: no
+ * legend rather than a legend over the chips. It clips sideways only, so a chip row on
+ * a very short chart is not cut; and it clips rather than hides, so that neither focus
+ * nor find-in-page can scroll the legend back into view. Pinned to the foot before, it
+ * covered the min-depth chip at 320×568 and the first row of chips on any phone on its
+ * side. The route is framed clear of it (routeFramePadding in RouteScreen.tsx).
+ *
+ * On a chart under 375 px wide or under 240 px tall the same four entries flow in rows:
+ * two rows, 56 px tall instead of 93, or one, 38 px.
+ */
+.chart-area {
+  container: route-chart / size;
+}
+
+.chart-area > .canvas-overlay {
+  flex-wrap: wrap;
+  /* More than the padding plus the legend's -4 px margin, so the second column starts past the edge. */
+  column-gap: calc(var(--pad) + 10px);
+  overflow: hidden;
+  overflow: clip visible;
+}
+
+.canvas-overlay > .chart-chips {
+  /* The full width, so a wrapped legend starts past the right edge. */
+  width: 100%;
+}
+
+.canvas-overlay > .legend {
+  position: static;
+  align-self: flex-start;
+  margin: 8px 0 20px -4px;
+}
+
+/* The chart's own size, not the screen's: rows wherever the four lines would not fit. */
+@container route-chart (max-width: 374.98px) or (max-height: 239.98px) {
+  .canvas-overlay > .legend {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 12px;
+    max-width: none;
+  }
+}
+
 /* ---------------------------------------------------------------- actions */
 
 .actions {

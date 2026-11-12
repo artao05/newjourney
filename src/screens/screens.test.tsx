@@ -146,7 +146,7 @@ import { StartScreen } from './StartScreen'
 import { RaceScreen } from './RaceScreen'
 import { SetupScreen, tideStationLabel } from './SetupScreen'
 import { WeatherScreen } from './WeatherScreen'
-import { RouteScreen } from './RouteScreen'
+import { RouteScreen, routeFramePadding } from './RouteScreen'
 import { useStore } from '@/state/store'
 import { findPolar } from '@/data/polars'
 import { PILOT_VENUE } from '@/data/venues'
@@ -513,6 +513,90 @@ describe("Route's notes stay readable over a drawn route", () => {
   it('says so there when no polar is loaded', () => {
     render(<RouteScreen />)
     expect(screen.getByText(/No polar loaded/).parentElement?.className).toBe('route-notes')
+  })
+})
+
+/** styles.css, applied for the length of `fn`. jsdom ignores its @media rules. */
+function withStyles<T>(fn: () => T): T {
+  const style = document.createElement('style')
+  style.textContent = readFileSync('src/styles.css', 'utf8')
+  document.head.appendChild(style)
+  try {
+    return fn()
+  } finally {
+    style.remove()
+  }
+}
+
+/** The declarations of the top-level styles.css rule written exactly as `selector`. */
+function ruleFor(selector: string): CSSStyleDeclaration {
+  const style = document.createElement('style')
+  style.textContent = readFileSync('src/styles.css', 'utf8')
+  document.head.appendChild(style)
+  const rule = [...style.sheet!.cssRules].find(
+    (r): r is CSSStyleRule => (r as CSSStyleRule).selectorText === selector,
+  )
+  style.remove()
+  if (!rule) throw new Error(`styles.css has no rule for ${selector}`)
+  return rule.style
+}
+
+describe("Route's legend stays clear of the chips", () => {
+  /*
+   * Pinned to the chart's foot, the legend covered the min-depth chip at 320×568 and the
+   * first row of chips on any phone on its side. In the overlay's flow, after the chips,
+   * it cannot; on a chart too short for it, it wraps past the overlay's right edge and
+   * the overlay clips it. jsdom has no layout, so the structure and the rules are what
+   * can be pinned here; the measured geometry is in the commit.
+   */
+  function routeDrawn() {
+    populatedStore()
+    render(<RouteScreen />)
+    act(() => useStore.getState().setRoute(routeLeavingAt(Date.now())))
+    return document.querySelector('.chart-area > .canvas-overlay')!
+  }
+
+  it('puts the legend after the chips, in the flow of the overlay', () => {
+    const overlay = routeDrawn()
+    const legend = overlay.querySelector(':scope > .legend')!
+    expect(legend).not.toBeNull()
+    expect(legend.previousElementSibling?.classList.contains('chart-chips')).toBe(true)
+    withStyles(() => {
+      expect(getComputedStyle(legend).position).toBe('static')
+      expect(getComputedStyle(overlay).flexWrap).toBe('wrap')
+      // The chips take the overlay's full width, so a wrapped legend lands past its edge,
+      // and the gap between the columns puts it past the overlay's padding too.
+      expect(getComputedStyle(legend.previousElementSibling!).width).toBe('100%')
+    })
+    expect(ruleFor('.chart-area > .canvas-overlay').getPropertyValue('column-gap')).toBe(
+      'calc(var(--pad) + 10px)',
+    )
+    // Clipped sideways, past which a wrapped legend sits; jsdom has no two-value overflow.
+    expect(readFileSync('src/styles.css', 'utf8')).toMatch(
+      /\.chart-area > \.canvas-overlay \{[^}]*overflow: hidden;\s*overflow: clip visible;/,
+    )
+  })
+
+  it('has a shorter layout for a narrow or short chart', () => {
+    // jsdom cannot evaluate @container, so the rule is read from the sheet as written.
+    const css = readFileSync('src/styles.css', 'utf8')
+    expect(css).toMatch(/\.chart-area \{\s*container: route-chart \/ size;/)
+    expect(css).toMatch(
+      /@container route-chart \(max-width: 374\.98px\) or \(max-height: 239\.98px\) \{\s*\.canvas-overlay > \.legend \{\s*display: flex;\s*flex-wrap: wrap;/,
+    )
+  })
+
+  it('frames the route clear of the chips and the legend', () => {
+    // A 400 px chart, chips down to 99 px, the legend from 300 px: 111 px above, 112 below.
+    expect(routeFramePadding(400, 99, 300)).toEqual({ top: 111, bottom: 112, left: 56, right: 56 })
+    // No legend painted: the old 56 px at the foot.
+    expect(routeFramePadding(400, 30, null)).toEqual({ top: 56, bottom: 56, left: 56, right: 56 })
+    // A 140 px chart cannot give 111 + 112: both shrink, leaving the route 60 px.
+    const short = routeFramePadding(140, 99, 100)
+    expect(short.top + short.bottom).toBeLessThanOrEqual(80)
+    expect(short.top).toBeGreaterThan(0)
+    // jsdom's empty boxes: nothing to frame against, and no padding a canvas cannot hold.
+    expect(routeFramePadding(0, 0, null)).toEqual({ top: 0, bottom: 0, left: 56, right: 56 })
   })
 })
 

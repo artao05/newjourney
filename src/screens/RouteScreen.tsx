@@ -266,7 +266,7 @@ export function RouteScreen() {
     if (coords.length > 1) {
       const b = new maplibregl.LngLatBounds(coords[0], coords[0])
       for (const c of coords) b.extend(c)
-      map.fitBounds(b, { padding: 56, maxZoom: 12, duration: 600 })
+      map.fitBounds(b, { padding: framePaddingFor(containerRef.current), maxZoom: 12, duration: 600 })
     }
   }, [ready, route])
 
@@ -570,7 +570,7 @@ export function RouteScreen() {
         <div ref={containerRef} className="map" />
 
         <div className="canvas-overlay">
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="chart-chips" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <span className={`chip ${cube ? 'chip--good' : ''}`}>
               <span className="dot" />
               {cube ? `${cube.model} · ${cube.nt}h` : 'no forecast'}
@@ -623,6 +623,10 @@ export function RouteScreen() {
             )}
           </div>
 
+          {/*
+            After the chips in the overlay's flow, so it cannot cover them. On a chart
+            too short for it, it is not shown at all (see .canvas-overlay > .legend).
+          */}
           {route?.ok && route.legs.length > 0 && (
             <div className="legend">
               <div>
@@ -1075,6 +1079,44 @@ const pointFC = (lon: number, lat: number): FC => ({
 function setSource(map: maplibregl.Map, id: string, data: FC) {
   const src = map.getSource(id) as maplibregl.GeoJSONSource | undefined
   if (src) src.setData(data)
+}
+
+/**
+ * Room to leave around the route when it is framed: below the chips along the chart's top,
+ * and above the legend when it is shown at its foot. A uniform 56 px let both sit on the
+ * route's ends, and the legend in rows runs the chart's full width. Never more than the
+ * chart can give: when the two would leave the route less than 60 px, they shrink in
+ * proportion. Positions are px from the chart's top; `legendTop` is null when no legend is
+ * painted.
+ */
+export function routeFramePadding(
+  chartH: number,
+  chipsBottom: number,
+  legendTop: number | null,
+): { top: number; bottom: number; left: number; right: number } {
+  const EDGE = 56
+  const CLEAR = 12
+  let top = Math.max(EDGE, chipsBottom + CLEAR)
+  let bottom = Math.max(EDGE, legendTop == null ? 0 : chartH - legendTop + CLEAR)
+  const room = chartH - 60
+  if (top + bottom > room) {
+    const k = Math.max(0, room) / (top + bottom)
+    top = Math.floor(top * k)
+    bottom = Math.floor(bottom * k)
+  }
+  return { top, bottom, left: EDGE, right: EDGE }
+}
+
+/** routeFramePadding for the chart that holds `mapEl`, read from what is on screen. */
+function framePaddingFor(mapEl: HTMLElement | null) {
+  const chart = mapEl?.closest('.chart-area')
+  if (!chart) return 56
+  const c = chart.getBoundingClientRect()
+  const chips = chart.querySelector('.chart-chips')?.getBoundingClientRect()
+  const lg = chart.querySelector('.canvas-overlay > .legend')?.getBoundingClientRect()
+  // A legend that did not fit has wrapped out past the chart's right edge: not painted.
+  const shown = !!lg && lg.width > 0 && lg.left < c.right
+  return routeFramePadding(c.height, chips ? chips.bottom - c.top : 0, shown ? lg!.top - c.top : null)
 }
 
 function addEmptyLayers(map: maplibregl.Map) {
