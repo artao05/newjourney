@@ -625,7 +625,7 @@ export function RouteScreen() {
 
           {/*
             After the chips in the overlay's flow, so it cannot cover them. On a chart
-            too short for it, it is not shown at all (see .canvas-overlay > .legend).
+            too short for it, it is not shown at all (see .chart-area in styles.css).
           */}
           {route?.ok && route.legs.length > 0 && (
             <div className="legend">

@@ -88,7 +88,11 @@ const { FakeMap, FakeLngLatBounds, mapInstances } = vi.hoisted(() => {
     addImage() {}
     triggerRepaint() {}
     jumpTo() {}
-    fitBounds() {}
+    /** The options of every `fitBounds` call, in order. */
+    fitted: unknown[] = []
+    fitBounds(_bounds?: unknown, opts?: unknown) {
+      this.fitted.push(opts)
+    }
     project() {
       return { x: 0, y: 0 }
     }
@@ -575,6 +579,13 @@ describe("Route's legend stays clear of the chips", () => {
       // The chips take the overlay's full width, so a wrapped legend lands past its edge,
       // and the gap between the columns puts it past the overlay's padding too.
       expect(getComputedStyle(legend.previousElementSibling!).width).toBe('100%')
+      // Where it was when pinned: with the overlay's 14 px padding, its margins put it
+      // 34 px above the chart's foot, clear of the attribution, and at x 10; and it keeps
+      // its own width rather than the overlay's.
+      const lg = getComputedStyle(legend)
+      expect(lg.marginBottom).toBe('20px')
+      expect(lg.marginLeft).toBe('-4px')
+      expect(lg.alignSelf).toBe('flex-start')
     })
     expect(ruleFor('.chart-area > .canvas-overlay').getPropertyValue('column-gap')).toBe(
       'calc(var(--pad) + 10px)',
@@ -599,12 +610,39 @@ describe("Route's legend stays clear of the chips", () => {
     expect(routeFramePadding(400, 99, 300)).toEqual({ top: 111, bottom: 112, left: 56, right: 56 })
     // No legend painted: the old 56 px at the foot.
     expect(routeFramePadding(400, 30, null)).toEqual({ top: 56, bottom: 56, left: 56, right: 56 })
-    // A 140 px chart cannot give 111 + 112: both shrink, leaving the route 60 px.
+    // A 140 px chart cannot give 111 + 56: both shrink in proportion, leaving the route 61.
     const short = routeFramePadding(140, 99, 100)
     expect(short.top + short.bottom).toBeLessThanOrEqual(80)
     expect(short.top).toBeGreaterThan(0)
-    // jsdom's empty boxes: nothing to frame against, and no padding a canvas cannot hold.
+    // jsdom's empty boxes: nothing to frame against, and no padding top or bottom that the
+    // canvas cannot hold.
     expect(routeFramePadding(0, 0, null)).toEqual({ top: 0, bottom: 0, left: 56, right: 56 })
+  })
+
+  it('frames the route from where the chips and the legend are on screen', () => {
+    routeDrawn()
+    const map = mapInstances[0]
+    const box = (l: number, t: number, w: number, h: number) =>
+      ({ left: l, top: t, right: l + w, bottom: t + h, width: w, height: h, x: l, y: t, toJSON: () => ({}) }) as DOMRect
+    let legendLeft = 10
+    const rects = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      if (this.classList.contains('chart-area')) return box(0, 0, 320, 400)
+      if (this.classList.contains('chart-chips')) return box(14, 14, 292, 85)
+      if (this.matches('.canvas-overlay > .legend')) return box(legendLeft, 300, 178, 66)
+      return box(0, 0, 0, 0)
+    })
+    try {
+      // The chart above: chips down to 99 px and the legend from 300 px of a 400 px chart.
+      act(() => map.fire('load'))
+      expect(map.fitted.at(-1)).toMatchObject({ padding: { top: 111, bottom: 112, left: 56, right: 56 } })
+      // A legend that did not fit has wrapped out past the chart's right edge. It is not
+      // painted, so the route may take the foot again.
+      legendLeft = 330
+      act(() => useStore.getState().setRoute(routeLeavingAt(Date.now())))
+      expect(map.fitted.at(-1)).toMatchObject({ padding: { top: 111, bottom: 56, left: 56, right: 56 } })
+    } finally {
+      rects.mockRestore()
+    }
   })
 })
 
