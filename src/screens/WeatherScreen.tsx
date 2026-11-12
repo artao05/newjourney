@@ -549,166 +549,172 @@ function WeatherOverlay() {
           .replace('T', ' ')}Z`
       : undefined
 
+  const showLegend = isDepth ? depthGrid != null : cube != null
+  const hasNotes = !!error || notes.length > 0 || (isDepth && (!!depthError || !!depthGrid))
+
+  /*
+   * One column in front of the map, top to bottom: the controls, the notes, a flexible
+   * middle with the legend and the readout at its foot, the tide panel, then the time
+   * axis that ChartSurface adds. Each used to be pinned to the screen at its own fixed
+   * height, and where the screen was short they covered each other. See .wx-top in
+   * styles.css for who gives up height when there is not enough.
+   */
   return (
     <>
       {/* ---- top controls ---- */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          padding: 'var(--pad)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          pointerEvents: 'none',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>
-          {LAYER_ORDER.map((id) => {
-            const l = LAYERS[id]
-            if (!l) return null
-            const active = id === layerId
-            return (
-              <button
-                key={id}
-                className={`chip${active ? ' chip--good' : ''}`}
-                style={active ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
-                onClick={() => setLayerId(id)}
-              >
-                {l.label}
-              </button>
-            )
-          })}
-        </div>
-
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>
-          {isVector ? (
-            <div className="seg" style={{ maxWidth: 320 }}>
-              {MODES.map((m) => (
-                <button key={m.id} aria-pressed={mode === m.id} onClick={() => setMode(m.id)}>
-                  {m.label}
+      <div className="wx-top">
+        {/* Two rows; one row that scrolls sideways on a phone on its side. */}
+        <div className="wx-controls">
+          <div className="wx-controls__row">
+            {LAYER_ORDER.map((id) => {
+              const l = LAYERS[id]
+              if (!l) return null
+              const active = id === layerId
+              return (
+                <button
+                  key={id}
+                  className={`chip${active ? ' chip--good' : ''}`}
+                  style={active ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+                  onClick={() => setLayerId(id)}
+                >
+                  {l.label}
                 </button>
-              ))}
-            </div>
-          ) : (
-            <button
-              className={`chip${windOverlay ? ' chip--good' : ''}`}
-              onClick={() => setWindOverlay((v) => !v)}
+              )
+            })}
+          </div>
+
+          <div className="wx-controls__row">
+            {isVector ? (
+              <div className="seg" style={{ maxWidth: 320 }}>
+                {MODES.map((m) => (
+                  <button key={m.id} aria-pressed={mode === m.id} onClick={() => setMode(m.id)}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <button
+                className={`chip${windOverlay ? ' chip--good' : ''}`}
+                onClick={() => setWindOverlay((v) => !v)}
+              >
+                wind streamlines {windOverlay ? 'on' : 'off'}
+              </button>
+            )}
+            <select
+              className="chip"
+              value={model}
+              onChange={(e) => setModel(e.target.value as ModelId)}
+              style={{ maxWidth: 190 }}
             >
-              wind streamlines {windOverlay ? 'on' : 'off'}
-            </button>
+              {MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            {busy && (
+              <span className="chip chip--warn">
+                <span className="spinner" /> {busy}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ---- notes: they scroll rather than push the time axis away ---- */}
+      {hasNotes && (
+        <div className="wx-notes">
+          {error && (
+            <div className="errbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
+              {error}
+            </div>
           )}
-          <select
-            className="chip"
-            value={model}
-            onChange={(e) => setModel(e.target.value as ModelId)}
-            style={{ maxWidth: 190 }}
-          >
-            {MODELS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          {busy && (
-            <span className="chip chip--warn">
-              <span className="spinner" /> {busy}
-            </span>
+          {notes.map((n) => (
+            <div key={n} className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
+              {n}
+            </div>
+          ))}
+          {isDepth && depthError && (
+            // Say what is missing rather than showing an empty chart with a legend.
+            <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
+              Depth data unavailable ({depthError}). Nothing is drawn for it.
+            </div>
+          )}
+          {isDepth && depthGrid && (
+            /*
+             * GEBCO's own sentence, and only that. The datum and the resolution are
+             * in the legend and the readout already, and a caveat repeated three
+             * times on a phone screen is a caveat nobody reads.
+             */
+            <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
+              {DEPTH_NOT_FOR_NAVIGATION}
+            </div>
           )}
         </div>
+      )}
 
-        {error && (
-          <div className="errbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
-            {error}
+      {/*
+        ---- legend and point readout ----
+        Each at the foot of a slot of its own. The legend shows whole or not at all. The
+        readout beside it is never taller than its slot, and scrolls when the slot is
+        short, so a tap answers wherever there is room, and never takes the legend's place.
+      */}
+      <div className="wx-mid">
+        {showLegend && (
+          <div className="wx-mid__slot">
+            {/*
+              A set width: the tick labels are placed along the bar and give the legend
+              no width of their own, so left to its content it would take whatever width
+              the source line happens to break at.
+            */}
+            <div className="wx-legend">
+              <Legend
+                ramp={ramp}
+                domain={layer.domain}
+                label={layer.label}
+                unit={layer.unit}
+                source={source}
+                compact
+              />
+            </div>
           </div>
         )}
-        {notes.map((n) => (
-          <div key={n} className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
-            {n}
-          </div>
-        ))}
-        {isDepth && depthError && (
-          // Say what is missing rather than showing an empty chart with a legend.
-          <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
-            Depth data unavailable ({depthError}). Nothing is drawn for it.
-          </div>
-        )}
-        {isDepth && depthGrid && (
-          /*
-           * GEBCO's own sentence, and only that. The datum and the resolution are
-           * in the legend and the readout already, and a caveat repeated three
-           * times on a phone screen is a caveat nobody reads.
-           */
-          <div className="warnbox" style={{ pointerEvents: 'auto', marginBottom: 0 }}>
-            {DEPTH_NOT_FOR_NAVIGATION}
+
+        {probeValues && probe && (
+          <div className="wx-mid__slot wx-mid__slot--readout">
+            <div className="legend wx-readout" style={{ pointerEvents: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <b>
+                  {probe.lat.toFixed(3)}, {probe.lon.toFixed(3)}
+                </b>
+                <button onClick={() => setProbe(null)} style={{ color: 'var(--ink-faint)' }}>
+                  ✕
+                </button>
+              </div>
+              <div>
+                wind{' '}
+                {probeValues.wind
+                  ? `${fmtDeg(probeValues.wind.dirFrom)}° ${probeValues.wind.speed.toFixed(1)} kn`
+                  : '—'}
+              </div>
+              <div>gust {fmt(probeValues.gust, 1, ' kn')}</div>
+              {/* "(MSL)" is not clutter: the number is 1.5 m optimistic at low water. */}
+              <div>depth {fmt(probeValues.depth, 1, ' m (MSL)')}</div>
+              <div>
+                current{' '}
+                {probeValues.current
+                  ? `${fmtDeg(probeValues.current.dirFrom)}° ${probeValues.current.speed.toFixed(2)} kn`
+                  : '—'}
+              </div>
+              <div>mslp {fmt(probeValues.prmsl, 0, ' hPa')}</div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* ---- legend ---- */}
-      {(isDepth ? depthGrid != null : cube != null) && (
-        // An explicit width is required: inside an absolutely-positioned box with
-        // no width the legend shrink-wraps to its narrowest possible column and
-        // the tick labels wrap to one character per line.
-        <div style={{ position: 'absolute', left: 10, bottom: 122, width: 188 }}>
-          <Legend
-            ramp={ramp}
-            domain={layer.domain}
-            label={layer.label}
-            unit={layer.unit}
-            source={source}
-            compact
-          />
-        </div>
-      )}
-
-      {/* ---- point readout ---- */}
-      {probeValues && probe && (
-        <div
-          className="legend"
-          style={{ position: 'absolute', right: 10, bottom: 118, maxWidth: 210, pointerEvents: 'auto' }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <b>
-              {probe.lat.toFixed(3)}, {probe.lon.toFixed(3)}
-            </b>
-            <button onClick={() => setProbe(null)} style={{ color: 'var(--ink-faint)' }}>
-              ✕
-            </button>
-          </div>
-          <div>
-            wind{' '}
-            {probeValues.wind
-              ? `${fmtDeg(probeValues.wind.dirFrom)}° ${probeValues.wind.speed.toFixed(1)} kn`
-              : '—'}
-          </div>
-          <div>gust {fmt(probeValues.gust, 1, ' kn')}</div>
-          {/* "(MSL)" is not clutter: the number is 1.5 m optimistic at low water. */}
-          <div>depth {fmt(probeValues.depth, 1, ' m (MSL)')}</div>
-          <div>
-            current{' '}
-            {probeValues.current
-              ? `${fmtDeg(probeValues.current.dirFrom)}° ${probeValues.current.speed.toFixed(2)} kn`
-              : '—'}
-          </div>
-          <div>mslp {fmt(probeValues.prmsl, 0, ' hPa')}</div>
-        </div>
-      )}
-
       {/* ---- tidal current chart, above the time axis, Current layer only ---- */}
       {layerId === 'current' && (tide || tideError) && (
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 96,
-            padding: '0 var(--pad)',
-            pointerEvents: 'auto',
-          }}
-        >
+        <div className="wx-tide">
           <div
             style={{
               background: 'rgba(5,13,22,0.92)',

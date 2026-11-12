@@ -541,6 +541,14 @@ function ruleFor(selector: string): CSSStyleDeclaration {
   return rule.style
 }
 
+/** The text of the top-level styles.css rule written exactly as `selector`, as written. */
+function blockFor(selector: string): string {
+  const css = readFileSync('src/styles.css', 'utf8')
+  const at = css.indexOf(`\n${selector} {`)
+  if (at < 0) throw new Error(`styles.css has no rule for ${selector}`)
+  return css.slice(at + 1, css.indexOf('}', at) + 1)
+}
+
 describe("Route's legend stays clear of the chips", () => {
   /*
    * Pinned to the chart's foot, the legend covered the min-depth chip at 320×568 and the
@@ -695,6 +703,218 @@ describe('the Weather screen states its provenance', () => {
      */
     render(<WeatherScreen />)
     expect(screen.queryByText(/source unknown/i)).toBeNull()
+  })
+})
+
+/** The @media rules of styles.css whose conditions mention `media` and that style `selector`. */
+function mediaRulesFor(media: string, selector: RegExp): CSSMediaRule[] {
+  const style = document.createElement('style')
+  style.textContent = readFileSync('src/styles.css', 'utf8')
+  document.head.appendChild(style)
+  const rules = [...style.sheet!.cssRules].filter(
+    (r): r is CSSMediaRule =>
+      'media' in r &&
+      (r as CSSMediaRule).media.mediaText.includes(media) &&
+      [...(r as CSSMediaRule).cssRules].some((i) => selector.test((i as CSSStyleRule).selectorText)),
+  )
+  style.remove()
+  return rules
+}
+
+describe("Weather's overlays share one column", () => {
+  /*
+   * Each was pinned to the screen at its own fixed height, as if the time axis were
+   * 96 px tall, and wherever the screen was short they covered each other: at 568×320
+   * with the location notice up, the time axis took every tap meant for the layer and
+   * model controls. In one column none can reach another. jsdom has no layout, so the
+   * order and the positioning are pinned here; the measured geometry is in the commit.
+   */
+  const column = () =>
+    [...document.querySelector('.chart-surface')!.children].map((c) => c.classList[0])
+
+  const NOTE = 'grid coarsened to keep the request small'
+
+  it('stacks the controls, the notes, the legend and the time axis, with the map behind', async () => {
+    stubForecast.cube = { ...windCube(Date.now(), [0, 0, 0]), notes: [NOTE] } as WeatherCube
+    render(<WeatherScreen />)
+    await screen.findByLabelText('Forecast time')
+    expect(column()).toEqual(['map', 'wx-top', 'wx-notes', 'wx-mid', 'chart-surface__timeline'])
+    expect(screen.getByText(NOTE).parentElement?.className).toBe('wx-notes')
+    expect(document.querySelector('.wx-mid .wx-legend')).not.toBeNull()
+    withStyles(() => {
+      const css = (sel: string) => getComputedStyle(document.querySelector(sel)!)
+      // MapLibre's stylesheet loads after ours and makes its container position: relative,
+      // which would put the map in the column, first, and push the rest off the screen.
+      const maplibre = document.createElement('style')
+      maplibre.textContent = '.maplibregl-map { position: relative; }'
+      document.head.appendChild(maplibre)
+      document.querySelector('.chart-surface > .map')!.classList.add('maplibregl-map')
+      try {
+        expect(css('.chart-surface > .map').position).toBe('absolute')
+      } finally {
+        maplibre.remove()
+      }
+      // In the column, in front of the map.
+      for (const sel of ['.wx-top', '.wx-notes', '.wx-mid', '.chart-surface__timeline']) {
+        expect(css(sel).position).toBe('relative')
+      }
+      // Squeezed, the controls and the time axis keep their height; the notes scroll.
+      expect(css('.wx-top').flexShrink).toBe('0')
+      expect(css('.chart-surface__timeline').flexShrink).toBe('0')
+      expect(css('.wx-notes').overflowY).toBe('auto')
+      expect(css('.wx-notes').overflowX).toBe('hidden')
+      // The notes give up height, and the middle gives up all of it (below its claim).
+      expect(css('.wx-notes').flexShrink).toBe('1')
+      expect(parseFloat(css('.wx-notes').minHeight)).toBe(0)
+      expect(parseFloat(css('.wx-mid').minHeight)).toBe(0)
+      // A box that gives up height has no padding to stop it at: two 8 px floors pushed
+      // the time axis 11 px down at 568×320, under the map's attribution.
+      for (const sel of ['.wx-notes', '.wx-mid']) {
+        expect(parseFloat(css(sel).paddingTop)).toBe(0)
+        expect(parseFloat(css(sel).paddingBottom)).toBe(0)
+      }
+      // The legend shows whole at its slot's foot, or wraps out of sight past the clipped
+      // edge, 8 px under the box above: the gap is inside the slot, so it is no floor, and
+      // a note cut off where the notes scroll is never flush against the legend.
+      const slot = css('.wx-mid__slot')
+      expect(slot.flexWrap).toBe('wrap')
+      expect(slot.justifyContent).toBe('flex-end')
+      expect(['hidden', 'clip']).toContain(slot.overflow)
+      expect(slot.paddingTop).toBe('8px')
+    })
+    expect(ruleFor('.wx-mid__slot::before').width).toBe('100%')
+    const sheet = readFileSync('src/styles.css', 'utf8')
+    // The middle takes what the rest leave, from nothing; jsdom cannot parse `flex: 1 1 0`.
+    expect(sheet).toMatch(/\.wx-mid \{\s*flex: 1 1 0;/)
+    // jsdom drops a padding shorthand with var() in it, so the notes' is read as written:
+    // side padding only, nothing top or bottom to stop them shrinking.
+    expect(blockFor('.wx-notes')).toMatch(/\n {2}padding: 0 var\(--pad\);/)
+    expect(blockFor('.wx-notes')).not.toMatch(/padding-(top|bottom)/)
+    // A long word, such as a tile's address in a map error, breaks rather than widening it.
+    expect(blockFor('.wx-notes > *')).toMatch(/overflow-wrap: anywhere;/)
+    // Clipped, not hidden, so neither focus nor find-in-page can scroll a wrapped legend
+    // back into view; jsdom may report either, so the sheet is read as written.
+    expect(sheet).toMatch(/\.wx-mid__slot \{[^}]*overflow: hidden;\s*overflow: clip;/)
+  })
+
+  it('pins the readout beside the legend, never in its place', async () => {
+    stubForecast.cube = windCube(Date.now(), [0, 0, 0])
+    render(<WeatherScreen />)
+    await screen.findByLabelText('Forecast time')
+    const click = mapInstances[0].handlers.get('click')![0]
+    act(() => click({ lngLat: { lat: PILOT_VENUE.waterStart.lat, lng: PILOT_VENUE.waterStart.lon } }))
+    const readout = document.querySelector('.wx-readout')!
+    const legend = document.querySelector('.wx-legend')!
+    expect(readout.parentElement?.classList.contains('wx-mid__slot--readout')).toBe(true)
+    expect(legend.parentElement?.classList.contains('wx-mid__slot')).toBe(true)
+    expect(readout.parentElement).not.toBe(legend.parentElement)
+    withStyles(() => {
+      const css = getComputedStyle(readout)
+      // In its slot's flow, scrolling inside the slot rather than growing past it.
+      expect(css.position).toBe('static')
+      expect(css.overflowY).toBe('auto')
+      expect(css.maxHeight).toBe('100%')
+      // Below its header and one line it wraps out of sight rather than show a sliver.
+      expect(css.minHeight).toBe('48px')
+    })
+    // Its slot adds nothing to the legend's claim on the column.
+    expect(ruleFor('.wx-mid__slot--readout').getPropertyValue('contain')).toBe('size')
+    // And takes what the legend leaves of the row, rather than the legend's 178 px, which
+    // at 320 px wide would put the readout past the screen's edge.
+    expect(blockFor('.wx-mid__slot--readout')).toMatch(/\n {2}flex: 1 1 0;\s+width: auto;\s+min-width: 0;/)
+  })
+
+  it('gives the legend its height first where there is room for it', () => {
+    // jsdom cannot evaluate @container, so the rule is read from the sheet as written.
+    const css = readFileSync('src/styles.css', 'utf8')
+    const rule = css.match(/@container chart \(min-height: (\d+)px\) \{\s*\.wx-mid \{\s*min-height: auto;/)
+    expect(rule).not.toBeNull()
+    // The controls, the time axis, and the legend with the 8 px above it, at their tallest
+    // in Chrome, come to 420 px.
+    expect(Number(rule![1])).toBeGreaterThanOrEqual(420)
+    // With no time axis (no forecast), the controls, the legend and the 34 px it keeps
+    // clear of the attribution come to 285: the depth chart keeps its scale there too.
+    const bare = css.match(/@container chart \(min-height: (\d+)px\) \{\s*\.wx-mid:last-child \{\s*min-height: auto;/)
+    expect(bare).not.toBeNull()
+    expect(Number(bare![1])).toBeGreaterThanOrEqual(285)
+    expect(css).toMatch(/\.chart-surface \{\s*container: chart \/ size;/)
+  })
+
+  it('puts the tide panel between the legend and the time axis', async () => {
+    stubForecast.cube = windCube(Date.now(), [0, 0, 0])
+    render(<WeatherScreen />)
+    await screen.findByLabelText('Forecast time')
+    act(() => screen.getByRole('button', { name: 'Current' }).click())
+    // The tide request fails (no network in these tests), and the panel says so.
+    await screen.findByText(/Tidal current prediction unavailable/)
+    expect(column()).toEqual(['map', 'wx-top', 'wx-mid', 'wx-tide', 'chart-surface__timeline'])
+    withStyles(() => {
+      const tide = getComputedStyle(document.querySelector('.wx-tide')!)
+      expect(tide.position).toBe('relative')
+      // It shares a squeeze with the notes, in proportion, rather than going first, and
+      // has no padding top or bottom to stop it shrinking.
+      expect(tide.flexShrink).toBe('1')
+      expect(tide.overflowY).toBe('auto')
+      expect(parseFloat(tide.paddingTop)).toBe(0)
+      expect(parseFloat(tide.paddingBottom)).toBe(0)
+      // Its gap above is inside what scrolls instead, for the same reason as the legend's.
+      const panel = document.querySelector('.wx-tide')!.firstElementChild!
+      expect(getComputedStyle(panel).marginTop).toBe('8px')
+    })
+    // jsdom drops a padding shorthand with var() in it, so the declaration is read as written.
+    expect(blockFor('.wx-tide')).toMatch(/\n {2}padding: 0 var\(--pad\);/)
+    expect(blockFor('.wx-tide')).not.toMatch(/padding-(top|bottom)/)
+  })
+
+  it('gives a phone on its side one line of controls and a one-line time axis', () => {
+    const media = mediaRulesFor('max-height: 499.98px', /\.timeline\b/)
+    expect(media.length).toBe(1)
+    const rules = new Map(
+      [...media[0].cssRules].map((r) => [(r as CSSStyleRule).selectorText, (r as CSSStyleRule).style]),
+    )
+    expect(rules.get('.wx-controls')?.flexDirection).toBe('row')
+    expect(rules.get('.wx-controls')?.overflowX).toBe('auto')
+    expect(rules.get('.wx-controls__row')?.flexWrap).toBe('nowrap')
+    // Its own touch target, so a drag in a gap between the groups scrolls it, not the map.
+    expect(rules.get('.wx-controls')?.pointerEvents).toBe('auto')
+    // "Downloading…" first, rather than past the end of the line.
+    expect(rules.get('.wx-controls__row > .chip--warn')?.order).toBe('-1')
+    expect(rules.get('.timeline')?.display).toBe('flex')
+    expect(rules.get('.timeline__labels')?.flexDirection).toBe('column')
+    // The two readings only: T+ and the model (which is in the select) are left out.
+    expect(rules.get('.timeline__labels > .chip')?.display).toBe('none')
+  })
+
+  it('gives a narrow time axis less side padding and no model chip', () => {
+    const media = mediaRulesFor('max-width: 374.98px', /\.timeline__run\b/)
+    expect(media.length).toBe(1)
+    const rules = new Map(
+      [...media[0].cssRules].map((r) => [(r as CSSStyleRule).selectorText, (r as CSSStyleRule).style]),
+    )
+    expect(rules.get('.timeline__run')?.display).toBe('none')
+    expect(rules.get('.chart-surface__timeline')?.paddingLeft).toBe('8px')
+    expect(rules.get('.timeline')?.paddingLeft).toBe('10px')
+  })
+
+  it('keeps the legend and the tide panel clear of the attribution with no time axis', () => {
+    // With no forecast there is no time axis at the foot, and the map's attribution is.
+    expect(ruleFor('.wx-mid:last-child > .wx-mid__slot').paddingBottom).toBe('34px')
+    expect(ruleFor('.wx-tide:last-child > :last-child').marginBottom).toBe('34px')
+  })
+
+  it('never leaves the slider without room', () => {
+    stubForecast.cube = windCube(Date.now(), [0, 0, 0])
+    render(<WeatherScreen />)
+    return screen.findByLabelText('Forecast time').then((slider) =>
+      withStyles(() => {
+        // At 320 px it took what the buttons left, which was nothing; now the speeds wrap.
+        expect(getComputedStyle(slider).minWidth).toBe('48px')
+        expect(getComputedStyle(slider.parentElement!).flexWrap).toBe('wrap')
+        // On a line of their own, the speeds stay at the right.
+        const speeds = slider.parentElement!.querySelector('.timeline__speeds')!
+        expect(getComputedStyle(speeds).marginLeft).toBe('auto')
+      }),
+    )
   })
 })
 

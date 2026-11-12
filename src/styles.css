@@ -806,6 +806,16 @@ button {
   height: 100%;
 }
 
+/*
+ * Weather's map fills the screen behind a column of controls (see .wx-top). Left at
+ * MapLibre's position: relative, it would be the first item of that column and push
+ * the rest past the clipped bottom edge, so here it is taken back out of the flow, with
+ * the specificity to win over .maplibregl-map.
+ */
+.chart-surface > .map {
+  position: absolute;
+}
+
 .maplibregl-ctrl-attrib {
   font-size: 9px !important;
 }
@@ -970,4 +980,346 @@ table.results td:first-child {
 
 table.results tr.beating td {
   color: var(--warn);
+}
+
+/* ---------------------------------------------------------------- weather */
+
+/*
+ * Weather's overlays share the screen in one column instead of each being pinned to it
+ * at its own fixed height. Pinned, they assumed a time axis 96 px tall. It was 127 px,
+ * and 158 at 320 px wide, and wherever the screen was short they covered each other: on
+ * a phone on its side with the location notice up, the time axis covered every control,
+ * and the tide panel did the same without the notice.
+ *
+ * Top to bottom: the controls, the notes, the legend and the readout at the foot of a
+ * flexible middle, the tide panel, and the time axis. The map is behind all of it. When
+ * the column is longer than the screen:
+ * - the controls and the time axis keep their height;
+ * - the notes and the tide panel give up height in proportion, and scroll;
+ * - the legend shows in what is left, whole or not at all. Where Weather is at least
+ *   450 px tall (285 with no time axis) it claims its height before the notes and the
+ *   tide panel (see @container below), since a colour field needs its scale: "Every
+ *   layer renders its provenance" (Legend.tsx);
+ * - a tap's readout shows beside it in what is left, and scrolls when that is short.
+ */
+.chart-surface {
+  container: chart / size;
+}
+
+/*
+ * In the column, in front of the map: an in-flow box without a position paints under it.
+ * No specificity, so an overlay's box that positions itself keeps its own position.
+ */
+:where(.chart-surface > :not(.map)) {
+  position: relative;
+}
+
+.wx-top {
+  flex: none;
+  padding: var(--pad) var(--pad) 8px;
+  pointer-events: none;
+}
+
+/*
+ * No padding top or bottom on a box that gives up height (the notes, the middle, the tide
+ * panel): padding is a floor it cannot go below, and at 568×320 with the location notice
+ * two 8 px floors pushed the time axis 11 px down, under the map's attribution. Each box
+ * keeps the 8 px gap above it inside what clips or scrolls instead (the slots' padding,
+ * the tide panel's margin), so that a note cut off where the notes scroll is never flush
+ * against the box under it.
+ */
+.wx-notes {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 var(--pad);
+  pointer-events: none;
+}
+
+.wx-notes > * {
+  flex: none;
+  /* A long word, such as a tile's address in a map error, breaks rather than widening it. */
+  overflow-wrap: anywhere;
+}
+
+.wx-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wx-controls__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+/* The legend at the left and the readout at the right, in what the rest leaves. */
+.wx-mid {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  gap: 8px;
+  padding: 0 10px 0 20px;
+  pointer-events: none;
+}
+
+/*
+ * Room for the controls, the time axis, and the legend with the 8 px above it, at their
+ * tallest in Chrome at phone sizes: 121 + 169 + 130 = 420 px. Here the legend's own height
+ * is the least this box gets (min-height: auto is its content's height), so the notes and
+ * the tide panel give up theirs first. Below 450 px the legend would claim height it could
+ * not use, and leave it empty. Little is left over: "Downloading…" can add a line of
+ * controls at 320 px while it shows (150 px in all), and WebKit draws the model select
+ * 8 px taller.
+ */
+@container chart (min-height: 450px) {
+  .wx-mid {
+    min-height: auto;
+  }
+}
+
+/*
+ * With no time axis under it (no forecast), the same from 121 + 130 + 34 = 285 px: the
+ * controls, the legend, and the 34 px it keeps clear of the map's attribution. Without
+ * this, the depth chart gave up its scale to the notes at 320×568 and 360×640.
+ */
+@container chart (min-height: 285px) {
+  .wx-mid:last-child {
+    min-height: auto;
+  }
+}
+
+/*
+ * A slot shows its box at its foot, or not at all. A box taller than the slot wraps into
+ * a second column, past the slot's right edge, and the slot clips it: clip, not hidden,
+ * so that neither focus nor find-in-page can scroll it back into view. The ::before holds
+ * the first column, so the box is never alone in it.
+ */
+.wx-mid__slot {
+  flex: none;
+  width: 178px;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  padding-top: 8px;
+  overflow: hidden;
+  overflow: clip;
+}
+
+.wx-mid__slot::before {
+  content: '';
+  width: 100%;
+}
+
+.wx-mid__slot > * {
+  flex: none;
+}
+
+.wx-legend > .legend {
+  position: static;
+}
+
+/*
+ * The point readout's slot: what is left beside the legend. Size containment, so that it
+ * adds nothing to the legend's claim on the column above and a tap cannot push the time
+ * axis off the screen. The readout is never taller than the slot and scrolls when the slot
+ * is short; below 48 px, its header and one line, it is not shown at all.
+ */
+.wx-mid__slot--readout {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  align-items: flex-end;
+  contain: size;
+}
+
+.wx-mid__slot > .wx-readout {
+  position: static;
+  max-width: 210px;
+  min-height: 48px;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.wx-tide {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--pad);
+  pointer-events: auto;
+}
+
+.wx-tide > :first-child {
+  margin-top: 8px;
+}
+
+/* With no time axis under them (no forecast), clear of the map's attribution instead. */
+.wx-mid:last-child > .wx-mid__slot {
+  padding-bottom: 34px;
+}
+
+.wx-tide:last-child > :last-child {
+  margin-bottom: 34px;
+}
+
+/*
+ * The time axis: the foot of Weather's column. The extra bottom padding keeps the speed
+ * control clear of MapLibre's attribution, which sits over it and is legally required
+ * to stay legible.
+ */
+.chart-surface__timeline {
+  flex: none;
+  padding: var(--pad) var(--pad) 26px;
+  background: linear-gradient(to top, rgba(5, 13, 22, 0.96), rgba(5, 13, 22, 0));
+}
+
+.timeline {
+  background: var(--bg-sunk);
+  border-top: 1px solid var(--line);
+  padding: 8px var(--pad);
+}
+
+.timeline__labels {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 7px;
+  font-size: 12px;
+}
+
+.timeline__utc {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.timeline__local {
+  color: var(--ink-dim);
+}
+
+/*
+ * The slider keeps at least 48 px, room for its thumb and some travel. Where that leaves
+ * no room for the speeds beside it, they wrap to a line of their own, at the right:
+ * below about 345 px wide, with the narrower padding further down. Taking only what the
+ * buttons left, the slider was 36 px wide at 360 and nothing at all at 320; it is 56 px
+ * at 360 now, and 148 at 320.
+ */
+.timeline__controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.timeline__range {
+  flex: 1 1 48px;
+  min-width: 48px;
+  height: 30px;
+  accent-color: var(--accent);
+}
+
+.timeline__speeds {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/*
+ * Below 375 px the time axis gives up some of its side padding, and the model chip (the
+ * model is in the select at the top), so that at 360 the readings and the controls still
+ * take one line each.
+ */
+@media (max-width: 374.98px) {
+  .chart-surface__timeline {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .timeline {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .timeline__run {
+    display: none;
+  }
+}
+
+/*
+ * A phone on its side. With the location notice up, a 320 px tall one leaves Weather
+ * 139 px, so the controls take one line that scrolls sideways, and the time axis one
+ * line too: the two readings stacked at its start, without T+ and the model (which is
+ * in the select above).
+ */
+@media (max-height: 499.98px) {
+  .wx-top {
+    padding-top: 8px;
+    padding-bottom: 6px;
+  }
+
+  /*
+   * Its own touch target, so that a drag in a gap between the groups scrolls it rather
+   * than the map. Contained sideways only, so a drag up or down is not caught here.
+   */
+  .wx-controls {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    pointer-events: auto;
+  }
+
+  .wx-controls__row {
+    flex: none;
+    flex-wrap: nowrap;
+  }
+
+  /* "Downloading…" first, rather than past the end of the line. */
+  .wx-controls__row > .chip--warn {
+    order: -1;
+  }
+
+  .chart-surface__timeline {
+    padding-top: 4px;
+  }
+
+  .timeline {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px var(--pad);
+  }
+
+  .timeline__labels {
+    flex: none;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 0;
+    margin: 0;
+    line-height: 1.25;
+  }
+
+  .timeline__labels > .chip {
+    display: none;
+  }
+
+  .timeline__controls {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 }

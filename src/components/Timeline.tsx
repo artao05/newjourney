@@ -214,38 +214,26 @@ export function Timeline({
   const local = useMemo(() => fmtLocal(value), [value])
   const plusH = (value - t0) / 3_600_000
 
+  /*
+   * Layout lives in styles.css (.timeline), so a phone on its side can put the two
+   * readings and the controls on one line.
+   */
   return (
-    <div
-      style={{
-        background: 'var(--bg-sunk)',
-        borderTop: '1px solid var(--line)',
-        padding: '8px var(--pad)',
-        flexShrink: 0,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          flexWrap: 'wrap',
-          marginBottom: 7,
-          fontSize: 12,
-        }}
-      >
+    <div className="timeline">
+      <div className="timeline__labels">
         {/* UTC first and brightest: it is the frame the forecast is stated in. */}
-        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>{utc}</span>
-        <span style={{ color: 'var(--ink-dim)' }}>{local}</span>
+        <span className="timeline__utc">{utc}</span>
+        <span className="timeline__local">{local}</span>
         {/* Dropped rather than dashed: "T+—h" reads as a measurement of nothing. */}
         {Number.isFinite(plusH) ? <span className="chip">T+{Math.round(plusH)}h</span> : null}
         {runLabel ? (
-          <span className="chip" style={{ color: 'var(--ink-faint)' }}>
+          <span className="chip timeline__run" style={{ color: 'var(--ink-faint)' }}>
             {runLabel}
           </span>
         ) : null}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="timeline__controls">
         <button
           className="btn btn--sm"
           type="button"
@@ -278,6 +266,7 @@ export function Timeline({
 
         <input
           type="range"
+          className="timeline__range"
           min={0}
           max={lastIndex}
           // Quarter steps: the layers mix between forecast hours in the shader
@@ -287,11 +276,10 @@ export function Timeline({
           onChange={(e) => goToIndex(Number(e.currentTarget.value))}
           disabled={nt < 2}
           aria-label="Forecast time"
-          style={{ flex: 1, minWidth: 0, height: 30, accentColor: 'var(--accent)' }}
         />
 
         {onSpeedChange ? (
-          <div className="seg" style={{ flexShrink: 0 }}>
+          <div className="seg timeline__speeds">
             {SPEEDS.map((s) => (
               <button
                 key={s}

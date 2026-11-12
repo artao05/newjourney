@@ -330,24 +330,19 @@ export function ChartSurface({ children, showTimeline = true }: Props) {
 
   return (
     <ChartContext.Provider value={value}>
-      <div className="screen screen--flush" style={{ position: 'relative' }}>
+      {/*
+        The map fills the screen behind everything. An overlay's boxes and this time axis
+        are one column in front of it, so none of them can be drawn over another: an
+        overlay renders its boxes in flow, top to bottom, and the time axis comes last.
+        See .chart-surface and .wx-top in styles.css.
+      */}
+      <div className="screen screen--flush chart-surface" style={{ position: 'relative' }}>
         <div ref={containerRef} className="map" />
 
         {children}
 
         {cube && showTimeline && (
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              // Extra bottom padding keeps the speed control clear of MapLibre's
-              // attribution, which is legally required to stay legible.
-              padding: 'var(--pad) var(--pad) 26px',
-              background: 'linear-gradient(to top, rgba(5,13,22,0.96), rgba(5,13,22,0))',
-            }}
-          >
+          <div className="chart-surface__timeline">
             <Timeline
               t0={cube.t0}
               dtMs={cube.dtMs}
