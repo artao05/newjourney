@@ -20,8 +20,8 @@ in five minutes — built entirely on public data.
 > [Branches](#branches).
 >
 > [![CI](https://github.com/artao05/newjourney/actions/workflows/ci.yml/badge.svg)](https://github.com/artao05/newjourney/actions/workflows/ci.yml)
-> tests, typecheck and build on every push. First-load JS, gzipped: 100 KB on `main`, measured
-> 2026-11-11, and 113 KB on this branch, measured 2026-11-05. It had 215 KB before phone phase 0.
+> tests, typecheck and build on every push. First-load JS, gzipped: 100 KB on `main` and 113 KB
+> on this branch, both measured 2026-11-11. This branch had 215 KB before phone phase 0.
 > **Not for navigation** — see the caveats in [RUNNING.md](RUNNING.md#whats-real-and-what-isnt).
 > Land avoidance works, but only inside the Portland venue box and only as a
 > land check, never a depth check. On this branch, ENC cells you open add their own land,

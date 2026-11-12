@@ -126,6 +126,7 @@ again on 2026-11-11):
 - **It has two more dock checks,** Sound and Stored data, in section 2.
 - **It has never been on a real phone.** Its layout check failed with a font like a phone's:
   some buttons came out smaller than it allows, and at 360 px the screen scrolled sideways a
-  little. That was fixed on 2026-11-11, and the check now passes in that font on Windows, but
-  not yet in CI. The check never loads a route, and section 2 has not been run on it.
+  little. That was fixed on 2026-11-11, and the check now passes in that font on Windows. The
+  fix has not run in CI yet. The check never loads a route, and section 2 has not been run on
+  it.
 - **It can read instruments** in Setup → Instruments. None of that has been tried on a boat.

@@ -174,8 +174,9 @@ Checked against the code on 2026-11-03, at `5bad931` on `main` and `fbb40b4` on
 small fixes; [#4](https://github.com/artao05/newjourney/pull/4) on 2026-11-09, its docs and
 decision records; and [#5](https://github.com/artao05/newjourney/pull/5) on 2026-11-11
 (`ffac1b9`), five places where a small phone lost a button or a note. None of it changes what
-this section says. This branch then took phone phase 0 (`01bbe6f`, committed 2026-11-05), and
-this section was checked against that too.
+this section says. This branch then took phone phase 0 (`01bbe6f`, committed 2026-11-05) and,
+on 2026-11-11, a WebKit phone check (`f1c0ee4`) and a phone layout fix (`2f9a517`), and this
+section was checked against those too.
 
 | | `main` | `parity/expedition` (this branch) |
 |---|---|---|
@@ -251,9 +252,10 @@ been checked.
 - **Phone phase 0,** from the [phone and hardware plan](docs/05-spec/phone-and-hardware.md).
   Action rows wrap, and Start's ping and timer rows stay put under a readout that scrolls. A
   touch screen gets bigger chips and selects, wider small buttons, and segmented buttons at
-  least 36 px tall in any font (fixed 2026-11-11, see the real-phone entry below). Only Start and what it needs are in
-  the first download. The app asks the browser to keep what it stores, and Setup → Stored data shows the
-  answer. A running countdown warns when it can't sound, and Start → TIMER has TEST SOUND.
+  least 36 px tall in any font (fixed 2026-11-11, see the real-phone entry below). Only Start
+  and what it needs are in the first download. The app asks the browser to keep what it
+  stores, and Setup → Stored data shows the answer. A running countdown warns when it can't
+  sound, and Start → TIMER has TEST SOUND.
   Checked by unit tests and in emulated phones, not on a real phone.
 - **The rest of the parity work,** row by row in
   [parity-matrix.md](docs/08-parity/parity-matrix.md): number boxes on Expedition's channel
@@ -329,18 +331,21 @@ been checked.
   same in Playwright's WebKit. In CI, on GitHub's Linux runner at `31fe190` on 2026-11-11, the
   Chrome check failed with 204 problems: segmented buttons 32 px tall, under its 34 px floor,
   and at 360 px every screen scrolling 4 px sideways. It had passed on Windows only because
-  Windows draws the app in Segoe UI, whose taller lines carried those buttons to 34 px. So both
-  checks now draw the app in Arial, whose lines are near Roboto's and San Francisco's and which
-  Linux replaces with the same-sized Liberation Sans. They also fail a label wider than its
-  button. That found the cause of the sideways scroll and a third problem: on a touch screen,
-  the 36 px minimum width on small buttons let Route's six action buttons shrink to 46 px each,
-  with their labels running over one another, instead of wrapping. Fixed the same day:
-  segmented buttons are at least 36 px tall, the top bar's chips wrap rather than run off the
-  edge, and Route's row wraps again. Both checks then passed on this Windows machine. The fix
-  has not run in CI yet. The check blocks
-  the network, so it sees the forecast screens only when run by hand with `LIVE=1`, and it never
-  loads a route. It doesn't open the wind sheet or Route's results and departure sheets, where
-  `main` fixed lost buttons on 2026-11-11
+  Windows draws the app in Segoe UI, whose taller lines carried those buttons to 34 px and
+  whose narrower letters kept the top bar on the screen. So both checks now draw the app in
+  Arial, whose lines are near Roboto's and San Francisco's and which Linux replaces with the
+  same-sized Liberation Sans. In Arial the top bar's chips ran 4 px past a 360 px screen, which
+  was the sideways scroll. The checks now also fail a label wider than its button, which found
+  a third problem, there in Segoe UI as well: on a touch screen, the 36 px minimum width on
+  small buttons let Route's six action buttons shrink to 46 px each, with their labels running
+  over one another, instead of wrapping. Fixed the same day: segmented buttons are at least
+  36 px tall, the top bar's chips wrap rather than run off the edge, and Route's row wraps
+  again. At 360 px in Arial, while the GPS chip reads "no fix", the other chips take a second
+  row, so the top bar is 97 px tall rather than 55. Both checks then passed on this Windows
+  machine. The fix has not run in CI yet. The check blocks the network, so it sees the forecast
+  screens only when run by hand with `LIVE=1`, and it never loads a route. It doesn't open the
+  wind sheet or Route's results and departure sheets, where `main` fixed lost buttons on
+  2026-11-11
   ([pull request #5](https://github.com/artao05/newjourney/pull/5)). Nor can it see what only a
   phone shows: iOS Safari, GPS, sound, heat or a wet thumb. Until [PILOT.md](PILOT.md) §2 has
   passed on a real iPhone and Android phone, treat it as unproven.
@@ -351,13 +356,13 @@ See [docs/05-spec/roadmap.md](docs/05-spec/roadmap.md) for what comes next on `m
 
 ## Verified state
 
-Measured by hand, `main` on 2026-11-11 and this branch on 2026-11-05:
+Measured by hand on 2026-11-11:
 
-| | `main` (`ffac1b9`) | `parity/expedition` (`01bbe6f`) |
+| | `main` (`ffac1b9`) | `parity/expedition` (`2f9a517`) |
 |---|---|---|
 | Tests | 1,072 in 48 files | 1,869 in 151 files |
 | `npx tsc -b --noEmit`, `npm run build` | clean | clean |
-| CI | green at this commit, 2026-11-11 | red at `31fe190`, this code plus docs, 2026-11-11: tests and build passed, and `test:phone` failed on the runner's font, as above. The fix has not run in CI |
+| CI | green at this commit, 2026-11-11 | not yet run on this code, which is not pushed. At `31fe190`, before the layout fix, it was red on 2026-11-11: tests and build passed, and `test:phone` failed on the runner's font, as above |
 | First load, gzipped | 100 KB of JS, 3 KB of CSS | 113 KB of JS, 5 KB of CSS (215 KB of JS before phone phase 0) |
 | All a first visit stores for offline, gzipped | 0.49 MB, 17 files | 0.70 MB, 45 files |
 | Map chunk, gzipped, mostly MapLibre | 286 KB of JS, 10 KB of CSS | 289 KB of JS, 10 KB of CSS |
