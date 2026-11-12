@@ -722,13 +722,36 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   padding: 9px var(--pad);
   background: var(--bg-sunk);
   border-bottom: 1px solid var(--line);
   font-size: 12px;
   color: var(--ink-dim);
   flex-shrink: 0;
+}
+
+/* At 360 px the GPS chip and five more only just fit on one line, so give them the edges. */
+@media (max-width: 380px) {
+  .topbar {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+/*
+ * The wind, palette and record chips. At 360 px, in a phone's font, a fixed row of them
+ * ran 4 px past the screen and the whole page scrolled sideways, and a set wind reads
+ * longer than "set wind". So the row may shrink and wrap to a second line, at the right,
+ * rather than push past the edge. The GPS chip on the left keeps its width.
+ */
+.topbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .chip {
@@ -1103,9 +1126,26 @@ button {
     justify-content: center;
   }
 
-  .btn--sm,
-  .seg button {
+  .btn--sm {
     min-width: 36px;
+  }
+
+  /*
+   * In a flex row or a grid, any min-width replaces the browser's own floor, which is
+   * the label's width. With 36 px instead, Route's six buttons shrank to 46 px each and
+   * their labels spilled over one another, where the row should have wrapped. So rows
+   * and segments keep the label's width as their floor.
+   */
+  .actions > .btn--sm {
+    min-width: auto;
+  }
+
+  /*
+   * Padding alone made these 34 px tall in Windows' Segoe UI but 32 px in Roboto or SF,
+   * because the height came from the font's line. A floor holds in every font.
+   */
+  .seg button {
+    min-height: 36px;
   }
 
   input[type='checkbox'],

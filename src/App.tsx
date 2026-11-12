@@ -468,7 +468,7 @@ export function App() {
             <span className="dot dot--pulse" />
             {replaying ? 'LOG' : settings.simulate ? 'SIM' : 'GPS'} {gpsChip.text}
           </span>
-          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span className="topbar__actions">
             <button
               className={`chip ${windChipState.warn ? 'chip--warn' : ''}`}
               onClick={() => setWindSheetOpen(true)}

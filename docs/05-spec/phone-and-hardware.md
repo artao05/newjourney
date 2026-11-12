@@ -115,12 +115,13 @@ No native code and nothing to buy.
       412×915, and fails on sideways scrolling, an unreachable or covered control, or a small
       target, on every tab and three sheets. It blocks the network, so screens that need a
       forecast are checked only by hand (`LIVE=1`), and Route with a route loaded not at all.
-      **Reopened 2026-11-11:** it passes only in Windows' font. On CI's runner it fails, and a
-      phone probably would too: segmented buttons 32 px tall, and 4 px of sideways scroll at
-      360 px ([RUNNING.md](../../RUNNING.md#whats-real-and-what-isnt)). Forced to Arial, which
-      sets lines like Roboto and San Francisco, it fails the same way on Windows. So the 34 px in
-      the item above holds only with Segoe UI, and not yet for segmented buttons on a phone.
-      `test:phone:webkit` now runs the same check in Safari's engine.
+      **Reopened and fixed 2026-11-11:** it had passed only in Windows' font. On CI's runner it
+      failed: segmented buttons 32 px tall, and 4 px of sideways scroll at 360 px
+      ([RUNNING.md](../../RUNNING.md#whats-real-and-what-isnt)). The check now draws the app in
+      Arial, which sets lines like Roboto and San Francisco, and fails a label wider than its
+      button. That also caught Route's action row squeezing its labels instead of wrapping on a
+      touch screen. All three are fixed, and the check passes in Chrome and in
+      `test:phone:webkit`, Safari's engine, on Windows. The fix has not run in CI yet.
 - [x] First-load JS: 113 KB, from 215 (Vite's figures, measured 2026-11-05), with a budget that
       fails the build. The budget counts in units of 1,024 bytes, so it reads 110.7 against a
       limit of 115. Not quite the 100 KB aimed for: React is about 60 KB of it, and the rest is

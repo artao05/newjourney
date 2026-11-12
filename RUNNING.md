@@ -250,8 +250,8 @@ been checked.
   kept only until the page reloads. The app does not download GRIB itself.
 - **Phone phase 0,** from the [phone and hardware plan](docs/05-spec/phone-and-hardware.md).
   Action rows wrap, and Start's ping and timer rows stay put under a readout that scrolls. A
-  touch screen gets bigger chips and selects and wider small buttons, though segmented buttons
-  can still be 32 px tall (see the real-phone entry below). Only Start and what it needs are in
+  touch screen gets bigger chips and selects, wider small buttons, and segmented buttons at
+  least 36 px tall in any font (fixed 2026-11-11, see the real-phone entry below). Only Start and what it needs are in
   the first download. The app asks the browser to keep what it stores, and Setup → Stored data shows the
   answer. A running countdown warns when it can't sound, and Start → TIMER has TEST SOUND.
   Checked by unit tests and in emulated phones, not on a real phone.
@@ -326,13 +326,18 @@ been checked.
 - **Nothing has been compared with Expedition itself** (needs.md D7).
 - **It has not been tried on a real phone.** `npm run test:phone` checks the built app in Chrome
   at 360 to 412 px wide, on six tabs and three sheets, and `npm run test:phone:webkit` does the
-  same in Playwright's WebKit. Both passed on this Windows machine on 2026-11-11. In CI, on
-  GitHub's Linux runner at `31fe190` on 2026-11-11, the Chrome check failed with 204 problems:
-  segmented buttons 32 px tall, under its 34 px floor, and at 360 px every screen scrolling 4 px
-  sideways. The WebKit check came after that push and has not run in CI. The difference is the
-  font. Windows draws the app in Segoe UI, whose taller lines carry the segmented buttons to
-  34 px. Forced into Arial, whose lines are nearer Roboto's and San Francisco's, this machine
-  shows CI's 204 problems too, so a real phone probably will. Not fixed yet. The check blocks
+  same in Playwright's WebKit. In CI, on GitHub's Linux runner at `31fe190` on 2026-11-11, the
+  Chrome check failed with 204 problems: segmented buttons 32 px tall, under its 34 px floor,
+  and at 360 px every screen scrolling 4 px sideways. It had passed on Windows only because
+  Windows draws the app in Segoe UI, whose taller lines carried those buttons to 34 px. So both
+  checks now draw the app in Arial, whose lines are near Roboto's and San Francisco's and which
+  Linux replaces with the same-sized Liberation Sans. They also fail a label wider than its
+  button. That found the cause of the sideways scroll and a third problem: on a touch screen,
+  the 36 px minimum width on small buttons let Route's six action buttons shrink to 46 px each,
+  with their labels running over one another, instead of wrapping. Fixed the same day:
+  segmented buttons are at least 36 px tall, the top bar's chips wrap rather than run off the
+  edge, and Route's row wraps again. Both checks then passed on this Windows machine. The fix
+  has not run in CI yet. The check blocks
   the network, so it sees the forecast screens only when run by hand with `LIVE=1`, and it never
   loads a route. It doesn't open the wind sheet or Route's results and departure sheets, where
   `main` fixed lost buttons on 2026-11-11
@@ -352,7 +357,7 @@ Measured by hand, `main` on 2026-11-11 and this branch on 2026-11-05:
 |---|---|---|
 | Tests | 1,072 in 48 files | 1,869 in 151 files |
 | `npx tsc -b --noEmit`, `npm run build` | clean | clean |
-| CI | green at this commit, 2026-11-11 | red at `31fe190`, this code plus docs, 2026-11-11: tests and build passed, and `test:phone` failed on the runner's font, as above |
+| CI | green at this commit, 2026-11-11 | red at `31fe190`, this code plus docs, 2026-11-11: tests and build passed, and `test:phone` failed on the runner's font, as above. The fix has not run in CI |
 | First load, gzipped | 100 KB of JS, 3 KB of CSS | 113 KB of JS, 5 KB of CSS (215 KB of JS before phone phase 0) |
 | All a first visit stores for offline, gzipped | 0.49 MB, 17 files | 0.70 MB, 45 files |
 | Map chunk, gzipped, mostly MapLibre | 286 KB of JS, 10 KB of CSS | 289 KB of JS, 10 KB of CSS |

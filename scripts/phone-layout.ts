@@ -35,6 +35,16 @@ const SIZES = [
 
 const LIVE = process.env.LIVE === '1'
 
+/**
+ * Phones draw the app in Roboto (Android) or SF (iPhone), whose lines are about 1.17 to
+ * 1.19 times the font size. Windows draws it in Segoe UI, at about 1.33, which made text
+ * buttons 2 px taller here than on a phone, and this check passed on Windows while CI
+ * failed (2026-11-11). Arial's lines are close to the phones' fonts, and every machine
+ * this runs on has it: Windows does, and Linux maps it to Liberation Sans, whose
+ * measurements are identical.
+ */
+const PHONE_FONT = "body { font-family: Arial, 'Liberation Sans', sans-serif !important }"
+
 const WEBKIT = process.argv.includes('--webkit')
 const ENGINE = WEBKIT ? 'WebKit' : 'Chrome'
 
@@ -107,6 +117,10 @@ function findProblems(): string[] {
     if (isTapTarget && (r.width < MIN_TAP_PX || r.height < MIN_TAP_PX)) {
       problems.push(`"${name(el)}" is only ${Math.round(r.width)}×${Math.round(r.height)}px to tap`)
     }
+    // A label wider than its button runs over its neighbours (Route's row, 2026-11-11).
+    if (el.tagName === 'BUTTON' && el.scrollWidth > el.clientWidth + 1) {
+      problems.push(`"${name(el)}" has a label ${el.scrollWidth - el.clientWidth}px wider than its button`)
+    }
     el.scrollIntoView({ block: 'center', inline: 'center' })
     const box = el.getBoundingClientRect()
     const at = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
@@ -147,6 +161,12 @@ async function main(): Promise<void> {
       // forecast API's quota. A failed forecast's message is part of the crowd anyway.
       // By hand, LIVE=1 lets the forecast in, to see the screens that only appear with one.
       if (!LIVE) await context.route((u) => u.hostname !== new URL(url).hostname, (route) => route.abort())
+      // Before the app's first paint, and again after every reload below.
+      await context.addInitScript((css) => {
+        const add = () => document.head.append(Object.assign(document.createElement('style'), { textContent: css }))
+        if (document.head) add()
+        else document.addEventListener('DOMContentLoaded', add)
+      }, PHONE_FONT)
       const page = await context.newPage()
       const crashes: string[] = []
       page.on('pageerror', (e) => crashes.push(e.message))
@@ -178,7 +198,7 @@ async function main(): Promise<void> {
     console.error(`${failures.length} phone layout problem(s) in ${ENGINE}:\n  ${failures.join('\n  ')}`)
     process.exit(1)
   }
-  console.log(`Phone layout in ${ENGINE}: ${TABS.length} tabs and ${SHEETS.length} sheets fine at ${SIZES.map((s) => `${s.width}×${s.height}`).join(', ')}.`)
+  console.log(`Phone layout in ${ENGINE}, drawn in Arial: ${TABS.length} tabs and ${SHEETS.length} sheets fine at ${SIZES.map((s) => `${s.width}×${s.height}`).join(', ')}.`)
 }
 
 await main()
