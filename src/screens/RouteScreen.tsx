@@ -90,6 +90,15 @@ export function RouteScreen() {
   const containerRef = useRef<HTMLDivElement>(null)
   const clientRef = useRef<RoutingClient | null>(null)
   const runIdRef = useRef(0)
+  /** The drawn route and what framed it: its bounds, the map's size and the padding, to frame
+   * it again when those change; and whether the map has been moved by hand since. */
+  const framedRef = useRef<{
+    route: RouteResult
+    bounds: maplibregl.LngLatBounds
+    size: string
+    padding: FramePadding
+    moved: boolean
+  } | null>(null)
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
@@ -127,6 +136,23 @@ export function RouteScreen() {
       addEmptyLayers(map)
       setReady(true)
     })
+    /*
+     * A pan, a pinch, a key or a double-click carries the event that started it; a fit or a
+     * resize does not. In MapLibre 5.24 neither does a single turn of a mouse wheel nor a
+     * shift-drag box zoom, so those two are caught where they start: the wheel only as it
+     * turns up or down, since MapLibre zooms on nothing else, and a trackpad's sideways swipe
+     * moves nothing.
+     */
+    const byHand = () => {
+      if (framedRef.current) framedRef.current.moved = true
+    }
+    map.on('movestart', (e) => {
+      if (e.originalEvent) byHand()
+    })
+    map.on('wheel', (e) => {
+      if (e.originalEvent.deltaY !== 0) byHand()
+    })
+    map.on('boxzoomend', byHand)
     mapRef.current = map
     return () => {
       map.remove()
@@ -231,6 +257,7 @@ export function RouteScreen() {
       setSource(map, 'route-beat', emptyFC())
       setSource(map, 'iso', emptyFC())
       setSource(map, 'sens', emptyFC())
+      framedRef.current = null
       return
     }
     const coords = route.legs.map((l) => [l.position.lon, l.position.lat] as [number, number])
@@ -266,9 +293,54 @@ export function RouteScreen() {
     if (coords.length > 1) {
       const b = new maplibregl.LngLatBounds(coords[0], coords[0])
       for (const c of coords) b.extend(c)
-      map.fitBounds(b, { padding: framePaddingFor(containerRef.current), maxZoom: 12, duration: 600 })
+      const el = containerRef.current
+      // MapLibre's own resize can run up to 50 ms late. Fitted at an older size than the one
+      // recorded here, a route that came as the phone turned was framed for the old size, and
+      // the refit below, finding nothing changed, never framed it again.
+      map.resize()
+      const padding = framePaddingFor(el)
+      framedRef.current = { route, bounds: b, size: sizeOf(el), padding, moved: false }
+      map.fitBounds(b, { padding, maxZoom: 12, duration: 600 })
+    } else {
+      framedRef.current = null
     }
   }, [ready, route])
+
+  /*
+   * Frame the route again when what framed it changes: the chart's size, as the notes or the
+   * offline error box open under it or the phone turns, or the chips, as a download's chip
+   * comes and goes. A resize keeps the map's centre, so as the chart shrank the route's ends
+   * slid toward the legend, and at 360×640 under it. A legend that comes or goes changes what
+   * frames the route; and framed while the download's chip made the chips a line taller, the
+   * route was left under the legend once the chip had gone. Not once the map has been moved
+   * by hand: that view is the sailor's, until the next route.
+   */
+  useEffect(() => {
+    const map = mapRef.current
+    const el = containerRef.current
+    if (!map || !ready || !el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      const framed = framedRef.current
+      // A route that has just come is framed by its own fit, once its effect has run.
+      if (!framed || framed.moved || framed.route !== useStore.getState().route) return
+      const size = sizeOf(el)
+      const padding = framePaddingFor(el)
+      if (size === framed.size && samePadding(padding, framed.padding)) return
+      // MapLibre's own resize can run up to 50 ms late; the fit needs the new size now.
+      if (size !== framed.size) map.resize()
+      framed.size = size
+      framed.padding = padding
+      map.fitBounds(framed.bounds, { padding, maxZoom: 12, duration: 0 })
+      // Drawn now, not at the next frame. The resize cleared the canvas, and with MapLibre's
+      // own redraw put off, as in a drag or a turn that comes in two steps, the map was blank
+      // for a frame; without a resize, the old view showed for one.
+      map.redraw()
+    })
+    observer.observe(el)
+    const chips = el.closest('.chart-area')?.querySelector('.chart-chips')
+    if (chips) observer.observe(chips)
+    return () => observer.disconnect()
+  }, [ready])
 
   /*
    * The arrows describe the route that is drawn: the wind it leaves into, or the
@@ -1083,11 +1155,17 @@ function setSource(map: maplibregl.Map, id: string, data: FC) {
 
 /**
  * Room to leave around the route when it is framed: below the chips along the chart's top,
- * and above the legend when it is shown at its foot. A uniform 56 px let both sit on the
- * route's ends, and the legend in rows runs the chart's full width. Never more than the
- * chart can give: when the two would leave the route less than 60 px, they shrink in
- * proportion. Positions are px from the chart's top; `legendTop` is null when no legend is
- * painted.
+ * and above the legend when it is shown at its foot, with room there for a mark's number,
+ * which is drawn under the mark. A uniform 56 px let both sit on the route's ends, and the
+ * legend in rows runs the chart's full width. Never more than the chart can give: when the
+ * two would leave the route less than 60 px, they shrink in proportion. Positions are px
+ * from the chart's top; `legendTop` is null when no legend is painted.
+ *
+ * The legend is painted only with 96 px of chart between the chips and itself
+ * (.canvas-overlay > .legend in styles.css): these 12 and 24 px, and 60 for the route. So
+ * with a legend the route starts 12 px under the chips, not at 56 px: a single row of chips
+ * ends at 34 to 37, and 56 would leave the route 50 px and squeeze its ends under the
+ * legend.
  */
 export function routeFramePadding(
   chartH: number,
@@ -1096,8 +1174,11 @@ export function routeFramePadding(
 ): { top: number; bottom: number; left: number; right: number } {
   const EDGE = 56
   const CLEAR = 12
-  let top = Math.max(EDGE, chipsBottom + CLEAR)
-  let bottom = Math.max(EDGE, legendTop == null ? 0 : chartH - legendTop + CLEAR)
+  /** A mark's number reaches 22 px under the mark's centre, 10 px past CLEAR; 12 more
+   * leaves it 2 px clear of the legend. */
+  const LABEL = 12
+  let top = legendTop == null ? Math.max(EDGE, chipsBottom + CLEAR) : chipsBottom + CLEAR
+  let bottom = Math.max(EDGE, legendTop == null ? 0 : chartH - legendTop + CLEAR + LABEL)
   const room = chartH - 60
   if (top + bottom > room) {
     const k = Math.max(0, room) / (top + bottom)
@@ -1107,16 +1188,28 @@ export function routeFramePadding(
   return { top, bottom, left: EDGE, right: EDGE }
 }
 
+type FramePadding = ReturnType<typeof routeFramePadding>
+
 /** routeFramePadding for the chart that holds `mapEl`, read from what is on screen. */
-function framePaddingFor(mapEl: HTMLElement | null) {
+function framePaddingFor(mapEl: HTMLElement | null): FramePadding {
   const chart = mapEl?.closest('.chart-area')
-  if (!chart) return 56
+  if (!chart) return { top: 56, bottom: 56, left: 56, right: 56 }
   const c = chart.getBoundingClientRect()
   const chips = chart.querySelector('.chart-chips')?.getBoundingClientRect()
   const lg = chart.querySelector('.canvas-overlay > .legend')?.getBoundingClientRect()
   // A legend that did not fit has wrapped out past the chart's right edge: not painted.
   const shown = !!lg && lg.width > 0 && lg.left < c.right
   return routeFramePadding(c.height, chips ? chips.bottom - c.top : 0, shown ? lg!.top - c.top : null)
+}
+
+/** The map's size as MapLibre takes it, in whole px. */
+function sizeOf(mapEl: HTMLElement | null) {
+  return mapEl ? `${mapEl.clientWidth}x${mapEl.clientHeight}` : ''
+}
+
+/** Within half a pixel on every side: no change a fit would show. */
+function samePadding(a: FramePadding, b: FramePadding) {
+  return (['top', 'bottom', 'left', 'right'] as const).every((k) => Math.abs(a[k] - b[k]) < 0.5)
 }
 
 function addEmptyLayers(map: maplibregl.Map) {

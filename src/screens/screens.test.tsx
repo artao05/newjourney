@@ -63,8 +63,19 @@ const { FakeMap, FakeLngLatBounds, mapInstances } = vi.hoisted(() => {
       return this
     }
     /** Play the part of the real map: run everything listening for `ev`. */
-    fire(ev: string) {
-      for (const fn of this.handlers.get(ev) ?? []) fn({})
+    fire(ev: string, e: unknown = {}) {
+      for (const fn of this.handlers.get(ev) ?? []) fn(e)
+    }
+    /** `resize`, `fitBounds` and `redraw`, in the order they were called. */
+    calls: string[] = []
+    /** How many times `resize` was called. */
+    resized = 0
+    resize() {
+      this.resized++
+      this.calls.push('resize')
+    }
+    redraw() {
+      this.calls.push('redraw')
     }
     addSource() {}
     addLayer(spec: { id?: string; type?: string; layout?: Record<string, unknown> }) {
@@ -92,6 +103,7 @@ const { FakeMap, FakeLngLatBounds, mapInstances } = vi.hoisted(() => {
     fitted: unknown[] = []
     fitBounds(_bounds?: unknown, opts?: unknown) {
       this.fitted.push(opts)
+      this.calls.push('fitBounds')
     }
     project() {
       return { x: 0, y: 0 }
@@ -583,6 +595,9 @@ describe("Route's legend stays clear of the chips", () => {
       // 34 px above the chart's foot, clear of the attribution, and at x 10; and it keeps
       // its own width rather than the overlay's.
       const lg = getComputedStyle(legend)
+      // It is painted only with room for the route between the chips and itself (see
+      // routeFramePadding), so on a short chart it gives way rather than cover the marks.
+      expect(lg.marginTop).toBe('96px')
       expect(lg.marginBottom).toBe('20px')
       expect(lg.marginLeft).toBe('-4px')
       expect(lg.alignSelf).toBe('flex-start')
@@ -600,23 +615,53 @@ describe("Route's legend stays clear of the chips", () => {
     // jsdom cannot evaluate @container, so the rule is read from the sheet as written.
     const css = readFileSync('src/styles.css', 'utf8')
     expect(css).toMatch(/\.chart-area \{\s*container: route-chart \/ size;/)
-    expect(css).toMatch(
-      /@container route-chart \(max-width: 374\.98px\) or \(max-height: 239\.98px\) \{\s*\.canvas-overlay > \.legend \{\s*display: flex;\s*flex-wrap: wrap;/,
+    // Up to 330 px tall: the four lines and the 96 px above them need 257 to 291 px of
+    // chart under one or two lines of chips, and up to 322 under three; rows keep a legend
+    // that fits there.
+    const rows = css.match(
+      /@container route-chart \(max-width: 374\.98px\) or \(max-height: (\d+\.\d+)px\) \{\s*\.canvas-overlay > \.legend \{\s*display: flex;\s*flex-wrap: wrap;/,
+    )
+    expect(rows).not.toBeNull()
+    expect(Number(rows![1])).toBeGreaterThanOrEqual(322)
+    expect(Number(rows![1])).toBeLessThan(330)
+  })
+
+  it('keeps the legend clear of the attribution on a very narrow chart', () => {
+    // Narrower than about 300 px the attribution, open until the map is first dragged,
+    // takes two lines; 20 px higher, the legend's second row is clear of it.
+    expect(readFileSync('src/styles.css', 'utf8')).toMatch(
+      /@container route-chart \(max-width: 319\.98px\) \{\s*\.canvas-overlay > \.legend \{\s*margin-bottom: 40px;\s*\}/,
     )
   })
 
   it('frames the route clear of the chips and the legend', () => {
-    // A 400 px chart, chips down to 99 px, the legend from 300 px: 111 px above, 112 below.
-    expect(routeFramePadding(400, 99, 300)).toEqual({ top: 111, bottom: 112, left: 56, right: 56 })
-    // No legend painted: the old 56 px at the foot.
+    // A 400 px chart, chips down to 99 px, the legend from 300 px: 111 px above, and 124
+    // below, 24 px over the legend, so that the lowest mark's number is clear of it.
+    expect(routeFramePadding(400, 99, 300)).toEqual({ top: 111, bottom: 124, left: 56, right: 56 })
+    // No legend painted: the old 56 px at the foot, and at least 56 at the top.
     expect(routeFramePadding(400, 30, null)).toEqual({ top: 56, bottom: 56, left: 56, right: 56 })
-    // A 140 px chart cannot give 111 + 56: both shrink in proportion, leaving the route 61.
+    // A legend painted: 12 px under a single row of chips, not 56, which would leave the
+    // route 50 px of the legend's 96 and squeeze its ends under the legend.
+    expect(routeFramePadding(400, 34, 300)).toEqual({ top: 46, bottom: 124, left: 56, right: 56 })
+    // A 140 px chart cannot give 111 + 64: both shrink in proportion, leaving the route 61.
     const short = routeFramePadding(140, 99, 100)
     expect(short.top + short.bottom).toBeLessThanOrEqual(80)
     expect(short.top).toBeGreaterThan(0)
     // jsdom's empty boxes: nothing to frame against, and no padding top or bottom that the
     // canvas cannot hold.
     expect(routeFramePadding(0, 0, null)).toEqual({ top: 0, bottom: 0, left: 56, right: 56 })
+  })
+
+  it("leaves the route its 60 px in the room the legend keeps above itself", () => {
+    // The legend is painted only with its margin-top of chart between the chips and itself.
+    const reserve = parseFloat(ruleFor('.canvas-overlay > .legend').marginTop)
+    for (const chipsBottom of [34, 37, 62, 99]) {
+      const p = routeFramePadding(500, chipsBottom, chipsBottom + reserve)
+      // Not squeezed: 12 px under the chips on whatever line they end, and 24 over the legend.
+      expect(p.top).toBe(chipsBottom + 12)
+      expect(p.bottom).toBe(500 - (chipsBottom + reserve) + 24)
+      expect(500 - p.top - p.bottom).toBeGreaterThanOrEqual(60)
+    }
   })
 
   it('frames the route from where the chips and the legend are on screen', () => {
@@ -634,7 +679,7 @@ describe("Route's legend stays clear of the chips", () => {
     try {
       // The chart above: chips down to 99 px and the legend from 300 px of a 400 px chart.
       act(() => map.fire('load'))
-      expect(map.fitted.at(-1)).toMatchObject({ padding: { top: 111, bottom: 112, left: 56, right: 56 } })
+      expect(map.fitted.at(-1)).toMatchObject({ padding: { top: 111, bottom: 124, left: 56, right: 56 } })
       // A legend that did not fit has wrapped out past the chart's right edge. It is not
       // painted, so the route may take the foot again.
       legendLeft = 330
@@ -642,6 +687,216 @@ describe("Route's legend stays clear of the chips", () => {
       expect(map.fitted.at(-1)).toMatchObject({ padding: { top: 111, bottom: 56, left: 56, right: 56 } })
     } finally {
       rects.mockRestore()
+    }
+  })
+
+  /*
+   * jsdom has no ResizeObserver and no layout. This hands a test what is observed, a chart
+   * whose boxes it sets, and the browser's part: running the observer once for whatever
+   * changed. A 320 × 400 chart, the chips down to 99 px, the legend painted from 300 px.
+   */
+  function watchedChart() {
+    const observed: Array<{ target: Element; cb: () => void; live: boolean }> = []
+    ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
+      cb: () => void
+      constructor(cb: () => void) {
+        this.cb = cb
+      }
+      observe(target: Element) {
+        observed.push({ target, cb: this.cb, live: true })
+      }
+      unobserve() {}
+      disconnect() {
+        for (const o of observed) if (o.cb === this.cb) o.live = false
+      }
+    }
+    routeDrawn()
+    const map = mapInstances[0]
+    const chart = { w: 320, h: 400, chipsH: 85, legendLeft: 10 }
+    const box = (l: number, t: number, w: number, h: number) =>
+      ({ left: l, top: t, right: l + w, bottom: t + h, width: w, height: h, x: l, y: t, toJSON: () => ({}) }) as DOMRect
+    const spies = [
+      // Whole px, as the browser gives them.
+      vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(() => Math.round(chart.w)),
+      vi.spyOn(Element.prototype, 'clientHeight', 'get').mockImplementation(() => Math.round(chart.h)),
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+        if (this.classList.contains('chart-area')) return box(0, 0, chart.w, chart.h)
+        if (this.classList.contains('chart-chips')) return box(14, 14, chart.w - 28, chart.chipsH)
+        if (this.matches('.canvas-overlay > .legend')) return box(chart.legendLeft, chart.h - 100, 178, 66)
+        return box(0, 0, 0, 0)
+      }),
+    ]
+    act(() => map.fire('load'))
+    const notify = () => new Set(observed.filter((o) => o.live).map((o) => o.cb)).forEach((cb) => cb())
+    return {
+      map,
+      chart,
+      observed,
+      notify,
+      changed: () => act(notify),
+      restore: () => spies.forEach((s) => s.mockRestore()),
+    }
+  }
+
+  it('frames the route again when the chart changes size', () => {
+    const { map, chart, observed, changed, restore } = watchedChart()
+    try {
+      const fits = map.fitted.length
+      expect(fits).toBeGreaterThan(0)
+      // What it watches: the map's own box, the one MapLibre draws into, and the chips.
+      expect(observed.map((o) => o.target)).toEqual(
+        expect.arrayContaining([
+          document.querySelector('.chart-area > .map'),
+          document.querySelector('.chart-area .chart-chips'),
+        ]),
+      )
+      // The offline error box opens under the chart, 53 px of it, and the legend no longer
+      // fits. The map takes its new size first; then the route is framed again, at once, and
+      // down to the chart's foot, where the legend was. It is drawn there before the frame is
+      // painted: the resize cleared the map's canvas.
+      chart.h = 347
+      chart.legendLeft = 330
+      changed()
+      expect(map.calls.slice(-3)).toEqual(['resize', 'fitBounds', 'redraw'])
+      expect(map.fitted.length).toBe(fits + 1)
+      expect(map.fitted.at(-1)).toEqual({
+        padding: { top: 111, bottom: 56, left: 56, right: 56 },
+        maxZoom: 12,
+        duration: 0,
+      })
+      // Told again with nothing changed: nothing to do.
+      changed()
+      expect(map.fitted.length).toBe(fits + 1)
+      // A third of a pixel taller: the same size to MapLibre, which has nothing to resize, but
+      // the legend fits again, so the route is framed above it.
+      const resized = map.resized
+      chart.h = 347.3
+      chart.legendLeft = 10
+      changed()
+      expect(map.fitted.length).toBe(fits + 2)
+      expect(map.fitted.at(-1)).toMatchObject({ duration: 0, padding: { top: 111, bottom: 124 } })
+      expect(map.resized).toBe(resized)
+      // Narrower and no taller: the same padding, but a new width for the route to fill.
+      chart.w = 300
+      changed()
+      expect(map.calls.slice(-3)).toEqual(['resize', 'fitBounds', 'redraw'])
+      expect(map.fitted.length).toBe(fits + 3)
+      // And once the screen has gone, nothing is watched.
+      cleanup()
+      expect(observed.some((o) => o.live)).toBe(false)
+    } finally {
+      restore()
+    }
+  })
+
+  it("frames the route again when the chips change, as a download's chip comes and goes", () => {
+    // Framed while the chip made the chips a line taller and left the legend no room, the
+    // route was under the legend once the chip had gone and the legend was back: the map's
+    // size had not changed, so nothing framed it again.
+    const { map, chart, changed, restore } = watchedChart()
+    try {
+      const fits = map.fitted.length
+      const resized = map.resized
+      chart.chipsH = 116
+      chart.legendLeft = 330
+      changed()
+      expect(map.fitted.length).toBe(fits + 1)
+      expect(map.fitted.at(-1)).toMatchObject({ duration: 0, padding: { top: 142, bottom: 56 } })
+      // Drawn at once too, or the old view shows for a frame under the new chips.
+      expect(map.calls.slice(-2)).toEqual(['fitBounds', 'redraw'])
+      chart.chipsH = 85
+      chart.legendLeft = 10
+      changed()
+      expect(map.fitted.length).toBe(fits + 2)
+      expect(map.fitted.at(-1)).toMatchObject({ duration: 0, padding: { top: 111, bottom: 124 } })
+      // The map's size never changed, so there was nothing for MapLibre to resize.
+      expect(map.resized).toBe(resized)
+      // The chip's spinner, 3 px taller than a chip, is a change too.
+      chart.chipsH = 88
+      changed()
+      expect(map.fitted.length).toBe(fits + 3)
+      expect(map.fitted.at(-1)).toMatchObject({ duration: 0, padding: { top: 114, bottom: 124 } })
+      // Under half a pixel is no change that a fit would show.
+      chart.chipsH = 88.4
+      changed()
+      expect(map.fitted.length).toBe(fits + 3)
+    } finally {
+      restore()
+    }
+  })
+
+  it('leaves a route that has just come to its own fit, and follows nothing without a route', () => {
+    const { map, chart, notify, changed, restore } = watchedChart()
+    try {
+      const fits = map.fitted.length
+      // The chart changes as a new route comes, before its effect has run. The new route is
+      // framed once, by its own fit, without the one it replaces being framed first.
+      chart.h = 347
+      act(() => {
+        useStore.getState().setRoute(routeLeavingAt(Date.now()))
+        notify()
+      })
+      expect(map.fitted.length).toBe(fits + 1)
+      expect(map.fitted.at(-1)).toMatchObject({ duration: 600, padding: { top: 111, bottom: 124 } })
+      // MapLibre's own resize may not have run yet, so the map takes the chart's new size
+      // before the fit: the size the fit is made at is the size recorded for it.
+      expect(map.calls.slice(-2)).toEqual(['resize', 'fitBounds'])
+      // Framed at the chart's new size: nothing left to do.
+      changed()
+      expect(map.fitted.length).toBe(fits + 1)
+      // A route of one position is not framed, nor followed.
+      const one = routeLeavingAt(Date.now())
+      act(() => useStore.getState().setRoute({ ...one, legs: one.legs.slice(0, 1) }))
+      chart.h = 400
+      changed()
+      expect(map.fitted.length).toBe(fits + 1)
+      // Nor is there anything to follow with no route.
+      act(() => useStore.getState().setRoute(null))
+      chart.h = 347
+      changed()
+      expect(map.fitted.length).toBe(fits + 1)
+    } finally {
+      restore()
+    }
+  })
+
+  it('stops following once the map is moved by hand: a pan, a wheel or a box zoom', () => {
+    const { map, chart, changed, restore } = watchedChart()
+    const other = () => (chart.h = chart.h === 347 ? 400 : 347)
+    try {
+      let fits = map.fitted.length
+      // A fit or a resize is not a move by hand.
+      act(() => map.fire('movestart', {}))
+      other()
+      changed()
+      expect(map.fitted.length).toBe(++fits)
+      // Nor is a sideways wheel, as a trackpad's swipe sends: MapLibre zooms only as the wheel
+      // turns up or down, so it moves nothing.
+      act(() => map.fire('wheel', { originalEvent: new WheelEvent('wheel', { deltaX: 120 }) }))
+      other()
+      changed()
+      expect(map.fitted.length).toBe(++fits)
+      // Each of these is. That view then stays, whatever the chart does, until the next
+      // route, which is framed afresh and followed again.
+      const byHand: Array<[string, unknown]> = [
+        ['movestart', { originalEvent: new Event('touchstart') }],
+        ['wheel', { originalEvent: new WheelEvent('wheel', { deltaY: -120 }) }],
+        ['wheel', { originalEvent: new WheelEvent('wheel', { deltaY: 120 }) }],
+        ['boxzoomend', {}],
+      ]
+      for (const [ev, e] of byHand) {
+        act(() => map.fire(ev, e))
+        other()
+        changed()
+        expect(map.fitted.length).toBe(fits)
+        act(() => useStore.getState().setRoute(routeLeavingAt(Date.now())))
+        expect(map.fitted.length).toBe(++fits)
+        other()
+        changed()
+        expect(map.fitted.length).toBe(++fits)
+      }
+    } finally {
+      restore()
     }
   })
 })
