@@ -1020,6 +1020,14 @@ table.results tr.beating td {
  */
 .chart-surface {
   container: chart / size;
+  /*
+   * Not scrollable at all, not even by the browser. Squeezed past its floors (the slots'
+   * 8 + 34 px with no time axis, at 568×320 and 812×375), the column sticks out under the
+   * screen's foot; hidden let a scroll into view (the find bar, a screen reader) lift the
+   * map that far, up to 42 px, and no swipe brought it back. Where clip is unknown (Safari
+   * before 16), .screen--flush's hidden still holds.
+   */
+  overflow: clip;
 }
 
 /*
@@ -1148,7 +1156,9 @@ table.results tr.beating td {
  * The point readout's slot: what is left beside the legend. Size containment, so that it
  * adds nothing to the legend's claim on the column above and a tap cannot push the time
  * axis off the screen. The readout is never taller than the slot and scrolls when the slot
- * is short; below 48 px, its header and one line, it is not shown at all.
+ * is short; below 48 px, its header and one line, it is not shown at all. With the slot's
+ * 8 px above, that is a middle under 56 px, or under 90 px where nothing is below it and
+ * the slots keep 34 px clear of the attribution. A size container too, for the rule below.
  */
 .wx-mid__slot--readout {
   flex: 1 1 0;
@@ -1156,6 +1166,7 @@ table.results tr.beating td {
   min-width: 0;
   align-items: flex-end;
   contain: size;
+  container: wx-readout / size;
 }
 
 .wx-mid__slot > .wx-readout {
@@ -1165,6 +1176,18 @@ table.results tr.beating td {
   max-height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/*
+ * A readout wrapped out of sight is hidden as well, so that what nobody can see is not
+ * there either: its ✕ is no Tab stop, and a screen reader does not read it out. Clipped
+ * only, it was both, in about a fifth of the views measured, all on a small phone or one on
+ * its side.
+ */
+@container wx-readout (height < 48px) {
+  .wx-readout {
+    visibility: hidden;
+  }
 }
 
 .wx-tide {

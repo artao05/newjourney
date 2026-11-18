@@ -1110,6 +1110,15 @@ describe("Weather's overlays share one column", () => {
       // Below its header and one line it wraps out of sight rather than show a sliver.
       expect(css.minHeight).toBe('48px')
     })
+    // And is hidden there too, so that its ✕ is no Tab stop and a screen reader skips it:
+    // its slot is a size container, and the threshold is the readout's own least height.
+    // jsdom cannot evaluate @container, so the rule is read from the sheet as written.
+    expect(blockFor('.wx-mid__slot--readout')).toMatch(/\n {2}container: wx-readout \/ size;/)
+    const hide = readFileSync('src/styles.css', 'utf8').match(
+      /@container wx-readout \(height < (\d+)px\) \{\s*\.wx-readout \{\s*visibility: hidden;\s*\}/,
+    )
+    expect(hide).not.toBeNull()
+    expect(`${hide![1]}px`).toBe(ruleFor('.wx-mid__slot > .wx-readout').minHeight)
     // Its slot adds nothing to the legend's claim on the column.
     expect(ruleFor('.wx-mid__slot--readout').getPropertyValue('contain')).toBe('size')
     // And takes what the legend leaves of the row, rather than the legend's 178 px, which
@@ -1131,6 +1140,16 @@ describe("Weather's overlays share one column", () => {
     expect(bare).not.toBeNull()
     expect(Number(bare![1])).toBeGreaterThanOrEqual(285)
     expect(css).toMatch(/\.chart-surface \{\s*container: chart \/ size;/)
+  })
+
+  it('cannot be scrolled, not even by a scroll into view', () => {
+    // Squeezed past the slots' floors, the column sticks out under the screen's foot, and
+    // with hidden the find bar or a screen reader could lift the map up to 42 px for good.
+    // jsdom may not know clip, so the sheet is read as written. .screen--flush's hidden is
+    // the fallback where clip is unknown, so the clip comes after it in the sheet.
+    const css = readFileSync('src/styles.css', 'utf8')
+    expect(blockFor('.chart-surface')).toMatch(/\n {2}overflow: clip;/)
+    expect(css.indexOf('\n.chart-surface {')).toBeGreaterThan(css.indexOf('\n.screen--flush {'))
   })
 
   it('puts the tide panel between the legend and the time axis', async () => {
