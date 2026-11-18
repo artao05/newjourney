@@ -121,7 +121,7 @@ No native code and nothing to buy.
       Arial, which sets lines like Roboto and San Francisco, and fails a label wider than its
       button. That also caught Route's action row squeezing its labels instead of wrapping on a
       touch screen. All three are fixed, and the check passes in Chrome and in
-      `test:phone:webkit`, Safari's engine, on Windows. The fix has not run in CI yet.
+      `test:phone:webkit`, Safari's engine, on Windows and in CI (`241867e`, 2026-11-11).
 - [x] First-load JS: 113 KB, from 215 (Vite's figures, measured 2026-11-05), with a budget that
       fails the build. The budget counts in units of 1,024 bytes, so it reads 110.7 against a
       limit of 115. Not quite the 100 KB aimed for: React is about 60 KB of it, and the rest is
@@ -303,7 +303,7 @@ Work from the vendor's manual, and don't copy its code.
 |---|---|---|
 | P1 | Which phone do you sail with? | It goes first if you need it to. Otherwise Android, since development is on Windows. |
 | P2 | Which boat comes first, and what's on it? | This picks the starting rung. |
-| P3 | Push `parity/expedition`? | Done 2026-11-03, and again with phase 0 on 2026-11-11. Later commits still wait to be asked for. |
+| P3 | Push `parity/expedition`? | Done 2026-11-03, and twice on 2026-11-11: with phase 0, then with its layout fix. Later commits still wait to be asked for. |
 | P4 | Does phone work take priority over parity worklist M19–M23? | Yes. Pause them except M20's glyphs and backend, which phase 5 uses. |
 | P5 | Use Capacitor? | Yes, after the one-day spike. |
 | P6 | Private pilot or public stores? | Private until the pilot shows it helps. |

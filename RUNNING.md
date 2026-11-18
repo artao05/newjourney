@@ -49,8 +49,8 @@ and, in Playwright's WebKit, `npm run test:phone:webkit`.
 
 The site is built from `main` only, and last deployed `ffac1b9` on 2026-11-11. Nothing on
 `parity/expedition` reaches it. That branch went to `origin` as a backup, at `fbb40b4` on
-2026-11-03 and at `31fe190` on 2026-11-11, so CI ran on both, but it has no pull request and
-no deploy.
+2026-11-03 and at `31fe190` and then `241867e` on 2026-11-11, so CI ran on all three, but it
+has no pull request and no deploy.
 
 ## On a real phone
 
@@ -342,10 +342,10 @@ been checked.
   36 px tall, the top bar's chips wrap rather than run off the edge, and Route's row wraps
   again. At 360 px in Arial, while the GPS chip reads "no fix", the other chips take a second
   row, so the top bar is 97 px tall rather than 55. Both checks then passed on this Windows
-  machine. The fix has not run in CI yet. The check blocks the network, so it sees the forecast
-  screens only when run by hand with `LIVE=1`, and it never loads a route. It doesn't open the
-  wind sheet or Route's results and departure sheets, where `main` fixed lost buttons on
-  2026-11-11
+  machine, and in CI at `241867e` the same day. The check blocks the network, so it sees the
+  forecast screens only when run by hand with `LIVE=1`, and it never loads a route. It doesn't
+  open the wind sheet or Route's results and departure sheets, where `main` fixed lost buttons
+  on 2026-11-11
   ([pull request #5](https://github.com/artao05/newjourney/pull/5)). Nor can it see what only a
   phone shows: iOS Safari, GPS, sound, heat or a wet thumb. Until [PILOT.md](PILOT.md) §2 has
   passed on a real iPhone and Android phone, treat it as unproven.
@@ -362,7 +362,7 @@ Measured by hand on 2026-11-11:
 |---|---|---|
 | Tests | 1,072 in 48 files | 1,869 in 151 files |
 | `npx tsc -b --noEmit`, `npm run build` | clean | clean |
-| CI | green at this commit, 2026-11-11 | not yet run on this code, which is not pushed. At `31fe190`, before the layout fix, it was red on 2026-11-11: tests and build passed, and `test:phone` failed on the runner's font, as above |
+| CI | green at this commit, 2026-11-11 | green at `241867e`, this code plus docs, 2026-11-11, both phone checks included. Red earlier that day at `31fe190`, before the layout fix: tests and build passed, and `test:phone` failed on the runner's font, as above |
 | First load, gzipped | 100 KB of JS, 3 KB of CSS | 113 KB of JS, 5 KB of CSS (215 KB of JS before phone phase 0) |
 | All a first visit stores for offline, gzipped | 0.49 MB, 17 files | 0.70 MB, 45 files |
 | Map chunk, gzipped, mostly MapLibre | 286 KB of JS, 10 KB of CSS | 289 KB of JS, 10 KB of CSS |
