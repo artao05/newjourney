@@ -340,9 +340,15 @@ been checked.
   small buttons let Route's six action buttons shrink to 46 px each, with their labels running
   over one another, instead of wrapping. Fixed the same day: segmented buttons are at least
   36 px tall, the top bar's chips wrap rather than run off the edge, and Route's row wraps
-  again. At 360 px in Arial, while the GPS chip reads "no fix", the other chips take a second
-  row, so the top bar is 97 px tall rather than 55. Both checks then passed on this Windows
-  machine, and in CI at `241867e` the same day. The check blocks the network, so it sees the
+  again. Both checks then passed on this Windows machine, and in CI at `241867e` the same day.
+  That left the top bar on two rows, 97 px tall rather than 55, whenever a wind was set, at
+  360 to 412 px. So on 2026-11-18, below 480 px wide, the wind chip dropped its source
+  (" · manual") and the bar its full-screen button. Measured that day in Chrome and WebKit, a
+  fresh wind then fits on one row at 360, 390 and 412 px, with a GPS fix or without one. A
+  hand-set wind more than 20 minutes old still takes two rows at 360 and 390 px, because its
+  age shows, and so, in Arial at 360 px, does "GPS waiting…" beside a magnetic wind. The checks
+  never set a wind, so those figures come from a separate measurement, and that change has not
+  run in CI. The check blocks the network, so it sees the
   forecast screens only when run by hand with `LIVE=1`, and it never loads a route. It doesn't
   open the wind sheet or Route's results and departure sheets, where `main` fixed lost buttons
   on 2026-11-11

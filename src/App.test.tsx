@@ -194,6 +194,8 @@ describe('the wind chip says what the wind rests on', () => {
     render(<App />)
     await waitFor(() => expect(chip().textContent).toBe('235° · 14 kn · manual'))
     expect(chip().className).not.toContain('chip--warn')
+    // On a phone held upright the source is what the bar leaves out (styles.css).
+    expect(chip().querySelector('.topbar__wide-only')?.textContent).toBe(' · manual')
   })
 
   it('names a forecast as a forecast', async () => {
@@ -209,6 +211,8 @@ describe('the wind chip says what the wind rests on', () => {
     render(<App />)
     await waitFor(() => expect(chip().textContent).toBe('235° · 14 kn · manual · 45 min old'))
     expect(chip().className).toContain('chip--warn')
+    // The age is a warning, so a phone keeps it when it drops the source.
+    expect(chip().querySelector('.topbar__wide-only')?.textContent).toBe(' · manual')
   })
 
   it('switches a forecast to manual when a wind is set by hand', () => {

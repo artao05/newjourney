@@ -145,6 +145,10 @@ export function WindSheet({ onClose }: { onClose: () => void }) {
  * What the top-bar chip says about the wind in use: where it comes from, and,
  * for a wind typed by hand, how long ago - a sequence of starts runs well past
  * the half hour in which a breeze can swing twenty degrees.
+ *
+ * `parts` is `text` cut in three: what comes before the source, the source itself
+ * (" · manual"), and what comes after. On a phone held upright the top bar drops the
+ * source, since with it a set wind pushes the bar onto a second row (2026-11-11).
  */
 export function windChip(
   wind: { twd: number; tws: number; source: string } | null,
@@ -152,17 +156,26 @@ export function windChip(
   now: number,
   /** East-positive declination to show the direction in magnetic, or null for true. */
   magneticDecl: number | null = null,
-): { text: string; warn: boolean } {
-  if (!wind) return { text: manualSetAt == null ? 'set wind' : 'wind unavailable', warn: true }
+): { text: string; warn: boolean; parts: [before: string, source: string, after: string] } {
+  if (!wind) {
+    const text = manualSetAt == null ? 'set wind' : 'wind unavailable'
+    return { text, warn: true, parts: [text, '', ''] }
+  }
   // Unmarked degrees are true, as everywhere else in the app; magnetic is marked M.
   const dir =
     magneticDecl == null ? `${fmtDeg(wind.twd)}°` : `${fmtDeg(trueToMagnetic(wind.twd, magneticDecl))}°M`
-  const base = `${dir} · ${wind.tws.toFixed(0)} kn · ${wind.source}`
-  if (wind.source !== 'manual' || manualSetAt == null) return { text: base, warn: false }
+  const before = `${dir} · ${wind.tws.toFixed(0)} kn`
+  const source = ` · ${wind.source}`
+  const chip = (after: string, warn: boolean) => ({
+    text: before + source + after,
+    warn,
+    parts: [before, source, after] as [string, string, string],
+  })
+  if (wind.source !== 'manual' || manualSetAt == null) return chip('', false)
   const ageMin = (now - manualSetAt) / 60_000
-  if (ageMin < STALE_MANUAL_MIN) return { text: base, warn: false }
+  if (ageMin < STALE_MANUAL_MIN) return chip('', false)
   const age = ageMin < 90 ? `${Math.round(ageMin)} min` : `${Math.round(ageMin / 60)} h`
-  return { text: `${base} · ${age} old`, warn: true }
+  return chip(` · ${age} old`, true)
 }
 
 /** A hand-set wind older than this is shown with its age, in the warning colour. */

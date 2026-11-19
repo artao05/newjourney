@@ -12,19 +12,24 @@ const manual = { twd: 235, tws: 14, source: 'manual' }
 
 describe('windChip', () => {
   it('asks for a wind nobody has set', () => {
-    expect(windChip(null, null, NOW)).toEqual({ text: 'set wind', warn: true })
+    expect(windChip(null, null, NOW)).toEqual({ text: 'set wind', warn: true, parts: ['set wind', '', ''] })
   })
 
   it('says a wind is unavailable when one was set but none is in use', () => {
     // A failed forecast, say: the sailor has set a wind before, so "set wind" is
     // the wrong ask - the wind in use is what is missing.
-    expect(windChip(null, NOW - 5 * MIN, NOW)).toEqual({ text: 'wind unavailable', warn: true })
+    expect(windChip(null, NOW - 5 * MIN, NOW)).toEqual({
+      text: 'wind unavailable',
+      warn: true,
+      parts: ['wind unavailable', '', ''],
+    })
   })
 
   it('names a fresh hand-set wind as manual, without an age', () => {
     expect(windChip(manual, NOW - (STALE_MANUAL_MIN - 1) * MIN, NOW)).toEqual({
       text: '235° · 14 kn · manual',
       warn: false,
+      parts: ['235° · 14 kn', ' · manual', ''],
     })
   })
 
@@ -32,6 +37,7 @@ describe('windChip', () => {
     expect(windChip(manual, NOW - 45 * MIN, NOW)).toEqual({
       text: '235° · 14 kn · manual · 45 min old',
       warn: true,
+      parts: ['235° · 14 kn', ' · manual', ' · 45 min old'],
     })
     expect(windChip(manual, NOW - 3 * 60 * MIN, NOW).text).toBe('235° · 14 kn · manual · 3 h old')
   })
@@ -41,6 +47,7 @@ describe('windChip', () => {
     expect(windChip(forecast, NOW - 5 * 60 * MIN, NOW)).toEqual({
       text: '200° · 9 kn · forecast',
       warn: false,
+      parts: ['200° · 9 kn', ' · forecast', ''],
     })
   })
 })

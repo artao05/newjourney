@@ -474,11 +474,16 @@ export function App() {
               onClick={() => setWindSheetOpen(true)}
               aria-label={`Wind: ${windChipState.text}. Tap to set.`}
             >
-              {windChipState.text}
+              {/* One span, so the chip's flex gap doesn't open up between the pieces. */}
+              <span>
+                {windChipState.parts[0]}
+                {windChipState.parts[1] && <span className="topbar__wide-only">{windChipState.parts[1]}</span>}
+                {windChipState.parts[2]}
+              </span>
             </button>
             {typeof document !== 'undefined' && document.fullscreenEnabled && (
               <button
-                className="chip"
+                className="chip topbar__wide-only"
                 onClick={() => toggleFullscreen(wide)}
                 title="Full-screen chart (Ctrl-Shift-F)"
                 aria-label="Full screen"

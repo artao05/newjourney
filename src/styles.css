@@ -731,7 +731,19 @@ button {
   flex-shrink: 0;
 }
 
-/* At 360 px the GPS chip and five more only just fit on one line, so give them the edges. */
+/*
+ * A phone held upright. With a wind set, the wind chip's source (" · manual") and the
+ * full-screen button pushed the bar onto a second row, 97 px tall instead of 55, from
+ * 360 to 412 px (2026-11-11). So they go here: the wind sheet still says where the
+ * wind comes from, and installed from the home screen the app already opens without
+ * the browser's bars. The narrowest phones get the edges too.
+ */
+@media (max-width: 480px) {
+  /* Two classes, to outrank `.chip`'s display further down. */
+  .topbar .topbar__wide-only {
+    display: none;
+  }
+}
 @media (max-width: 380px) {
   .topbar {
     padding-left: 10px;
@@ -741,9 +753,9 @@ button {
 
 /*
  * The wind, palette and record chips. At 360 px, in a phone's font, a fixed row of them
- * ran 4 px past the screen and the whole page scrolled sideways, and a set wind reads
- * longer than "set wind". So the row may shrink and wrap to a second line, at the right,
- * rather than push past the edge. The GPS chip on the left keeps its width.
+ * ran 4 px past the screen and the whole page scrolled sideways. So when they don't fit,
+ * a long GPS or wind text, the row wraps to a second line, at the right, rather than
+ * push past the edge. The GPS chip on the left keeps its width.
  */
 .topbar__actions {
   display: flex;
