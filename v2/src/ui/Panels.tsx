@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { parseLatLon } from '@/lib/latlon'
 import { bearing, distance } from '@/lib/geo'
 import { boatModel, BOATS } from '../engine/boats'
-import { lineBias, biasGainM } from '../engine/course'
+import { biasGainM, LAYOUTS, lineBias, type LayoutId } from '../engine/course'
 import type { MarkRole, SimBoat } from '../engine/types'
 import { actions, useUi, world, type RouteMode } from '../state'
 import { clock, deg, dur, fmtLat, fmtLon, kn, mmss, nm } from './format'
@@ -207,6 +207,9 @@ export function CoursePanel() {
     setName('')
   }
   const seq = world.course.sequence
+  const gates = world.course.gates ?? []
+  const inGate = new Set(gates.flatMap((g) => [g.aId, g.bId]))
+  const stops = world.sequence
   return (
     <div className="panel-body">
       <Section title="Add marks" hint="Click on the map, or type coordinates. Drag a mark on the map to move it.">
@@ -230,7 +233,7 @@ export function CoursePanel() {
         </div>
       </Section>
 
-      <Section title="Quick course" hint="Lays a windward-leeward course square to the current wind around the start line (or the boat).">
+      <Section title="Standard courses" hint="Lays a standard course square to the current wind, around the middle of the map. Distances scale with the beat.">
         <div className="row">
           <select value={beat} onChange={(e) => setBeat(Number(e.target.value))} aria-label="Beat length">
             {[0.5, 0.7, 0.9, 1.2, 1.5, 2].map((x) => (
@@ -239,10 +242,38 @@ export function CoursePanel() {
               </option>
             ))}
           </select>
-          <button className="btn" onClick={() => actions.layCourse(center(), beat)}>
-            Lay windward-leeward
-          </button>
         </div>
+        <div className="layouts">
+          {LAYOUTS.map((l) => (
+            <button key={l.id} className={`layout ${world.course.layout === l.id ? 'on' : ''}`} title={l.hint} onClick={() => actions.layLayout(l.id, center(), beat)}>
+              <LayoutIcon id={l.id} />
+              <b>{l.name}</b>
+              <small>{l.order}</small>
+            </button>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Gates" hint="A gate is two marks: boats round either one. Open: you sail between the marks, then round either. Closed: you may not sail between them, so you round the outside of one.">
+        {gates.length === 0 ? <p className="muted">No gates. Make one from a course mark below (⊟ in the list), or lay W2, W4 or the trapezoid.</p> : null}
+        <ul className="gates">
+          {gates.map((g) => (
+            <li key={g.id}>
+              <b>{g.name}</b>
+              <div className="seg sm" role="radiogroup" aria-label={`${g.name} open or closed`}>
+                <button role="radio" aria-checked={g.open} className={g.open ? 'on' : ''} onClick={() => actions.setGateOpen(g.id, true)} title="Boats sail between the marks and round either">
+                  Open
+                </button>
+                <button role="radio" aria-checked={!g.open} className={!g.open ? 'on closed' : ''} onClick={() => actions.setGateOpen(g.id, false)} title="No sailing between the marks: round the outside of one">
+                  Closed
+                </button>
+              </div>
+              <button className="btn ghost xs" onClick={() => actions.removeGate(g.id)} title="Turn the gate back into one mark">
+                Single mark
+              </button>
+            </li>
+          ))}
+        </ul>
       </Section>
 
       <Section title="Marks">
@@ -261,6 +292,11 @@ export function CoursePanel() {
                   + course
                 </button>
               ) : null}
+              {m.role === 'mark' && seq.includes(m.id) && !inGate.has(m.id) ? (
+                <button className="btn ghost xs" onClick={() => actions.makeGate(m.id)} title="Make this mark a gate: a second mark goes alongside it">
+                  ⊟ gate
+                </button>
+              ) : null}
               <button className="btn ghost xs danger" onClick={() => actions.deleteMark(m.id)} title="Delete">
                 ✕
               </button>
@@ -273,12 +309,14 @@ export function CoursePanel() {
         {seq.length === 0 ? <p className="muted">No marks in the course yet.</p> : null}
         <ol className="seq">
           {seq.map((id, i) => {
-            const m = world.marks.find((x) => x.id === id)
-            const prev = i === 0 ? world.line && { lat: (world.line.pin.lat + world.line.committee.lat) / 2, lon: (world.line.pin.lon + world.line.committee.lon) / 2 } : world.marks.find((x) => x.id === seq[i - 1])
+            // A gate shows as one entry, measured to its middle.
+            const m = stops.find((x) => x.id === id)
+            const prev = i === 0 ? world.line && { lat: (world.line.pin.lat + world.line.committee.lat) / 2, lon: (world.line.pin.lon + world.line.committee.lon) / 2 } : stops.find((x) => x.id === seq[i - 1])
             return (
               <li key={`${id}-${i}`}>
                 <span>
                   {m?.name ?? '?'}
+                  {m?.gate ? <em className={m.gate.open ? 'gate-open' : 'gate-closed'}> {m.gate.open ? 'open gate' : 'closed gate'}</em> : null}
                   {i === seq.length - 1 ? <em> finish</em> : null}
                 </span>
                 <span className="muted">{m && prev ? `${nm(distance(prev, m))} ${deg(bearing(prev, m))}` : ''}</span>
@@ -541,5 +579,52 @@ export function SimPanel() {
         </button>
       </Section>
     </div>
+  )
+}
+
+/** A small sketch of each standard course, wind from the top. */
+function LayoutIcon({ id }: { id: LayoutId }) {
+  const stroke = 'currentColor'
+  const dot = (x: number, y: number, k?: string) => <circle key={k ?? `${x},${y}`} cx={x} cy={y} r={2.4} fill="var(--warn)" />
+  const gate = (x: number, y: number) => [dot(x - 3.5, y, `g1${x}`), dot(x + 3.5, y, `g2${x}`)]
+  const line = <line x1={14} y1={44} x2={26} y2={44} stroke="var(--ink-dim)" strokeWidth={1.6} />
+  const shapes: Record<LayoutId, ReactNode> = {
+    w2: (
+      <>
+        <path d="M20 44 L20 8 L20 48" stroke={stroke} strokeWidth={1.2} strokeDasharray="2 2" fill="none" />
+        {dot(20, 8)}
+        {gate(20, 50)}
+      </>
+    ),
+    w4: (
+      <>
+        <path d="M18 44 L18 8 M22 8 L22 48" stroke={stroke} strokeWidth={1.2} strokeDasharray="2 2" fill="none" />
+        {dot(20, 8)}
+        {gate(20, 50)}
+        <text x={30} y={28} fontSize={8} fill="var(--ink-dim)">×4</text>
+      </>
+    ),
+    triangle: (
+      <>
+        <path d="M20 44 L20 8 L6 28 L20 50 Z" stroke={stroke} strokeWidth={1.2} strokeDasharray="2 2" fill="none" />
+        {dot(20, 8)}
+        {dot(6, 28)}
+        {dot(20, 50)}
+      </>
+    ),
+    trapezoid: (
+      <>
+        <path d="M20 44 L24 8 L8 14 L8 46 L24 46" stroke={stroke} strokeWidth={1.2} strokeDasharray="2 2" fill="none" />
+        {dot(24, 8)}
+        {dot(8, 14)}
+        {gate(8, 48)}
+      </>
+    ),
+  }
+  return (
+    <svg viewBox="0 0 40 56" width={34} height={48} aria-hidden>
+      {line}
+      {shapes[id]}
+    </svg>
   )
 }

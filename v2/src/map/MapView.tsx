@@ -137,7 +137,7 @@ export function MapView() {
   return <div ref={el} className="map" data-click-mode={clickMode ?? ''} />
 }
 
-const SOURCES = ['wind-edge', 'wind-arrows', 'tracks', 'highlight', 'course', 'laylines', 'route', 'startline', 'marks', 'boats', 'wind-tip'] as const
+const SOURCES = ['wind-edge', 'wind-arrows', 'gates', 'tracks', 'highlight', 'course', 'laylines', 'route', 'startline', 'marks', 'boats', 'wind-tip'] as const
 
 function setup(map: maplibregl.Map, canvas: HTMLCanvasElement): void {
   if (map.getSource('marks')) return
@@ -201,6 +201,13 @@ function setup(map: maplibregl.Map, canvas: HTMLCanvasElement): void {
     filter: ['==', ['geometry-type'], 'Point'],
     layout: { 'text-field': ['get', 'label'], 'text-font': ['Open Sans Semibold'], 'text-size': 11.5, 'text-anchor': 'top', 'text-offset': [0, 0.8], 'text-allow-overlap': true },
     paint: { 'text-color': '#fde047', 'text-halo-color': '#0b1724', 'text-halo-width': 1.6 },
+  })
+  // Gates: green and dashed when open (sail between), red and solid when closed.
+  map.addLayer({
+    id: 'gates',
+    type: 'line',
+    source: 'gates',
+    paint: { 'line-color': ['case', ['get', 'open'], '#22c55e', '#ef4444'], 'line-width': ['case', ['get', 'open'], 2, 3], 'line-dasharray': ['case', ['get', 'open'], ['literal', [2, 1.5]], ['literal', [1, 0]]], 'line-opacity': 0.9 },
   })
   map.addLayer({ id: 'startline', type: 'line', source: 'startline', paint: { 'line-color': ['get', 'color'], 'line-width': 3.5 } })
   map.addLayer({
@@ -314,7 +321,22 @@ function update(map: maplibregl.Map, canvas: HTMLCanvasElement, windKey: { curre
   // Marks and course.
   const seq = world.sequence
   const order = new Map<string, number[]>()
-  world.course.sequence.forEach((id, i) => order.set(id, [...(order.get(id) ?? []), i + 1]))
+  const gateOf = new Map((world.course.gates ?? []).map((g) => [g.id, g]))
+  world.course.sequence.forEach((id, i) => {
+    const g = gateOf.get(id)
+    for (const m of g ? [g.aId, g.bId] : [id]) order.set(m, [...(order.get(m) ?? []), i + 1])
+  })
+  setData(
+    map,
+    'gates',
+    fc(
+      (world.course.gates ?? []).flatMap((g) => {
+        const a = world.marks.find((m) => m.id === g.aId)
+        const b = world.marks.find((m) => m.id === g.bId)
+        return a && b ? [line([[a.lon, a.lat], [b.lon, b.lat]], { open: g.open })] : []
+      }),
+    ),
+  )
   setData(
     map,
     'marks',

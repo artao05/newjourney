@@ -11,7 +11,7 @@ import { angdiff, courseFor, twaFrom, wrap360 } from '@/lib/angles'
 import { bearing, crossTrack, destination, distance } from '@/lib/geo'
 import { trueToApparent } from '@/lib/wind'
 import { boatModel } from './boats'
-import { courseMarks, distToLine, fetches, legKind, pointOnLine, startLine, type Line } from './course'
+import { courseMarks, distToLine, fetches, gateAim, legKind, pickGateMark, pointOnLine, segmentsCross, startLine, type Line } from './course'
 import { localWind, type Forecast } from './forecast'
 import type { Course, LapseKind, LatLon, LegKind, Mark, RaceEvent, Sample, SimBoat, Skill } from './types'
 
@@ -129,6 +129,8 @@ function makeBoat(o: { id: string; name: string; mmsi: number; color: string; ow
     polarBsp: 0,
     phase: 'free',
     leg: 0,
+    gatePick: null,
+    gateCrossed: false,
     manoeuvre: null,
     lastTackT: -1e12,
     meanTwd: NaN,
@@ -321,8 +323,10 @@ export class World {
       this.sense(b)
       if (gunNow && b.phase === 'prestart') this.gun(b)
       if (b.helm === 'auto' || !b.own) this.skipper(b)
+      const before = b.pos
       this.move(b, h)
       this.referee(b)
+      this.closedGates(b, before)
       const last = this.lastTrackT.get(b.id) ?? -1e12
       if (this.t - last >= TRACK_EVERY_MS) {
         b.track.push({ t: this.t, lat: b.pos.lat, lon: b.pos.lon })
@@ -568,15 +572,21 @@ export class World {
 
   private race(b: SimBoat): void {
     const seq = this.sequence
-    const mark = seq[b.leg]
-    if (!mark) return
+    const stop = seq[b.leg]
+    if (!stop) return
+    const mark = this.aimFor(b, stop)
     const lattice = boatModel(b.boatId).lattice
     const tg = lattice.targetsAt(b.tws)
     const dist = distance(b.pos, mark)
 
-    if (dist < ROUND_NM) {
+    // An open gate is rounded by sailing between its marks; anything else by
+    // reaching the mark (for a closed gate, the point just outside one).
+    const rounded = stop.gate?.open ? b.gateCrossed : dist < (stop.gate ? ROUND_NM / 2 : ROUND_NM)
+    if (rounded) {
       this.event(b, b.leg === seq.length - 1 ? 'finish' : 'rounding', b.leg === seq.length - 1 ? 'Finished' : `Rounded ${mark.name}`)
       b.leg += 1
+      b.gatePick = null
+      b.gateCrossed = false
       b.legStartT = this.t
       b.legKind = null
       if (b.leg >= seq.length) {
@@ -658,6 +668,39 @@ export class World {
     // ---- reach: straight at it
     this.setHeading(b, brg, `Turned for ${mark.name}`)
     b.intent = `Reaching to ${mark.name}`
+  }
+
+  /**
+   * What a boat steers for to round `stop`. A plain mark is itself. For a gate,
+   * the boat heads for the middle until it is close, then picks the nearer
+   * mark and aims just inside it (open: through the gate) or just outside it
+   * (closed: round the outside).
+   */
+  private aimFor(b: SimBoat, stop: Mark): Mark {
+    const g = stop.gate
+    if (!g) return stop
+    if (b.gatePick !== g.a.id && b.gatePick !== g.b.id) b.gatePick = null
+    if (!b.gatePick && distance(b.pos, stop) < 0.3) b.gatePick = pickGateMark(g, b.pos).id
+    if (!b.gatePick) return stop
+    const pick = b.gatePick === g.a.id ? g.a : g.b
+    return { ...pick, ...gateAim(g, pick) }
+  }
+
+  /**
+   * Gate crossings this step: sailing between the marks of the open gate a
+   * boat is heading for rounds it; sailing between the marks of a closed gate
+   * breaks the course.
+   */
+  private closedGates(b: SimBoat, before: LatLon): void {
+    if (b.phase !== 'racing') return
+    const next = this.sequence[b.leg]?.gate
+    if (next?.open && segmentsCross(before, b.pos, next.a, next.b)) b.gateCrossed = true
+    for (const g of this.course.gates ?? []) {
+      if (g.open) continue
+      const a = this.marks.find((m) => m.id === g.aId)
+      const c = this.marks.find((m) => m.id === g.bId)
+      if (a && c && segmentsCross(before, b.pos, a, c)) this.event(b, 'foul', `Sailed through ${g.name} while it was closed`)
+    }
   }
 
   /** Line crossings: record the start. */

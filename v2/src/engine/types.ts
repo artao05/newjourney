@@ -10,16 +10,39 @@ export interface Mark {
   lat: number
   lon: number
   role: MarkRole
+  /**
+   * Set only on the stand-in for a gate in a course sequence (see
+   * `courseMarks`): the stand-in sits at the gate's middle, and these are its
+   * two real marks.
+   */
+  gate?: { gateId: string; a: Mark; b: Mark; open: boolean }
 }
 
 /**
- * A race: a start line between a pin and a committee boat, then marks rounded
- * in order. The last mark in `sequence` is the finish.
+ * A gate: two marks a boat rounds either one of.
+ *  - open: you sail between the two marks, then round either;
+ *  - closed: you may not sail between them, so you go round the outside of one.
+ */
+export interface Gate {
+  id: string
+  name: string
+  aId: string
+  bId: string
+  open: boolean
+}
+
+/**
+ * A race: a start line between a pin and a committee boat, then marks (or
+ * gates) rounded in order. The last entry in `sequence` is the finish.
+ * `sequence` holds mark ids and gate ids.
  */
 export interface Course {
   pinId: string | null
   committeeId: string | null
   sequence: string[]
+  gates?: Gate[]
+  /** Which standard layout this course was laid from, if any. */
+  layout?: string
 }
 
 export type Phase = 'free' | 'prestart' | 'racing' | 'finished'
@@ -137,12 +160,16 @@ export interface SimBoat {
   committed: boolean
   /** Speed multiplier the skipper is asking for (luffing < 1). */
   throttle: number
+  /** The gate mark this boat has chosen for its current leg, if the leg ends at a gate. */
+  gatePick: string | null
+  /** Set when the boat sails between the marks of the open gate it is heading for. */
+  gateCrossed: boolean
 }
 
 export interface RaceEvent {
   t: number
   boatId: string
-  kind: 'tack' | 'gybe' | 'rounding' | 'start' | 'finish' | 'ocs' | 'lapse'
+  kind: 'tack' | 'gybe' | 'rounding' | 'start' | 'finish' | 'ocs' | 'lapse' | 'foul'
   detail: string
   lat: number
   lon: number

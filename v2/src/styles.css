@@ -1780,3 +1780,82 @@ table.ais {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
+
+/* ------------------------------------------------------------ course layouts and gates */
+
+.layouts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+  text-align: left;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--glass-2);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.layout svg {
+  grid-row: 1 / 3;
+}
+
+.layout small {
+  color: var(--ink-dim);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.layout:hover {
+  border-color: var(--line-2);
+}
+
+.layout.on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.gates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.gates li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--glass-2);
+  border: 1px solid var(--line);
+}
+
+.gates li b {
+  flex: 1;
+}
+
+.seg button.on.closed {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+
+.gate-open {
+  color: var(--good);
+}
+
+.gate-closed {
+  color: var(--bad);
+}

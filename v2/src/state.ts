@@ -16,7 +16,7 @@ import { aiStatus, chat, debrief, type AiStatus, type ChatTurn } from './coach/c
 import type { CoachContext, CoachDebrief } from './coach/debrief'
 import { addAnswer, addNotes, learnFrom, loadProfile, saveProfile, type BoatProfile } from './coach/learn'
 import { boatModel, BOATS } from './engine/boats'
-import { defaultCourse, defaultCourseMarks, lineBias, newId, pointOnLine } from './engine/course'
+import { defaultCourse, defaultCourseMarks, layoutCourse, lineBias, makeGate, newId, pointOnLine, removeGate, type LayoutId } from './engine/course'
 import { demoForecast, demoForecastIn, forecastWind, liveForecast, type Forecast } from './engine/forecast'
 import { planLegs, routeCourse, type LegPlan } from './engine/plan'
 import type { Course, LatLon, Mark, MarkRole } from './engine/types'
@@ -77,8 +77,7 @@ function loadFields(): Fields {
 function buildWorld(): World {
   const forecast = demoForecast(HOME)
   const twd = forecastWind(forecast, HOME, Date.now())?.twd ?? 220
-  const marks = defaultCourseMarks(HOME, twd, 0.9)
-  const course = defaultCourse(marks)
+  const { marks, course } = layoutCourse('w2', HOME, twd, 0.9)
   const w = new World({ forecast, marks, course, boatId: 'j70', ownPos: destination(HOME, twd + 180, 0.3) })
   w.placeOwn(destination(HOME, twd + 180, 0.3))
   w.spawnFleet()
@@ -316,10 +315,19 @@ export const actions = {
     bump()
   },
   deleteMark(id: string) {
+    // Deleting one mark of a gate turns the gate back into the other mark.
+    const g = world.course.gates?.find((x) => x.aId === id || x.bId === id)
+    if (g) {
+      const keep = g.aId === id ? g.bId : g.aId
+      const c = world.course
+      world.setCourse(world.marks.filter((m) => m.id !== id), { ...c, sequence: c.sequence.map((x) => (x === g.id ? keep : x)), gates: (c.gates ?? []).filter((x) => x.id !== g.id) })
+      courseChanged()
+      return
+    }
     const c = world.course
     world.setCourse(
       world.marks.filter((m) => m.id !== id),
-      { pinId: c.pinId === id ? null : c.pinId, committeeId: c.committeeId === id ? null : c.committeeId, sequence: c.sequence.filter((x) => x !== id) },
+      { ...c, pinId: c.pinId === id ? null : c.pinId, committeeId: c.committeeId === id ? null : c.committeeId, sequence: c.sequence.filter((x) => x !== id) },
     )
     courseChanged()
   },
@@ -339,6 +347,36 @@ export const actions = {
     if (j < 0 || j >= s.length) return
     ;[s[i], s[j]] = [s[j]!, s[i]!]
     actions.setSequence(s)
+  },
+  /** One of the standard courses (W2, W4, triangle, trapezoid), square to the wind, around a point. */
+  layLayout(id: LayoutId, center: LatLon, beatNm: number) {
+    const twd = forecastWind(world.forecast, center, world.t)?.twd ?? world.own.twd
+    const { marks, course } = layoutCourse(id, center, twd, beatNm)
+    world.setCourse(marks, course)
+    courseChanged()
+    set({ flyTo: { at: center, zoom: beatNm > 1 ? 12.4 : 13.2, n: Date.now() } })
+  },
+  /** Turns a course mark into a gate (a second mark alongside it, across the wind). */
+  makeGate(markId: string) {
+    const m = world.marks.find((x) => x.id === markId)
+    if (!m) return
+    const twd = forecastWind(world.forecast, m, world.t)?.twd ?? world.own.twd
+    const r = makeGate(world.marks, world.course, markId, twd)
+    if (!r) return
+    world.setCourse(r.marks, r.course)
+    courseChanged()
+  },
+  removeGate(gateId: string) {
+    const r = removeGate(world.marks, world.course, gateId)
+    if (!r) return
+    world.setCourse(r.marks, r.course)
+    courseChanged()
+  },
+  /** Open: boats sail between the marks and round either. Closed: no sailing between them. */
+  setGateOpen(gateId: string, open: boolean) {
+    const c = world.course
+    world.setCourse(world.marks, { ...c, gates: (c.gates ?? []).map((g) => (g.id === gateId ? { ...g, open } : g)) })
+    courseChanged()
   },
   /** A fresh windward-leeward course, square to the wind, around a point. */
   layCourse(center: LatLon, beatNm: number) {
