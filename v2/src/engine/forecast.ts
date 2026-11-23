@@ -37,15 +37,13 @@ export function hourFloor(t: number): number {
  */
 export function demoCube(center: LatLon, t0: number, hours = 24): WeatherCube {
   const span = 0.7
-  const bbox: BBox = {
-    west: center.lon - span * 1.4,
-    east: center.lon + span * 1.4,
-    south: center.lat - span,
-    north: center.lat + span,
-  }
-  // About 1.2 nm between grid points, fine enough to show pressure lanes on a racecourse.
-  const nx = 81
-  const ny = 57
+  return demoCubeIn({ west: center.lon - span * 1.4, east: center.lon + span * 1.4, south: center.lat - span, north: center.lat + span }, t0, hours)
+}
+
+/** The demo sea breeze over any area: about 1.2 nm between grid points, coarser for big areas. */
+export function demoCubeIn(bbox: BBox, t0: number, hours = 24): WeatherCube {
+  const nx = Math.max(9, Math.min(121, Math.round((bbox.east - bbox.west) / 0.0245) + 1))
+  const ny = Math.max(9, Math.min(85, Math.round((bbox.north - bbox.south) / 0.025) + 1))
   const nt = hours + 1
   const dx = (bbox.east - bbox.west) / (nx - 1)
   const dy = (bbox.north - bbox.south) / (ny - 1)
@@ -87,6 +85,12 @@ export function demoCube(center: LatLon, t0: number, hours = 24): WeatherCube {
 
 export function demoForecast(center: LatLon, now = Date.now()): Forecast {
   const cube = demoCube(center, hourFloor(now))
+  return { source: 'demo', cube, field: new CubeField(cube, 'Demo sea breeze'), label: 'Demo sea breeze (offline)' }
+}
+
+/** The demo forecast over a given area (see `demoCubeIn`). */
+export function demoForecastIn(bbox: BBox, now = Date.now()): Forecast {
+  const cube = demoCubeIn(bbox, hourFloor(now))
   return { source: 'demo', cube, field: new CubeField(cube, 'Demo sea breeze'), label: 'Demo sea breeze (offline)' }
 }
 

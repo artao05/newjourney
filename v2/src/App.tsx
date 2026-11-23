@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { MapView } from './map/MapView'
 import { actions, useUi } from './state'
 import { CoachPanel } from './ui/CoachPanel'
+import { Customize } from './ui/Customize'
 import { Help } from './ui/Help'
-import { Instruments, Legend, RaceHud, Timeline, Tips } from './ui/Overlays'
+import { ForecastEdge, Instruments, Legend, RaceHud, Timeline, Tips } from './ui/Overlays'
 import { CoursePanel, PlanPanel, RacePanel, SimPanel } from './ui/Panels'
 import { TopBar } from './ui/TopBar'
 
@@ -12,6 +13,7 @@ const TITLES = { plan: 'Plan', course: 'Course', race: 'Race', sim: 'Simulate', 
 export function App() {
   const tab = useUi((s) => s.tab)
   const clickMode = useUi((s) => s.clickMode)
+  const raceView = useUi((s) => s.raceView)
   const [open, setOpen] = useState(true)
 
   useEffect(() => {
@@ -25,6 +27,7 @@ export function App() {
         actions.tack()
       } else if (e.key === 'a') actions.autopilot()
       else if (e.key === 'p') actions.toggleRun()
+      else if (e.key === 'r') actions.setRaceView(!useUi.getState().raceView)
       else if (e.key === 'Escape') useUi.setState({ clickMode: null })
     }
     window.addEventListener('keydown', onKey)
@@ -32,7 +35,7 @@ export function App() {
   }, [])
 
   return (
-    <div className="app">
+    <div className={`app ${raceView ? 'race-view' : ''}`}>
       <TopBar />
       <main className="stage">
         <MapView />
@@ -44,7 +47,8 @@ export function App() {
           <RaceHud />
         </div>
         <div className="overlay-bottom-left">
-          <Legend />
+          <ForecastEdge />
+          {raceView ? null : <Legend />}
         </div>
         {clickMode ? (
           <div className="click-hint">
@@ -53,7 +57,7 @@ export function App() {
         ) : null}
         <p className="nfn">Not for navigation</p>
       </main>
-      <aside className={`panel ${open ? 'open' : 'closed'}`} aria-label={TITLES[tab]}>
+      <aside className={`panel ${open ? 'open' : 'closed'}`} aria-label={TITLES[tab]} hidden={raceView}>
         <button className="panel-handle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           <span>{TITLES[tab]}</span>
           <i>{open ? '▾' : '▴'}</i>
@@ -66,6 +70,7 @@ export function App() {
       </aside>
       <Timeline />
       <Help />
+      <Customize />
     </div>
   )
 }

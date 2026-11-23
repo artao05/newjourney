@@ -4,8 +4,8 @@ import { bearing, distance } from '@/lib/geo'
 import { boatModel, BOATS } from '../engine/boats'
 import { lineBias, biasGainM } from '../engine/course'
 import type { MarkRole, SimBoat } from '../engine/types'
-import { actions, useUi, world } from '../state'
-import { deg, dur, fmtLat, fmtLon, kn, mmss, nm } from './format'
+import { actions, useUi, world, type RouteMode } from '../state'
+import { clock, deg, dur, fmtLat, fmtLon, kn, mmss, nm } from './format'
 
 function Section({ title, children, hint }: { title: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -36,6 +36,10 @@ export function PlanPanel() {
   const route = useUi((s) => s.route)
   const routeBusy = useUi((s) => s.routeBusy)
   const routeErr = useUi((s) => s.routeError)
+  const routeMode = useUi((s) => s.routeMode)
+  const info = useUi((s) => s.routeInfo)
+  const viewT = useUi((s) => s.viewT)
+  const markId = useUi((s) => s.routeMarkId) ?? world.sequence[0]?.id ?? world.marks[0]?.id ?? null
   useUi((s) => s.version)
   const total = legs.reduce((a, l) => a + (Number.isFinite(l.timeS) ? l.timeS : 0), 0)
   const routeTacks = route ? route.legs.reduce((n, l, i) => n + (i > 0 && l.tack !== route.legs[i - 1]!.tack ? 1 : 0), 0) : 0
@@ -98,9 +102,26 @@ export function PlanPanel() {
       </Section>
 
       <Section title="Optimal route" hint="The isochrone router sails every possible heading through the forecast and keeps the fastest path, tacks included.">
+        <div className="seg route-mode" role="tablist" aria-label="What to route">
+          {ROUTE_MODES.map((m) => (
+            <button key={m.id} role="tab" aria-selected={routeMode === m.id} className={routeMode === m.id ? 'on' : ''} title={m.hint} onClick={() => actions.setRouteMode(m.id)}>
+              {m.name}
+            </button>
+          ))}
+        </div>
+        <p className="muted route-what">{routeExplain(routeMode, viewT)}</p>
+        {routeMode === 'mark' ? (
+          <select aria-label="Mark to route to" value={markId ?? ''} onChange={(e) => actions.setRouteMark(e.target.value)}>
+            {world.marks.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <div className="row">
           <button className="btn primary" disabled={routeBusy !== null} onClick={() => void actions.calculateRoute()}>
-            {routeBusy !== null ? `Routing… ${Math.round(routeBusy * 100)}%` : 'Calculate from the boat'}
+            {routeBusy !== null ? `Routing… ${Math.round(routeBusy * 100)}%` : route ? 'Recalculate' : 'Calculate'}
           </button>
           {route ? (
             <button className="btn ghost" onClick={actions.clearRoute}>
@@ -109,26 +130,58 @@ export function PlanPanel() {
           ) : null}
         </div>
         {routeErr ? <p className="err">{routeErr}</p> : null}
-        {route ? (
-          <div className="route-sum">
-            <div>
-              <label>Time</label>
-              <b>{route.elapsedS ? dur(route.elapsedS) : '–'}</b>
+        {route && info ? (
+          <>
+            <p className="route-title">
+              <b>{info.label}</b>
+              <span>
+                from {info.from}, {clock(info.t0)}
+              </span>
+            </p>
+            <div className="route-sum">
+              <div>
+                <label>Time</label>
+                <b>{route.elapsedS ? dur(route.elapsedS) : '–'}</b>
+              </div>
+              <div>
+                <label>Tacks/gybes</label>
+                <b>{routeTacks}</b>
+              </div>
+              <div>
+                <label>vs straight line</label>
+                <b>{route.directTimeS && route.elapsedS ? `${Math.round((route.elapsedS / route.directTimeS) * 100)}%` : '–'}</b>
+              </div>
             </div>
-            <div>
-              <label>Tacks/gybes</label>
-              <b>{routeTacks}</b>
-            </div>
-            <div>
-              <label>vs straight line</label>
-              <b>{route.directTimeS && route.elapsedS ? `${Math.round((route.elapsedS / route.directTimeS) * 100)}%` : '–'}</b>
-            </div>
-          </div>
+            {info.arrivals.length > 1 ? (
+              <ol className="arrivals">
+                {info.arrivals.map((a, i) => (
+                  <li key={i}>
+                    <span>{a.name}</span>
+                    <b>{a.t === null ? '–' : `+${dur((a.t - info.t0) / 1000)}`}</b>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+            <p className="muted">The yellow line on the map. It changes tack where the forecast shifts or more pressure makes it worth it.</p>
+          </>
         ) : null}
-        {route ? <p className="muted">The yellow line on the map. It changes tack where the forecast shifts or more pressure makes it worth it.</p> : null}
       </Section>
     </div>
   )
+}
+
+const ROUTE_MODES: Array<{ id: RouteMode; name: string; hint: string }> = [
+  { id: 'course', name: 'Whole course', hint: 'The race: from the start line at the gun, around every mark, to the finish' },
+  { id: 'here', name: 'From here', hint: 'From your boat now, around the marks still to go' },
+  { id: 'mark', name: 'To one mark', hint: 'From your boat now to a single mark' },
+]
+
+function routeExplain(mode: RouteMode, viewT: number): string {
+  if (mode === 'mark') return 'From your boat now, straight to one mark: a practice beat, or getting to the racecourse.'
+  if (mode === 'here') return 'From where your boat is now, around the marks still to go, to the finish. During a race it recalculates every 2 minutes and at each mark.'
+  return world.gunT !== null
+    ? `The race: from the favoured end of the start line at the gun (${clock(world.gunT)}), around every mark in order, to the finish.`
+    : `The race: from the favoured end of the start line, around every mark in order, to the finish. Gun time is the time bar's: ${clock(viewT)}. Drag it to plan a later start.`
 }
 
 // ------------------------------------------------------------ Course

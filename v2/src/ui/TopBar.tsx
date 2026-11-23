@@ -18,6 +18,7 @@ export function TopBar() {
   const ttg = world.timeToGunS()
   const inSeq = ttg !== null && world.own.phase !== 'finished'
   const debriefReady = useUi((s) => s.debrief !== null)
+  const raceView = useUi((s) => s.raceView)
 
   return (
     <header className="topbar">
@@ -30,7 +31,7 @@ export function TopBar() {
         <span>NewJourney</span>
       </div>
 
-      <nav className="tabs" role="tablist">
+      <nav className="tabs" role="tablist" hidden={raceView}>
         {TABS.map((t) => (
           <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'on' : ''} title={t.hint} onClick={() => actions.setTab(t.id)}>
             {t.label}
@@ -38,6 +39,12 @@ export function TopBar() {
           </button>
         ))}
       </nav>
+
+      {raceView ? (
+        <button className="btn sm race-exit" onClick={() => actions.setRaceView(false)} title="Bring back the panels (R)">
+          Show panels
+        </button>
+      ) : null}
 
       <div className="start-pick" title="Start sequence">
         {inSeq && ttg! > 0 ? (
@@ -66,6 +73,18 @@ export function TopBar() {
           </>
         )}
       </div>
+
+      <button
+        className={`icon-btn ${raceView ? 'on' : ''}`}
+        onClick={() => actions.setRaceView(!raceView)}
+        title={raceView ? 'Leave the race view (R)' : 'Race view: just the instruments and race data (R)'}
+        aria-pressed={raceView}
+        aria-label="Race view"
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
+          <path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
 
       <div className="topbar-right">
         <select aria-label="Boat" value={world.boatId} onChange={(e) => actions.setBoat(e.target.value)}>

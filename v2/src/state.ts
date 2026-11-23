@@ -9,15 +9,15 @@ import { beepsBetween } from '@/lib/timer'
 import { SignalKClient, type SignalKStatus } from '@/lib/instruments/signalk'
 import type { Reading } from '@/lib/instruments/nmea0183'
 import { courseFor, twaFrom } from '@/lib/angles'
-import { destination } from '@/lib/geo'
-import type { RouteResult } from '@/lib/types'
+import { destination, distance } from '@/lib/geo'
+import type { BBox, RouteResult } from '@/lib/types'
 import { analyze, type Analysis } from './coach/analyze'
 import { aiStatus, chat, debrief, type AiStatus, type ChatTurn } from './coach/client'
 import type { CoachContext, CoachDebrief } from './coach/debrief'
 import { addAnswer, addNotes, learnFrom, loadProfile, saveProfile, type BoatProfile } from './coach/learn'
 import { boatModel, BOATS } from './engine/boats'
-import { defaultCourse, defaultCourseMarks, newId } from './engine/course'
-import { demoForecast, forecastWind, liveForecast, type Forecast } from './engine/forecast'
+import { defaultCourse, defaultCourseMarks, lineBias, newId, pointOnLine } from './engine/course'
+import { demoForecast, demoForecastIn, forecastWind, liveForecast, type Forecast } from './engine/forecast'
 import { planLegs, routeCourse, type LegPlan } from './engine/plan'
 import type { Course, LatLon, Mark, MarkRole } from './engine/types'
 import { World } from './engine/world'
@@ -27,6 +27,50 @@ export const HOME: LatLon = { lat: 43.585, lon: -70.16 } // off Cape Elizabeth, 
 export type Tab = 'plan' | 'course' | 'race' | 'sim' | 'coach'
 export type Source = 'sim' | 'n2k' | 'gps'
 export type ClickMode = null | 'addMark' | 'placeBoat'
+
+/** What can go in the instrument panel: data boxes, plus the skipper's note and coach tips. */
+export type FieldId = 'bsp' | 'twa' | 'tws' | 'twd' | 'hdg' | 'vmg' | 'awa' | 'polar' | 'intent' | 'tips'
+export type FieldMode = 'setup' | 'race'
+
+/**
+ * What the optimal route is from and to:
+ *  - course: the whole race, from the favoured end of the start line at the gun,
+ *    around every mark to the finish (the plan before a race);
+ *  - here: from the boat now, around the marks still to go (during a race, it
+ *    recalculates every couple of minutes);
+ *  - mark: from the boat now to one mark (a practice beat, a delivery).
+ */
+export type RouteMode = 'course' | 'here' | 'mark'
+export interface RouteInfo {
+  mode: RouteMode
+  /** What the line on the map is, in words. */
+  label: string
+  from: string
+  t0: number
+  /** Each mark in the route with the time the route reaches it. */
+  arrivals: Array<{ name: string; t: number | null }>
+}
+export type Fields = Record<FieldMode, FieldId[]>
+
+export const ALL_FIELDS: FieldId[] = ['bsp', 'twa', 'tws', 'twd', 'hdg', 'vmg', 'awa', 'polar', 'intent', 'tips']
+export const FIELD_PRESETS: Array<{ id: string; name: string; hint: string; fields: FieldId[] }> = [
+  { id: 'beginner', name: 'Beginner', hint: "Speed, angle, wind and how you compare with the boat's best", fields: ['bsp', 'twa', 'tws', 'polar', 'tips'] },
+  { id: 'start', name: 'Start', hint: 'What matters in the last minutes: speed, angle, wind direction and heading', fields: ['bsp', 'twa', 'twd', 'hdg'] },
+  { id: 'upwind', name: 'Upwind', hint: 'Speed and angle against target, shifts and VMG', fields: ['bsp', 'twa', 'tws', 'twd', 'vmg', 'polar', 'tips'] },
+  { id: 'all', name: 'Everything', hint: 'Every data box', fields: ['bsp', 'twa', 'tws', 'twd', 'hdg', 'vmg', 'awa', 'polar', 'intent', 'tips'] },
+]
+const DEFAULT_FIELDS: Fields = { setup: ALL_FIELDS, race: ['bsp', 'twa', 'tws', 'twd', 'vmg', 'polar', 'tips'] }
+const FIELDS_KEY = 'nj2.fields'
+
+function loadFields(): Fields {
+  try {
+    const raw = JSON.parse(localStorage.getItem(FIELDS_KEY) ?? 'null') as Partial<Fields> | null
+    const clean = (v: unknown, d: FieldId[]) => (Array.isArray(v) ? v.filter((x): x is FieldId => ALL_FIELDS.includes(x as FieldId)) : d)
+    return { setup: clean(raw?.setup, DEFAULT_FIELDS.setup), race: clean(raw?.race, DEFAULT_FIELDS.race) }
+  } catch {
+    return DEFAULT_FIELDS
+  }
+}
 
 // ------------------------------------------------------------ the world
 
@@ -62,6 +106,9 @@ export interface UiState {
   clickMode: ClickMode
   selectedMarkId: string | null
   route: RouteResult | null
+  routeInfo: RouteInfo | null
+  routeMode: RouteMode
+  routeMarkId: string | null
   routeBusy: number | null
   routeError: string | null
   legPlan: LegPlan[]
@@ -70,6 +117,8 @@ export interface UiState {
   theme: 'night' | 'day'
   forecastBusy: boolean
   forecastError: string | null
+  /** The map has settled on an area the forecast doesn't cover. */
+  forecastOutside: boolean
   fleetSize: number
   seqMinutes: 10 | 5 | 3
   analysis: Analysis | null
@@ -84,6 +133,12 @@ export interface UiState {
   answers: Record<string, string>
   flyTo: { at: LatLon; zoom?: number; n: number } | null
   helpOpen: boolean
+  /** Race view: only the instruments and race data, no panels. */
+  raceView: boolean
+  /** Switch to the race view at the start and back (to the coach) at the finish. */
+  raceViewAuto: boolean
+  fields: Fields
+  customizeOpen: boolean
 }
 
 export const useUi = create<UiState>(() => ({
@@ -103,6 +158,9 @@ export const useUi = create<UiState>(() => ({
   clickMode: null,
   selectedMarkId: null,
   route: null,
+  routeInfo: null,
+  routeMode: 'course',
+  routeMarkId: null,
   routeBusy: null,
   routeError: null,
   legPlan: [],
@@ -111,6 +169,7 @@ export const useUi = create<UiState>(() => ({
   theme: 'night',
   forecastBusy: false,
   forecastError: null,
+  forecastOutside: false,
   fleetSize: 6,
   seqMinutes: 5,
   analysis: null,
@@ -125,6 +184,10 @@ export const useUi = create<UiState>(() => ({
   answers: {},
   flyTo: null,
   helpOpen: false,
+  raceView: false,
+  raceViewAuto: true,
+  fields: loadFields(),
+  customizeOpen: false,
 }))
 
 const set = useUi.setState
@@ -156,10 +219,12 @@ function frame(now: number): void {
   prevTtg = ttg
   if (!autoDebriefed && world.gunT !== null && world.own.phase === 'finished') {
     autoDebriefed = true
+    if (s.raceView) set({ raceView: false, tab: 'coach' })
     void runDebrief()
   }
   if (now - lastBump > 120) {
     lastBump = now
+    refreshLiveRoute()
     bump()
   }
   requestAnimationFrame(frame)
@@ -175,7 +240,25 @@ export function startLoop(): void {
 
 export const actions = {
   setTab(tab: Tab) {
-    set({ tab, clickMode: null })
+    set({ tab, clickMode: null, raceView: false })
+  },
+  setRaceView(on: boolean) {
+    set({ raceView: on, clickMode: null })
+  },
+  setRaceViewAuto(on: boolean) {
+    set({ raceViewAuto: on })
+  },
+  setCustomize(open: boolean) {
+    set({ customizeOpen: open })
+  },
+  setFields(mode: FieldMode, ids: FieldId[]) {
+    const fields = { ...get().fields, [mode]: ids }
+    set({ fields })
+    try {
+      localStorage.setItem(FIELDS_KEY, JSON.stringify(fields))
+    } catch {
+      // Private mode or storage full: the choice lasts for this visit.
+    }
   },
   toggleRun() {
     primeAudio()
@@ -279,7 +362,7 @@ export const actions = {
     world.spawnFleet(get().fleetSize)
     world.startSequence(min)
     autoDebriefed = false
-    set({ seqMinutes: min, running: true, debrief: null, analysis: null, chat: [], highlight: null })
+    set((s) => ({ seqMinutes: min, running: true, debrief: null, analysis: null, chat: [], highlight: null, raceView: s.raceViewAuto || s.raceView }))
     bump()
   },
   setSeqMinutes(m: 10 | 5 | 3) {
@@ -291,13 +374,14 @@ export const actions = {
   },
   stopRace() {
     world.stopRace()
+    set({ raceView: false })
     bump()
   },
   sailCourse() {
     primeAudio()
     world.sailCourse()
     autoDebriefed = false
-    set({ running: true, debrief: null, analysis: null, chat: [], highlight: null })
+    set((s) => ({ running: true, debrief: null, analysis: null, chat: [], highlight: null, raceView: s.raceViewAuto || s.raceView }))
     bump()
   },
   setFleetSize(n: number) {
@@ -328,10 +412,13 @@ export const actions = {
 
   // ----- forecast and routing
   async loadLiveForecast(center: LatLon) {
+    const span = 0.6
+    await actions.loadLiveForecastIn({ west: center.lon - span * 1.4, east: center.lon + span * 1.4, south: center.lat - span, north: center.lat + span })
+  },
+  async loadLiveForecastIn(area: BBox) {
     set({ forecastBusy: true, forecastError: null })
     try {
-      const span = 0.6
-      const f = await liveForecast({ west: center.lon - span * 1.4, east: center.lon + span * 1.4, south: center.lat - span, north: center.lat + span })
+      const f = await liveForecast(area)
       setForecast(f)
     } catch (e) {
       set({ forecastError: `Live forecast failed: ${e instanceof Error ? e.message : String(e)}. Still using the previous one.` })
@@ -342,18 +429,55 @@ export const actions = {
   demoForecastHere(center: LatLon) {
     setForecast(demoForecast(center, world.t))
   },
+  /**
+   * The map stopped moving. If most of the view is outside the forecast, load
+   * one for where we are looking: live if live is in use, otherwise the demo
+   * moved here. Not during a sequence or race, when swapping the wind under
+   * the fleet would be a surprise; the map shows a button instead.
+   */
+  viewSettled(view: BBox) {
+    lastView = view
+    clearTimeout(viewTimer)
+    const outside = coveredShare(view, world.forecast.field.coverage().bbox) < 0.5
+    if (outside !== get().forecastOutside) set({ forecastOutside: outside })
+    if (!outside || get().forecastBusy) return
+    const racing = world.own.phase === 'prestart' || world.own.phase === 'racing'
+    if (racing) return
+    viewTimer = setTimeout(() => actions.forecastForView(), 700)
+  },
+  forecastForView() {
+    if (!lastView) return
+    const area = forecastArea(lastView)
+    set({ forecastOutside: false })
+    if (world.forecast.source === 'live') void actions.loadLiveForecastIn(area)
+    else setForecast(demoForecastIn(area, world.t))
+  },
+  setRouteMode(routeMode: RouteMode) {
+    set({ routeMode, route: null, routeInfo: null, routeError: null })
+  },
+  setRouteMark(routeMarkId: string) {
+    set({ routeMarkId, route: null, routeInfo: null })
+  },
   async calculateRoute() {
-    const marks = world.sequence
-    if (!marks.length) {
-      set({ routeError: 'Add marks to the course first.' })
+    const s = get()
+    const plan = routePlan(s.routeMode, s.routeMarkId, s.viewT)
+    if (typeof plan === 'string') {
+      set({ routeError: plan })
       return
     }
     set({ routeBusy: 0, routeError: null })
-    const r = await routeCourse({ forecast: world.forecast, boat: boatModel(world.boatId), start: world.own.pos, marks, t0: world.t, onProgress: (f) => set({ routeBusy: f }) })
-    set({ route: r.ok ? r : null, routeBusy: null, routeError: r.ok ? null : (r.error ?? 'No route found') })
+    const r = await routeCourse({ forecast: world.forecast, boat: boatModel(world.boatId), start: plan.start, marks: plan.marks, t0: plan.t0, onProgress: (f) => set({ routeBusy: f }) })
+    lastRouteAt = performance.now()
+    lastRouteLeg = world.own.leg
+    set({
+      route: r.ok ? r : null,
+      routeInfo: r.ok ? { mode: s.routeMode, label: plan.label, from: plan.from, t0: plan.t0, arrivals: arrivals(r, plan.marks) } : null,
+      routeBusy: null,
+      routeError: r.ok ? null : (r.error ?? 'No route found'),
+    })
   },
   clearRoute() {
-    set({ route: null })
+    set({ route: null, routeInfo: null })
   },
   toggle(key: 'arrows' | 'colors' | 'showLaylines') {
     set((s) => ({ [key]: !s[key] }) as Partial<UiState>)
@@ -424,6 +548,36 @@ export const actions = {
   },
 }
 
+let lastView: BBox | null = null
+let viewTimer: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * What a reloaded forecast should cover: the view with a margin, plus the
+ * course and your boat so the simulator never ends up with no wind. If they
+ * are far apart (more than a few degrees), just the view.
+ */
+function forecastArea(view: BBox): BBox {
+  const padX = Math.max(0.15, (view.east - view.west) * 0.25)
+  const padY = Math.max(0.1, (view.north - view.south) * 0.25)
+  const v = { west: view.west - padX, east: view.east + padX, south: view.south - padY, north: view.north + padY }
+  const pts = [...world.marks, world.own.pos]
+  const u = {
+    west: Math.min(v.west, ...pts.map((p) => p.lon - 0.15)),
+    east: Math.max(v.east, ...pts.map((p) => p.lon + 0.15)),
+    south: Math.min(v.south, ...pts.map((p) => p.lat - 0.1)),
+    north: Math.max(v.north, ...pts.map((p) => p.lat + 0.1)),
+  }
+  return u.east - u.west > 6 || u.north - u.south > 4 ? v : u
+}
+
+/** Share of the view's area (in degrees, near enough at racecourse scale) inside `cov`. */
+function coveredShare(view: BBox, cov: BBox): number {
+  const w = Math.max(0, Math.min(view.east, cov.east) - Math.max(view.west, cov.west))
+  const h = Math.max(0, Math.min(view.north, cov.north) - Math.max(view.south, cov.south))
+  const area = (view.east - view.west) * (view.north - view.south)
+  return area > 0 ? (w * h) / area : 1
+}
+
 function setForecast(f: Forecast): void {
   world.setForecast(f)
   set({ forecastError: null })
@@ -431,8 +585,73 @@ function setForecast(f: Forecast): void {
   bump()
 }
 
+// ------------------------------------------------------------ routes
+
+let lastRouteAt = 0
+let lastRouteLeg = -1
+
+/** Where a route of each kind starts, when and through which marks; or why it can't. */
+function routePlan(mode: RouteMode, markId: string | null, viewT: number): { start: LatLon; t0: number; marks: Mark[]; label: string; from: string } | string {
+  const seq = world.sequence
+  const own = world.own
+  if (mode === 'mark') {
+    // The list shows the first mark of the course until one is picked.
+    const m = world.marks.find((x) => x.id === (markId ?? seq[0]?.id ?? world.marks[0]?.id))
+    if (!m) return 'Choose the mark to route to.'
+    return { start: own.pos, t0: world.t, marks: [m], label: `Route to ${m.name}`, from: 'your boat, now' }
+  }
+  if (!seq.length) return 'Add marks to the course first (Course tab).'
+  if (mode === 'here') {
+    const left = own.phase === 'racing' ? seq.slice(own.leg) : seq
+    if (!left.length) return 'No marks left to sail: the race is over.'
+    return { start: own.pos, t0: world.t, marks: left, label: 'Route from here to the finish', from: 'your boat, now' }
+  }
+  // Whole course: from the line at the gun. Before a sequence starts, the gun
+  // is the time on the time bar, so a later start can be planned by dragging it.
+  const t0 = world.gunT ?? viewT
+  const ln = world.line
+  if (!ln) return { start: own.pos, t0, marks: seq, label: 'Route for the whole course', from: 'your boat (no start line set)' }
+  const mid = pointOnLine(ln, 0.5)
+  const twd = forecastWind(world.forecast, mid, t0)?.twd ?? own.twd
+  const bias = lineBias(ln, twd)
+  // A boat length or two in from the favoured end, where a good start would be.
+  const f = Math.abs(bias) < 2 ? 0.5 : bias > 0 ? 0.12 : 0.88
+  const end = Math.abs(bias) < 2 ? 'the middle of the line (it is square)' : bias > 0 ? 'the pin end (favoured)' : 'the committee end (favoured)'
+  return { start: pointOnLine(ln, f), t0, marks: seq, label: 'Route for the whole course', from: end }
+}
+
+/** When the route reaches each mark: the closest route point to it, in order. */
+function arrivals(r: RouteResult, marks: Mark[]): RouteInfo['arrivals'] {
+  let from = 0
+  return marks.map((m) => {
+    let best = -1
+    let bestD = Infinity
+    for (let i = from; i < r.legs.length; i++) {
+      const d = distance(r.legs[i]!.position, m)
+      if (d < bestD) {
+        bestD = d
+        best = i
+      }
+      // Once well past a close approach, this mark is done.
+      if (bestD < 0.05 && d > bestD + 0.3) break
+    }
+    if (best < 0 || bestD > 0.25) return { name: m.name, t: null }
+    from = best + 1
+    return { name: m.name, t: r.legs[best]!.t }
+  })
+}
+
+/** During a race, keep a "from here" route fresh: every 2 minutes and at each mark. */
+function refreshLiveRoute(): void {
+  const s = get()
+  if (s.routeMode !== 'here' || !s.route || s.routeBusy !== null || world.own.phase !== 'racing') return
+  const now = performance.now()
+  const due = world.own.leg !== lastRouteLeg || (world.t - (s.routeInfo?.t0 ?? 0) > 120_000 && now - lastRouteAt > 3000)
+  if (due) void actions.calculateRoute()
+}
+
 function courseChanged(): void {
-  set({ route: null })
+  set({ route: null, routeInfo: null })
   refreshPlan()
   bump()
 }

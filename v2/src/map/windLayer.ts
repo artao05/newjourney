@@ -1,114 +1,151 @@
 /**
- * The forecast overlay, drawn on a canvas laid over the map: a smooth colour
- * field for wind speed and arrows for direction, sampled from the forecast at
- * the scrubbed time. Redrawn on every map move and every time change.
+ * The forecast overlay, pinned to the map so it pans and zooms with the chart:
+ *
+ *  - colour: one image of the whole forecast area, sampled at the scrubbed time
+ *    and laid over the forecast's own bounding box (so it only needs redrawing
+ *    when the time changes, never when the map moves);
+ *  - arrows: points on a fixed grid of the world, thinned with zoom, drawn by a
+ *    MapLibre symbol layer. A fixed grid means an arrow stays on its patch of
+ *    water while you pan, and zooming in fills in more of them.
  */
-import type maplibregl from 'maplibre-gl'
 import { windFromUv } from '@/lib/weather/cube'
-import type { WeatherField } from '@/lib/types'
+import type { BBox, WeatherField } from '@/lib/types'
 import { windRgb } from '../engine/windColor'
 
-export interface WindDrawOptions {
-  field: WeatherField
-  t: number
-  colors: boolean
-  arrows: boolean
-  opacity: number
-}
+type Quad = [[number, number], [number, number], [number, number], [number, number]]
 
-const CELL = 10 // px per colour sample before smoothing
-const ARROW_GAP = 54
+const MAX_SIDE = 640 // px on the image's long side; the data is far coarser than this
 
-export function drawWind(canvas: HTMLCanvasElement, map: maplibregl.Map, o: WindDrawOptions): void {
-  const dpr = Math.min(2, window.devicePixelRatio || 1)
-  const w = map.getContainer().clientWidth
-  const h = map.getContainer().clientHeight
-  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
-    canvas.width = Math.round(w * dpr)
-    canvas.height = Math.round(h * dpr)
+const mercY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
+const latOf = (y: number) => (360 / Math.PI) * Math.atan(Math.exp(y)) - 90
+
+/**
+ * Paints the wind-speed colours for `bbox` at time `t` into `canvas` and returns
+ * the corners to pin it to. Rows are spaced evenly in Mercator, the map's own
+ * projection, so the image lines up with the chart at every latitude.
+ */
+export function drawWindField(canvas: HTMLCanvasElement, field: WeatherField, bbox: BBox, t: number): Quad {
+  const y0 = mercY(bbox.north)
+  const y1 = mercY(bbox.south)
+  const spanX = ((bbox.east - bbox.west) * Math.PI) / 180
+  const spanY = y0 - y1
+  const scale = MAX_SIDE / Math.max(spanX, spanY)
+  const w = Math.max(2, Math.round(spanX * scale))
+  const h = Math.max(2, Math.round(spanY * scale))
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w
+    canvas.height = h
   }
   const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.clearRect(0, 0, w, h)
-
-  const sample = (x: number, y: number) => {
-    const ll = map.unproject([x, y])
-    const s = o.field.wind(ll.lat, ll.lng, o.t)
-    return s ? windFromUv(s.u, s.v) : null
-  }
-
-  if (o.colors) {
-    const nx = Math.ceil(w / CELL) + 1
-    const ny = Math.ceil(h / CELL) + 1
-    const off = document.createElement('canvas')
-    off.width = nx
-    off.height = ny
-    const octx = off.getContext('2d')!
-    const img = octx.createImageData(nx, ny)
-    for (let j = 0; j < ny; j++) {
-      for (let i = 0; i < nx; i++) {
-        const s = sample(i * CELL, j * CELL)
-        const k = (j * nx + i) * 4
-        if (!s) {
-          img.data[k + 3] = 0
-          continue
-        }
-        const [r, g, b] = windRgb(s.speed)
-        img.data[k] = r
-        img.data[k + 1] = g
-        img.data[k + 2] = b
-        img.data[k + 3] = Math.round(255 * o.opacity)
-      }
-    }
-    octx.putImageData(img, 0, 0)
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(off, 0, 0, nx, ny, 0, 0, nx * CELL, ny * CELL)
-  }
-
-  if (o.arrows) {
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    const bearingOffset = map.getBearing()
-    for (let y = ARROW_GAP / 2; y < h; y += ARROW_GAP) {
-      for (let x = ARROW_GAP / 2 + ((y / ARROW_GAP) % 2) * (ARROW_GAP / 2); x < w; x += ARROW_GAP) {
-        const s = sample(x, y)
-        if (!s) continue
-        // Arrow points the way the wind blows (from `dir` towards dir+180).
-        const to = ((s.dir + 180 - bearingOffset) * Math.PI) / 180
-        const len = 10 + Math.min(14, s.speed * 0.6)
-        const dx = Math.sin(to)
-        const dy = -Math.cos(to)
-        const x0 = x - (dx * len) / 2
-        const y0 = y - (dy * len) / 2
-        const x1 = x + (dx * len) / 2
-        const y1 = y + (dy * len) / 2
-        ctx.strokeStyle = 'rgba(8,20,34,0.55)'
-        ctx.lineWidth = 3.6
-        arrow(ctx, x0, y0, x1, y1, dx, dy)
-        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-        ctx.lineWidth = 1.6
-        arrow(ctx, x0, y0, x1, y1, dx, dy)
-        if (s.speed >= 1) {
-          ctx.font = '600 10px Inter, system-ui, sans-serif'
-          ctx.fillStyle = 'rgba(8,20,34,0.75)'
-          ctx.fillText(String(Math.round(s.speed)), x1 + 3, y1 + 3)
-        }
-      }
+  if (!ctx) return corners(bbox)
+  const img = ctx.createImageData(w, h)
+  for (let j = 0; j < h; j++) {
+    const lat = latOf(y0 - ((j + 0.5) / h) * spanY)
+    for (let i = 0; i < w; i++) {
+      const lon = bbox.west + ((i + 0.5) / w) * (bbox.east - bbox.west)
+      const s = field.wind(lat, lon, t)
+      const k = (j * w + i) * 4
+      if (!s) continue
+      const [r, g, b] = windRgb(Math.hypot(s.u, s.v))
+      img.data[k] = r
+      img.data[k + 1] = g
+      img.data[k + 2] = b
+      img.data[k + 3] = 255
     }
   }
+  ctx.putImageData(img, 0, 0)
+  return corners(bbox)
 }
 
-function arrow(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, dx: number, dy: number): void {
-  const hx = -dy
-  const hy = dx
-  ctx.beginPath()
-  ctx.moveTo(x0, y0)
-  ctx.lineTo(x1, y1)
-  ctx.moveTo(x1, y1)
-  ctx.lineTo(x1 - dx * 6 + hx * 4, y1 - dy * 6 + hy * 4)
-  ctx.moveTo(x1, y1)
-  ctx.lineTo(x1 - dx * 6 - hx * 4, y1 - dy * 6 - hy * 4)
+function corners(b: BBox): Quad {
+  return [
+    [b.west, b.north],
+    [b.east, b.north],
+    [b.east, b.south],
+    [b.west, b.south],
+  ]
+}
+
+/** About this many screen pixels between arrows, whatever the zoom. */
+const ARROW_PX = 60
+
+/**
+ * Arrow points for the area around the view, on a grid fixed to the world:
+ * at each whole zoom level the grid cell is a fixed fraction of the world's
+ * width, so panning never moves an arrow relative to the water.
+ */
+export function windArrows(field: WeatherField, t: number, view: BBox, zoom: number): GeoJSON.FeatureCollection {
+  const cov = field.coverage().bbox
+  // Cells across the world at this zoom (MapLibre's world is 512 px at zoom 0).
+  const level = Math.max(0, Math.round(zoom + Math.log2(512 / ARROW_PX)))
+  const cells = 2 ** level
+  const step = 1 / cells // in normalised Mercator units (0..1 across the world)
+  const toX = (lon: number) => (lon + 180) / 360
+  const toY = (lat: number) => 0.5 - mercY(lat) / (2 * Math.PI)
+  const lonOf = (x: number) => x * 360 - 180
+  const latOfY = (y: number) => latOf((0.5 - y) * 2 * Math.PI)
+
+  // The view plus a margin of one view on each side, so a pan reveals arrows
+  // that are already there; clipped to the forecast.
+  const vw = view.east - view.west
+  const vh = view.north - view.south
+  const west = Math.max(cov.west, view.west - vw)
+  const east = Math.min(cov.east, view.east + vw)
+  const south = Math.max(cov.south, view.south - vh)
+  const north = Math.min(cov.north, view.north + vh)
+  const features: GeoJSON.Feature[] = []
+  if (west >= east || south >= north) return { type: 'FeatureCollection', features }
+
+  const ix0 = Math.floor(toX(west) / step)
+  const ix1 = Math.ceil(toX(east) / step)
+  const iy0 = Math.floor(toY(north) / step)
+  const iy1 = Math.ceil(toY(south) / step)
+  if ((ix1 - ix0) * (iy1 - iy0) > 6000) return { type: 'FeatureCollection', features }
+  for (let iy = iy0; iy <= iy1; iy++) {
+    // Every other row shifted by half a cell: reads as a field, not a grid.
+    const shift = iy % 2 === 0 ? 0 : 0.5
+    const lat = latOfY((iy + 0.5) * step)
+    if (lat < cov.south || lat > cov.north) continue
+    for (let ix = ix0; ix <= ix1; ix++) {
+      const lon = lonOf((ix + 0.5 + shift) * step)
+      if (lon < cov.west || lon > cov.east) continue
+      const s = field.wind(lat, lon, t)
+      if (!s) continue
+      const { speed, dir } = windFromUv(s.u, s.v)
+      features.push({
+        type: 'Feature',
+        properties: { to: (dir + 180) % 360, kn: Math.round(speed), size: 0.75 + Math.min(0.55, speed * 0.022) },
+        geometry: { type: 'Point', coordinates: [lon, lat] },
+      })
+    }
+  }
+  return { type: 'FeatureCollection', features }
+}
+
+/** A white arrow with a dark halo, pointing up (north): the symbol layer rotates it. */
+export function arrowImage(): ImageData {
+  const s = 48 // drawn at pixelRatio 2, so 24 px on screen
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const ctx = c.getContext('2d')!
+  const path = () => {
+    ctx.beginPath()
+    ctx.moveTo(s / 2, s - 6)
+    ctx.lineTo(s / 2, 6)
+    ctx.moveTo(s / 2 - 9, 17)
+    ctx.lineTo(s / 2, 6)
+    ctx.lineTo(s / 2 + 9, 17)
+  }
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  path()
+  ctx.strokeStyle = 'rgba(8,20,34,0.6)'
+  ctx.lineWidth = 7
   ctx.stroke()
+  path()
+  ctx.strokeStyle = 'rgba(255,255,255,0.96)'
+  ctx.lineWidth = 3.2
+  ctx.stroke()
+  return ctx.getImageData(0, 0, s, s)
 }

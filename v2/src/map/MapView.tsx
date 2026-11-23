@@ -6,7 +6,7 @@ import { boatModel } from '../engine/boats'
 import { laylinesTo, lineBias } from '../engine/course'
 import { actions, useUi, world, HOME } from '../state'
 import { boatImage } from './icons'
-import { drawWind } from './windLayer'
+import { arrowImage, drawWindField, windArrows } from './windLayer'
 
 type FC = GeoJSON.FeatureCollection
 const fc = (features: GeoJSON.Feature[]): FC => ({ type: 'FeatureCollection', features })
@@ -41,6 +41,7 @@ export function MapView() {
   const mapRef = useRef<maplibregl.Map | null>(null)
   const windCanvas = useRef<HTMLCanvasElement>(document.createElement('canvas'))
   const windKey = useRef('')
+  const arrowsKey = useRef('')
   const theme = useUi((s) => s.theme)
 
   useEffect(() => {
@@ -60,11 +61,16 @@ export function MapView() {
     map.on('load', () => setup(map, windCanvas.current))
     map.on('style.load', () => setup(map, windCanvas.current))
 
-    const redrawWind = () => {
-      windKey.current = ''
+    // The overlay is pinned to the map, so a pan needs nothing; once the map
+    // settles, refill the arrows around the new view and tell the store where
+    // we are looking (it fetches a forecast if the view has left the old one).
+    const settled = () => {
+      arrowsKey.current = ''
+      const b = map.getBounds()
+      actions.viewSettled({ west: b.getWest(), east: b.getEast(), south: b.getSouth(), north: b.getNorth() })
     }
-    map.on('move', redrawWind)
-    map.on('resize', redrawWind)
+    map.on('moveend', settled)
+    map.once('idle', settled)
 
     // Clicks: place things in click modes; drag marks.
     let dragging: string | null = null
@@ -95,7 +101,9 @@ export function MapView() {
 
     let raf = 0
     const loop = () => {
-      update(map, windCanvas.current, windKey)
+      // For checking the map from the browser console while developing.
+      if (import.meta.env.DEV) (window as unknown as { __map: maplibregl.Map }).__map = map
+      update(map, windCanvas.current, windKey, arrowsKey)
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
@@ -110,6 +118,7 @@ export function MapView() {
     if (map) {
       map.setStyle(style(theme))
       windKey.current = ''
+      arrowsKey.current = ''
     }
   }, [theme])
 
@@ -128,25 +137,50 @@ export function MapView() {
   return <div ref={el} className="map" data-click-mode={clickMode ?? ''} />
 }
 
-const SOURCES = ['tracks', 'highlight', 'course', 'laylines', 'route', 'startline', 'marks', 'boats', 'wind-tip'] as const
+const SOURCES = ['wind-edge', 'wind-arrows', 'tracks', 'highlight', 'course', 'laylines', 'route', 'startline', 'marks', 'boats', 'wind-tip'] as const
 
 function setup(map: maplibregl.Map, canvas: HTMLCanvasElement): void {
   if (map.getSource('marks')) return
   lastDataVersion = -1
   for (const id of SOURCES) map.addSource(id, { type: 'geojson', data: fc([]) })
-  const b = map.getBounds()
+  const night = useUi.getState().theme === 'night'
+  const cov = world.forecast.field.coverage().bbox
   map.addSource('wind', {
     type: 'canvas',
     canvas,
     animate: true,
     coordinates: [
-      [b.getWest(), b.getNorth()],
-      [b.getEast(), b.getNorth()],
-      [b.getEast(), b.getSouth()],
-      [b.getWest(), b.getSouth()],
+      [cov.west, cov.north],
+      [cov.east, cov.north],
+      [cov.east, cov.south],
+      [cov.west, cov.south],
     ],
   })
-  map.addLayer({ id: 'wind', type: 'raster', source: 'wind', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, 'seamarks')
+  map.addLayer({ id: 'wind', type: 'raster', source: 'wind', paint: { 'raster-opacity': night ? 0.55 : 0.4, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, 'seamarks')
+  // Where the forecast ends, so an empty patch of map reads as "no data here".
+  map.addLayer({ id: 'wind-edge', type: 'line', source: 'wind-edge', paint: { 'line-color': night ? '#94a3b8' : '#475569', 'line-width': 1.2, 'line-dasharray': [4, 4], 'line-opacity': 0.7 } })
+  if (!map.hasImage('wind-arrow')) map.addImage('wind-arrow', arrowImage(), { pixelRatio: 2 })
+  map.addLayer({
+    id: 'wind-arrows',
+    type: 'symbol',
+    source: 'wind-arrows',
+    layout: {
+      'icon-image': 'wind-arrow',
+      'icon-rotate': ['get', 'to'],
+      'icon-rotation-alignment': 'map',
+      'icon-size': ['get', 'size'],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'text-field': ['to-string', ['get', 'kn']],
+      'text-font': ['Open Sans Semibold'],
+      'text-size': 10,
+      'text-anchor': 'left',
+      'text-offset': [1.1, 0.4],
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
+    },
+    paint: { 'text-color': '#0b1724', 'text-halo-color': 'rgba(255,255,255,0.75)', 'text-halo-width': 1.2 },
+  })
 
   for (const c of ['#22d3ee', '#f472b6', '#60a5fa', '#fbbf24', '#a78bfa', '#34d399', '#fb923c']) {
     const img = boatImage(c, c === '#22d3ee')
@@ -157,7 +191,17 @@ function setup(map: maplibregl.Map, canvas: HTMLCanvasElement): void {
   map.addLayer({ id: 'highlight', type: 'line', source: 'highlight', paint: { 'line-color': '#fde047', 'line-width': 6, 'line-opacity': 0.85, 'line-blur': 1 } })
   map.addLayer({ id: 'course', type: 'line', source: 'course', paint: { 'line-color': '#e2e8f0', 'line-width': 1.4, 'line-dasharray': [3, 3], 'line-opacity': 0.7 } })
   map.addLayer({ id: 'laylines', type: 'line', source: 'laylines', paint: { 'line-color': ['get', 'color'], 'line-width': 1.6, 'line-dasharray': [6, 3], 'line-opacity': 0.9 } })
-  map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#facc15', 'line-width': 3.2, 'line-opacity': 0.95 } })
+  map.addLayer({ id: 'route', type: 'line', source: 'route', filter: ['==', ['geometry-type'], 'LineString'], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#facc15', 'line-width': 3.2, 'line-opacity': 0.95 } })
+  // Says what the yellow line is, where it starts. (Along the line itself the
+  // zigzags of a beat are too sharp for text to follow.)
+  map.addLayer({
+    id: 'route-label',
+    type: 'symbol',
+    source: 'route',
+    filter: ['==', ['geometry-type'], 'Point'],
+    layout: { 'text-field': ['get', 'label'], 'text-font': ['Open Sans Semibold'], 'text-size': 11.5, 'text-anchor': 'top', 'text-offset': [0, 0.8], 'text-allow-overlap': true },
+    paint: { 'text-color': '#fde047', 'text-halo-color': '#0b1724', 'text-halo-width': 1.6 },
+  })
   map.addLayer({ id: 'startline', type: 'line', source: 'startline', paint: { 'line-color': ['get', 'color'], 'line-width': 3.5 } })
   map.addLayer({
     id: 'marks',
@@ -207,20 +251,38 @@ function setData(map: maplibregl.Map, id: string, data: FC): void {
 
 let lastDataVersion = -1
 
-function update(map: maplibregl.Map, canvas: HTMLCanvasElement, windKey: { current: string }): void {
+function update(map: maplibregl.Map, canvas: HTMLCanvasElement, windKey: { current: string }, arrowsKey: { current: string }): void {
   if (!map.getSource('marks')) return
   const ui = useUi.getState()
+  const f = world.forecast
+  const forecastKey = `${f.cube.run}|${f.source}|${f.cube.bbox.west},${f.cube.bbox.south},${f.cube.bbox.east},${f.cube.bbox.north}`
+  const timeKey = Math.round(ui.viewT / 20_000)
 
-  // Wind overlay: redraw when the view, the time (to 20 s) or the toggles change.
-  const key = `${Math.round(ui.viewT / 20_000)}|${ui.colors}|${ui.arrows}|${world.forecast.cube.run}|${world.forecast.source}`
+  // Colours: one image of the whole forecast area, redrawn only when the time
+  // (to 20 s) or the forecast changes. Panning just moves it with the map.
+  const key = `${timeKey}|${forecastKey}|${ui.colors}`
   if (windKey.current !== key) {
     windKey.current = key
-    const c = map.getContainer()
-    const corners = [map.unproject([0, 0]), map.unproject([c.clientWidth, 0]), map.unproject([c.clientWidth, c.clientHeight]), map.unproject([0, c.clientHeight])]
-    const src = map.getSource('wind') as maplibregl.CanvasSource | undefined
-    drawWind(canvas, map, { field: world.forecast.field, t: ui.viewT, colors: ui.colors, arrows: ui.arrows, opacity: ui.theme === 'night' ? 0.55 : 0.4 })
-    src?.setCoordinates(corners.map((p) => [p.lng, p.lat]) as [[number, number], [number, number], [number, number], [number, number]])
+    map.setLayoutProperty('wind', 'visibility', ui.colors ? 'visible' : 'none')
+    if (ui.colors) {
+      const corners = drawWindField(canvas, f.field, f.field.coverage().bbox, ui.viewT)
+      ;(map.getSource('wind') as maplibregl.CanvasSource | undefined)?.setCoordinates(corners)
+    }
+    const b = f.field.coverage().bbox
+    setData(map, 'wind-edge', fc([line([[b.west, b.north], [b.east, b.north], [b.east, b.south], [b.west, b.south], [b.west, b.north]])]))
     map.triggerRepaint()
+  }
+
+  // Arrows: refilled when the map settles somewhere new, the zoom level
+  // changes, or the time or forecast changes.
+  const aKey = `${timeKey}|${forecastKey}|${ui.arrows}|${Math.round(map.getZoom())}`
+  if (arrowsKey.current !== aKey) {
+    arrowsKey.current = aKey
+    map.setLayoutProperty('wind-edge', 'visibility', ui.colors || ui.arrows ? 'visible' : 'none')
+    if (ui.arrows) {
+      const b = map.getBounds()
+      setData(map, 'wind-arrows', windArrows(f.field, ui.viewT, { west: b.getWest(), east: b.getEast(), south: b.getSouth(), north: b.getNorth() }, map.getZoom()))
+    } else setData(map, 'wind-arrows', fc([]))
   }
 
   if (ui.version === lastDataVersion) return
@@ -302,5 +364,9 @@ function update(map: maplibregl.Map, canvas: HTMLCanvasElement, windKey: { curre
 
   // The router's optimal route.
   const r = ui.route
-  setData(map, 'route', fc(r && r.legs.length > 1 ? [line(r.legs.map((l) => [l.position.lon, l.position.lat] as [number, number]))] : []))
+  setData(
+    map,
+    'route',
+    fc(r && r.legs.length > 1 ? [line(r.legs.map((l) => [l.position.lon, l.position.lat] as [number, number])), pt(r.legs[0]!.position.lon, r.legs[0]!.position.lat, { label: ui.routeInfo?.label ?? 'Route' })] : []),
+  )
 }

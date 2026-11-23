@@ -655,6 +655,22 @@ b.bad,
   z-index: 2;
 }
 
+.edge-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 7px 8px 7px 12px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  color: var(--ink);
+  width: max-content;
+  max-width: calc(100vw - 24px);
+}
+
 .legend {
   background: var(--glass);
   border: 1px solid var(--line);
@@ -1507,7 +1523,7 @@ table.ais {
   .hud-grid b {
     font-size: 15px;
   }
-  .overlay-bottom-left {
+  .overlay-bottom-left .legend {
     display: none;
   }
   .terms {
@@ -1554,4 +1570,213 @@ table.ais {
     max-width: 60%;
     font-size: 10px;
   }
+}
+
+/* ------------------------------------------------------------ race view */
+
+.panel[hidden],
+.tabs[hidden] {
+  display: none !important;
+}
+
+.app.race-view {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 56px 1fr auto;
+  grid-template-areas: 'top' 'stage' 'time';
+}
+
+.instruments.race {
+  width: 360px;
+}
+
+.instruments.race .tile-val {
+  font-size: 32px;
+}
+
+.instruments.race .tile.big .tile-val {
+  font-size: 40px;
+}
+
+.instruments.race .tile-sub {
+  font-size: 12px;
+}
+
+.timeline.compact {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.inst-edit {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.chip + .inst-edit {
+  margin-left: 6px;
+}
+
+.inst-edit:hover {
+  color: var(--ink);
+  border-color: var(--line-2);
+}
+
+.icon-btn.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.race-exit {
+  margin-right: auto;
+}
+
+/* ------------------------------------------------------------ customize */
+
+.customize {
+  max-width: 520px;
+}
+
+.cust-mode {
+  margin: 14px 0 10px;
+  width: 100%;
+}
+
+.cust-mode button {
+  flex: 1;
+}
+
+.cust-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.cust-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.cust-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--glass-2);
+  border: 1px solid var(--line);
+}
+
+.cust-list.off li {
+  background: none;
+  opacity: 0.75;
+}
+
+.cust-list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.cust-list label span {
+  display: grid;
+  min-width: 0;
+}
+
+.cust-list small {
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.cust-order {
+  display: flex;
+  gap: 2px;
+}
+
+.cust-auto {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.4;
+}
+
+@media (max-width: 820px) {
+  .app.race-view {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas: 'top' 'stage' 'time';
+  }
+  .instruments.race {
+    width: min(360px, calc(100vw - 24px));
+  }
+  .instruments.race .tile-val {
+    font-size: 26px;
+  }
+  .instruments.race .tile.big .tile-val {
+    font-size: 32px;
+  }
+}
+
+/* ------------------------------------------------------------ route modes */
+
+.route-mode {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.route-mode button {
+  flex: 1;
+}
+
+.route-what {
+  margin: 0 0 10px;
+}
+
+.route-title {
+  display: grid;
+  gap: 2px;
+  margin: 12px 0 8px;
+}
+
+.route-title span {
+  color: var(--ink-dim);
+  font-size: 12.5px;
+}
+
+.arrivals {
+  list-style: none;
+  margin: 10px 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.arrivals li {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--glass-2);
+}
+
+.arrivals b {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }

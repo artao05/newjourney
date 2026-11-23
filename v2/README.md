@@ -34,13 +34,21 @@ That coach works from the same analysis, so everything else still works.
 
 | Top menu | What it does |
 | --- | --- |
-| **Plan** | Forecast overlay: colour for wind speed (white/green light → yellow/orange → red strong), arrows for direction, a time bar to scrub through the forecast. Demo sea breeze offline, or **Live forecast here** from Open-Meteo. Leg-by-leg course plan (beat/reach/run, which tack first and why, time per leg). **Optimal route** from the isochrone router, accounting for tacking angles and boat speed. |
+| **Plan** | Forecast overlay: colour for wind speed (white/green light → yellow/orange → red strong), arrows for direction, a time bar to scrub through the forecast. The overlay is pinned to the map, and a dashed line marks where the forecast ends; pan away from it and a forecast for the new area loads by itself (not during a race, when the map offers a button instead). Demo sea breeze offline, or **Live forecast here** from Open-Meteo. Leg-by-leg course plan (beat/reach/run, which tack first and why, time per leg). **Optimal route** from the isochrone router, accounting for tacking angles and boat speed, in one of three kinds: **Whole course** (from the favoured end of the start line at the gun, around every mark, to the finish, with the time to each mark; before a sequence, the gun is the time bar's time), **From here** (from the boat now around the marks still to go; during a race it recalculates every 2 minutes and at each mark) or **To one mark**. |
 | **Course** | Add marks by clicking the map or typing coordinates (`43 35.1 N 70 9.6 W`, or decimal). Drag marks to move them. Start pin and committee boat, course order, finish. One-click windward-leeward square to the wind. |
 | **Race** | Start sequence: 10, 5 or 3 minutes, beeps on the minute and in the last 10 s, sync to the minute. Ping the line ends from the boat. Line length, favoured end and what it's worth. Fleet standings and AIS targets with CPA. |
 | **Simulate** | Place the boat anywhere, pick a boat (J/70, dinghy, J/105, 40 ft cruiser-racer), then **Sail the course** or **Race the fleet**. A virtual skipper times the start, sails target angles, tacks on headers and laylines, and rounds the marks. Speeds 1× to 32×. Take the helm yourself (arrow keys, T to tack). |
 | **Coach** | Automatic debrief when you finish: where time was lost (each finding shows its stretch of track on the map), tendencies, what went well, drills, clarifying questions whose answers are saved, and a chat. **What the app has learned**: the boat's real share of the polar per wind band, tack loss and recurring issues. The instruments then show learned targets. |
 
 The **Start** picker sits in the top bar too, so a sequence is one tap from any screen.
+
+**Race view.** When a sequence starts (or with the frame button in the top bar, or R),
+the panels, tabs, colour key and time bar go away and only the instruments, race data
+and start controls stay, in bigger type. At the finish the panels come back on the
+coach's debrief. **Show panels** brings them back early. The sliders button on the
+instruments chooses which data boxes show and in what order, separately for setting up
+and for the race view, with presets (Beginner, Start, Upwind, Everything). The choice
+is kept in this browser.
 
 On the map: the boat with its track and a wind tick, laylines to the next mark
 (green starboard, red port), the start line with its favoured end, the course,
@@ -80,6 +88,6 @@ v2/
 ## Known gaps
 
 - AIS from a real network isn't wired yet. The fleet is simulated, even with live instruments.
-- The learned profile is kept in this browser only (`localStorage`).
+- The learned profile and the data-box choice are kept in this browser only (`localStorage`).
 - No land avoidance in the router here yet. The main app has the venue land rasters.
 - The bundle is large (about 395 KB gzipped, mostly MapLibre). It isn't split yet.
