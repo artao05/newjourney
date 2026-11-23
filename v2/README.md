@@ -21,11 +21,19 @@ npm run build:v2        # dist-v2/
 ### Turn on the AI coach
 
 The coach calls Claude (`claude-opus-5-5`) from the dev or preview server, so
-the key never reaches the browser:
+the key never reaches the browser. Create a key at
+[console.anthropic.com](https://console.anthropic.com) (Settings → API keys) and put it in
+`v2/.env.local`, which git ignores:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-... npm run dev:v2
+ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+The running dev server picks it up without a restart; a key set in the shell's
+environment works too and wins over the file. Only `ANTHROPIC_*` names are read from
+the file, into the server alone (they have no `VITE_` prefix, so they never reach
+the page). The API bills that key's Console account per use; a Claude.ai
+subscription doesn't cover it.
 
 Without a key, the app says so and uses its built-in, rule-based coach instead.
 That coach works from the same analysis, so everything else still works.
