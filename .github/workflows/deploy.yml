@@ -1,4 +1,12 @@
-# Publishes the app to GitHub Pages on every push to main, after the tests pass.
+# Publishes the app to GitHub Pages, after the tests pass. Run by hand only
+# (Actions -> Deploy to GitHub Pages -> Run workflow).
+#
+# On 2026-11-24 this branch (v2, formerly design/tess-v2) became main and the
+# old main was renamed legacy-main. The live site still serves the old app's
+# Maine pilot build from legacy-main. This workflow builds the old app (npm run
+# build), not v2, and this branch's old app lacks the phone fixes made on
+# legacy-main, so a push here must not replace the pilot site. Until the owner
+# decides what the site should serve, deploys are manual.
 #
 # Does nothing useful until Pages is switched on for the repository with its
 # source set to "GitHub Actions" (Settings -> Pages). That is a decision for the
@@ -9,8 +17,6 @@
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
