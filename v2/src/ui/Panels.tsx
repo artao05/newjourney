@@ -38,6 +38,7 @@ export function PlanPanel() {
   const routeErr = useUi((s) => s.routeError)
   const routeMode = useUi((s) => s.routeMode)
   const info = useUi((s) => s.routeInfo)
+  const follow = useUi((s) => s.followRoute)
   const viewT = useUi((s) => s.viewT)
   const markId = useUi((s) => s.routeMarkId) ?? world.sequence[0]?.id ?? world.marks[0]?.id ?? null
   useUi((s) => s.version)
@@ -130,6 +131,13 @@ export function PlanPanel() {
           ) : null}
         </div>
         {routeErr ? <p className="err">{routeErr}</p> : null}
+        <label className="follow-route" title="On auto helm your boat sails the yellow line: its tacks and gybes, its side of the course. Off, it sails its own race (with the learner's mistakes, if those are on).">
+          <input type="checkbox" checked={follow} onChange={(e) => actions.setFollowRoute(e.target.checked)} />
+          <span>
+            <b>Your boat sails this route</b>
+            <small>{followNote(follow, route !== null, routeMode, info?.arrivals.length ?? 0)}</small>
+          </span>
+        </label>
         {route && info ? (
           <>
             <p className="route-title">
@@ -175,6 +183,15 @@ const ROUTE_MODES: Array<{ id: RouteMode; name: string; hint: string }> = [
   { id: 'here', name: 'From here', hint: 'From your boat now, around the marks still to go' },
   { id: 'mark', name: 'To one mark', hint: 'From your boat now to a single mark' },
 ]
+
+/** What the follow switch means right now. */
+function followNote(on: boolean, haveRoute: boolean, mode: RouteMode, marks: number): string {
+  if (!on) return 'Off: your boat sails its own race. The line is there to compare.'
+  if (!haveRoute) return 'Calculate a route, then start a sequence or sail the course to watch it.'
+  if (world.own.helm === 'manual') return 'You are steering. Give the helm back to the virtual skipper (A) and it sails the route.'
+  if (mode === 'mark' && !world.follow) return 'Only for the next mark of the course: your boat sails its own race to this one.'
+  return `On auto helm your boat sails the line${marks > 1 ? ', mark by mark' : ''}, without the learner's mistakes. Tack cost isn't in the route, so expect to finish a little after it says.`
+}
 
 function routeExplain(mode: RouteMode, viewT: number): string {
   if (mode === 'mark') return 'From your boat now, straight to one mark: a practice beat, or getting to the racecourse.'

@@ -164,6 +164,8 @@ export interface SimBoat {
   gatePick: string | null
   /** Set when the boat sails between the marks of the open gate it is heading for. */
   gateCrossed: boolean
+  /** Where the own boat is on the route it is following: course leg and stretch. */
+  routeAt: { leg: number; seg: number; lost: boolean } | null
 }
 
 export interface RaceEvent {

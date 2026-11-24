@@ -9,7 +9,7 @@ import { beepsBetween } from '@/lib/timer'
 import { SignalKClient, type SignalKStatus } from '@/lib/instruments/signalk'
 import type { Reading } from '@/lib/instruments/nmea0183'
 import { courseFor, twaFrom } from '@/lib/angles'
-import { destination, distance } from '@/lib/geo'
+import { destination } from '@/lib/geo'
 import type { BBox, RouteResult } from '@/lib/types'
 import { analyze, type Analysis } from './coach/analyze'
 import { aiStatus, chat, debrief, type AiStatus, type ChatTurn } from './coach/client'
@@ -18,6 +18,7 @@ import { addAnswer, addNotes, learnFrom, loadProfile, saveProfile, type BoatProf
 import { boatModel, BOATS } from './engine/boats'
 import { defaultCourse, defaultCourseMarks, layoutCourse, lineBias, makeGate, newId, pointOnLine, removeGate, type LayoutId } from './engine/course'
 import { demoForecast, demoForecastIn, forecastWind, liveForecast, type Forecast } from './engine/forecast'
+import { followPieces, markIndices, type FollowRoute } from './engine/follow'
 import { planLegs, routeCourse, type LegPlan } from './engine/plan'
 import type { Course, LatLon, Mark, MarkRole } from './engine/types'
 import { World } from './engine/world'
@@ -61,6 +62,15 @@ export const FIELD_PRESETS: Array<{ id: string; name: string; hint: string; fiel
 ]
 const DEFAULT_FIELDS: Fields = { setup: ALL_FIELDS, race: ['bsp', 'twa', 'tws', 'twd', 'vmg', 'polar', 'tips'] }
 const FIELDS_KEY = 'nj2.fields'
+const FOLLOW_KEY = 'nj2.followRoute'
+
+function loadFollow(): boolean {
+  try {
+    return localStorage.getItem(FOLLOW_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
 
 function loadFields(): Fields {
   try {
@@ -108,6 +118,8 @@ export interface UiState {
   routeInfo: RouteInfo | null
   routeMode: RouteMode
   routeMarkId: string | null
+  /** Whether the own boat, on auto helm, sails the calculated route. */
+  followRoute: boolean
   routeBusy: number | null
   routeError: string | null
   legPlan: LegPlan[]
@@ -160,6 +172,7 @@ export const useUi = create<UiState>(() => ({
   routeInfo: null,
   routeMode: 'course',
   routeMarkId: null,
+  followRoute: loadFollow(),
   routeBusy: null,
   routeError: null,
   legPlan: [],
@@ -401,6 +414,8 @@ export const actions = {
     world.startSequence(min)
     autoDebriefed = false
     set((s) => ({ seqMinutes: min, running: true, debrief: null, analysis: null, chat: [], highlight: null, raceView: s.raceViewAuto || s.raceView }))
+    // A whole-course route planned before the sequence is for a guessed gun: plan it for the real one.
+    if (get().route && get().routeMode === 'course') void actions.calculateRoute()
     bump()
   },
   setSeqMinutes(m: 10 | 5 | 3) {
@@ -492,9 +507,20 @@ export const actions = {
   },
   setRouteMode(routeMode: RouteMode) {
     set({ routeMode, route: null, routeInfo: null, routeError: null })
+    syncFollow(null)
   },
   setRouteMark(routeMarkId: string) {
     set({ routeMarkId, route: null, routeInfo: null })
+    syncFollow(null)
+  },
+  setFollowRoute(followRoute: boolean) {
+    set({ followRoute })
+    try {
+      localStorage.setItem(FOLLOW_KEY, followRoute ? 'on' : 'off')
+    } catch {
+      // Private mode or storage full: the choice lasts for this visit.
+    }
+    syncFollow(routeFollow)
   },
   async calculateRoute() {
     const s = get()
@@ -513,9 +539,11 @@ export const actions = {
       routeBusy: null,
       routeError: r.ok ? null : (r.error ?? 'No route found'),
     })
+    syncFollow(r.ok && plan.firstLeg !== null ? followPieces(r, plan.marks, plan.firstLeg) : null)
   },
   clearRoute() {
     set({ route: null, routeInfo: null })
+    syncFollow(null)
   },
   toggle(key: 'arrows' | 'colors' | 'showLaylines') {
     set((s) => ({ [key]: !s[key] }) as Partial<UiState>)
@@ -628,55 +656,55 @@ function setForecast(f: Forecast): void {
 let lastRouteAt = 0
 let lastRouteLeg = -1
 
-/** Where a route of each kind starts, when and through which marks; or why it can't. */
-function routePlan(mode: RouteMode, markId: string | null, viewT: number): { start: LatLon; t0: number; marks: Mark[]; label: string; from: string } | string {
+/**
+ * Where a route of each kind starts, when and through which marks; or why it
+ * can't. `firstLeg` is the leg of the course the route starts on, so the own
+ * boat can sail it; null when it isn't part of the course (a route to a mark
+ * the boat isn't racing to next).
+ */
+function routePlan(mode: RouteMode, markId: string | null, viewT: number): { start: LatLon; t0: number; marks: Mark[]; label: string; from: string; firstLeg: number | null } | string {
   const seq = world.sequence
   const own = world.own
+  const leg = own.phase === 'racing' ? own.leg : 0
   if (mode === 'mark') {
     // The list shows the first mark of the course until one is picked.
     const m = world.marks.find((x) => x.id === (markId ?? seq[0]?.id ?? world.marks[0]?.id))
     if (!m) return 'Choose the mark to route to.'
-    return { start: own.pos, t0: world.t, marks: [m], label: `Route to ${m.name}`, from: 'your boat, now' }
+    return { start: own.pos, t0: world.t, marks: [m], label: `Route to ${m.name}`, from: 'your boat, now', firstLeg: seq[leg]?.id === m.id ? leg : null }
   }
   if (!seq.length) return 'Add marks to the course first (Course tab).'
   if (mode === 'here') {
-    const left = own.phase === 'racing' ? seq.slice(own.leg) : seq
+    const left = seq.slice(leg)
     if (!left.length) return 'No marks left to sail: the race is over.'
-    return { start: own.pos, t0: world.t, marks: left, label: 'Route from here to the finish', from: 'your boat, now' }
+    return { start: own.pos, t0: world.t, marks: left, label: 'Route from here to the finish', from: 'your boat, now', firstLeg: leg }
   }
   // Whole course: from the line at the gun. Before a sequence starts, the gun
   // is the time on the time bar, so a later start can be planned by dragging it.
   const t0 = world.gunT ?? viewT
   const ln = world.line
-  if (!ln) return { start: own.pos, t0, marks: seq, label: 'Route for the whole course', from: 'your boat (no start line set)' }
+  if (!ln) return { start: own.pos, t0, marks: seq, label: 'Route for the whole course', from: 'your boat (no start line set)', firstLeg: 0 }
   const mid = pointOnLine(ln, 0.5)
   const twd = forecastWind(world.forecast, mid, t0)?.twd ?? own.twd
   const bias = lineBias(ln, twd)
   // A boat length or two in from the favoured end, where a good start would be.
   const f = Math.abs(bias) < 2 ? 0.5 : bias > 0 ? 0.12 : 0.88
   const end = Math.abs(bias) < 2 ? 'the middle of the line (it is square)' : bias > 0 ? 'the pin end (favoured)' : 'the committee end (favoured)'
-  return { start: pointOnLine(ln, f), t0, marks: seq, label: 'Route for the whole course', from: end }
+  return { start: pointOnLine(ln, f), t0, marks: seq, label: 'Route for the whole course', from: end, firstLeg: 0 }
 }
 
 /** When the route reaches each mark: the closest route point to it, in order. */
 function arrivals(r: RouteResult, marks: Mark[]): RouteInfo['arrivals'] {
-  let from = 0
-  return marks.map((m) => {
-    let best = -1
-    let bestD = Infinity
-    for (let i = from; i < r.legs.length; i++) {
-      const d = distance(r.legs[i]!.position, m)
-      if (d < bestD) {
-        bestD = d
-        best = i
-      }
-      // Once well past a close approach, this mark is done.
-      if (bestD < 0.05 && d > bestD + 0.3) break
-    }
-    if (best < 0 || bestD > 0.25) return { name: m.name, t: null }
-    from = best + 1
-    return { name: m.name, t: r.legs[best]!.t }
-  })
+  const idx = markIndices(r, marks)
+  return marks.map((m, i) => ({ name: m.name, t: idx[i]! >= 0 ? r.legs[idx[i]!]!.t : null }))
+}
+
+/** The calculated route, cut up by leg for the own boat to sail. */
+let routeFollow: FollowRoute | null = null
+
+/** Hand the route to the simulation, or take it back, as the switch says. */
+function syncFollow(f: FollowRoute | null): void {
+  routeFollow = f
+  world.setFollow(get().followRoute ? f : null)
 }
 
 /** During a race, keep a "from here" route fresh: every 2 minutes and at each mark. */
@@ -690,6 +718,7 @@ function refreshLiveRoute(): void {
 
 function courseChanged(): void {
   set({ route: null, routeInfo: null })
+  syncFollow(null)
   refreshPlan()
   bump()
 }

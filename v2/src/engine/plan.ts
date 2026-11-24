@@ -6,7 +6,7 @@
 import { angdiff, courseFor, twaFrom } from '@/lib/angles'
 import { bearing, destination, distance } from '@/lib/geo'
 import { RoutingClient, defaultConstraints, defaultScalings } from '@/lib/routing'
-import type { LatLon, RouteResult } from '@/lib/types'
+import type { LatLon, RouteRequest, RouteResult } from '@/lib/types'
 import type { BoatModel } from './boats'
 import { forecastWind, type Forecast } from './forecast'
 import type { LegKind } from './types'
@@ -99,20 +99,21 @@ export function planLegs(o: { forecast: Forecast; boat: BoatModel; start: LatLon
 
 let client: RoutingClient | null = null
 
+/** What the app asks the router for: the fastest way from `start` at `t0` round the marks. */
+export function routeRequest(o: { start: LatLon; marks: LatLon[]; t0: number }): RouteRequest {
+  return {
+    start: o.start,
+    startTime: o.t0,
+    marks: o.marks,
+    constraints: defaultConstraints(),
+    scalings: defaultScalings(),
+    resolution: 'balanced',
+    computeSensitivity: false,
+  }
+}
+
 /** The optimal route through the marks, from the isochrone router in a worker. */
 export function routeCourse(o: { forecast: Forecast; boat: BoatModel; start: LatLon; marks: LatLon[]; t0: number; onProgress?: (f: number) => void }): Promise<RouteResult> {
   client ??= new RoutingClient()
-  return client.route(
-    {
-      start: o.start,
-      startTime: o.t0,
-      marks: o.marks,
-      constraints: defaultConstraints(),
-      scalings: defaultScalings(),
-      resolution: 'balanced',
-      computeSensitivity: false,
-    },
-    { cube: o.forecast.cube, polar: o.boat.polar },
-    o.onProgress,
-  )
+  return client.route(routeRequest(o), { cube: o.forecast.cube, polar: o.boat.polar }, o.onProgress)
 }

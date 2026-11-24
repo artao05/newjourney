@@ -9,9 +9,11 @@
  */
 import { angdiff, courseFor, twaFrom, wrap360 } from '@/lib/angles'
 import { bearing, crossTrack, destination, distance } from '@/lib/geo'
+import type { Targets } from '@/lib/types'
 import { trueToApparent } from '@/lib/wind'
 import { boatModel } from './boats'
 import { courseMarks, distToLine, fetches, gateAim, legKind, pickGateMark, pointOnLine, segmentsCross, startLine, type Line } from './course'
+import { aheadOnRoute, nearestStretch, zigzagLeft, type FollowRoute } from './follow'
 import { localWind, type Forecast } from './forecast'
 import type { Course, LapseKind, LatLon, LegKind, Mark, RaceEvent, Sample, SimBoat, Skill } from './types'
 
@@ -104,6 +106,18 @@ const FLEET: Array<{ name: string; color: string; pro: boolean; spot: number; v:
 
 const TRACK_EVERY_MS = 4_000
 const ROUND_NM = 0.028
+/** How far ahead on the route the helm looks. */
+const FOLLOW_AHEAD_NM = 0.05
+/**
+ * Half the width of the lane the boat tacks in on a zigzag stretch of the
+ * route: a fifth of the zigzag still to go, so few tacks on a long beat and
+ * the lane closing in on the end of it, between these bounds.
+ */
+const FOLLOW_LANE_NM = [0.04, 0.16] as const
+/** This close to the mark, the usual rounding takes over from the route. */
+const FOLLOW_HANDOFF_NM = 0.08
+/** Further than this from the route (a bad start, a detour by hand), the boat sails its own race until it is back. */
+const FOLLOW_LOST_NM = 0.5
 
 export interface WorldInit {
   forecast: Forecast
@@ -131,6 +145,7 @@ function makeBoat(o: { id: string; name: string; mmsi: number; color: string; ow
     leg: 0,
     gatePick: null,
     gateCrossed: false,
+    routeAt: null,
     manoeuvre: null,
     lastTackT: -1e12,
     meanTwd: NaN,
@@ -163,6 +178,8 @@ export class World {
   seqLenS = 300
   /** Whether the own boat makes the learner's mistakes. */
   mistakes = true
+  /** The planned route, when the own boat is to sail it (no mistakes while it does). */
+  follow: FollowRoute | null = null
   private lastSampleT = -1e12
   private lastTrackT = new Map<string, number>()
   private prevLineNm = new Map<string, number>()
@@ -211,6 +228,12 @@ export class World {
     for (const b of this.boats) b.boatId = boatId
   }
 
+  /** Have the own boat sail this route on auto helm, or (null) sail its own race. */
+  setFollow(f: FollowRoute | null): void {
+    this.follow = f
+    this.own.routeAt = null
+  }
+
   setMistakes(on: boolean): void {
     this.mistakes = on
     this.own.skill = on ? learnerSkill() : { ...proSkill(0.55), label: 'Clean sailing' }
@@ -252,6 +275,7 @@ export class World {
     for (const b of this.boats) {
       b.phase = 'prestart'
       b.leg = 0
+      b.routeAt = null
       b.committed = false
       b.crossedLineT = null
       b.finishedT = null
@@ -280,6 +304,7 @@ export class World {
     b.sailedNm = 0
     b.track = []
     b.legKind = null
+    b.routeAt = null
     this.boats = [b]
   }
 
@@ -483,7 +508,7 @@ export class World {
       b.intent = 'No start line set'
       return
     }
-    const spot = pointOnLine(line, b.skill.lineSpot)
+    const spot = this.lineSpot(b)
     const setup = this.setupPoint(b)
     const stbdHdg = courseFor(b.twd, tg.upTwa)
     const approach = tg.upBsp * 0.9
@@ -522,13 +547,88 @@ export class World {
       ttg <= 0 ? 'Accelerating off the line' : b.throttle < 0.6 ? `Burning time, ${Math.round(ttg)} s to go` : `Final approach, ${Math.round(ttg)} s to go`
   }
 
+  /** Whether this boat makes the learner's mistakes: the own boat, unless it is sailing the route. */
+  private learner(b: SimBoat): boolean {
+    return b.own && this.mistakes && !this.follow
+  }
+
+  /** Where on the line a boat aims to start: the route's start, for the own boat following one. */
+  private lineSpot(b: SimBoat): LatLon {
+    const line = this.line!
+    const f = this.follow
+    if (b.own && f && f.legs.has(0) && distToLine(f.start, line, this.sequence[0] ?? null) < 0.05) return f.start
+    return pointOnLine(line, b.skill.lineSpot)
+  }
+
+  /**
+   * Sail the planned route. The helm steers for a point a little further along
+   * it, tacking or gybing where the route does. On the router's zigzag
+   * stand-ins (a beat or run drawn as one straight line made good at VMG) it
+   * sails the best angle and tacks or gybes at the edges of a narrow lane
+   * around the line. False when there is no route for this leg, the boat is
+   * far off it, or the mark is close: then the usual helm takes over.
+   */
+  private followRoute(b: SimBoat, stop: Mark, tg: Targets): boolean {
+    const pts = this.follow?.legs.get(b.leg)
+    if (!pts || pts.length < 2 || distance(b.pos, stop) < FOLLOW_HANDOFF_NM) return false
+    const prev = b.routeAt?.leg === b.leg ? b.routeAt : null
+    const at = nearestStretch(pts, prev?.seg ?? 0, b.pos)
+    // Off the route: sail normally until well back on it (no flicking between the two at the edge).
+    const lost = at.d > (prev?.lost ? FOLLOW_LOST_NM / 2 : FOLLOW_LOST_NM)
+    b.routeAt = { leg: b.leg, seg: at.seg, lost }
+    // Lost, or past the end of this leg's route short of the mark: the usual helm gets it there.
+    if (lost || (at.seg === pts.length - 2 && at.f >= 0.999)) return false
+    b.throttle = 1
+    const a = pts[at.seg]!
+    const c = pts[at.seg + 1]!
+    const segBrg = bearing(a, c)
+    const segTwa = twaFrom(segBrg, b.twd)
+    const side: 1 | -1 = b.twa >= 0 ? 1 : -1
+    const upwind = Math.abs(segTwa) < 90
+
+    // A zigzag stand-in the boat can't point along in the wind it has now (a
+    // shift can make one sailable straight): the best angle on this tack, over
+    // to the other at the lane's edge if that one heads back towards the line.
+    const angle = upwind ? tg.upTwa : tg.downTwa
+    if (a.beat && (upwind ? Math.abs(segTwa) < angle + 2 : Math.abs(segTwa) > angle - 2)) {
+      const hdgNow = courseFor(b.twd, side * angle)
+      const hdgOther = courseFor(b.twd, -side * angle)
+      const xt = crossTrack(b.pos, a, c)
+      const away = (hdg: number) => Math.sign(xt) === Math.sign(angdiff(hdg, segBrg))
+      const lane = Math.min(FOLLOW_LANE_NM[1], Math.max(FOLLOW_LANE_NM[0], zigzagLeft(pts, at.seg) * 0.2))
+      if (Math.abs(xt) > lane && away(hdgNow) && !away(hdgOther) && this.t - b.lastTackT > 10_000) {
+        this.startManoeuvre(b, upwind ? 'tack' : 'gybe', hdgOther, upwind ? 'Tacked to stay on the route' : 'Gybed to stay on the route')
+        return true
+      }
+      b.hdg = hdgNow
+      b.intent = `Following the route: ${upwind ? 'beating' : 'running'} on ${side > 0 ? 'starboard' : 'port'}`
+      return true
+    }
+
+    // A heading the boat can sail: steer for a point ahead on the line, on the
+    // tack the route is on here (which tacks or gybes where the route does).
+    const routeSide = Math.sign(segTwa) || side
+    const lo = tg.upTwa
+    const hi = Math.max(Math.abs(segTwa), tg.downTwa) + 3
+    // Never back along the route: a point ahead that is behind the boat (it
+    // overshot) gives way to the stretch's own direction.
+    const toAhead = bearing(b.pos, aheadOnRoute(pts, at.seg, at.f, FOLLOW_AHEAD_NM))
+    let want = twaFrom(Math.abs(angdiff(toAhead, segBrg)) > 75 ? segBrg : toAhead, b.twd)
+    if (Math.sign(want) !== routeSide) want = Math.abs(want) < 90 ? lo : hi
+    want = routeSide * Math.min(hi, Math.max(lo, Math.abs(want)))
+    this.setHeading(b, courseFor(b.twd, want), Math.abs(want) < 90 ? 'Tacked where the route tacks' : 'Gybed where the route gybes')
+    const kind = Math.abs(want) < tg.upTwa + 4 ? 'beating' : Math.abs(want) > tg.downTwa - 6 ? 'running' : 'reaching'
+    b.intent = `Following the route: ${kind} on ${routeSide > 0 ? 'starboard' : 'port'}`
+    return true
+  }
+
   /** Where a boat waits before its run at the line: on the starboard layline to its spot. */
   setupPoint(b: SimBoat): LatLon {
     const line = this.line
     if (!line) return b.pos
     const tg = boatModel(b.boatId).lattice.targetsAt(b.tws || 10)
-    const spot = pointOnLine(line, b.skill.lineSpot)
-    const nm = b.own && this.mistakes ? 0.2 : 0.14
+    const spot = this.lineSpot(b)
+    const nm = this.learner(b) ? 0.2 : 0.14
     return destination(spot, wrap360(courseFor(b.twd, tg.upTwa) + 180), nm)
   }
 
@@ -599,11 +699,12 @@ export class World {
 
     const from = b.leg === 0 ? (this.line ? pointOnLine(this.line, 0.5) : b.pos) : seq[b.leg - 1]!
     b.legKind ??= legKind(from, mark, b.twd, lattice, b.tws)
+    if (b.own && this.follow && this.followRoute(b, stop, tg)) return
     const brg = bearing(b.pos, mark)
     const twaMark = twaFrom(brg, b.twd)
     const side: 1 | -1 = b.twa >= 0 ? 1 : -1
     b.throttle = 1
-    const own = b.own && this.mistakes
+    const own = this.learner(b)
     const sinceTack = (this.t - b.lastTackT) / 1000
 
     const over = own && lapseActive(b, 'overstand', this.t) ? 9 : b.skill.overstandDeg

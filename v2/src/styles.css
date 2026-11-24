@@ -1859,3 +1859,30 @@ table.ais {
 .gate-closed {
   color: var(--bad);
 }
+
+/* The follow-the-route switch */
+.follow-route {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.follow-route input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+.follow-route span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.follow-route small {
+  color: var(--ink-dim);
+  line-height: 1.35;
+}
