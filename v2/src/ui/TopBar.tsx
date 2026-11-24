@@ -1,5 +1,6 @@
 import { actions, BOATS, useUi, world, type Source, type Tab } from '../state'
-import { mmss } from './format'
+import { clockS, fmtLat, fmtLon, mmss } from './format'
+import { Icon } from './Icons'
 
 const TABS: Array<{ id: Tab; label: string; hint: string }> = [
   { id: 'plan', label: 'Plan', hint: 'Forecast, wind overlay and the optimal route' },
@@ -46,7 +47,7 @@ export function TopBar() {
         </button>
       ) : null}
 
-      <div className="start-pick" title="Start sequence">
+      <div className={`start-pick ${inSeq && ttg! > 0 ? 'running' : ''}`} title="Start sequence">
         {inSeq && ttg! > 0 ? (
           <>
             <span className="countdown">{mmss(ttg)}</span>
@@ -81,12 +82,25 @@ export function TopBar() {
         aria-pressed={raceView}
         aria-label="Race view"
       >
-        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
-          <path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <Icon name="expand" />
       </button>
 
       <div className="topbar-right">
+        <div className="status" aria-label="Own boat position and clock">
+          <div className="status-cell" title="Your boat's position">
+            <span className="status-k">Pos</span>
+            <span className="status-v">
+              {fmtLat(world.own.pos.lat)}
+              <br />
+              {fmtLon(world.own.pos.lon)}
+            </span>
+          </div>
+          <div className="status-cell" title={source === 'sim' ? 'Simulation clock' : 'Clock'}>
+            <span className="status-k">{source === 'sim' ? 'Sim time' : 'Time'}</span>
+            <span className="status-v big">{clockS(world.t)}</span>
+          </div>
+        </div>
+        <span className={`lamp ${source}`} title={source === 'sim' ? 'Simulated data' : source === 'n2k' ? 'NMEA 2000 via Signal K' : 'Phone GPS'} />
         <select aria-label="Boat" value={world.boatId} onChange={(e) => actions.setBoat(e.target.value)}>
           {BOATS.map((b) => (
             <option key={b.id} value={b.id}>
@@ -99,11 +113,16 @@ export function TopBar() {
           <option value="n2k">NMEA 2000 (Signal K)</option>
           <option value="gps">Phone GPS</option>
         </select>
-        <button className="icon-btn" onClick={() => actions.setTheme(theme === 'night' ? 'day' : 'night')} title={theme === 'night' ? 'Day mode (sunlight)' : 'Night mode'}>
-          {theme === 'night' ? '☀' : '☾'}
+        <button
+          className="icon-btn"
+          onClick={() => actions.setTheme(theme === 'night' ? 'day' : 'night')}
+          title={theme === 'night' ? 'Day mode (sunlight)' : 'Night mode'}
+          aria-label={theme === 'night' ? 'Day mode' : 'Night mode'}
+        >
+          <Icon name={theme === 'night' ? 'sun' : 'moon'} />
         </button>
-        <button className="icon-btn" onClick={() => actions.setHelp(true)} title="Sailing terms explained">
-          ?
+        <button className="icon-btn" onClick={() => actions.setHelp(true)} title="Sailing terms explained" aria-label="Help">
+          <Icon name="help" />
         </button>
       </div>
     </header>

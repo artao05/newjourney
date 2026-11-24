@@ -5,6 +5,7 @@ import { destination } from '@/lib/geo'
 import { boatModel } from '../engine/boats'
 import { laylinesTo, lineBias } from '../engine/course'
 import { actions, useUi, world, HOME } from '../state'
+import { fmtLat, fmtLon } from '../ui/format'
 import { boatImage } from './icons'
 import { arrowImage, drawWindField, windArrows } from './windLayer'
 
@@ -38,6 +39,7 @@ function style(theme: 'night' | 'day'): maplibregl.StyleSpecification {
 
 export function MapView() {
   const el = useRef<HTMLDivElement>(null)
+  const cursor = useRef<HTMLSpanElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const windCanvas = useRef<HTMLCanvasElement>(document.createElement('canvas'))
   const windKey = useRef('')
@@ -84,6 +86,11 @@ export function MapView() {
     })
     map.on('mousemove', (e) => {
       if (dragging) actions.moveMark(dragging, { lat: e.lngLat.lat, lon: e.lngLat.lng })
+      // The chart status strip's cursor position, written straight to the DOM (no re-render per mouse move).
+      if (cursor.current) cursor.current.textContent = `${fmtLat(e.lngLat.lat)}  ${fmtLon(e.lngLat.lng)}`
+    })
+    map.on('mouseout', () => {
+      if (cursor.current) cursor.current.textContent = '–'
     })
     map.on('mouseup', () => {
       if (dragging) map.getCanvas().style.cursor = ''
@@ -134,7 +141,18 @@ export function MapView() {
     if (map) map.getCanvas().style.cursor = clickMode ? 'crosshair' : ''
   }, [clickMode])
 
-  return <div ref={el} className="map" data-click-mode={clickMode ?? ''} />
+  return (
+    <>
+      <div ref={el} className="map" data-click-mode={clickMode ?? ''} />
+      <div className="chart-status" aria-label="Chart status">
+        <span className="cs-label">Cursor</span>
+        <span className="cs-pos" ref={cursor}>
+          –
+        </span>
+        <span className="cs-nfn">Not for navigation</span>
+      </div>
+    </>
+  )
 }
 
 const SOURCES = ['wind-edge', 'wind-arrows', 'gates', 'tracks', 'highlight', 'course', 'laylines', 'route', 'startline', 'marks', 'boats', 'wind-tip'] as const

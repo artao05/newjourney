@@ -6,6 +6,7 @@ import { Customize } from './ui/Customize'
 import { Help } from './ui/Help'
 import { ForecastEdge, Instruments, Legend, RaceHud, Timeline, Tips } from './ui/Overlays'
 import { CoursePanel, PlanPanel, RacePanel, SimPanel } from './ui/Panels'
+import { Icon } from './ui/Icons'
 import { TopBar } from './ui/TopBar'
 
 const TITLES = { plan: 'Plan', course: 'Course', race: 'Race', sim: 'Simulate', coach: 'Coach' } as const
@@ -55,12 +56,11 @@ export function App() {
             {clickMode === 'addMark' ? 'Click the map to drop a mark' : 'Click the map to place your boat'} · <button onClick={() => useUi.setState({ clickMode: null })}>Done</button>
           </div>
         ) : null}
-        <p className="nfn">Not for navigation</p>
       </main>
       <aside className={`panel ${open ? 'open' : 'closed'}`} aria-label={TITLES[tab]} hidden={raceView}>
         <button className="panel-handle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           <span>{TITLES[tab]}</span>
-          <i>{open ? '▾' : '▴'}</i>
+          <Icon name={open ? 'chevron-down' : 'chevron-up'} />
         </button>
         {tab === 'plan' ? <PlanPanel /> : null}
         {tab === 'course' ? <CoursePanel /> : null}

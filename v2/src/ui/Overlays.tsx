@@ -7,6 +7,7 @@ import { distToLine, lineBias, nearestOnLine, toLayline } from '../engine/course
 import { WIND_STOPS, windCss, windWords } from '../engine/windColor'
 import { actions, useUi, world, type FieldId } from '../state'
 import { clock, deg, kn, mmss, nm, sdeg } from './format'
+import { Icon } from './Icons'
 
 // ------------------------------------------------------------ instruments
 
@@ -26,13 +27,15 @@ function Tile({ label, value, unit, sub, pgn, help, tone, big }: TileProps) {
     <div className={`tile ${tone ?? ''} ${big ? 'big' : ''}`} title={help}>
       <div className="tile-head">
         <span>{label}</span>
-        {pgn ? <span className="pgn">{pgn}</span> : null}
+        {unit ? <span className="tile-unit">{unit}</span> : null}
       </div>
-      <div className="tile-val">
-        {value}
-        {unit ? <small>{unit}</small> : null}
-      </div>
-      {sub ? <div className="tile-sub">{sub}</div> : null}
+      <div className="tile-val">{value}</div>
+      {sub || pgn ? (
+        <div className="tile-foot">
+          <span className="tile-sub">{sub}</span>
+          {pgn ? <span className="pgn">{pgn}</span> : null}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -99,12 +102,7 @@ export function Instruments() {
         {source === 'sim' ? 'Simulated NMEA 2000' : source === 'n2k' ? 'NMEA 2000 via Signal K' : 'Phone GPS'}
         {b.manoeuvre ? <span className="chip warn">{b.manoeuvre.kind === 'tack' ? 'Tacking' : 'Gybing'}</span> : null}
         <button className="inst-edit" onClick={() => actions.setCustomize(true)} title="Choose which data boxes show" aria-label="Choose data boxes">
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-            <path d="M2 4h7M12 4h2M2 8h2M7 8h7M2 12h9M14 12h0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            <circle cx="10.5" cy="4" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-            <circle cx="5.5" cy="8" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-            <circle cx="12.5" cy="12" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-          </svg>
+          <Icon name="sliders" size={14} />
         </button>
       </div>
       {shown.length ? (
@@ -339,7 +337,7 @@ export function Timeline() {
       {source === 'sim' ? (
         <div className="sim-ctl">
           <button className="btn icon" onClick={actions.toggleRun} title={running ? 'Pause the simulation' : 'Run the simulation'} aria-label={running ? 'Pause' : 'Play'}>
-            {running ? '❚❚' : '▶'}
+            <Icon name={running ? 'pause' : 'play'} />
           </button>
           <select aria-label="Simulation speed" value={speed} onChange={(e) => actions.setSpeed(Number(e.target.value))}>
             {[1, 2, 4, 8, 16, 32].map((x) => (

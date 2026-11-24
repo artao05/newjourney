@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { actions, ALL_FIELDS, FIELD_PRESETS, useUi, type FieldId, type FieldMode } from '../state'
+import { Icon } from './Icons'
 
 const FIELD_INFO: Record<FieldId, { name: string; hint: string }> = {
   bsp: { name: 'Boat speed', hint: 'Speed through the water, against target' },
@@ -43,7 +44,7 @@ export function Customize() {
         <div className="modal-head">
           <h2>Data on screen</h2>
           <button className="icon-btn" onClick={close} aria-label="Close">
-            ✕
+            <Icon name="close" />
           </button>
         </div>
 
@@ -76,10 +77,10 @@ export function Customize() {
               </label>
               <span className="cust-order">
                 <button className="btn xs ghost" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${FIELD_INFO[f].name} up`}>
-                  ↑
+                  <Icon name="up" size={14} />
                 </button>
                 <button className="btn xs ghost" disabled={i === chosen.length - 1} onClick={() => move(i, 1)} aria-label={`Move ${FIELD_INFO[f].name} down`}>
-                  ↓
+                  <Icon name="down" size={14} />
                 </button>
               </span>
             </li>

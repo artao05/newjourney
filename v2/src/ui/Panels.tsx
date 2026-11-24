@@ -6,6 +6,7 @@ import { biasGainM, LAYOUTS, lineBias, type LayoutId } from '../engine/course'
 import type { MarkRole, SimBoat } from '../engine/types'
 import { actions, useUi, world, type RouteMode } from '../state'
 import { clock, deg, dur, fmtLat, fmtLon, kn, mmss, nm } from './format'
+import { Icon } from './Icons'
 
 function Section({ title, children, hint }: { title: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -272,7 +273,7 @@ export function CoursePanel() {
       </Section>
 
       <Section title="Gates" hint="A gate is two marks: boats round either one. Open: you sail between the marks, then round either. Closed: you may not sail between them, so you round the outside of one.">
-        {gates.length === 0 ? <p className="muted">No gates. Make one from a course mark below (⊟ in the list), or lay W2, W4 or the trapezoid.</p> : null}
+        {gates.length === 0 ? <p className="muted">No gates. Make one from a course mark below (the Gate button in the list), or lay W2, W4 or the trapezoid.</p> : null}
         <ul className="gates">
           {gates.map((g) => (
             <li key={g.id}>
@@ -311,11 +312,11 @@ export function CoursePanel() {
               ) : null}
               {m.role === 'mark' && seq.includes(m.id) && !inGate.has(m.id) ? (
                 <button className="btn ghost xs" onClick={() => actions.makeGate(m.id)} title="Make this mark a gate: a second mark goes alongside it">
-                  ⊟ gate
+                  <Icon name="gate" size={14} /> Gate
                 </button>
               ) : null}
-              <button className="btn ghost xs danger" onClick={() => actions.deleteMark(m.id)} title="Delete">
-                ✕
+              <button className="btn ghost xs danger" onClick={() => actions.deleteMark(m.id)} title="Delete" aria-label="Delete">
+                <Icon name="close" size={14} />
               </button>
             </li>
           ))}
@@ -338,13 +339,13 @@ export function CoursePanel() {
                 </span>
                 <span className="muted">{m && prev ? `${nm(distance(prev, m))} ${deg(bearing(prev, m))}` : ''}</span>
                 <button className="btn ghost xs" onClick={() => actions.moveInSequence(i, -1)} aria-label="Move up">
-                  ↑
+                  <Icon name="up" size={14} />
                 </button>
                 <button className="btn ghost xs" onClick={() => actions.moveInSequence(i, 1)} aria-label="Move down">
-                  ↓
+                  <Icon name="down" size={14} />
                 </button>
                 <button className="btn ghost xs danger" onClick={() => actions.removeFromSequence(i)} aria-label="Remove from course">
-                  ✕
+                  <Icon name="close" size={14} />
                 </button>
               </li>
             )
@@ -575,20 +576,20 @@ export function SimPanel() {
 
       <Section title="Helm" hint="Take the helm yourself. Arrow keys steer, T or space tacks/gybes, A gives it back to the autopilot.">
         <div className="helm">
-          <button className="btn" onClick={() => actions.helm(-10)}>
-            ⟲ 10°
+          <button className="btn" onClick={() => actions.helm(-10)} title="Steer 10° to port" aria-label="Steer 10° to port">
+            <Icon name="rot-left" size={14} /> 10°
           </button>
-          <button className="btn" onClick={() => actions.helm(-2)}>
-            ‹ 2°
+          <button className="btn" onClick={() => actions.helm(-2)} title="Steer 2° to port" aria-label="Steer 2° to port">
+            <Icon name="left" size={14} /> 2°
           </button>
           <button className="btn go" onClick={actions.tack}>
             {Math.abs(own.twa) < 90 ? 'Tack' : 'Gybe'}
           </button>
-          <button className="btn" onClick={() => actions.helm(2)}>
-            2° ›
+          <button className="btn" onClick={() => actions.helm(2)} title="Steer 2° to starboard" aria-label="Steer 2° to starboard">
+            2° <Icon name="right" size={14} />
           </button>
-          <button className="btn" onClick={() => actions.helm(10)}>
-            10° ⟳
+          <button className="btn" onClick={() => actions.helm(10)} title="Steer 10° to starboard" aria-label="Steer 10° to starboard">
+            10° <Icon name="rot-right" size={14} />
           </button>
         </div>
         <button className={`btn ${own.helm === 'auto' ? 'on' : ''}`} onClick={actions.autopilot}>

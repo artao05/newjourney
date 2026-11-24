@@ -1,4 +1,5 @@
 import { actions, useUi } from '../state'
+import { Icon } from './Icons'
 
 const TERMS: Array<[string, string]> = [
   ['TWS (true wind speed)', 'How hard the wind blows, as if you were standing still. Colours on the map show it: white and green light, yellow and orange fresh, red strong.'],
@@ -27,7 +28,7 @@ export function Help() {
         <div className="modal-head">
           <h2>New to racing? The words on the screen</h2>
           <button className="icon-btn" onClick={() => actions.setHelp(false)} aria-label="Close">
-            ✕
+            <Icon name="close" />
           </button>
         </div>
         <dl className="terms">
